@@ -183,17 +183,6 @@ func AddColdStartTag(tags []string, coldStart bool, proactiveInit bool) []string
 	return tags
 }
 
-// AddColdStartTagToMap adds the cold_start and proactive_initialization to existing tagMap
-func AddColdStartTagToMap(tagMap map[string]string, coldStart bool, proactiveInit bool) map[string]string {
-	if proactiveInit {
-		tagMap["cold_start"] = "false"
-		tagMap["proactive_initialization"] = "true"
-	} else {
-		tagMap["cold_start"] = fmt.Sprintf("%v", coldStart)
-	}
-	return tagMap
-}
-
 // AddInitTypeTag appends the init_type tag to existing tags
 func AddInitTypeTag(tags []string) []string {
 	initType := os.Getenv(InitType)

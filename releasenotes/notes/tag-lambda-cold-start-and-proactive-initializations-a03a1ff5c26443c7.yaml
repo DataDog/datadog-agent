@@ -1,3 +1,3 @@
 features:
   - |
-    Tag lambda cold starts and proactive initializations on traces
+    Tag lambda cold starts and proactive initializations on root aws.lambda span
