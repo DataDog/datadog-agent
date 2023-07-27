@@ -6,58 +6,11 @@
 package rules
 
 import (
+	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
-
-type dummyDirProvider struct {
-	dummyLoadPoliciesFunc func() ([]*Policy, *multierror.Error)
-}
-
-func (d dummyDirProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Policy, *multierror.Error) {
-	return d.dummyLoadPoliciesFunc()
-}
-
-func (dummyDirProvider) SetOnNewPoliciesReadyCb(f func()) {
-	return
-}
-
-func (dummyDirProvider) Start() {
-	return
-}
-
-func (dummyDirProvider) Close() error {
-	return nil
-}
-
-func (dummyDirProvider) Type() string {
-	return PolicyProviderTypeDir
-}
-
-type dummyRCProvider struct {
-	dummyLoadPoliciesFunc func() ([]*Policy, *multierror.Error)
-}
-
-func (d dummyRCProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Policy, *multierror.Error) {
-	return d.dummyLoadPoliciesFunc()
-}
-
-func (dummyRCProvider) SetOnNewPoliciesReadyCb(f func()) {
-	return
-}
-
-func (dummyRCProvider) Start() {
-	return
-}
-
-func (dummyRCProvider) Close() error {
-	return nil
-}
-
-func (dummyRCProvider) Type() string {
-	return PolicyProviderTypeRC
-}
 
 // go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestPolicyLoader_LoadPolicies"
 func TestPolicyLoader_LoadPolicies(t *testing.T) {
@@ -68,12 +21,11 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 		opts PolicyLoaderOpts
 	}
 	tests := []struct {
-		name                   string
-		fields                 fields
-		args                   args
-		want                   []*Policy
-		wantErrors             *multierror.Error
-		wantNumDefaultPolicies int
+		name    string
+		fields  fields
+		args    args
+		want    func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool
+		wantErr func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool
 	}{
 		{
 			name: "RC Default replaces Local Default, and RC Custom overrides Local Custom",
@@ -143,54 +95,64 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: []*Policy{
-				{
-					Name:   DefaultPolicyName,
-					Source: PolicySourceRC,
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/rc-default/foo\"",
-						},
-						{
-							ID:         "bravo",
-							Expression: "open.file.path == \"/etc/rc-default/bravo\"",
-						},
-					},
-				},
-				{
-					Name:   "myRC.policy",
-					Source: PolicySourceRC,
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/rc-custom/foo\"",
-						},
-						{
-							ID:         "alpha",
-							Expression: "open.file.path == \"/etc/rc-custom/alpha\"",
+			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+				expectedLoadedPolicies := []*Policy{
+					{
+						Name:   DefaultPolicyName,
+						Source: PolicySourceRC,
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/rc-default/foo\"",
+							},
+							{
+								ID:         "bravo",
+								Expression: "open.file.path == \"/etc/rc-default/bravo\"",
+							},
 						},
 					},
-				},
-				{
-					Name:    "myLocal.policy",
-					Source:  PolicySourceDir,
-					Version: "",
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/local-custom/foo\"",
-						},
-						{
-							ID:         "bar",
-							Expression: "open.file.path == \"/etc/local-custom/bar\"",
+					{
+						Name:   "myRC.policy",
+						Source: PolicySourceRC,
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/rc-custom/foo\"",
+							},
+							{
+								ID:         "alpha",
+								Expression: "open.file.path == \"/etc/rc-custom/alpha\"",
+							},
 						},
 					},
-					Macros: nil,
-				},
+					{
+						Name:    "myLocal.policy",
+						Source:  PolicySourceDir,
+						Version: "",
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/local-custom/foo\"",
+							},
+							{
+								ID:         "bar",
+								Expression: "open.file.path == \"/etc/local-custom/bar\"",
+							},
+						},
+						Macros: nil,
+					},
+				}
+
+				defaultPolicyCount, lastSeenDefaultPolicyIdx := numAndLastIdxOfDefaultPolicies(expectedLoadedPolicies)
+
+				assert.Equalf(t, 1, defaultPolicyCount, "There are more than 1 default policies")
+				assert.Equalf(t, PolicySourceRC, got[lastSeenDefaultPolicyIdx].Source, "The default policy is not from RC")
+
+				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErrors:             nil,
-			wantNumDefaultPolicies: 1,
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.Nil(t, err, "Expected no errors but got %+v", err)
+			},
 		},
 		{
 			name: "No default policy",
@@ -234,38 +196,46 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: []*Policy{
-				{
-					Name:   "myRC.policy",
-					Source: PolicySourceRC,
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/rc-custom/foo\"",
-						},
-						{
-							ID:         "bar3",
-							Expression: "open.file.path == \"/etc/rc-custom/bar\"",
-						},
-					},
-				},
-				{
-					Name:   "myLocal.policy",
-					Source: PolicySourceDir,
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/local-custom/foo\"",
-						},
-						{
-							ID:         "bar",
-							Expression: "open.file.path == \"/etc/local-custom/bar\"",
+			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+				expectedLoadedPolicies := []*Policy{
+					{
+						Name:   "myRC.policy",
+						Source: PolicySourceRC,
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/rc-custom/foo\"",
+							},
+							{
+								ID:         "bar3",
+								Expression: "open.file.path == \"/etc/rc-custom/bar\"",
+							},
 						},
 					},
-				},
+					{
+						Name:   "myLocal.policy",
+						Source: PolicySourceDir,
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/local-custom/foo\"",
+							},
+							{
+								ID:         "bar",
+								Expression: "open.file.path == \"/etc/local-custom/bar\"",
+							},
+						},
+					},
+				}
+
+				defaultPolicyCount, _ := numAndLastIdxOfDefaultPolicies(expectedLoadedPolicies)
+
+				assert.Equalf(t, 0, defaultPolicyCount, "The count of default policies do not match")
+				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErrors:             nil,
-			wantNumDefaultPolicies: 0,
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.Nil(t, err, "Expected no errors but got %+v", err)
+			},
 		},
 		{
 			name: "Broken policy yaml file from RC → packaged policy",
@@ -301,28 +271,36 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: []*Policy{
-				{
-					Name:    "myLocal.policy",
-					Source:  PolicySourceDir,
-					Version: "",
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/local-custom/foo\"",
+			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+				expectedLoadedPolicies := []*Policy{
+					{
+						Name:    "myLocal.policy",
+						Source:  PolicySourceDir,
+						Version: "",
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/local-custom/foo\"",
+							},
+							{
+								ID:         "bar",
+								Expression: "open.file.path == \"/etc/local-custom/bar\"",
+							},
 						},
-						{
-							ID:         "bar",
-							Expression: "open.file.path == \"/etc/local-custom/bar\"",
-						},
+						Macros: nil,
 					},
-					Macros: nil,
-				},
+				}
+
+				defaultPolicyCount, _ := numAndLastIdxOfDefaultPolicies(expectedLoadedPolicies)
+
+				assert.Equalf(t, 0, defaultPolicyCount, "The count of default policies do not match")
+				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErrors: &multierror.Error{Errors: []error{
-				&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`yaml: unmarshal error`)},
-			}},
-			wantNumDefaultPolicies: 0,
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.Equal(t, err, &multierror.Error{Errors: []error{
+					&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`yaml: unmarshal error`)},
+				}}, "Expected no errors but got %+v", err)
+			},
 		},
 		{
 			name: "Empty RC policy yaml file → local policy",
@@ -358,28 +336,34 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: []*Policy{
-				{
-					Name:    "myLocal.policy",
-					Source:  PolicySourceDir,
-					Version: "",
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/local-custom/foo\"",
+			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+				expectedLoadedPolicies := []*Policy{
+					{
+						Name:    "myLocal.policy",
+						Source:  PolicySourceDir,
+						Version: "",
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/local-custom/foo\"",
+							},
+							{
+								ID:         "bar",
+								Expression: "open.file.path == \"/etc/local-custom/bar\"",
+							},
 						},
-						{
-							ID:         "bar",
-							Expression: "open.file.path == \"/etc/local-custom/bar\"",
-						},
+						Macros: nil,
 					},
-					Macros: nil,
-				},
+				}
+
+				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErrors: &multierror.Error{Errors: []error{
-				&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`EOF`)},
-			}},
-			wantNumDefaultPolicies: 0,
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.Equal(t, err, &multierror.Error{
+					Errors: []error{
+						&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`EOF`)},
+					}})
+			},
 		},
 		{
 			name: "Empty rules → packaged policy",
@@ -416,31 +400,36 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: []*Policy{
-				{
-					Name:   "myRC.policy",
-					Source: PolicySourceRC,
-					Rules:  nil, // TODO: Ensure this doesn't cause a problem with loading rules
-				},
-				{
-					Name:    "myLocal.policy",
-					Source:  PolicySourceDir,
-					Version: "",
-					Rules: []*RuleDefinition{
-						{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/local-custom/foo\"",
-						},
-						{
-							ID:         "bar",
-							Expression: "open.file.path == \"/etc/local-custom/bar\"",
-						},
+			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+				expectedLoadedPolicies := []*Policy{
+					{
+						Name:   "myRC.policy",
+						Source: PolicySourceRC,
+						Rules:  nil, // TODO: Ensure this doesn't cause a problem with loading rules
 					},
-					Macros: nil,
-				},
+					{
+						Name:    "myLocal.policy",
+						Source:  PolicySourceDir,
+						Version: "",
+						Rules: []*RuleDefinition{
+							{
+								ID:         "foo",
+								Expression: "open.file.path == \"/etc/local-custom/foo\"",
+							},
+							{
+								ID:         "bar",
+								Expression: "open.file.path == \"/etc/local-custom/bar\"",
+							},
+						},
+						Macros: nil,
+					},
+				}
+
+				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErrors:             nil,
-			wantNumDefaultPolicies: 0,
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.Nil(t, err, "Expected no errors but got %+v", err)
+			},
 		},
 	}
 
@@ -451,20 +440,71 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			}
 			loadedPolicies, errs := p.LoadPolicies(tt.args.opts)
 
-			var defaultPolicyCount int
-			var lastSeenDefaultPolicyIdx int
-			for idx, policy := range loadedPolicies {
-				if policy.Name == DefaultPolicyName {
-					defaultPolicyCount++
-					lastSeenDefaultPolicyIdx = idx
-				}
-			}
-
-			assert.Equalf(t, tt.wantNumDefaultPolicies, defaultPolicyCount, "There are more than 1 default policies")
-			assert.Equalf(t, PolicySourceRC, loadedPolicies[lastSeenDefaultPolicyIdx].Source, "The default policy is not from RC")
-
-			assert.Equalf(t, tt.want, loadedPolicies, "The loaded policies do not match the expected")
-			assert.Equalf(t, tt.wantErrors, errs, "The errors do not match the expected")
+			tt.want(t, tt.fields, loadedPolicies)
+			tt.wantErr(t, errs)
 		})
 	}
+}
+
+// Utils
+
+func numAndLastIdxOfDefaultPolicies(policies []*Policy) (int, int) {
+	var defaultPolicyCount int
+	var lastSeenDefaultPolicyIdx int
+	for idx, policy := range policies {
+		if policy.Name == DefaultPolicyName {
+			defaultPolicyCount++
+			lastSeenDefaultPolicyIdx = idx
+		}
+	}
+
+	return defaultPolicyCount, lastSeenDefaultPolicyIdx
+}
+
+type dummyDirProvider struct {
+	dummyLoadPoliciesFunc func() ([]*Policy, *multierror.Error)
+}
+
+func (d dummyDirProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Policy, *multierror.Error) {
+	return d.dummyLoadPoliciesFunc()
+}
+
+func (dummyDirProvider) SetOnNewPoliciesReadyCb(f func()) {
+	return
+}
+
+func (dummyDirProvider) Start() {
+	return
+}
+
+func (dummyDirProvider) Close() error {
+	return nil
+}
+
+func (dummyDirProvider) Type() string {
+	return PolicyProviderTypeDir
+}
+
+type dummyRCProvider struct {
+	dummyLoadPoliciesFunc func() ([]*Policy, *multierror.Error)
+}
+
+func (d dummyRCProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Policy, *multierror.Error) {
+	return d.dummyLoadPoliciesFunc()
+}
+
+func (dummyRCProvider) SetOnNewPoliciesReadyCb(f func()) {
+	return
+}
+
+func (dummyRCProvider) Start() {
+	return
+}
+
+func (dummyRCProvider) Close() error {
+	return nil
+}
+
+func (dummyRCProvider) Type() string {
+	return PolicyProviderTypeRC
 }
