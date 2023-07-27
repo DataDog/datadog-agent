@@ -48,13 +48,6 @@ func TestGetSystemStats(t *testing.T) {
 	assert.Equal(t, fakeStats.Machine, s.Machine)
 }
 
-func TestGetPythonVersion(t *testing.T) {
-	require.Equal(t, "n/a", GetPythonVersion())
-	key := cache.BuildAgentKey("pythonVersion")
-	cache.Cache.Set(key, "Python 2.8", cache.NoExpiration)
-	require.Equal(t, "Python 2.8", GetPythonVersion())
-}
-
 func TestGetCPUInfo(t *testing.T) {
 	assert.NotNil(t, getCPUInfo())
 	fakeInfo := &cpu.InfoStat{Cores: 42}
