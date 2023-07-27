@@ -976,7 +976,7 @@ func newConnectionAggregator(size int) *connectionAggregator {
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key string, rolledUp bool) {
 	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
-	ephemeralSport := IsPortInEphemeralRange(c.SPort) == EphemeralTrue
+	ephemeralSport := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
 
 	if c.Type != UDP ||
 		!isShortLived ||

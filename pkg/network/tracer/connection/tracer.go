@@ -637,11 +637,10 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 			SentPackets: s.Sent_packets,
 			RecvPackets: s.Recv_packets,
 		},
-		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		LastUpdateEpoch:  s.Timestamp,
-		Duration:         s.Duration,
-		IsAssured:        s.IsAssured(),
-		Cookie:           network.StatCookie(s.Cookie),
+		LastUpdateEpoch: s.Timestamp,
+		Duration:        s.Duration,
+		IsAssured:       s.IsAssured(),
+		Cookie:          network.StatCookie(s.Cookie),
 	}
 
 	stats.ProtocolStack = protocols.Stack{
@@ -662,6 +661,8 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	case netebpf.IPv6:
 		stats.Family = network.AFINET6
 	}
+
+	stats.SPortIsEphemeral = network.IsPortInEphemeralRange(stats.Family, stats.Type, t.Sport)
 
 	switch s.ConnectionDirection() {
 	case netebpf.Incoming:

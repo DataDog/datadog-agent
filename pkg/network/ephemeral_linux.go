@@ -38,7 +38,7 @@ func initEphemeralRange() {
 }
 
 // IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
-func IsPortInEphemeralRange(p uint16) EphemeralPortType {
+func IsPortInEphemeralRange(_ ConnectionFamily, _ ConnectionType, p uint16) EphemeralPortType {
 	initEphemeralRange()
 	if ephemeralLow == 0 || ephemeralHigh == 0 {
 		return EphemeralUnknown
