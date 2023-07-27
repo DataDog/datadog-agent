@@ -59,7 +59,7 @@ func (m *mockLogLevelRuntimeSettings) GetSource() settings.LogLevelSource {
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
-	mockSettings := &mockLogLevelRuntimeSettings{Source: settings.LogLevelSourceDefault}
+	mockSettings := &mockLogLevelRuntimeSettings{logLevel: "info", Source: settings.LogLevelSourceDefault}
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
@@ -109,7 +109,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	// Log level should still be "info" because it was enforced by the user
 	assert.Equal(t, "info", mockSettings.logLevel)
 	// Source should still be CLI as it has priority over RC
-	assert.Equal(t, settings.LogLevelSourceDefault, mockSettings.Source)
+	assert.Equal(t, settings.LogLevelSourceCLI, mockSettings.Source)
 
 	// -----------------
 	// Test scenario #3: log level is changed by the user DURING the Agent Flare request

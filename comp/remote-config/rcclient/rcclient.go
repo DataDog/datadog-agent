@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
@@ -121,14 +120,14 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		}
 
 		// Get the current log level
-		var newFallback seelog.LogLevel
-		newFallback, err = pkglog.GetLogLevel()
+		var newFallback interface{}
+		newFallback, err = settings.GetRuntimeSetting("log_level")
 		if err != nil {
 			break
 		}
 
 		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
-		rc.configState.FallbackLogLevel = newFallback.String()
+		rc.configState.FallbackLogLevel = newFallback.(string)
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
 		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.LogLevelSourceRC)
