@@ -18,7 +18,7 @@ import (
 
 type GoDetector struct{}
 
-// DetectLanguage allows for detecting if a process is a go process, and it's version.
+// DetectLanguage allows for detecting if a process is a go process, and its version.
 // Note that currently the GoDetector only returns non-retriable errors since in all cases we will not be able to detect the language.
 // Scenarios in which we can return an error:
 //   - Invalid permissions. The system-probe is not running as root, or the container does not have CAP_PTRACE.
