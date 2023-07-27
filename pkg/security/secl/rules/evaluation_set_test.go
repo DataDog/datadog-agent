@@ -72,21 +72,6 @@ func loadPolicySetup(t *testing.T, testPolicy *PolicyDef, tagValues []eval.RuleS
 	return loader, evaluationSet
 }
 
-func rulesEqual(expected map[eval.RuleID]*Rule, got map[eval.RuleID]*Rule) (bool, string) {
-	for expectedRuleID, expectedRule := range expected {
-		if rule, ok := got[expectedRuleID]; ok {
-			if rule.Rule == nil && expectedRule.Rule != nil || rule.Rule != nil && expectedRule.Rule == nil {
-				return false, fmt.Sprintf("Expected rule: %+v\nGot rule:%+v", expectedRule.Rule, rule.Rule)
-			}
-			if rule.Definition.Expression != expectedRule.Definition.Expression {
-				return false, fmt.Sprintf("Expected expression: %s\nGot expression:%s", expectedRule.Definition.Expression, rule.Definition.Expression)
-			}
-		}
-		return false, fmt.Sprintf("Expected rule ID %s but did not receive", expectedRuleID)
-	}
-	return true, ""
-}
-
 // FROM https://pkg.go.dev/github.com/google/go-cmp@v0.5.9/cmp#example-Reporter
 // DiffReporter is a simple custom reporter that only records differences
 // detected during comparison.
@@ -165,8 +150,8 @@ func TestEvaluationSet_GetPolicies(t *testing.T) {
 	}
 }
 
-// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestEvaluationSet_LoadPoliciesOverriding"
-func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
+// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestEvaluationSet_LoadPolicies_Overriding"
+func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 	type fields struct {
 		Providers []PolicyProvider
 		TagValues []eval.RuleSetTagValue
@@ -223,18 +208,32 @@ func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
 				assert.Equal(t, 2, gotNumberOfRules)
 
 				expectedRules := map[eval.RuleID]*Rule{
-					"foo": {Definition: &RuleDefinition{
-						ID:         "foo",
-						Expression: "open.file.path == \"/etc/local-default/shadow\"",
-					}},
-					"bar": {Definition: &RuleDefinition{
-						ID:         "bar",
-						Expression: "open.file.path == \"/etc/local-default/file\"",
-					}},
+					"foo": {
+						Rule: &eval.Rule{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/local-default/shadow\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/local-default/shadow\"",
+						}},
+					"bar": {
+						Rule: &eval.Rule{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						}},
 				}
 
-				rulesEqual, msg := rulesEqual(got.RuleSets[DefaultRuleSetTagValue].rules, expectedRules)
-				return assert.True(t, true, rulesEqual, msg)
+				var r DiffReporter
+				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r), cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"), cmpopts.IgnoreUnexported(eval.Rule{})) {
+					assert.Fail(t, fmt.Sprintf("Diff: %s)", r.String()))
+				}
+
+				return true
 			},
 			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
 				return assert.ErrorContains(t, err, "rule `foo` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
@@ -301,7 +300,6 @@ func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
 				}
 
 				var r DiffReporter
-				// TODO: Use custom cmp.Comparer instead of ignoring unexported fields
 				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r), cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"), cmpopts.IgnoreUnexported(eval.Rule{})) {
 					assert.Fail(t, fmt.Sprintf("Diff: %s)", r.String()))
 				}
@@ -461,7 +459,6 @@ func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
 				}
 
 				var r DiffReporter
-				// TODO: Use custom cmp.Comparer instead of ignoring unexported fields
 				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r),
 					cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"),
 					cmpopts.IgnoreFields(RuleSet{}, "opts", "evalOpts", "eventRuleBuckets", "fieldEvaluators", "model",
@@ -478,7 +475,7 @@ func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
 			},
 		},
 		{
-			name: "combine:override", // TODO: CURRENTLY PASSING
+			name: "combine:override",
 			fields: fields{
 				Providers: []PolicyProvider{
 					dummyDirProvider{
