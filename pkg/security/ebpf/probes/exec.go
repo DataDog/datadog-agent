@@ -200,7 +200,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 	} {
 		flags := EntryAndExit
 		if !strings.HasSuffix(name, "16") {
-			flags |= SupportFentry
+			flags |= SupportFentry | SupportFexit
 		}
 
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{

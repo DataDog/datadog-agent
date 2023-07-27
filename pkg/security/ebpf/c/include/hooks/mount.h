@@ -115,7 +115,7 @@ int hook_mnt_want_write_file_path(ctx_t *ctx) {
 }
 #endif
 
-SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
+HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MOUNT,
     };

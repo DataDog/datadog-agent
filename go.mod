@@ -60,9 +60,9 @@ require (
 	github.com/DataDog/go-tuf v1.0.1-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.3-0.20230720121352-2db90e0b9570
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.5.2
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.5.4
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
@@ -160,7 +160,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
-	github.com/prometheus/procfs v0.11.0
+	github.com/prometheus/procfs v0.11.1
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.38.1
@@ -567,8 +567,8 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230717151521-271965684571
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.5.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230720220350-143f7b52181b
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.5.4
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6

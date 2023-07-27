@@ -112,7 +112,7 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
 }
 
-type pid = int
+type pid = uint32
 
 type binaryID = gotls.TlsBinaryId
 
@@ -264,16 +264,16 @@ func (p *GoTLSProgram) Start() {
 			case <-p.done:
 				return
 			case <-processSync.C:
-				processSet := make(map[int32]struct{})
+				processSet := make(map[uint32]struct{})
 				p.lock.RLock()
 				for pid := range p.processes {
-					processSet[int32(pid)] = struct{}{}
+					processSet[uint32(pid)] = struct{}{}
 				}
 				p.lock.RUnlock()
 
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					p.unregisterProcess(int(deletedPid))
+					p.unregisterProcess(deletedPid)
 				}
 			}
 		}

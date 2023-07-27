@@ -49,7 +49,7 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	enabledProtocols  map[string]protocols.Protocol
+	enabledProtocols  []protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
 
 	buildMode buildMode

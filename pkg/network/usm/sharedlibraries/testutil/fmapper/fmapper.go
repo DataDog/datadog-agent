@@ -14,6 +14,8 @@ import (
 	"golang.org/x/exp/mmap"
 )
 
+// This program is used for testing purposes and it essentially maps into memory
+// one or more files provided as command line arguments
 func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
