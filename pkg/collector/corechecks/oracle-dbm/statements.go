@@ -633,7 +633,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 				}
 			} else {
-				log.Error("fqtEmitted = nil")
+				log.Error("Internal error: fqtEmitted = nil. The check might have been restarted. Ignore if it doesn't appear anymore.")
 			}
 
 			if c.config.ExecutionPlans.Enabled {
