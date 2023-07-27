@@ -449,16 +449,6 @@ func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
 				assert.Equal(t, 1, gotNumberOfRules)
 
 				expectedRules := map[eval.RuleID]*Rule{
-					"foo": {
-						Rule: &eval.Rule{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
-						},
-						Definition: &RuleDefinition{
-							ID:         "foo",
-							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
-						},
-					},
 					"bar": {
 						Rule: &eval.Rule{
 							ID:         "bar",
@@ -483,7 +473,7 @@ func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
 				return true
 			},
 			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
-				assert.Equal(t, 1, err.Len(), fmt.Sprintf("Errors are: %s", err.Errors))
+				assert.Equal(t, 2, err.Len(), fmt.Sprintf("Errors are: %s", err.Errors))
 				return assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID")
 			},
 		},
@@ -575,6 +565,7 @@ func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
 				return true
 			},
 			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				assert.Equal(t, 1, err.Len(), fmt.Sprintf("Errors are: %s", err.Errors))
 				return assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
 			},
 		},
