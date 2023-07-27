@@ -68,100 +68,111 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		}...)
 	}
 
-	routes = append(routes, []manager.TailCallRoute{
-		// dentry resolver kprobe callbacks
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverOpenCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_open_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverSetAttrCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_setattr_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverMkdirCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_mkdir_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverMountCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_mount_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverSecurityInodeRmdirCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_security_inode_rmdir_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverSetXAttrCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_setxattr_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverUnlinkCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_unlink_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverLinkSrcCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_link_src_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverLinkDstCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_link_dst_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverRenameCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_rename_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverSELinuxCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_selinux_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverUnshareMntNSStageOneCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_unshare_mntns_stage_one_callback",
-			},
-		},
-		{
-			ProgArrayName: "dentry_resolver_kprobe_callbacks",
-			Key:           DentryResolverUnshareMntNSStageTwoCallbackKprobeKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_dr_unshare_mntns_stage_two_callback",
-			},
-		},
+	prefixes := []string{"kprobe"}
+	if fentry {
+		prefixes = append(prefixes, "fentry")
+	}
 
+	for _, prefix := range prefixes {
+		progArrayName := fmt.Sprint("dentry_resolver_%s_callbacks", prefix)
+
+		routes = append(routes, []manager.TailCallRoute{
+			// dentry resolver kprobe callbacks
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverOpenCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_open_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverSetAttrCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_setattr_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverMkdirCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_mkdir_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverMountCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_mount_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverSecurityInodeRmdirCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_security_inode_rmdir_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverSetXAttrCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_setxattr_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverUnlinkCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_unlink_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverLinkSrcCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_link_src_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverLinkDstCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_link_dst_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverRenameCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_rename_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverSELinuxCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_selinux_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverUnshareMntNSStageOneCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_unshare_mntns_stage_one_callback",
+				},
+			},
+			{
+				ProgArrayName: progArrayName,
+				Key:           DentryResolverUnshareMntNSStageTwoCallbackKprobeKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe_dr_unshare_mntns_stage_two_callback",
+				},
+			},
+		}...)
+	}
+
+	routes = append(routes, []manager.TailCallRoute{
 		// dentry resolver tracepoint callbacks
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_callbacks",
@@ -199,11 +210,6 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 			},
 		},
 	}...)
-
-	prefixes := []string{"kprobe"}
-	if fentry {
-		prefixes = append(prefixes, "fentry")
-	}
 
 	for _, prefix := range prefixes {
 		// add routes for programs with the bpf_probe_write_user only if necessary
