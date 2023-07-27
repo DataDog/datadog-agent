@@ -19,8 +19,11 @@ import (
 type GoDetector struct{}
 
 // DetectLanguage allows for detecting if a process is a go process, and it's version.
-// Note that currently the GoDetector only returns non-retriable errors. It's failure modes are:
-// - Invalid permissions. In this case we should warn.
+// Note that currently the GoDetector only returns non-retriable errors since in all cases we will not be able to detect the language.
+// Scenarios in which we can return an error:
+//   - Invalid permissions. The system-probe is not running as root, or the container does not have CAP_PTRACE.
+//   - Program exits early, and we fail to call `elf.Open`. Note that in the future it may be possible to lock the directory using a system call.
+//   - Program is not a go binary, or has build tags stripped out. In this case we return a `dderrors.NotFound`.
 func (GoDetector) DetectLanguage(pid int) (languagemodels.Language, error) {
 	exePath := getExePath(pid)
 
