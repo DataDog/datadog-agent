@@ -82,91 +82,91 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverOpenCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_open_callback",
+					EBPFFuncName: prefix + "_dr_open_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverSetAttrCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_setattr_callback",
+					EBPFFuncName: prefix + "_dr_setattr_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverMkdirCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_mkdir_callback",
+					EBPFFuncName: prefix + "_dr_mkdir_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverMountCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_mount_callback",
+					EBPFFuncName: prefix + "_dr_mount_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverSecurityInodeRmdirCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_security_inode_rmdir_callback",
+					EBPFFuncName: prefix + "_dr_security_inode_rmdir_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverSetXAttrCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_setxattr_callback",
+					EBPFFuncName: prefix + "_dr_setxattr_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverUnlinkCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_unlink_callback",
+					EBPFFuncName: prefix + "_dr_unlink_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverLinkSrcCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_link_src_callback",
+					EBPFFuncName: prefix + "_dr_link_src_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverLinkDstCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_link_dst_callback",
+					EBPFFuncName: prefix + "_dr_link_dst_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverRenameCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_rename_callback",
+					EBPFFuncName: prefix + "_dr_rename_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverSELinuxCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_selinux_callback",
+					EBPFFuncName: prefix + "_dr_selinux_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverUnshareMntNSStageOneCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_unshare_mntns_stage_one_callback",
+					EBPFFuncName: prefix + "_dr_unshare_mntns_stage_one_callback",
 				},
 			},
 			{
 				ProgArrayName: progArrayName,
 				Key:           DentryResolverUnshareMntNSStageTwoCallbackKprobeKey,
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dr_unshare_mntns_stage_two_callback",
+					EBPFFuncName: prefix + "_dr_unshare_mntns_stage_two_callback",
 				},
 			},
 		}...)
