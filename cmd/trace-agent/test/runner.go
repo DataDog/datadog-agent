@@ -17,7 +17,7 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 // ErrNotStarted is returned when attempting to operate an unstarted Runner.

@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -112,7 +112,7 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
 }
 
-type pid = int
+type pid = uint32
 
 type binaryID = gotls.TlsBinaryId
 
@@ -264,16 +264,16 @@ func (p *GoTLSProgram) Start() {
 			case <-p.done:
 				return
 			case <-processSync.C:
-				processSet := make(map[int32]struct{})
+				processSet := make(map[uint32]struct{})
 				p.lock.RLock()
 				for pid := range p.processes {
-					processSet[int32(pid)] = struct{}{}
+					processSet[uint32(pid)] = struct{}{}
 				}
 				p.lock.RUnlock()
 
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					p.unregisterProcess(int(deletedPid))
+					p.unregisterProcess(deletedPid)
 				}
 			}
 		}
@@ -501,7 +501,7 @@ func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
 }
 
 func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
-	pathID, err := sharedlibraries.NewPathIdentifier(binPath)
+	pathID, err := utils.NewPathIdentifier(binPath)
 	if err != nil {
 		return probeIDs, fmt.Errorf("can't create path identifier for path %s : %s", binPath, err)
 	}

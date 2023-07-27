@@ -43,7 +43,7 @@ func (d *dispatcher) calculateAvg() (int, error) {
 	defer d.store.RUnlock()
 
 	for _, node := range d.store.nodes {
-		busyness = node.GetBusyness(busynessFunc)
+		busyness += node.GetBusyness(busynessFunc)
 		length++
 	}
 

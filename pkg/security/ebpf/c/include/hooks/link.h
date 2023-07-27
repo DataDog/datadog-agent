@@ -24,11 +24,11 @@ int __attribute__((always_inline)) trace__sys_link(u8 async) {
     return 0;
 }
 
-SYSCALL_KPROBE0(link) {
+HOOK_SYSCALL_ENTRY0(link) {
     return trace__sys_link(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(linkat) {
+HOOK_SYSCALL_ENTRY0(linkat) {
     return trace__sys_link(SYNC_SYSCALL);
 }
 
@@ -151,6 +151,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_linkat")
 int kretprobe_do_linkat(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

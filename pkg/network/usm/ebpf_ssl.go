@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -211,7 +212,7 @@ func newSSLProgram(c *config.Config, m *manager.Manager, sockFDMap *ebpf.Map, bp
 		return nil
 	}
 
-	watcher, err := sharedlibraries.NewWatcher(c,
+	watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
 		sharedlibraries.Rule{
 			Re:           regexp.MustCompile(`libssl.so`),
 			RegisterCB:   addHooks(m, openSSLProbes),
@@ -274,11 +275,11 @@ func (o *sslProgram) Stop() {
 	o.watcher.Stop()
 }
 
-func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedlibraries.PathIdentifier, string, string) error {
-	return func(id sharedlibraries.PathIdentifier, root string, path string) error {
-		uid := getUID(id)
+func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
+	return func(fpath utils.FilePath) error {
+		uid := getUID(fpath.ID)
 
-		elfFile, err := elf.Open(root + path)
+		elfFile, err := elf.Open(fpath.HostPath)
 		if err != nil {
 			return err
 		}
@@ -347,7 +348,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedli
 
 				newProbe := &manager.Probe{
 					ProbeIdentificationPair: identifier,
-					BinaryPath:              root + path,
+					BinaryPath:              fpath.HostPath,
 					UprobeOffset:            uint64(offset),
 					HookFuncName:            symbol,
 				}
@@ -364,9 +365,9 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedli
 	}
 }
 
-func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedlibraries.PathIdentifier) error {
-	return func(lib sharedlibraries.PathIdentifier) error {
-		uid := getUID(lib)
+func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
+	return func(fpath utils.FilePath) error {
+		uid := getUID(fpath.ID)
 		for _, singleProbe := range probes {
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
@@ -402,7 +403,7 @@ func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(share
 //	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
 //
 // functionName is variable but with a minimum guarantee of 10 chars
-func getUID(lib sharedlibraries.PathIdentifier) string {
+func getUID(lib utils.PathIdentifier) string {
 	return lib.Key()[:5]
 }
 
