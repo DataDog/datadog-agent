@@ -310,6 +310,17 @@ int kprobe_dr_open_callback(struct pt_regs *ctx) {
     return dr_open_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_open_callback")
+int fentry_dr_open_callback(ctx_t *ctx) {
+    // int retval = PT_REGS_RC(ctx);
+    int retval = 0; // TODO(paulcacheux): fix this
+    return dr_open_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_open_callback")
 int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_open_callback(args, args->ret);

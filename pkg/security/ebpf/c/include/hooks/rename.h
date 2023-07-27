@@ -223,6 +223,17 @@ int kprobe_dr_rename_callback(struct pt_regs *ctx) {
     return dr_rename_callback(ctx, ret);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_rename_callback")
+int fentry_dr_rename_callback(ctx_t *ctx) {
+    // int ret = PT_REGS_RC(ctx);
+    int ret = 0; // TODO(paulcacheux): fix this
+    return dr_rename_callback(ctx, ret);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_rename_callback")
 int tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_rename_callback(args, args->ret);

@@ -104,6 +104,24 @@ int kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     return 0;
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_unlink_callback")
+int fentry_dr_unlink_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->resolver.ret < 0) {
+        return mark_as_discarded(syscall);
+    }
+
+    return 0;
+}
+
+#endif // USE_FENTRY
+
 int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
     if (!syscall) {

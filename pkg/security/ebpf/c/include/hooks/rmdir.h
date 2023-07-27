@@ -123,6 +123,24 @@ int kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
     return 0;
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_security_inode_rmdir_callback")
+int fentry_dr_security_inode_rmdir_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_RMDIR);
+        return mark_as_discarded(syscall);
+    }
+    return 0;
+}
+
+#endif // USE_FENTRY
+
 int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
     if (!syscall) {

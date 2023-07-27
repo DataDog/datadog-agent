@@ -106,6 +106,17 @@ int kprobe_dr_selinux_callback(struct pt_regs *ctx) {
     return dr_selinux_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_selinux_callback")
+int fentry_dr_selinux_callback(ctx_t *ctx) {
+    // int retval = PT_REGS_RC(ctx);
+    int retval = 0;
+    return dr_selinux_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 #define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
     SEC("kprobe/" #func_name)                                               \
     int kprobe_##func_name(struct pt_regs *ctx) {                           \
