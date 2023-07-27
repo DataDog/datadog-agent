@@ -314,7 +314,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Error("Unexpected nil instance of the trace-agent")
 		return
 	}
-	originalModifySpan := ta.ModifySpan
 
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
 	serverlessDaemon.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
@@ -324,20 +323,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
 		SubProcessor:         appsecSubProcessor, // Universal Instrumentation API mode - nil in the runtime api proxy mode
-	}
-	ta.ModifySpan = func(chunk *pb.TraceChunk, span *pb.Span) {
-		// Check if this is the correct span
-		if span.Name == "aws.lambda" && span.Type == "serverless" {
-			// If so, add the tags
-			if span.Meta == nil {
-				span.Meta = make(map[string]string)
-			}
-			span.Meta["cold_start"] = strconv.FormatBool(serverlessDaemon.ExecutionContext.GetCurrentState().Coldstart)
-			span.Meta["proactive_initialization"] = strconv.FormatBool(serverlessDaemon.ExecutionContext.GetCurrentState().ProactiveInit)
-		}
-
-		// Call the original modifySpan function
-		originalModifySpan(chunk, span)
 	}
 
 	if appsecProxyProcessor != nil {
