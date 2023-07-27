@@ -70,8 +70,8 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType string, ch ch
 		if hitsDelta > 0 {
 			ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, hitsDelta, event, probeType)
 		}
-		missesDelta := float64(int(st.Misses) - c.lastProbeStats[missesKey])
 		c.lastProbeStats[hitsKey] = int(st.Hits)
+		missesDelta := float64(int(st.Misses) - c.lastProbeStats[missesKey])
 		if missesDelta > 0 {
 			ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, missesDelta, event, probeType)
 		}
