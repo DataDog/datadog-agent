@@ -21,7 +21,7 @@ type ProfilingRuntimeSetting struct {
 
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
-	Source       LogLevelSource
+	Source       SettingSource
 }
 
 // Description returns the runtime setting's description
@@ -49,7 +49,7 @@ func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l *ProfilingRuntimeSetting) Set(v interface{}, source LogLevelSource) error {
+func (l *ProfilingRuntimeSetting) Set(v interface{}, source SettingSource) error {
 	var profile bool
 	var err error
 
@@ -113,6 +113,6 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source LogLevelSource) erro
 	return nil
 }
 
-func (l *ProfilingRuntimeSetting) GetSource() LogLevelSource {
+func (l *ProfilingRuntimeSetting) GetSource() SettingSource {
 	return l.Source
 }

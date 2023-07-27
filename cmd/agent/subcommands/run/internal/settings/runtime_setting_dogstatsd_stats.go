@@ -16,7 +16,7 @@ import (
 // DsdStatsRuntimeSetting wraps operations to change the collection of dogstatsd stats at runtime.
 type DsdStatsRuntimeSetting struct {
 	ServerDebug dogstatsdDebug.Component
-	Source      settings.LogLevelSource
+	Source      settings.SettingSource
 }
 
 func NewDsdStatsRuntimeSetting(serverDebug dogstatsdDebug.Component) *DsdStatsRuntimeSetting {
@@ -44,7 +44,7 @@ func (s *DsdStatsRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (s *DsdStatsRuntimeSetting) Set(v interface{}, source settings.LogLevelSource) error {
+func (s *DsdStatsRuntimeSetting) Set(v interface{}, source settings.SettingSource) error {
 	var newValue bool
 	var err error
 
@@ -59,6 +59,6 @@ func (s *DsdStatsRuntimeSetting) Set(v interface{}, source settings.LogLevelSour
 	return nil
 }
 
-func (s *DsdStatsRuntimeSetting) GetSource() settings.LogLevelSource {
+func (s *DsdStatsRuntimeSetting) GetSource() settings.SettingSource {
 	return s.Source
 }
