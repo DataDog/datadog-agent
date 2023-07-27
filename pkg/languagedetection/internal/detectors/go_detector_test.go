@@ -19,7 +19,7 @@ import (
 )
 
 func TestGoDetector(t *testing.T) {
-	currentLanguageInfo, err := (&GoDetector{}).DetectLanguage(os.Getpid())
+	currentLanguageInfo, err := GoDetector{}.DetectLanguage(os.Getpid())
 	require.NoError(t, err)
 
 	assert.Equal(t, languagemodels.Go, currentLanguageInfo.Name)
