@@ -166,6 +166,17 @@ int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
     return dr_mkdir_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_mkdir_callback")
+int fentry_dr_mkdir_callback(ctx_t *ctx) {
+    // int retval = CTX_PARMRET(ctx);
+    int retval = 0; // TODO(paulcacheux): find a way to get the retval
+    return dr_mkdir_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_mkdir_callback")
 int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mkdir_callback(args, args->ret);

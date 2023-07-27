@@ -116,6 +116,25 @@ int kprobe_dr_link_src_callback(struct pt_regs *ctx) {
     return 0;
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_link_src_callback")
+int fentry_dr_link_src_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_LINK);
+        return mark_as_discarded(syscall);
+    }
+
+    return 0;
+}
+
+#endif // USE_FENTRY
+
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         pop_syscall(EVENT_LINK);
@@ -210,6 +229,17 @@ int kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);
     return dr_link_dst_callback(ctx, ret);
 }
+
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_link_dst_callback")
+int fentry_dr_link_dst_callback(ctx_t *ctx) {
+    // int ret = CTX_PARMRET(ctx);
+    int ret = 0; // TODO(paulcacheux): find a way to get the retval
+    return dr_link_dst_callback(ctx, ret);
+}
+
+#endif // USE_FENTRY
 
 SEC("tracepoint/dr_link_dst_callback")
 int tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
