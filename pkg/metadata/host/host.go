@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -55,7 +56,7 @@ func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 		PythonVersion: python.GetPythonInfo(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
-		HostTags:      GetHostTags(ctx, false),
+		HostTags:      hostMetadataUtils.GetHostTags(ctx, false, config.Datadog),
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(ctx),
 		LogsMeta:      getLogsMeta(),
