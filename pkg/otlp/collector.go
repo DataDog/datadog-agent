@@ -163,10 +163,6 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 		return nil, fmt.Errorf("failed to get build info: %w", err)
 	}
 
-	if cfg.LogsEnabled && logsAgentChannel == nil {
-		return nil, fmt.Errorf("OTLP logs is enabled but logs agent is not enabled")
-	}
-
 	factories, err := getComponents(s, logsAgentChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get components: %w", err)
@@ -215,7 +211,7 @@ func (p *Pipeline) Stop() {
 
 // BuildAndStart builds and starts an OTLP pipeline
 func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
-	p, err := NewPipelineFromAgentConfig(cfg, s, logsAgentChannel)
+	p, err := NewPipelineFromAgentConfig(cfg, s, logsAgentChannel, false)
 	if err != nil {
 		return nil, err
 	}
@@ -229,10 +225,22 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 	return p, nil
 }
 
-func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
+func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, serverless bool) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
+		return nil, pipelineError.Load()
+	}
+	if serverless {
+		if HasLogsSection(cfg) {
+			pipelineError.Store(fmt.Errorf("Cannot enable OTLP log ingestion for serverless"))
+			return nil, pipelineError.Load()
+		}
+		pcfg.LogsEnabled = false
+	}
+
+	if pcfg.LogsEnabled && logsAgentChannel == nil {
+		pipelineError.Store(fmt.Errorf("OTLP logs is enabled but logs agent is not enabled"))
 		return nil, pipelineError.Load()
 	}
 

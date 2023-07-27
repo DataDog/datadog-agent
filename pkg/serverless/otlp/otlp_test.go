@@ -16,8 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -77,8 +75,7 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert.True(metricAgent.IsReady())
 
 	// setup otlp agent
-	logsAgentChannel := make(chan *message.Message)
-	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), logsAgentChannel)
+	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
 	otlpAgent.Start()
 	defer otlpAgent.Stop()
 	assert.NotNil(otlpAgent.pipeline)

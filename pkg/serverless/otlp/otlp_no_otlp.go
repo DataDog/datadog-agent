@@ -7,14 +7,11 @@
 
 package otlp
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-)
+import "github.com/DataDog/datadog-agent/pkg/serializer"
 
 type ServerlessOTLPAgent struct{}
 
-func NewServerlessOTLPAgent(serializer.MetricSerializer, chan *message.Message) *ServerlessOTLPAgent {
+func NewServerlessOTLPAgent(serializer.MetricSerializer) *ServerlessOTLPAgent {
 	return nil
 }
 
