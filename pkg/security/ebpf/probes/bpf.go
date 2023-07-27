@@ -38,6 +38,6 @@ func getBPFProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "bpf",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return bpfProbes
 }
