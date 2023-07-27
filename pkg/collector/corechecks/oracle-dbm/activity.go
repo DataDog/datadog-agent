@@ -101,7 +101,7 @@ WHERE
 	)
 	AND status = 'ACTIVE'`
 
-const ACTIVITY_QUERY_RDS = `SELECT /* DD_ACTIVITY_SAMPLING */
+const ACTIVITY_QUERY_DIRECT = `SELECT /* DD_ACTIVITY_SAMPLING */
 s.sid,
 s.serial#,
 s.username,
@@ -328,16 +328,16 @@ func (c *Check) SampleSession() error {
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	if c.isRDS {
-		activityQuery = ACTIVITY_QUERY_RDS
+	if c.isRDS || c.isOracleCloud {
+		activityQuery = ACTIVITY_QUERY_DIRECT
 	} else {
 		activityQuery = ACTIVITY_QUERY
 	}
 
-	err := c.db.Select(&sessionSamples, activityQuery)
+	err := selectWrapper(c, &sessionSamples, activityQuery)
 
 	if err != nil {
-		return fmt.Errorf("failed to collect session sampling activity: %w", err)
+		return fmt.Errorf("failed to collect session sampling activity: %w \n%s", err, activityQuery)
 	}
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})

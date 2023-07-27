@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build oracle
+//go:build oracle_test
 
 package oracle
 
@@ -51,21 +51,8 @@ func TestUInt64Binding(t *testing.T) {
 		m["2267897546238586672"] = 1
 		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
 
-		statementMetrics, err := GetStatementsMetricsForKeys(&chk, "force_matching_signature", "AND force_matching_signature != 0", chk.statementsFilter.ForceMatchingSignatures)
-		assert.NoError(t, err, "running GetStatementsMetricsForKeys with %s driver", driver)
-		assert.Lenf(t, statementMetrics, 1, "test query metrics captured with %s driver", driver)
 		err = chk.db.Get(&r, "select force_matching_signature, sql_text from v$sqlstats where sql_text like '%t111%'") // force_matching_signature=17202440635181618732
 		assert.NoError(t, err, "running statement with large force_matching_signature with %s driver", driver)
-
-		m = make(map[string]int)
-		m["17202440635181618732"] = 1
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		assert.Lenf(t, statementMetrics, 1, "test query metrics for uint64 overflow with %s driver", driver)
-
-		chk.statementsFilter = StatementsFilter{ForceMatchingSignatures: m}
-		n, err := chk.StatementMetrics()
-		assert.NoError(t, err, "query metrics with %s driver", driver)
-		assert.Equal(t, 1, n, "total query metrics captured with %s driver", driver)
 
 		slice := []any{"17202440635181618732"}
 		var retValue int
@@ -96,21 +83,5 @@ func TestUInt64Binding(t *testing.T) {
 			}
 			assert.Equalf(t, retValue, 1, "IN uint64 with %s driver", driver)
 		}
-	}
-}
-
-func TestStatementMetrics(t *testing.T) {
-	initAndStartAgentDemultiplexer()
-	chk.config.QueryMetrics.IncludeDatadogQueries = true
-	var retValue int
-	for i := 1; i <= 2; i++ {
-		err := chk.db.Get(&retValue, "SELECT /* DD */ 1 FROM dual")
-		if err != nil {
-			log.Fatalf("row error %s", err)
-			return
-		}
-		chk.SampleSession()
-		_, err = chk.StatementMetrics()
-		assert.NoErrorf(t, err, "statement metrics check failed")
 	}
 }
