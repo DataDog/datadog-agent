@@ -270,19 +270,19 @@ func stopSystemProbe(cliParams *cliParams) {
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
 func setupInternalProfiling(cfg ddconfig.ConfigReader, configPrefix string, log log.Component) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, settings.SettingSourceDefault); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, settings.SourceDefault); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
 		}
 	}
 
 	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SettingSourceDefault); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SourceDefault); err != nil {
 			log.Errorf("Error mutex profile fraction: %v", err)
 		}
 	}
 
 	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SettingSourceDefault)
+		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SourceDefault)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}

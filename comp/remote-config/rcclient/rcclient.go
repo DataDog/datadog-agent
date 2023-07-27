@@ -105,13 +105,13 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 
 	// Checks who (the source) is responsible for the last logLevel change
 	// The priority between sources is: CLI > RC > Default
-	source, err := settings.GetRuntimeSettingSource("log_level")
+	source, err := settings.GetRuntimeSource("log_level")
 	if err != nil {
-		pkglog.Errorf(err.Error())
+		pkglog.Errorf("could not fetch source for 'log_level': %s", err)
 	}
 
 	switch source {
-	case settings.SettingSourceDefault:
+	case settings.SourceDefault:
 		// If the log level had been set by default
 		// and if we receive an empty value for log level in the config
 		// then there is nothing to do
@@ -130,31 +130,31 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		rc.configState.FallbackLogLevel = newFallback.(string)
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.SettingSourceRC)
+		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.SourceRC)
 
-	case settings.SettingSourceRC:
+	case settings.SourceRC:
 		// 2 possible situations:
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		var newLevel string
-		var newSource settings.SettingSource
+		var newSource settings.Source
 		if len(mergedConfig.LogLevel) == 0 {
 			newLevel = rc.configState.FallbackLogLevel
-			newSource = settings.SettingSourceDefault
+			newSource = settings.SourceDefault
 			pkglog.Infof("Removing remote-config log level override, falling back to %s", newLevel)
 		} else {
 			newLevel = mergedConfig.LogLevel
-			newSource = settings.SettingSourceRC
+			newSource = settings.SourceRC
 			pkglog.Infof("Changing log level to %s through remote config", newLevel)
 		}
 		err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
 
-	case settings.SettingSourceCLI:
-		pkglog.Infof("Remote config could not change the log level due to CLI override")
+	case settings.SourceCLI:
+		pkglog.Warnf("Remote config could not change the log level due to CLI override")
 		return
 
-	default: // case settings.SettingSourceUnknown
-		pkglog.Warnf("Unknown source changed the log level")
+	default:
+		pkglog.Errorf("Unknown source '%s' for 'log level'", source)
 		return
 	}
 

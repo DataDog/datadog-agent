@@ -30,23 +30,22 @@ func (e *SettingNotFoundError) Error() string {
 	return fmt.Sprintf("setting %s not found", e.name)
 }
 
-type SettingSource string
+type Source string
 
 const (
-	SettingSourceCLI     SettingSource = "cli"
-	SettingSourceRC      SettingSource = "remote-config"
-	SettingSourceDefault SettingSource = "default"
-	SettingSourceUnknown SettingSource = "unknown"
+	SourceCLI     Source = "cli"
+	SourceRC      Source = "remote-config"
+	SourceDefault Source = "default"
 )
 
 // RuntimeSetting represents a setting that can be changed and read at runtime.
 type RuntimeSetting interface {
 	Get() (interface{}, error)
-	Set(v interface{}, source SettingSource) error
+	Set(v interface{}, source Source) error
 	Name() string
 	Description() string
 	Hidden() bool
-	GetSource() SettingSource
+	GetSource() Source
 }
 
 // RegisterRuntimeSetting keeps track of configurable settings
@@ -64,7 +63,7 @@ func RuntimeSettings() map[string]RuntimeSetting {
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
-func SetRuntimeSetting(setting string, value interface{}, source SettingSource) error {
+func SetRuntimeSetting(setting string, value interface{}, source Source) error {
 	runtimeSettingsLock.Lock()
 	defer runtimeSettingsLock.Unlock()
 	if _, ok := runtimeSettings[setting]; !ok {
@@ -86,12 +85,11 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 }
 
 // GetRuntimeSetting returns the source of the last change of a runtime configurable setting
-func GetRuntimeSettingSource(setting string) (SettingSource, error) {
+func GetRuntimeSource(setting string) (Source, error) {
 	if _, ok := runtimeSettings[setting]; !ok {
-		return SettingSourceUnknown, &SettingNotFoundError{name: setting}
+		return SourceDefault, &SettingNotFoundError{name: setting}
 	}
-	source := runtimeSettings[setting].GetSource()
-	return source, nil
+	return runtimeSettings[setting].GetSource(), nil
 }
 
 // GetBool returns the bool value contained in value.

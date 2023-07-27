@@ -15,12 +15,11 @@ import (
 type LogLevelRuntimeSetting struct {
 	Config    config.ConfigReaderWriter
 	ConfigKey string
-	Source    SettingSource
+	source    Source
 }
 
-type LogLevelStatus struct {
-	Level  string
-	Source SettingSource
+func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
+	return &LogLevelRuntimeSetting{source: SourceDefault}
 }
 
 // Description returns the runtime setting's description
@@ -47,12 +46,12 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
-func (l *LogLevelRuntimeSetting) GetSource() SettingSource {
-	return l.Source
+func (l *LogLevelRuntimeSetting) GetSource() Source {
+	return l.source
 }
 
 // Set changes the value of the runtime setting
-func (l *LogLevelRuntimeSetting) Set(v interface{}, source SettingSource) error {
+func (l *LogLevelRuntimeSetting) Set(v interface{}, source Source) error {
 	level := v.(string)
 
 	err := config.ChangeLogLevel(level)
@@ -60,7 +59,7 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source SettingSource) error 
 		return err
 	}
 
-	l.Source = source
+	l.source = source
 
 	key := "log_level"
 	if l.ConfigKey != "" {
