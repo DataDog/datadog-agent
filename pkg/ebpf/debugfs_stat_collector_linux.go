@@ -28,8 +28,8 @@ type DebugFsStatCollector struct {
 
 func NewDebugFsStatCollector() *DebugFsStatCollector {
 	return &DebugFsStatCollector{
-		hits:           prometheus.NewDesc(kProbeTelemetryName+"__hits", "Gauge tracking number of kprobe hits", []string{"name", "probe_type"}, nil),
-		misses:         prometheus.NewDesc(kProbeTelemetryName+"__misses", "Gauge tracking number of kprobe misses", []string{"name", "probe_type"}, nil),
+		hits:           prometheus.NewDesc(kProbeTelemetryName+"__hits", "Counter tracking number of probe hits", []string{"probe_name", "probe_type"}, nil),
+		misses:         prometheus.NewDesc(kProbeTelemetryName+"__misses", "Counter tracking number of probe misses", []string{"probe_name", "probe_type"}, nil),
 		lastProbeStats: make(map[string]int),
 	}
 }
@@ -66,9 +66,15 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType string, ch ch
 		probeTypeKey := string(probeType[0]) + "_"
 		hitsKey := "h_" + probeTypeKey + event
 		missesKey := "m_" + probeTypeKey + event
-		ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[hitsKey]), event, probeType)
+		hitsDelta := float64(int(st.Hits) - c.lastProbeStats[hitsKey])
+		if hitsDelta > 0 {
+			ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, hitsDelta, event, probeType)
+		}
+		missesDelta := float64(int(st.Misses) - c.lastProbeStats[missesKey])
 		c.lastProbeStats[hitsKey] = int(st.Hits)
-		ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[missesKey]), event, probeType)
+		if missesDelta > 0 {
+			ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, missesDelta, event, probeType)
+		}
 		c.lastProbeStats[missesKey] = int(st.Misses)
 	}
 }
