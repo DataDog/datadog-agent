@@ -18,6 +18,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -76,6 +77,26 @@ type Check struct {
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
+	configTagsSet                           bool
+}
+
+func handleServiceCheck(c *Check, err error) {
+	sender, errSender := c.GetSender()
+	if errSender != nil {
+		log.Errorf("failed to get sender for service check %w", err)
+	}
+
+	message := ""
+	var status servicecheck.ServiceCheckStatus
+	if err == nil {
+		status = servicecheck.ServiceCheckOK
+	} else {
+		status = servicecheck.ServiceCheckCritical
+		message = fmt.Sprintf("%s", err)
+		log.Errorf("connect error %s", message)
+	}
+	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
+	sender.Commit()
 }
 
 // Run executes the check.
@@ -83,11 +104,13 @@ func (c *Check) Run() error {
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
+			handleServiceCheck(c, err)
 			c.Teardown()
 			return err
 		}
 		if db == nil {
 			c.Teardown()
+			handleServiceCheck(c, fmt.Errorf("empty connection"))
 			return fmt.Errorf("empty connection")
 		}
 		c.db = db
@@ -95,7 +118,20 @@ func (c *Check) Run() error {
 
 	err := c.OS_Stats()
 	if err != nil {
+		db, errConnect := c.Connect()
+		if errConnect != nil {
+			handleServiceCheck(c, errConnect)
+		} else if db == nil {
+			handleServiceCheck(c, fmt.Errorf("empty connection"))
+		} else {
+			handleServiceCheck(c, nil)
+		}
+		if errClosing := CloseDatabaseConnection(db); err != nil {
+			log.Errorf("Error closing connection %s", errClosing)
+		}
 		return fmt.Errorf("failed to collect os stats %w", err)
+	} else {
+		handleServiceCheck(c, nil)
 	}
 
 	if c.config.SysMetrics.Enabled {
@@ -350,6 +386,19 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 	c.tags = c.config.Tags
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
+	c.tags = append(c.tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
+	if c.config.TnsAlias != "" {
+		c.tags = append(c.tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
+	}
+	if c.config.Port != 0 {
+		c.tags = append(c.tags, fmt.Sprintf("port:%d", c.config.Port))
+	}
+	if c.config.Server != "" {
+		c.tags = append(c.tags, fmt.Sprintf("server:%s", c.config.Server))
+	}
+	if c.config.ServiceName != "" {
+		c.tags = append(c.tags, fmt.Sprintf("service:%s", c.config.ServiceName))
+	}
 
 	c.tagsString = strings.Join(c.tags, ",")
 

@@ -607,29 +607,33 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
-				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
-				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
-				FQTDBOracle := FQTDBOracle{
-					CDBName: c.cdbName,
+			if c.fqtEmitted != nil {
+				if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
+					FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
+					FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
+					FQTDBOracle := FQTDBOracle{
+						CDBName: c.cdbName,
+					}
+					FQTPayload := FQTPayload{
+						Timestamp:    float64(time.Now().UnixMilli()),
+						Host:         c.dbHostname,
+						AgentVersion: c.agentVersion,
+						Source:       common.IntegrationName,
+						Tags:         c.tagsString,
+						DBMType:      "fqt",
+						FQTDB:        FQTDB,
+						FQTDBOracle:  FQTDBOracle,
+					}
+					FQTPayloadBytes, err := json.Marshal(FQTPayload)
+					if err != nil {
+						log.Errorf("Error marshalling fqt payload: %s", err)
+					}
+					log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
+					sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
+					c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 				}
-				FQTPayload := FQTPayload{
-					Timestamp:    float64(time.Now().UnixMilli()),
-					Host:         c.dbHostname,
-					AgentVersion: c.agentVersion,
-					Source:       common.IntegrationName,
-					Tags:         c.tagsString,
-					DBMType:      "fqt",
-					FQTDB:        FQTDB,
-					FQTDBOracle:  FQTDBOracle,
-				}
-				FQTPayloadBytes, err := json.Marshal(FQTPayload)
-				if err != nil {
-					log.Errorf("Error marshalling fqt payload: %s", err)
-				}
-				log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
-				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
-				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
+			} else {
+				log.Error("fqtEmitted = nil")
 			}
 
 			if c.config.ExecutionPlans.Enabled {
