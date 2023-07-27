@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -236,7 +237,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	// Replace ebpf telemetry maps with Percpu maps if kernel supports
-	if perCPUSupported() {
+	if features.HaveMapType(ebpf.PerCPUHash) == nil {
 		if mgrOpts.MapSpecEditors == nil {
 			mgrOpts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 		}
