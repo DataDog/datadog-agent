@@ -101,6 +101,7 @@
 
 #define SYSCALL_HOOK_COMMON(x,type,TYPE,syscall,...) int __attribute__((always_inline)) type##__sys##syscall(TYPE##_CTX_TYPE *ctx __JOIN(x,__SC_DECL,__VA_ARGS__))
 #define SYSCALL_KRETPROBE_PROLOG(...)
+#define SYSCALL_FEXIT_PROLOG(...)
 
 #define SYSCALL_FENTRY_PROLOG(x,m,syscall,...) \
   struct pt_regs *rctx = (struct pt_regs *) (ctx)[0]; \
@@ -165,7 +166,9 @@
 #define SYSCALL_FENTRY5(name, ...) SYSCALL_HOOKx(5,fentry,FENTRY,,_##name,__VA_ARGS__)
 #define SYSCALL_FENTRY6(name, ...) SYSCALL_HOOKx(6,fentry,FENTRY,,_##name,__VA_ARGS__)
 
-#define SYSCALL_KRETPROBE(name, ...) SYSCALL_HOOKx(0,kretprobe,KRETPROBE,,_##name)
+#define SYSCALL_KRETPROBE(name) SYSCALL_HOOKx(0,kretprobe,KRETPROBE,,_##name)
+
+#define SYSCALL_FEXIT(name) SYSCALL_HOOKx(0,fexit,FEXIT,,_##name,__VA_ARGS__)
 
 #define SYSCALL_COMPAT_KPROBE0(name, ...) SYSCALL_COMPAT_HOOKx(0,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_KPROBE1(name, ...) SYSCALL_COMPAT_HOOKx(1,kprobe,KPROBE,_##name,__VA_ARGS__)
