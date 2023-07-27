@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add `oracle.can_connect` metric.
+    Add the `oracle.can_connect` metric.
