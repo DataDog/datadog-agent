@@ -344,7 +344,8 @@ int kprobe_dentry_resolver_segment_erpc_mmap(struct pt_regs *ctx) {
 
     mmapped_userspace_buffer = bpf_map_lookup_elem(&dr_erpc_buffer, &key);
     if (mmapped_userspace_buffer == NULL) {
-        return DR_ERPC_UNKNOWN_ERROR;
+        resolution_err = DR_ERPC_UNKNOWN_ERROR;
+        goto exit;
     }
 
     // resolve segment and write in buffer
@@ -439,7 +440,8 @@ int kprobe_dentry_resolver_parent_erpc_mmap(struct pt_regs *ctx) {
 
     mmapped_userspace_buffer = bpf_map_lookup_elem(&dr_erpc_buffer, &key);
     if (mmapped_userspace_buffer == NULL) {
-        return DR_ERPC_UNKNOWN_ERROR;
+        resolution_err = DR_ERPC_UNKNOWN_ERROR;
+        goto exit;
     }
 
     // resolve segment and write in buffer
