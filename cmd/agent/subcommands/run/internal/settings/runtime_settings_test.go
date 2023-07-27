@@ -19,6 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -59,7 +60,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// true string
 
-	err = s.Set("true")
+	err = s.Set("true", settings.LogLevelSourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), true)
 	v, err := s.Get()
@@ -68,7 +69,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// false string
 
-	err = s.Set("false")
+	err = s.Set("false", settings.LogLevelSourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), false)
 	v, err = s.Get()
@@ -77,7 +78,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// true boolean
 
-	err = s.Set(true)
+	err = s.Set(true, settings.LogLevelSourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), true)
 	v, err = s.Get()
@@ -86,7 +87,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// false boolean
 
-	err = s.Set(false)
+	err = s.Set(false, settings.LogLevelSourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), false)
 	v, err = s.Get()
