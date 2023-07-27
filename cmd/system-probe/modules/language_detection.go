@@ -41,10 +41,8 @@ func (l languageDetectionModule) Register(router *module.Router) error {
 	return nil
 }
 
-func (l languageDetectionModule) Close() {
-	//TODO implement me
-	panic("implement me")
-}
+// There are no resources we need to clean up
+func (l languageDetectionModule) Close() {}
 
 func getRequestPids(proto *languageDetectionProto.DetectLanguageRequest) []int {
 	pids := make([]int, len(proto.Processes))
