@@ -105,7 +105,6 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_setxattr_callback")
 int kprobe_dr_setxattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);

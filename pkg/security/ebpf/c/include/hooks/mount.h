@@ -212,7 +212,6 @@ int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_one_callback")
 int kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -241,7 +240,6 @@ int kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_two_callback")
 int kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -518,7 +516,6 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_mount_callback")
 int kprobe_dr_mount_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);

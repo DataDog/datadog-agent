@@ -99,7 +99,6 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_selinux_callback")
 int kprobe_dr_selinux_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

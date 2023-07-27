@@ -304,7 +304,6 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_open_callback")
 int kprobe_dr_open_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

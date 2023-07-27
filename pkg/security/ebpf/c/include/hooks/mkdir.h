@@ -159,7 +159,6 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_mkdir_callback")
 int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

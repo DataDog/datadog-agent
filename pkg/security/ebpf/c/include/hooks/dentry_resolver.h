@@ -124,7 +124,6 @@ void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type)
     }
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_kern")
 int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
     dentry_resolver_kern(ctx, DR_KPROBE);
@@ -558,7 +557,6 @@ int fentry_dentry_resolver_parent_erpc_mmap(ctx_t *ctx) {
 
 #endif // USE_FENTRY
 
-// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_ad_filter")
 int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
