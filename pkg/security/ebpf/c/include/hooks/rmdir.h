@@ -110,7 +110,7 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_security_inode_rmdir_callback")
-int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
+int kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;

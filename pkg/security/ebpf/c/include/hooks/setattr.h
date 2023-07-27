@@ -96,7 +96,7 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_setattr_callback")
-int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ctx) {
+int kprobe_dr_setattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall) {
         return 0;

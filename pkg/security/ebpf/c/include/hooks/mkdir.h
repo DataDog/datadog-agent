@@ -161,13 +161,13 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_mkdir_callback")
-int __attribute__((always_inline)) kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
+int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     return dr_mkdir_callback(ctx, retval);
 }
 
 SEC("tracepoint/dr_mkdir_callback")
-int __attribute__((always_inline)) tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mkdir_callback(args, args->ret);
 }
 

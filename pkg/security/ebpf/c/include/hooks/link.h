@@ -102,7 +102,7 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_link_src_callback")
-int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *ctx) {
+int kprobe_dr_link_src_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -206,13 +206,13 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_link_dst_callback")
-int __attribute__((always_inline)) kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
+int kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);
     return dr_link_dst_callback(ctx, ret);
 }
 
 SEC("tracepoint/dr_link_dst_callback")
-int __attribute__((always_inline)) tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_link_dst_callback(args, args->ret);
 }
 

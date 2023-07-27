@@ -214,7 +214,7 @@ int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_one_callback")
-int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
+int kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
@@ -243,7 +243,7 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(st
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_two_callback")
-int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
+int kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
@@ -459,13 +459,13 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_mount_callback")
-int __attribute__((always_inline)) kprobe_dr_mount_callback(struct pt_regs *ctx) {
+int kprobe_dr_mount_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);
     return dr_mount_callback(ctx, ret);
 }
 
 SEC("tracepoint/dr_mount_callback")
-int __attribute__((always_inline)) tracepoint_dr_mount_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_mount_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mount_callback(args, args->ret);
 }
 

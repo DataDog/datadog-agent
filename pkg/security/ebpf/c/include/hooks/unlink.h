@@ -91,7 +91,7 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
 
 // fentry blocked by: tail call
 SEC("kprobe/dr_unlink_callback")
-int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
+int kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
