@@ -26,7 +26,7 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_progs",
-			Key:           ActivityDumpFilterTracepointKey,
+			Key:           ActivityDumpFilterKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tracepoint_dentry_resolver_ad_filter",
 			},
@@ -42,7 +42,7 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		},
 		{
 			ProgArrayName: "dentry_resolver_tracepoint_progs",
-			Key:           DentryResolverKernTracepointKey,
+			Key:           DentryResolverKernKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "tracepoint_dentry_resolver_kern",
 			},

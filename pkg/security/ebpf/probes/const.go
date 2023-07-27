@@ -26,13 +26,6 @@ const (
 )
 
 const (
-	// DentryResolverKernTracepointKey is the key to the kernel dentry resolver tail call program
-	DentryResolverKernTracepointKey uint32 = iota
-	// ActivityDumpFilterTracepointKey is the key to the kernel activity dump filter tail call program
-	ActivityDumpFilterTracepointKey
-)
-
-const (
 	// DentryResolverOpenCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an open event
 	DentryResolverOpenCallbackKprobeKey uint32 = iota + 1
 	// DentryResolverSetAttrCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an setattr event
