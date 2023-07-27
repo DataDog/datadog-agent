@@ -43,7 +43,7 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 
 	// Hacky workaround for the fact that EqualExportedValues doesn't support top level pointer equality.
 	type box struct {
-		r *languageDetectionProto.DetectLanguageResponse
+		*languageDetectionProto.DetectLanguageResponse
 	}
 
 	assert.EqualExportedValues(t, box{&languageDetectionProto.DetectLanguageResponse{
