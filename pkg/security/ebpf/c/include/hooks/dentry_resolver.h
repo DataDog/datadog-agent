@@ -134,6 +134,16 @@ int tracepoint_dentry_resolver_kern(void *ctx) {
     return 0;
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dentry_resolver_kern")
+int fentry_dentry_resolver_kern(ctx_t *ctx) {
+    dentry_resolver_kern(ctx, DR_FENTRY);
+    return 0;
+}
+
+#endif // USE_FENTRY
+
 // fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_erpc_write_user")
 int kprobe_dentry_resolver_erpc_write_user(struct pt_regs *ctx) {
@@ -497,6 +507,25 @@ int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
     tail_call_dr_progs(ctx, DR_KPROBE, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
+
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dentry_resolver_ad_filter")
+int fentry_dentry_resolver_ad_filter(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+    }
+
+    tail_call_dr_progs(ctx, DR_FENTRY, DR_DENTRY_RESOLVER_KERN_KEY);
+    return 0;
+}
+
+#endif // USE_FENTRY
 
 SEC("tracepoint/dentry_resolver_ad_filter")
 int tracepoint_dentry_resolver_ad_filter(void *ctx) {
