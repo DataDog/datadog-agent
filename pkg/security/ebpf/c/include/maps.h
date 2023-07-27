@@ -83,6 +83,7 @@ BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, u32, struct selinux_write_buffer_t, 1
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_callbacks, EVENT_MAX)
+BPF_PROG_ARRAY(dentry_resolver_fentry_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_progs, 5)
 BPF_PROG_ARRAY(dentry_resolver_fentry_progs, 5)
