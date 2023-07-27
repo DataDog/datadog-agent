@@ -45,7 +45,8 @@ enum MONITOR_KEYS {
 #define DR_NO_CALLBACK -1
 
 #define DR_KPROBE     1
-#define DR_TRACEPOINT 2
+#define DR_FENTRY     2
+#define DR_TRACEPOINT 3
 
 enum DENTRY_RESOLVER_KEYS {
     DR_DENTRY_RESOLVER_KERN_KEY,

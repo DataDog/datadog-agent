@@ -7,10 +7,14 @@
 
 package probes
 
-import manager "github.com/DataDog/ebpf-manager"
+import (
+	"fmt"
+
+	manager "github.com/DataDog/ebpf-manager"
+)
 
 // getDentryResolverTailCallRoutes is the list of routes used during the dentry resolution process
-func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
+func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool, fentry bool) []manager.TailCallRoute {
 	routes := []manager.TailCallRoute{
 		// activity dump filter programs
 		{
@@ -43,7 +47,28 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				EBPFFuncName: "tracepoint_dentry_resolver_kern",
 			},
 		},
+	}
 
+	if fentry {
+		routes = append(routes, []manager.TailCallRoute{
+			{
+				ProgArrayName: "dentry_resolver_fentry_progs",
+				Key:           ActivityDumpFilterKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "fentry_dentry_resolver_ad_filter",
+				},
+			},
+			{
+				ProgArrayName: "dentry_resolver_fentry_progs",
+				Key:           DentryResolverKernKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "fentry_dentry_resolver_kern",
+				},
+			},
+		}...)
+	}
+
+	routes = append(routes, []manager.TailCallRoute{
 		// dentry resolver kprobe callbacks
 		{
 			ProgArrayName: "dentry_resolver_kprobe_callbacks",
@@ -173,38 +198,47 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				EBPFFuncName: "tracepoint_dr_rename_callback",
 			},
 		},
+	}...)
+
+	prefixes := []string{"kprobe"}
+	if fentry {
+		prefixes = append(prefixes, "fentry")
 	}
 
-	// add routes for programs with the bpf_probe_write_user only if necessary
-	if ERPCDentryResolutionEnabled {
-		ebpfSuffix := "_mmap"
-		if !supportMmapableMaps {
-			ebpfSuffix = "_write_user"
-		}
+	for _, prefix := range prefixes {
+		// add routes for programs with the bpf_probe_write_user only if necessary
+		if ERPCDentryResolutionEnabled {
+			ebpfSuffix := "_mmap"
+			if !supportMmapableMaps {
+				ebpfSuffix = "_write_user"
+			}
 
-		routes = append(routes, []manager.TailCallRoute{
-			{
-				ProgArrayName: "dentry_resolver_kprobe_progs",
-				Key:           DentryResolverERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dentry_resolver_erpc" + ebpfSuffix,
+			progArrayName := fmt.Sprintf("dentry_resolver_%s_progs", prefix)
+
+			routes = append(routes, []manager.TailCallRoute{
+				{
+					ProgArrayName: progArrayName,
+					Key:           DentryResolverERPCKey,
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: prefix + "_dentry_resolver_erpc" + ebpfSuffix,
+					},
 				},
-			},
-			{
-				ProgArrayName: "dentry_resolver_kprobe_progs",
-				Key:           DentryResolverParentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dentry_resolver_parent_erpc" + ebpfSuffix,
+				{
+					ProgArrayName: progArrayName,
+					Key:           DentryResolverParentERPCKey,
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: prefix + "_dentry_resolver_parent_erpc" + ebpfSuffix,
+					},
 				},
-			},
-			{
-				ProgArrayName: "dentry_resolver_kprobe_progs",
-				Key:           DentryResolverSegmentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_dentry_resolver_segment_erpc" + ebpfSuffix,
+				{
+					ProgArrayName: progArrayName,
+					Key:           DentryResolverSegmentERPCKey,
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: prefix + "_dentry_resolver_segment_erpc" + ebpfSuffix,
+					},
 				},
-			},
-		}...)
+			}...)
+		}
 	}
 
 	return routes

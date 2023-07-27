@@ -11,6 +11,9 @@ int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, int dr_type, in
     case DR_KPROBE:
         bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, key);
         break;
+    case DR_FENTRY:
+        bpf_tail_call_compat(ctx, &dentry_resolver_fentry_progs, key);
+        break;
     case DR_TRACEPOINT:
         bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
         break;
