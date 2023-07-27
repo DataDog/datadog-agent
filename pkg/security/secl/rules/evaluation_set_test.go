@@ -511,14 +511,9 @@ func TestEvaluationSet_LoadPolicies_PolicyPrecedence(t *testing.T) {
 		Providers []PolicyProvider
 		TagValues []eval.RuleSetTagValue
 	}
-	type args struct {
-		loader *PolicyLoader
-		opts   PolicyLoaderOpts
-	}
 	tests := []struct {
 		name    string
 		fields  fields
-		args    args
 		want    func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool
 		wantErr func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool
 	}{
