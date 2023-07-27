@@ -223,7 +223,7 @@ func main() {
 	}
 }
 
-func defaultedType(conf *conf) *conf {
+func defaultedType(componentName string, conf *conf) *conf {
 	if conf.flagName == "kubeconfig" || conf.flagName == "authentication-kubeconfig" {
 		conf.flagType = "kubeconfig"
 	} else if conf.flagType == "string" || conf.flagType == "stringArray" {
@@ -389,7 +389,13 @@ func printKomponentCode(komp *komponent) string {
 		case "*K8sTokenFileMeta":
 			return fmt.Sprintf("res.%s = l.loadTokenFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sConfigFileMeta":
-			return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
+			if komp.name == "kubelet" && c.flagName == "config" {
+				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
+			} else {
+				return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
+			}
+		case "*K8sKubeletConfigFileMeta":
+			return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sAdmissionConfigFileMeta":
 			return fmt.Sprintf("res.%s = l.loadAdmissionConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sEncryptionProviderConfigFileMeta":
@@ -496,7 +502,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 		line := scanner.Text()
 		conf, ok := scanEtcdHelpLine(line)
 		if ok {
-			confs = append(confs, defaultedType(conf))
+			confs = append(confs, defaultedType(componentName, conf))
 		}
 	}
 	return &komponent{
@@ -534,7 +540,7 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 		line := scanner.Text()
 		conf, ok := scanK8sHelpLine(line)
 		if ok {
-			confs = append(confs, defaultedType(conf))
+			confs = append(confs, defaultedType(componentName, conf))
 		}
 	}
 
