@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Adds go language and version detection via the system probe. This beta feature can be enabled by adding
+    Adds Go language and version detection through the system probe. This beta feature can be enabled by adding
     `language_detection: { enabled: true }` to your `system-probe.yaml`.
