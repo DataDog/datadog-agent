@@ -6,6 +6,17 @@
 
 #include "buffer_selector.h"
 
+int __attribute__((always_inline)) dentry_resolver_op(void *ctx, int dr_type, int key) {
+    switch (dr_type) {
+    case DR_KPROBE:
+        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, key);
+        break;
+    case DR_TRACEPOINT:
+        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
+        break;
+    }
+}
+
 int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
     if (dr_type == DR_KPROBE) {
         bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_AD_FILTER_KEY);
