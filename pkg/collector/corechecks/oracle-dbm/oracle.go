@@ -77,13 +77,12 @@ type Check struct {
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
-	configTagsSet                           bool
 }
 
 func handleServiceCheck(c *Check, err error) {
 	sender, errSender := c.GetSender()
 	if errSender != nil {
-		log.Errorf("failed to get sender for service check %w", err)
+		log.Errorf("failed to get sender for service check %s", err)
 	}
 
 	message := ""
