@@ -74,7 +74,7 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 	}
 
 	for _, prefix := range prefixes {
-		progArrayName := fmt.Sprint("dentry_resolver_%s_callbacks", prefix)
+		progArrayName := fmt.Sprintf("dentry_resolver_%s_callbacks", prefix)
 
 		routes = append(routes, []manager.TailCallRoute{
 			// dentry resolver kprobe callbacks
