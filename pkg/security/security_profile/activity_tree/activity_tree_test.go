@@ -72,6 +72,7 @@ func TestInsertFileEvent(t *testing.T) {
 func TestActivityTree_InsertExecEvent(t *testing.T) {
 	for _, tt := range activityTreeInsertExecEventTestCases {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.tree.mergeExecChilds = true
 			node, _, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, nil, Runtime, false, nil)
 			if tt.wantErr != nil {
 				if !tt.wantErr(t, err, fmt.Sprintf("unexpected error: %v", err)) {
