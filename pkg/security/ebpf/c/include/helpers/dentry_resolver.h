@@ -6,7 +6,7 @@
 
 #include "buffer_selector.h"
 
-int __attribute__((always_inline)) dentry_resolver_op(void *ctx, int dr_type, int key) {
+int __attribute__((always_inline)) dentry_resolver_progs_op(void *ctx, int dr_type, int key) {
     switch (dr_type) {
     case DR_KPROBE:
         bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, key);
@@ -15,15 +15,11 @@ int __attribute__((always_inline)) dentry_resolver_op(void *ctx, int dr_type, in
         bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
         break;
     }
+    return 0;
 }
 
 int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
-    if (dr_type == DR_KPROBE) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_AD_FILTER_KEY);
-    } else if (dr_type == DR_TRACEPOINT) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_AD_FILTER_KEY);
-    }
-    return 0;
+    return dentry_resolver_progs_op(ctx, dr_type, DR_AD_FILTER_KEY);
 }
 
 int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
@@ -85,7 +81,7 @@ int __attribute__((always_inline)) handle_dr_request(struct pt_regs *ctx, void *
         goto exit;
     }
 
-    bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, dr_erpc_key);
+    dentry_resolver_progs_op(ctx, DR_KPROBE, dr_erpc_key);
 
 exit:
     monitor_resolution_err(resolution_err);

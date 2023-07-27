@@ -15,7 +15,7 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		// activity dump filter programs
 		{
 			ProgArrayName: "dentry_resolver_kprobe_progs",
-			Key:           ActivityDumpFilterKprobeKey,
+			Key:           ActivityDumpFilterKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_dentry_resolver_ad_filter",
 			},
@@ -31,7 +31,7 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 		// dentry resolver programs
 		{
 			ProgArrayName: "dentry_resolver_kprobe_progs",
-			Key:           DentryResolverKernKprobeKey,
+			Key:           DentryResolverKernKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_dentry_resolver_kern",
 			},

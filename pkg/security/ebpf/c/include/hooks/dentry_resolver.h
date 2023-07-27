@@ -116,13 +116,13 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 // fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_kern")
 int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
-    dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
+    dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
 SEC("tracepoint/dentry_resolver_kern")
 int tracepoint_dentry_resolver_kern(void *ctx) {
-    dentry_resolver_kern(ctx, &dentry_resolver_tracepoint_progs, &dentry_resolver_tracepoint_callbacks, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
+    dentry_resolver_kern(ctx, &dentry_resolver_tracepoint_progs, &dentry_resolver_tracepoint_callbacks, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
@@ -192,7 +192,7 @@ int kprobe_dentry_resolver_erpc_write_user(struct pt_regs *ctx) {
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
+        dentry_resolver_progs_op(ctx, DR_KPROBE, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -274,7 +274,7 @@ int kprobe_dentry_resolver_erpc_mmap(struct pt_regs *ctx) {
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_ERPC_KEY);
+        dentry_resolver_progs_op(ctx, DR_KPROBE, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -486,7 +486,7 @@ int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
+    dentry_resolver_progs_op(ctx, DR_KPROBE, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
@@ -501,7 +501,7 @@ int tracepoint_dentry_resolver_ad_filter(void *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, DR_TRACEPOINT_DENTRY_RESOLVER_KERN_KEY);
+    dentry_resolver_progs_op(ctx, DR_TRACEPOINT, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
