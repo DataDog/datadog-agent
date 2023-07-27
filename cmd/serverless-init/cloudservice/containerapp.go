@@ -29,7 +29,7 @@ const (
 
 // GetTags returns a map of Azure-related tags
 func (c *ContainerApp) GetTags() map[string]string {
-	appName := os.Getenv(ContainerAppNameEnvVar)
+	appName := strings.ToLower(os.Getenv(ContainerAppNameEnvVar))
 	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
 
 	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
@@ -54,7 +54,7 @@ func (c *ContainerApp) GetTags() map[string]string {
 	}
 
 	if c.SubscriptionId != "" && c.ResourceGroup != "" {
-		tags["resource_id"] = fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+		tags["resource_id"] = fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, appName)
 	}
 
 	return tags
@@ -87,13 +87,13 @@ func (c *ContainerApp) Init() error {
 	// These environment variables are optional for now. Once we go GA,
 	// return an error if these are not set.
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
-		c.SubscriptionId = subscriptionId
+		c.SubscriptionId = strings.ToLower(subscriptionId)
 	} else {
 		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
 
 	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
-		c.ResourceGroup = resourceGroup
+		c.ResourceGroup = strings.ToLower(resourceGroup)
 	} else {
 		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
 	}

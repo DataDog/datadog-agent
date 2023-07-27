@@ -63,6 +63,35 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestContainerAppResourceIdIsLowercase(t *testing.T) {
+	service := NewContainerApp()
+
+	t.Setenv("CONTAINER_APP_NAME", "TEST_APP")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
+
+	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "TEST_SUB")
+	t.Setenv("DD_AZURE_RESOURCE_GROUP", "TEST_RG")
+
+	err := service.Init()
+	assert.NoError(t, err)
+
+	tags := service.GetTags()
+
+	assert.Equal(t, map[string]string{
+		"app_name":        "test_app",
+		"origin":          "containerapp",
+		"region":          "eastus",
+		"revision":        "test_revision",
+		"_dd.origin":      "containerapp",
+		"subscription_id": "test_sub",
+		"resource_id":     "/subscriptions/test_sub/resourcegroups/test_rg/providers/microsoft.app/containerapps/test_app",
+		"resource_group":  "test_rg",
+	}, tags)
+
+	assert.Nil(t, err)
+}
+
 func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 	service := NewContainerApp()
 	if os.Getenv("SERVERLESS_TEST") == "true" {
