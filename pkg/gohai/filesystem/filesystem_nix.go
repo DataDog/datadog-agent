@@ -8,11 +8,16 @@
 package filesystem
 
 import (
+	"fmt"
 	"strings"
 	"syscall"
 
+	log "github.com/cihub/seelog"
 	"github.com/moby/sys/mountinfo"
 )
+
+var getFSSizeFn = getFSSize
+var getFSDevFn = getFSDev
 
 // These FS types should be excluded from listing
 var IgnoredFSTypes = map[string]struct{}{
@@ -47,13 +52,46 @@ var RemoteFSTypes = map[string]struct{}{
 	"vxfs":       {},
 }
 
+// returns the size of the filesystem
+func getFSSize(mount *mountinfo.Info) (uint64, error) {
+	var statfs syscall.Statfs_t
+	if err := syscall.Statfs(mount.Mountpoint, &statfs); err != nil {
+		return 0, fmt.Errorf("statfs %s: %v", mount.Source, err)
+	}
+
+	sizeKB := statfs.Blocks * uint64(statfs.Bsize) / 1024
+	return sizeKB, nil
+}
+
+// returns the dev id of the given filesystem
+// the return type is interface{} because `syscall.Stat_t` uses different types for Dev depending on the platform
+func getFSDev(mount *mountinfo.Info) (interface{}, error) {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(mount.Mountpoint, &stat); err != nil {
+		return 0, fmt.Errorf("stat %s: %w", mount.Source, err)
+	}
+
+	return stat.Dev, nil
+}
+
 func getFileSystemInfo() ([]MountInfo, error) {
-	return getFileSystemInfoWithMounts(nil, true)
+	return getFileSystemInfoWithMounts(nil)
+}
+
+// returns whether to use the new mountInfo instead of the old one
+func replaceDev(old, new MountInfo) bool {
+	if strings.ContainsRune(new.Name, '/') && !strings.ContainsRune(old.Name, '/') {
+		return true
+	}
+	if len(old.MountedOn) > len(new.MountedOn) {
+		return true
+	}
+
+	return old.Name != new.Name && old.MountedOn == new.MountedOn
 }
 
 // Internal method to help testing with test mounts
-// If ignoreEmpty is true, ignore zero-sized filesystems, like `df` does (unless using -a)
-func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, ignoreEmpty bool) ([]MountInfo, error) {
+func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, error) {
 	var err error
 	mounts := initialMounts
 
@@ -64,26 +102,25 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, ignoreEmpty bo
 		}
 	}
 
-	var mountInfos = make([]MountInfo, 0, len(mounts))
-
+	devMountInfos := map[interface{}]MountInfo{}
 	for _, mount := range mounts {
+		// Skip mounts that seem to be missing data
+		if mount.Source == "" || mount.Source == "none" || mount.FSType == "" || mount.Mountpoint == "" {
+			continue
+		}
+
 		if isExcludedFS(mount.FSType, mount.Source, true) {
 			continue
 		}
 
-		var stat syscall.Statfs_t
-
-		sizeKB := uint64(0)
-		if err := syscall.Statfs(mount.Mountpoint, &stat); err == nil {
-			sizeKB = (stat.Blocks * uint64(stat.Bsize)) / 1024
-		}
-
-		if ignoreEmpty && sizeKB == 0 {
+		sizeKB, err := getFSSizeFn(mount)
+		if err != nil {
+			log.Info(err)
 			continue
 		}
 
-		// Skip mounts that seem to be missing data
-		if mount.Source == "" || mount.Source == "none" || mount.FSType == "" || mount.Mountpoint == "" {
+		if sizeKB == 0 {
+			// ignore zero-sized filesystems, like `df` does (unless using -a)
 			continue
 		}
 
@@ -92,6 +129,21 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, ignoreEmpty bo
 			SizeKB:    sizeKB,
 			MountedOn: mount.Mountpoint,
 		}
+
+		dev, err := getFSDevFn(mount)
+		if err != nil {
+			log.Info(err)
+			continue
+		}
+
+		existingMountInfo, exists := devMountInfos[dev]
+		if !exists || replaceDev(existingMountInfo, mountInfo) {
+			devMountInfos[dev] = mountInfo
+		}
+	}
+
+	mountInfos := make([]MountInfo, 0, len(devMountInfos))
+	for _, mountInfo := range devMountInfos {
 		mountInfos = append(mountInfos, mountInfo)
 	}
 

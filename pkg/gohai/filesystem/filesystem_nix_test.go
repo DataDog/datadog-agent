@@ -59,6 +59,7 @@ func TestNixGet(t *testing.T) {
 }
 
 func TestNixFSTypeFiltering(t *testing.T) {
+	mockFSFunctions(t)
 
 	var testCases = []struct {
 		FSType   string
@@ -157,21 +158,24 @@ func TestNixFSTypeFiltering(t *testing.T) {
 				expectedMount := MountInfo{
 					Name:      mount.Source,
 					MountedOn: mount.Mountpoint,
+					SizeKB:    1,
 				}
 
 				expectedMounts = append(expectedMounts, expectedMount)
 			}
 
-			mounts, err := getFileSystemInfoWithMounts(inputMounts, false)
+			mounts, err := getFileSystemInfoWithMounts(inputMounts)
 			require.NoError(t, err)
 
 			require.Equal(t, len(expectedMounts), len(mounts))
-			assert.Equal(t, mounts, expectedMounts)
+			assert.ElementsMatch(t, mounts, expectedMounts)
 		})
 	}
 }
 
 func TestNixMissingMountValues(t *testing.T) {
+	mockFSFunctions(t)
+
 	var testCases = []struct {
 		Desc           string
 		InputMounts    []*mountinfo.Info
@@ -188,7 +192,7 @@ func TestNixMissingMountValues(t *testing.T) {
 				newTestInputMountinfo("Normal1"),
 				{Source: "", FSType: "foo", Mountpoint: "Bad1"},
 				newTestInputMountinfo("Normal2"),
-				{Source: "", FSType: "foo", Mountpoint: "Bad2"},
+				{Source: "none", FSType: "foo", Mountpoint: "Bad2"},
 				newTestInputMountinfo("Normal3"),
 			},
 			[]MountInfo{
@@ -219,7 +223,10 @@ func TestNixMissingMountValues(t *testing.T) {
 				{Source: "", FSType: "foo", Mountpoint: ""},
 				newTestInputMountinfo("Normal2"),
 			},
-			[]MountInfo{newTestOutputMountInfo("Normal1"), newTestOutputMountInfo("Normal2")},
+			[]MountInfo{
+				newTestOutputMountInfo("Normal1"),
+				newTestOutputMountInfo("Normal2"),
+			},
 		},
 		{
 			"MissingFSType",
@@ -241,11 +248,80 @@ func TestNixMissingMountValues(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.Desc, func(t *testing.T) {
-			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, false)
+			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts)
 			require.NoError(t, err)
 
 			require.Equal(t, len(tc.ExpectedMounts), len(mounts))
-			assert.Equal(t, mounts, tc.ExpectedMounts)
+			assert.ElementsMatch(t, mounts, tc.ExpectedMounts)
+		})
+	}
+}
+
+func TestFilterEmptySize(t *testing.T) {
+	mockFSFunctions(t)
+	getFSSizeFn = func(mount *mountinfo.Info) (uint64, error) {
+		return 0, nil
+	}
+
+	initialMounts := []*mountinfo.Info{
+		newTestInputMountinfo("Normal"),
+	}
+	mounts, err := getFileSystemInfoWithMounts(initialMounts)
+	require.NoError(t, err)
+	require.Empty(t, mounts)
+}
+
+func TestFilterDev(t *testing.T) {
+	mockFSFunctions(t)
+	getFSDevFn = func(mount *mountinfo.Info) (interface{}, error) {
+		return 1, nil
+	}
+
+	var testCases = []struct {
+		Desc           string
+		InputMounts    []*mountinfo.Info
+		ExpectedMounts []MountInfo
+	}{
+		{
+			"ReplaceDevNameSlash",
+			[]*mountinfo.Info{
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint"},
+				{Source: "/Source", FSType: "foo", Mountpoint: "MountPoint"},
+			},
+			[]MountInfo{
+				{Name: "/Source", SizeKB: 1, MountedOn: "MountPoint"},
+			},
+		},
+		{
+			"ReplaceDevMountLength",
+			[]*mountinfo.Info{
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint0"},
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint"},
+			},
+			[]MountInfo{
+				{Name: "Source", SizeKB: 1, MountedOn: "MountPoint"},
+			},
+		},
+		{
+			"ReplaceDevNewSource",
+			[]*mountinfo.Info{
+				{Source: "Source", FSType: "foo", Mountpoint: "MountPoint"},
+				{Source: "NewSource", FSType: "foo", Mountpoint: "MountPoint"},
+			},
+			[]MountInfo{
+				{Name: "NewSource", SizeKB: 1, MountedOn: "MountPoint"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.Desc, func(t *testing.T) {
+			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts)
+			require.NoError(t, err)
+
+			require.Equal(t, len(tc.ExpectedMounts), len(mounts))
+			assert.ElementsMatch(t, mounts, tc.ExpectedMounts)
 		})
 	}
 }
@@ -264,6 +340,7 @@ func newTestOutputMountInfo(name string) MountInfo {
 	return MountInfo{
 		Name:      name + "Source",
 		MountedOn: name + "MountPoint",
+		SizeKB:    1,
 	}
 }
 
@@ -274,4 +351,31 @@ func randString() string {
 		bytes[idx] = charset[rand.Intn(len(charset))]
 	}
 	return string(bytes)
+}
+
+func mockGetSize(t *testing.T) {
+	getFSSizeFn = func(mount *mountinfo.Info) (uint64, error) {
+		return 1, nil
+	}
+
+	t.Cleanup(func() {
+		getFSSizeFn = getFSSize
+	})
+}
+
+func mockGetDev(t *testing.T) {
+	counter := 0
+	getFSDevFn = func(mount *mountinfo.Info) (interface{}, error) {
+		counter++
+		return counter, nil
+	}
+
+	t.Cleanup(func() {
+		getFSDevFn = getFSDev
+	})
+}
+
+func mockFSFunctions(t *testing.T) {
+	mockGetSize(t)
+	mockGetDev(t)
 }
