@@ -349,11 +349,10 @@ func (ns *networkState) logTelemetry() {
 	dnsPidCollisionsDelta := stateTelemetry.dnsPidCollisions.Load() - ns.lastTelemetry.dnsPidCollisions
 
 	// Flush log line if any metric is non-zero
-	if statsUnderflowsDelta > 0 || statsCookieCollisionsDelta > 0 || closedConnDroppedDelta > 0 || connDroppedDelta > 0 || timeSyncCollisionsDelta > 0 ||
+	if statsUnderflowsDelta > 0 || closedConnDroppedDelta > 0 || connDroppedDelta > 0 || timeSyncCollisionsDelta > 0 ||
 		dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 || http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || dnsPidCollisionsDelta > 0 {
 		s := "state telemetry: "
 		s += " [%d stats stats_underflows]"
-		s += " [%d stats cookie collisions]"
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
 		s += " [%d dns stats dropped]"
@@ -364,7 +363,6 @@ func (ns *networkState) logTelemetry() {
 		s += " [%d time sync collisions]"
 		log.Warnf(s,
 			statsUnderflowsDelta,
-			statsCookieCollisionsDelta,
 			connDroppedDelta,
 			closedConnDroppedDelta,
 			dnsStatsDroppedDelta,
@@ -373,6 +371,10 @@ func (ns *networkState) logTelemetry() {
 			kafkaStatsDroppedDelta,
 			dnsPidCollisionsDelta,
 			timeSyncCollisionsDelta)
+
+		if statsCookieCollisionsDelta > 0 {
+			log.Debugf("stats cookie collisions: [%d stats cookie collisions]", statsCookieCollisionsDelta)
+		}
 	}
 
 	ns.lastTelemetry.closedConnDropped = stateTelemetry.closedConnDropped.Load()
