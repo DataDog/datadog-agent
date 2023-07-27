@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/davecgh/go-spew/spew"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -65,7 +64,6 @@ func toDetectLanguageResponse(langs []languagemodels.Language) *languageDetectio
 			Version: lang.Version,
 		}
 	}
-	spew.Dump(resp)
 	return resp
 }
 
