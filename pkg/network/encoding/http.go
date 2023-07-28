@@ -18,6 +18,7 @@ import (
 )
 
 type httpEncoder struct {
+	builder      *model.HTTPAggregationsBuilder
 	byConnection *USMConnectionIndex[http.Key, *http.RequestStats]
 }
 
@@ -27,6 +28,7 @@ func newHTTPEncoder(payload *network.Connections) *httpEncoder {
 	}
 
 	return &httpEncoder{
+		builder: model.NewHTTPAggregationsBuilder(nil),
 		byConnection: GroupByConnection("http", payload.HTTP, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
@@ -57,10 +59,10 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats, buil
 func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
-	builder := model.NewHTTPAggregationsBuilder(w)
+	e.builder.Reset(w)
 
 	for _, kvPair := range connectionData.Data {
-		builder.AddEndpointAggregations(func(httpStatsBuilder *model.HTTPStatsBuilder) {
+		e.builder.AddEndpointAggregations(func(httpStatsBuilder *model.HTTPStatsBuilder) {
 			key := kvPair.Key
 			stats := kvPair.Value
 
