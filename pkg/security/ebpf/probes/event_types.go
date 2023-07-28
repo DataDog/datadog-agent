@@ -234,7 +234,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 
 			// ioctl probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_vfs_ioctl"}},
+				kprobeOrFentry("do_vfs_ioctl", fentry),
 			}},
 
 			// Link

@@ -29,7 +29,7 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, dr_type);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     return 0;
 }
