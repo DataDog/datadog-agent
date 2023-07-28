@@ -313,7 +313,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID = nil
+	c.ContainerID.Source = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, int64(ts))
@@ -341,7 +341,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("service", p.Envs["DD_SERVICE"])
 
 	if p.ContainerID != "" {
-		c.ContainerID = &p.ContainerID
+		c.ContainerID.Source = &p.ContainerID
 	}
 }
 
@@ -373,7 +373,14 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
+
 	t.activeBuffer.Reset()
+
+	// resolve local connections, if process event
+	// stream is enabled
+	if t.processCache != nil {
+		network.ResolveLocal(delta.BufferedData.Conns)
+	}
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
 

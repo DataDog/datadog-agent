@@ -93,6 +93,9 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		cid := conn.Laddr.ContainerId
 		if cid == "" {
 			cid, _ = l.ctrForPid[int(conn.Pid)]
+		} else {
+			// update ctrForPid
+			l.ctrForPid[int(conn.Pid)] = cid
 		}
 
 		if cid == "" {
