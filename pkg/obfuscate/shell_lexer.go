@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	IFS         = " \n\r\t" // FIXME use real $IFS
+	IFS         = " \n\r\t"
 	expressions = map[string]*regexp.Regexp{
 		"IFS":              regexp.MustCompile(` \n\r\t`), // FIXME use real IFS
 		"whiteSpace":       regexp.MustCompile(`[ \n\r\t]+`),
@@ -324,33 +324,4 @@ func parseShell(cmd string) []ShellToken {
 
 	// Stage 2.2 find what is executable and remove whitespace
 	return changeStates(ret)
-}
-
-// matchingParams returns a list of params that are found in the shell command
-func matchingParams(shCmd string, params []string) []string {
-	var found []string
-	for _, paramVal := range params {
-		if strings.Contains(shCmd, paramVal) {
-			found = append(found, paramVal)
-		}
-	}
-	return found
-}
-
-// findTokenWithIndex finds a token's index given a target position.
-// Using a binary search
-func findTokenWithIndex(parsedTokens []ShellToken, targetPos int) int {
-	min, max := 0, len(parsedTokens)
-	for min <= max {
-		currentIndex := min + (max-min)/2
-		if parsedTokens[currentIndex].start <= targetPos && targetPos < parsedTokens[currentIndex].end {
-			return currentIndex
-		} else if parsedTokens[currentIndex].start > targetPos {
-			max = currentIndex - 1
-		} else {
-			min = currentIndex + 1
-		}
-	}
-
-	return -1
 }
