@@ -32,7 +32,7 @@ var (
 
 // Shared context
 var (
-	regexParamDeny  = regexp.MustCompile(`^-{0,2}(?:p(?:ass(?:w(?:or)?d)?)?|api_?key|secret|token|a(?:ccess|uth)_token|mysql_pwd|credentials|stripetoken)$`)
+	regexParamDeny  = regexp.MustCompile(`^-{0,2}(?:p(?:ass(?:w(?:or)?d)?)?|api_?key|secret|a(?:ccess|uth)_token|mysql_pwd|credentials|(?:stripe)?token)$`)
 	regexEnvVars    = regexp.MustCompile(`([\d\w_]+)=.+`)
 	allowedEnvVars  = []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH"}
 	processDenyList = []string{"md5"}
