@@ -16,7 +16,6 @@ class GithubAppException(Exception):
 
 
 class GithubApp(RemoteAPI):
-
     BASE_URL = 'https://api.github.com'
 
     def __init__(self):
