@@ -7,8 +7,7 @@ Developers can check out this confluence page for more details about the system.
 
 This file will document the invoke tasks provided to easily manage the lifecycle of the VMs launched using this system.
 
-The system works on the concept of `stacks`. A `stack` is a collection of VMs, both local and remote. A `stack` is given a unique name by the user.   
-If no stack name is provided, a name is generated automatically from the current branch name. This allows the developers to couple `stacks` with their git workflow.
+The system works on the concept of `stacks`. A `stack` is a collection of VMs, both local and remote. A `stack` is given a unique name by the user. Convenience options for generating the name of the `stack` from the current branch is also provided. This allows the developers to couple `stacks` with their git workflow.
 A `stack` may be:
 - Created
 - Configured
@@ -153,10 +152,9 @@ Reverting will destroy all running stacks before restoring from backup.
 ### Creating a stack
 A stack can be created as follows:
 ```bash
-inv -e kmt.create-stack [--stack=<name>]
+inv -e kmt.create-stack [--stack=<name>|--branch]
 ```
-The developer can provide a name to associate with the `stack`.    
-If no name is provided one is automatically generated from the current branch name.
+The developer needs to provide a name to associate with the `stack`, or specify the `--branch` argument to generate the name from the current branch.
 
 ### Listing possible VMs
 Possible VMs can be listed with
@@ -186,7 +184,7 @@ Sample VMSet file can be found [here](https://github.com/DataDog/test-infra-defi
 
 The file can be generated for a particular `stack` with the `gen-config` task.   
 This task takes as parameters
-- The stack to target specified with [--stack=<name>] 
+- The stack to target specified with [--stack=<name>|--branch] 
 - The list of VMS to generate specified by --vms=<list>. See [VMs list](#vms-list) for details on how to specify the list.
 - Optional paramenter `--init-stack` to automatically initialize the stack. This can be specified to automatically run the creating stack step.
 - Optional parameter `--new` to generate a fresh configuration file.
@@ -196,37 +194,37 @@ The file can be incrementally generated. This means a user may generate a vmset 
 #### Example 1
 ```bash
 # Setup configuration file to launch jammy and focal locally. Initialize a new stack corresponding to the current branch
-inv -e kmt.gen-config  --vms=jammy-local-distro,focal-local-distro --init-stack
+inv -e kmt.gen-config --branch --vms=jammy-local-distro,focal-local-distro --init-stack
 # Launch this stack. Since we are launching local VMs, there is no need to specify ssh key.
-inv -e kmt.launch-stack 
+inv -e kmt.launch-stack --branch
 # Add amazon linux VMs to be launched locally
-inv -e kmt.gen-config  --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
+inv -e kmt.gen-config --branch --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
 # Launch the new VMs added. The previous VMs will keep running
-inv -e kmt.launch-stack 
+inv -e kmt.launch-stack --branch
 # Remove all VMs except amazon linux 2 4.14 locally
-inv -e kmt.gen-config  --new --vms=amazon4.14-local-distro
+inv -e kmt.gen-config --branch --new --vms=amazon4.14-local-distro
 # Apply this configuration
-inv -e kmt.launch-stack 
+inv -e kmt.launch-stack --branch
 ```
 
 #### Example 2
 ```bash
 # Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
-inv -e kmt.gen-config  --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
+inv -e kmt.gen-config --branch --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
 # Name of the ssh key to use 
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
 # Add amazon linux
-inv -e kmt.gen-config  --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
+inv -e kmt.gen-config --branch --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
 # Name of the ssh key to use 
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
 ```
 
 #### Example 3
 ```bash
 # Configure custom kernels
-inv -e kmt.gen-config  --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
+inv -e kmt.gen-config --branch --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
 # Launch stack
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
 ```
 
 ### VMs List
@@ -260,13 +258,13 @@ All of the below resolve to [kernel 5.4, arm64, custom]
 ### Launching the stack
 If you are just launching local VMs you do not need to specify an ssh key
 ```bash
-inv -e kmt.launch-stack 
+inv -e kmt.launch-stack --branch
 ```
 
 If you are launching remote instances then the ssh key used to access the machine is required.   
 Only the ssh key name is required. The program will automatically look in `~/.ssh/` directory for the key.
 ```bash
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
 ```
 
 If you are launching local VMs, you will be queried for you password. This is required since the program has to run some commands as root. However, we do not run the entire scenario with `sudo` to avoid broken permissions.
@@ -274,7 +272,7 @@ If you are launching local VMs, you will be queried for you password. This is re
 ### List the stack
 Prints information about the stack.
 ```bash
-inv -e kmt.stack [--stack=<name>]
+inv -e kmt.stack [--stack=<name>|--branch]
 ```
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
@@ -296,6 +294,6 @@ To support this, a task for syncing the local datadog-agent repo with target VMs
 If syncing to VMs running on remote machine the ssh-key-name is required. For local VMs it is not required.
 The VMs list has the same rules as listed for the task `gen-config`.
 ```bash
-inv -e kmt.sync  --vms=local-amazon4.14-distro,jammy-local-distro,focal-arm-distro,amazon5.4-x86-distro --ssh-key=<ssh-key-name>
+inv -e kmt.sync --branch --vms=local-amazon4.14-distro,jammy-local-distro,focal-arm-distro,amazon5.4-x86-distro --ssh-key=<ssh-key-name>
 ```
 

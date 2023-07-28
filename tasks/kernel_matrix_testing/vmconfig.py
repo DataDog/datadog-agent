@@ -419,11 +419,11 @@ def ls_to_int(ls):
     return int_ls
 
 
-def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
-    stack = check_and_get_stack(stack)
+def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
+    stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
-            f"Stack {stack} does not exist. Please create stack first 'inv kmt.stack-create --stack={stack}, or specify --init-stack option'"
+            f"Stack {stack} does not exist. Please create stack first 'inv kmt.stack-create --stack={stack}, or specify --create-stack option'"
         )
 
     if init_stack:

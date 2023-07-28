@@ -21,8 +21,7 @@ def delete_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        if domain.isActive():
-            domain.destroy()
+        domain.destroy()
         domain.undefine()
         info(f"[+] VM {name} deleted")
 
@@ -71,8 +70,7 @@ def delete_networks(conn, stack):
 
     for network in networks:
         name = network.name()
-        if network.isActive():
-            network.destroy()
+        network.destroy()
         network.undefine()
         info(f"[+] Network {name} deleted")
 
@@ -83,8 +81,7 @@ def pause_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        if domain.isActive():
-            domain.destroy()
+        domain.destroy()
         info(f"[+] VM {name} is paused")
 
 
@@ -94,6 +91,5 @@ def resume_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        if not domain.isActive():
-            domain.create()
+        domain.create()
         info(f"[+] VM {name} is resumed")

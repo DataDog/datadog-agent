@@ -19,9 +19,7 @@ sudo apt install -y \
     libvirt-dev \
     python3-pip \
     nfs-kernel-server \
-    rpcbind \
-    ssh-askpass \
-    xsltproc
+    rpcbind
 
 if [ "$(uname -m )" == "aarch64" ]; then
     sudo apt install -y qemu-efi-aarch64
