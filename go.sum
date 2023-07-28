@@ -125,8 +125,6 @@ github.com/CycloneDX/cyclonedx-go v0.7.1 h1:5w1SxjGm9MTMNTuRbEPyw21ObdbaagTWF/Kf
 github.com/CycloneDX/cyclonedx-go v0.7.1/go.mod h1:N/nrdWQI2SIjaACyyDs/u7+ddCkyl/zkNs8xFsHF2Ps=
 github.com/DataDog/agent-payload v4.89.0+incompatible h1:0C7DwBSz1iqkgwCp2Lwzzguu5dgcxNxLo9QeE4OCDJQ=
 github.com/DataDog/agent-payload v4.89.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
-github.com/DataDog/agent-payload/v5 v5.0.90-0.20230721000346-e4cf8dfaee53 h1:kqdmsoac24pbvplcpX+zAfN5IMO1PpYzXhIcOCKXdwc=
-github.com/DataDog/agent-payload/v5 v5.0.90-0.20230721000346-e4cf8dfaee53/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/agent-payload/v5 v5.0.92-0.20230728174155-f4bf1a4ee3f7 h1:yszFMP998I/KtQPXPNlPxH0mBePU3beGQsAqS4U6XBc=
 github.com/DataDog/agent-payload/v5 v5.0.92-0.20230728174155-f4bf1a4ee3f7/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a h1:7ZiVdU4j19IYuy8rR0uUzC7I7HjWul61ZEyUgvLkZBM=
