@@ -26,7 +26,7 @@ import (
  * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
  * For such statements, we will have to get the text from v$sql which has the complete text.
  */
-const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id, 
+const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id, 
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
 	sum(direct_writes) as direct_writes,
@@ -63,11 +63,11 @@ const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ c.name pdb_name, s.force_matchi
 	sum(avoided_executions) as avoided_executions
 FROM v$sqlstats s, v$containers c 
 WHERE s.con_id = c.con_id (+) AND force_matching_signature != 0
-GROUP BY c.name, force_matching_signature, plan_hash_value 
+GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value 
 HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
-const QUERY_FMS_LAST_ACTIVE = `SELECT /* DD_QM_FMS */ c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
+const QUERY_FMS_LAST_ACTIVE = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
 	sum(direct_writes) as direct_writes,
@@ -112,10 +112,10 @@ FROM v$sqlstats s, v$containers c, (
 WHERE rowno = 1
 ) sq 
 WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching_signature 
-GROUP BY c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
+GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
 FETCH FIRST :limit ROWS ONLY`
 
-const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length (sql_fulltext) sql_text_length, 
+const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length (sql_fulltext) sql_text_length, 
 	parse_calls,
 	disk_reads,
 	direct_writes,
@@ -189,15 +189,14 @@ const PLAN_QUERY = `SELECT /* DD */
 	last_elapsed_time,
 	last_memory_used,
 	last_degree,
-	last_tempseg_size,
-	c.name pdb_name
-FROM v$sql_plan_statistics_all s, v$containers c
+	last_tempseg_size
+FROM v$sql_plan_statistics_all s
 WHERE 
-  sql_id = :1 AND plan_hash_value = :2
-  AND s.con_id = c.con_id(+)
+  sql_id = :1 AND plan_hash_value = :2 AND con_id = :3
 ORDER BY id, position`
 
 type StatementMetricsKeyDB struct {
+	ConID                  int    `db:"CON_ID"`
 	PDBName                string `db:"PDB_NAME"`
 	SQLID                  string `db:"SQL_ID"`
 	ForceMatchingSignature string `db:"FORCE_MATCHING_SIGNATURE"`
@@ -737,7 +736,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
-					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
 
 					if err == nil {
 						if len(planStepsDB) > 0 {
@@ -857,9 +856,8 @@ func (c *Check) StatementMetrics() (int, error) {
 								if stepRow.Other.Valid && stepRow.Other.String != "" {
 									oraclePlan.Other = stepRow.Other.String
 								}
-								if stepRow.PDBName.Valid && stepRow.PDBName.String != "" {
-									oraclePlan.PDBName = stepRow.PDBName.String
-								}
+
+								oraclePlan.PDBName = statementMetricRow.PDBName
 								oraclePlan.SQLID = stepRow.SQLID
 
 								planStepsPayload = append(planStepsPayload, stepPayload)
@@ -880,12 +878,14 @@ func (c *Check) StatementMetrics() (int, error) {
 								Statement:      SQLStatement,
 								Metadata:       planStatementMetadata,
 							}
+							tags := strings.Join(append(c.tags, fmt.Sprintf("pdb:%s", statementMetricRow.PDBName)), ",")
+
 							planPayload := PlanPayload{
 								Timestamp:    float64(time.Now().UnixMilli()),
 								Host:         c.dbHostname,
 								AgentVersion: c.agentVersion,
 								Source:       common.IntegrationName,
-								Tags:         strings.Join(c.tags, ","),
+								Tags:         tags,
 								DBMType:      "plan",
 								PlanDB:       planDB,
 								OraclePlan:   oraclePlan,
