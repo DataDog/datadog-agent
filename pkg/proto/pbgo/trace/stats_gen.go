@@ -489,7 +489,7 @@ func (z *ClientStatsBucket) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Duration")
 				return
 			}
-		case "stats":
+		case "Stats":
 			var zb0002 uint32
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -575,8 +575,8 @@ func (z *ClientStatsBucket) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	if (zb0001Mask & 0x4) == 0 { // if not empty
-		// write "stats"
-		err = en.Append(0xa5, 0x73, 0x74, 0x61, 0x74, 0x73)
+		// write "Stats"
+		err = en.Append(0xa5, 0x53, 0x74, 0x61, 0x74, 0x73)
 		if err != nil {
 			return
 		}
@@ -635,8 +635,8 @@ func (z *ClientStatsBucket) MarshalMsg(b []byte) (o []byte, err error) {
 	o = append(o, 0xa8, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendUint64(o, z.Duration)
 	if (zb0001Mask & 0x4) == 0 { // if not empty
-		// string "stats"
-		o = append(o, 0xa5, 0x73, 0x74, 0x61, 0x74, 0x73)
+		// string "Stats"
+		o = append(o, 0xa5, 0x53, 0x74, 0x61, 0x74, 0x73)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Stats)))
 		for za0001 := range z.Stats {
 			if z.Stats[za0001] == nil {
@@ -686,7 +686,7 @@ func (z *ClientStatsBucket) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Duration")
 				return
 			}
-		case "stats":
+		case "Stats":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
@@ -784,7 +784,7 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "Version")
 				return
 			}
-		case "stats":
+		case "Stats":
 			var zb0002 uint32
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -935,8 +935,8 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	if (zb0001Mask & 0x8) == 0 { // if not empty
-		// write "stats"
-		err = en.Append(0xa5, 0x73, 0x74, 0x61, 0x74, 0x73)
+		// write "Stats"
+		err = en.Append(0xa5, 0x53, 0x74, 0x61, 0x74, 0x73)
 		if err != nil {
 			return
 		}
@@ -1075,8 +1075,8 @@ func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = append(o, 0xa7, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.Version)
 	if (zb0001Mask & 0x8) == 0 { // if not empty
-		// string "stats"
-		o = append(o, 0xa5, 0x73, 0x74, 0x61, 0x74, 0x73)
+		// string "Stats"
+		o = append(o, 0xa5, 0x53, 0x74, 0x61, 0x74, 0x73)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Stats)))
 		for za0001 := range z.Stats {
 			if z.Stats[za0001] == nil {
@@ -1156,7 +1156,7 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Version")
 				return
 			}
-		case "stats":
+		case "Stats":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
@@ -1306,7 +1306,7 @@ func (z *StatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "AgentEnv")
 				return
 			}
-		case "stats":
+		case "Stats":
 			var zb0002 uint32
 			zb0002, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -1398,8 +1398,8 @@ func (z *StatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 		return
 	}
 	if (zb0001Mask & 0x4) == 0 { // if not empty
-		// write "stats"
-		err = en.Append(0xa5, 0x73, 0x74, 0x61, 0x74, 0x73)
+		// write "Stats"
+		err = en.Append(0xa5, 0x53, 0x74, 0x61, 0x74, 0x73)
 		if err != nil {
 			return
 		}
@@ -1468,8 +1468,8 @@ func (z *StatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = append(o, 0xa8, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x45, 0x6e, 0x76)
 	o = msgp.AppendString(o, z.AgentEnv)
 	if (zb0001Mask & 0x4) == 0 { // if not empty
-		// string "stats"
-		o = append(o, 0xa5, 0x73, 0x74, 0x61, 0x74, 0x73)
+		// string "Stats"
+		o = append(o, 0xa5, 0x53, 0x74, 0x61, 0x74, 0x73)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Stats)))
 		for za0001 := range z.Stats {
 			if z.Stats[za0001] == nil {
@@ -1522,7 +1522,7 @@ func (z *StatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AgentEnv")
 				return
 			}
-		case "stats":
+		case "Stats":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {

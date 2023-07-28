@@ -2,6 +2,7 @@ import glob
 import io
 import os
 import platform
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -53,7 +54,12 @@ def split_junitxml(xml_path, codeowners, output_dir):
         # don't, so for determining ownership we append "/" temporarily.
         owners = codeowners.of(path + "/")
         if not owners:
-            main_owner = "none"
+            filepath = next(tree.iter("testcase")).attrib.get("file", None)
+            if filepath:
+                owners = codeowners.of(filepath)
+                main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
+            else:
+                main_owner = "none"
         else:
             main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
 
@@ -71,7 +77,7 @@ def split_junitxml(xml_path, codeowners, output_dir):
     return list(output_xmls), flavor
 
 
-def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url=""):
+def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=None, job_url=""):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
@@ -91,6 +97,14 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
             "--tags",
             f"slack_channel:{slack_channel}",
         ]
+        if "upload_option.os_version_from_name" in additional_tags:
+            additional_tags.remove("upload_option.os_version_from_name")
+            additional_tags.append("--tags")
+            version_match = re.search(r"kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", xmlfile_name)
+            exact_version = version_match.group(1) + version_match.group(2).replace("-", ".")
+            additional_tags.append(f"version:{exact_version}")
+            print(additional_tags)
+
         if additional_tags:
             args.extend(additional_tags)
         args.append(os.path.join(output_dir, owner + ".xml"))
@@ -128,10 +142,13 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
         for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+            if not os.path.isfile(xmlfile):
+                print(f"[WARN] Matched folder named {xmlfile}")
+                continue
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)
+                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], tags, job_url)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []

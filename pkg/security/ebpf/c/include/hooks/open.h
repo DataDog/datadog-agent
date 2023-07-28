@@ -39,31 +39,31 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
     return trace__sys_openat2(async, flags, mode, 0);
 }
 
-SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
+HOOK_SYSCALL_COMPAT_ENTRY3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE0(truncate) {
+HOOK_SYSCALL_COMPAT_ENTRY0(truncate) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE3(open, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY3(open, const char*, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
     return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);
@@ -233,8 +233,9 @@ SYSCALL_COMPAT_KRETPROBE(openat) {
     return kprobe_sys_open_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(openat2) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_EXIT(openat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_open_exit")
@@ -303,15 +304,25 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_open_callback")
-int __attribute__((always_inline)) kprobe_dr_open_callback(struct pt_regs *ctx) {
+int kprobe_dr_open_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     return dr_open_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_open_callback")
+int fentry_dr_open_callback(ctx_t *ctx) {
+    // int retval = PT_REGS_RC(ctx);
+    int retval = 0; // TODO(paulcacheux): fix this
+    return dr_open_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_open_callback")
-int __attribute__((always_inline)) tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_open_callback(args, args->ret);
 }
 
