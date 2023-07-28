@@ -218,14 +218,7 @@ func obfuscateShellCommandToken(tokens *[]ShellToken) []ObfuscatedSlice {
 					startValueToken, endValueToken := index+2, grabFullArgument(tokens, index+2)
 
 					// Replace the startValueToken with an obfuscated value
-					// (*tokens)[index+2].val = "?"
-					// obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa((*tokens)[index+2].start))
 					obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(*tokens)[startValueToken].start, (*tokens)[endValueToken].end})
-
-					// Remove the tokens that defines the value
-					// if startValueToken < endValueToken {
-					//	*tokens = append((*tokens)[:startValueToken+1], (*tokens)[endValueToken+1:]...)
-					// }
 
 					// Increment the index to the end of the value
 					index = endValueToken
@@ -242,7 +235,6 @@ func obfuscateShellCommandToken(tokens *[]ShellToken) []ObfuscatedSlice {
 							startValueToken, endValueToken := i, grabFullArgument(tokens, i+1)
 
 							// Remove the tokens that defines the value
-							// *tokens = append((*tokens)[:startValueToken], (*tokens)[endValueToken+1:]...)
 							if startValueToken < endValueToken {
 								obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(*tokens)[startValueToken].start, (*tokens)[endValueToken].end})
 							}
@@ -253,21 +245,11 @@ func obfuscateShellCommandToken(tokens *[]ShellToken) []ObfuscatedSlice {
 							// Get tokens that defines the value
 							startValueToken, endValueToken := i, grabFullArgument(tokens, i)
 
-							// Remove the tokens that defines the value
-							// if startValueToken < endValueToken {
-							//	*tokens = append((*tokens)[:startValueToken+1], (*tokens)[endValueToken+1:]...)
-							// }
-
 							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(*tokens)[startValueToken].start, (*tokens)[endValueToken].end})
 
 							// Increment the index to the end of the value
 							i = endValueToken
-
-							index = startValueToken
 						}
-
-						// (*tokens)[i].val = "?"
-						// obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa((*tokens)[i].start))
 					}
 
 					// Skip all obfuscated tokens
@@ -288,14 +270,7 @@ func obfuscateShellCommandToken(tokens *[]ShellToken) []ObfuscatedSlice {
 					startValueToken, endValueToken := index+2, grabFullArgument(tokens, index+2)
 
 					// Replace the startValueToken with an obfuscated value
-					// (*tokens)[index+2].val = "?"
-					// obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa((*tokens)[index+2].start))
 					obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(*tokens)[startValueToken].start, (*tokens)[endValueToken].end})
-
-					// Remove the tokens that defines the value
-					// if startValueToken < endValueToken {
-					// 	*tokens = append((*tokens)[:startValueToken+1], (*tokens)[endValueToken+1:]...)
-					// }
 
 					// Increment the index to the end of the value
 					index = endValueToken
@@ -306,14 +281,7 @@ func obfuscateShellCommandToken(tokens *[]ShellToken) []ObfuscatedSlice {
 						startValueToken, endValueToken := index+1, grabFullArgument(tokens, index+1)
 
 						// Replace the startValueToken with an obfuscated value
-						// (*tokens)[index+1].val = "?"
-						// obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa((*tokens)[index+1].start))
 						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(*tokens)[startValueToken].start, (*tokens)[endValueToken].end})
-
-						// Only remove tokens that defines the value if there are more than one token
-						// if startValueToken < endValueToken {
-						//	*tokens = append((*tokens)[:startValueToken+1], (*tokens)[endValueToken+1:]...)
-						// }
 
 						// Increment the index to the end of the value
 						index = endValueToken
