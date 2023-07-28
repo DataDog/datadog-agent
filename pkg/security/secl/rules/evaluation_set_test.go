@@ -291,7 +291,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 							Expression: "open.file.path == \"/etc/local-default/file\"",
 						},
 						Definition: &RuleDefinition{
-							ID:         "baz",
+							ID:         "bar",
 							Expression: "open.file.path == \"/etc/local-default/file\"",
 						}},
 				}
