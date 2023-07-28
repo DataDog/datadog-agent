@@ -213,8 +213,9 @@ int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
     return sys_open_ret(ctx, retval, DR_KPROBE);
 }
 
-SYSCALL_KRETPROBE(creat) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_EXIT(creat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {

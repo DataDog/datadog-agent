@@ -143,7 +143,7 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(unshare) {
+HOOK_SYSCALL_EXIT(unshare) {
     pop_syscall(EVENT_UNSHARE_MNTNS);
     return 0;
 }
