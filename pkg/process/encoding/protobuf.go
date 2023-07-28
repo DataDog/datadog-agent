@@ -6,8 +6,6 @@
 package encoding
 
 import (
-	"github.com/gogo/protobuf/proto"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -32,16 +30,19 @@ func (protoSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte,
 		stat.WriteBytes = s.IOStat.WriteBytes
 		payload.StatsByPID[pid] = stat
 	}
-
-	buf, err := proto.Marshal(payload)
+	buf, err := payload.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
 	returnToPool(payload.StatsByPID)
 	return buf, err
 }
 
-// Marshal deserializes bytes into stats by PID
+// Unmarshal deserializes bytes into stats by PID
 func (protoSerializer) Unmarshal(blob []byte) (*model.ProcStatsWithPermByPID, error) {
 	stats := new(model.ProcStatsWithPermByPID)
-	if err := proto.Unmarshal(blob, stats); err != nil {
+	err := stats.UnmarshalVT(blob)
+	if err != nil {
 		return nil, err
 	}
 	return stats, nil
