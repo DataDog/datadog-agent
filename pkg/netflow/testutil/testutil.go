@@ -31,6 +31,9 @@ var netflow5pcapng []byte
 //go:embed pcap_recordings/netflow9.pcapng
 var netflow9pcapng []byte
 
+//go:embed pcap_recordings/netflow0728.pcapng
+var netflow9InvestigationPcapng []byte
+
 //go:embed pcap_recordings/sflow.pcapng
 var sflowpcapng []byte
 
@@ -168,14 +171,27 @@ func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int)
 		if err != nil {
 			return nil, err
 		}
+		packet := gopacket.NewPacket(data, layer, gopacket.Default)
+		transport := packet.TransportLayer()
+		if transport == nil {
+			continue
+		}
+		dst := transport.TransportFlow().Dst().String()
+		if dst != "2055" {
+			continue
+		}
 		if packetCount == packetIndex {
-			packet := gopacket.NewPacket(data, layer, gopacket.Default)
+			fmt.Println(dst)
 			app := packet.ApplicationLayer()
+			if app == nil {
+				continue
+			}
 			content := app.Payload()
 			return content, nil
 		}
 		packetCount += 1
 	}
+	return nil, nil
 }
 
 func GetNetFlow5Packet() ([]byte, error) {
@@ -184,6 +200,9 @@ func GetNetFlow5Packet() ([]byte, error) {
 
 func GetNetFlow9Packet() ([]byte, error) {
 	return GetPacketFromPcap(netflow9pcapng, layers.LayerTypeLoopback, 0)
+}
+func GetNetFlow9InvestigationPacket(packetIndex int) ([]byte, error) {
+	return GetPacketFromPcap(netflow9InvestigationPcapng, layers.LayerTypeEthernet, packetIndex)
 }
 
 func GetSFlow5Packet() ([]byte, error) {
