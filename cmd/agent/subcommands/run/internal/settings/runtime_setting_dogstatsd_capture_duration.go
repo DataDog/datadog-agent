@@ -52,7 +52,7 @@ func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source pkgsettings
 
 	s, ok := v.(string)
 	if !ok {
-		return fmt.Errorf("%s.Set: Invalid data type", l)
+		return fmt.Errorf("%s.Set: Invalid data type", l.value)
 	}
 
 	_, err = time.ParseDuration(s)
