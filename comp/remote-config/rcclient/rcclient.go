@@ -107,7 +107,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 	// The priority between sources is: CLI > RC > Default
 	source, err := settings.GetRuntimeSource("log_level")
 	if err != nil {
-		pkglog.Errorf("could not fetch source for 'log_level': %s", err)
+		pkglog.Errorf("Could not fetch source for 'log_level': %s", err)
 	}
 
 	switch source {
@@ -126,7 +126,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 			break
 		}
 
-		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
+		pkglog.Infof("Changing log level to '%s' through remote config", mergedConfig.LogLevel)
 		rc.configState.FallbackLogLevel = newFallback.(string)
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
@@ -141,11 +141,11 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		if len(mergedConfig.LogLevel) == 0 {
 			newLevel = rc.configState.FallbackLogLevel
 			newSource = settings.SourceDefault
-			pkglog.Infof("Removing remote-config log level override, falling back to %s", newLevel)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", newLevel)
 		} else {
 			newLevel = mergedConfig.LogLevel
 			newSource = settings.SourceRC
-			pkglog.Infof("Changing log level to %s through remote config", newLevel)
+			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
 		}
 		err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
 
@@ -154,7 +154,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		return
 
 	default:
-		pkglog.Errorf("Unknown source '%s' for 'log level'", source)
+		pkglog.Errorf("Unknown source '%s' for log level", source.String())
 		return
 	}
 

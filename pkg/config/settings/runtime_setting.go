@@ -35,8 +35,15 @@ type Source string
 const (
 	SourceCLI     Source = "cli"
 	SourceRC      Source = "remote-config"
-	SourceDefault Source = "default"
+	SourceDefault Source = ""
 )
+
+func (s Source) String() string {
+	if s == SourceDefault {
+		return "default"
+	}
+	return string(s)
+}
 
 // RuntimeSetting represents a setting that can be changed and read at runtime.
 type RuntimeSetting interface {
