@@ -12,7 +12,7 @@ import (
 	"path"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
+	docker "github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
