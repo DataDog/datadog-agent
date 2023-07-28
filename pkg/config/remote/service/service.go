@@ -346,18 +346,24 @@ func (s *Service) pollOrgStatus() {
 	}
 
 	// Print info log when the new status is different from the previous one, or if it's the first run
-	if s.previousOrgStatus == nil || s.previousOrgStatus.Enabled != response.Enabled {
-		if !response.Enabled {
-			log.Infof("Remote Configuration isn't enabled, please follow the documentation to enable it.")
+	if s.previousOrgStatus == nil ||
+		s.previousOrgStatus.Enabled != response.Enabled ||
+		s.previousOrgStatus.Authorized != response.Authorized {
+		if response.Enabled {
+			if response.Authorized {
+				log.Infof("Remote Configuration is enabled for this organization and agent.")
+			} else {
+				log.Infof(
+					"Remote Configuration is enabled for this organization but disabled for this agent. " +
+						"Add the Remote Configuration Read permission to its API key to enable it for this agent.",
+				)
+			}
 		} else {
-			log.Infof("Remote Configuration is enabled.")
-		}
-	}
-	if s.previousOrgStatus == nil || s.previousOrgStatus.Authorized != response.Authorized {
-		if !response.Authorized {
-			log.Infof("Your API key does not have Remote Config scope attached. Please attach the scope to be able to use Remote Config.")
-		} else {
-			log.Infof("The API key is allowed to query Remote Config.")
+			if response.Authorized {
+				log.Infof("Remote Configuration is disabled for this organization.")
+			} else {
+				log.Infof("Remote Configuration is disabled for this organization and agent.")
+			}
 		}
 	}
 	s.previousOrgStatus = &pbgo.OrgStatusResponse{
