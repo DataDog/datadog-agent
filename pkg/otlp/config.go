@@ -104,9 +104,9 @@ func IsEnabled(cfg config.Config) bool {
 	return hasSection(cfg, config.OTLPReceiverSubSectionKey)
 }
 
-// HasLogsSection checks if OTLP logs are explicitly enabled in a given config.
-func HasLogsSection(cfg config.Config) bool {
-	return hasSection(cfg, config.OTLPLogsEnabled)
+// HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
+func HasLogsSectionEnabled(cfg config.Config) bool {
+	return hasSection(cfg, config.OTLPLogsEnabled) && cfg.GetBool(config.OTLPLogsEnabled)
 }
 
 func hasSection(cfg config.Config, section string) bool {

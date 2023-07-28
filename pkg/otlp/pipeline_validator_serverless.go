@@ -15,7 +15,7 @@ import (
 )
 
 func checkAndUpdateCfg(cfg config.Config, pcfg *PipelineConfig, logsAgentChannel chan *message.Message) error {
-	if HasLogsSection(cfg) {
+	if HasLogsSectionEnabled(cfg) {
 		pipelineError.Store(fmt.Errorf("Cannot enable OTLP log ingestion for serverless"))
 		return pipelineError.Load()
 	}
