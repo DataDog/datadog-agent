@@ -20,6 +20,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -42,8 +43,8 @@ func toBytes(l *libPath) []byte {
 
 type Rule struct {
 	Re           *regexp.Regexp
-	RegisterCB   func(id utils.PathIdentifier, root string, path string) error
-	UnregisterCB func(id utils.PathIdentifier) error
+	RegisterCB   func(utils.FilePath) error
+	UnregisterCB func(utils.FilePath) error
 }
 
 // Watcher provides a way to tie callback functions to the lifecycle of shared libraries
@@ -62,8 +63,8 @@ type Watcher struct {
 	libMatches *telemetry.Counter
 }
 
-func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := newEBPFProgram(cfg)
+func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
+	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
@@ -79,8 +80,8 @@ func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
 		ebpfProgram:    ebpfProgram,
 		registry:       utils.NewFileRegistry(),
 
-		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPayloadTelemetry),
-		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPayloadTelemetry),
+		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
+		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
 	}, nil
 }
 
@@ -155,11 +156,10 @@ func (w *Watcher) Start() {
 		// Creating a callback to be applied on the paths extracted from the `maps` file.
 		// We're creating the callback here, as we need the pid (which varies between iterations).
 		parseMapsFileCallback := func(path string) {
-			root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
 			// Iterate over the rule, and look for a match.
 			for _, r := range w.rules {
 				if r.Re.MatchString(path) {
-					w.registry.Register(root, path, uint32(pid), r.RegisterCB, r.UnregisterCB)
+					w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB)
 					break
 				}
 			}
@@ -182,7 +182,7 @@ func (w *Watcher) Start() {
 			// Stopping the process monitor (if we're the last instance)
 			w.processMonitor.Stop()
 			// Cleaning up all active hooks.
-			w.registry.Cleanup()
+			w.registry.Clear()
 			// marking we're finished.
 			w.wg.Done()
 		}()
@@ -195,7 +195,7 @@ func (w *Watcher) Start() {
 				processSet := w.registry.GetRegisteredProcesses()
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					w.registry.Unregister(int(deletedPid))
+					w.registry.Unregister(deletedPid)
 				}
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
@@ -211,19 +211,10 @@ func (w *Watcher) Start() {
 
 				w.libHits.Add(1)
 				path := toBytes(&lib)
-				libPath := string(path)
-				procPid := fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
-				root := procPid + "/root"
-				// use cwd of the process as root if the path is relative
-				if libPath[0] != '/' {
-					root = procPid + "/cwd"
-					libPath = "/" + libPath
-				}
-
 				for _, r := range w.rules {
 					if r.Re.Match(path) {
 						w.libMatches.Add(1)
-						w.registry.Register(root, libPath, lib.Pid, r.RegisterCB, r.UnregisterCB)
+						w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB)
 						break
 					}
 				}

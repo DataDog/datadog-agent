@@ -754,6 +754,6 @@ def update_circleci_config(file_path, image_tag, test_version):
 
 def commit_and_push(ctx, branch_name=None):
     ctx.run(f"git checkout -b {branch_name}")
-    ctx.run("git add .gitlab-ci.yaml .circleci/config.yaml")
+    ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
     ctx.run("git commit -m 'Update buildimages version'")
     ctx.run(f"git push origin {branch_name}")

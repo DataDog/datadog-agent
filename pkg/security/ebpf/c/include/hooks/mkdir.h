@@ -27,12 +27,12 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE2(mkdir, const char*, filename, umode_t, mode)
+HOOK_SYSCALL_ENTRY2(mkdir, const char*, filename, umode_t, mode)
 {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
+HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
@@ -159,15 +159,25 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_mkdir_callback")
-int __attribute__((always_inline)) kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
+int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     return dr_mkdir_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_mkdir_callback")
+int fentry_dr_mkdir_callback(ctx_t *ctx) {
+    // int retval = CTX_PARMRET(ctx);
+    int retval = 0; // TODO(paulcacheux): find a way to get the retval
+    return dr_mkdir_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_mkdir_callback")
-int __attribute__((always_inline)) tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mkdir_callback(args, args->ret);
 }
 

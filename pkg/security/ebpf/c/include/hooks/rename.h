@@ -18,15 +18,15 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async) {
     return 0;
 }
 
-SYSCALL_KPROBE0(rename) {
+HOOK_SYSCALL_ENTRY0(rename) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat) {
+HOOK_SYSCALL_ENTRY0(renameat) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat2) {
+HOOK_SYSCALL_ENTRY0(renameat2) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
@@ -216,15 +216,25 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_rename_callback")
-int __attribute__((always_inline)) kprobe_dr_rename_callback(struct pt_regs *ctx) {
+int kprobe_dr_rename_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);
     return dr_rename_callback(ctx, ret);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_rename_callback")
+int fentry_dr_rename_callback(ctx_t *ctx) {
+    // int ret = PT_REGS_RC(ctx);
+    int ret = 0; // TODO(paulcacheux): fix this
+    return dr_rename_callback(ctx, ret);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_rename_callback")
-int __attribute__((always_inline)) tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_rename_callback(args, args->ret);
 }
 

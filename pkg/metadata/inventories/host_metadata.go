@@ -17,7 +17,7 @@ import (
 
 // for testing purpose
 var (
-	cpuGet      = cpu.Get
+	cpuGet      = cpu.CollectInfo
 	memoryGet   = memory.CollectInfo
 	networkGet  = network.Get
 	platformGet = platform.CollectInfo
@@ -90,21 +90,23 @@ func fetchFromMetadata(key string, metadata AgentMetadata) string {
 func getHostMetadata() *HostMetadata {
 	metadata := &HostMetadata{}
 
-	cpuInfo, warnings, err := cpuGet()
+	cpuInfo := cpuGet()
+	_, warnings, err := cpuInfo.AsJSON()
 	if err != nil {
 		logErrorf("Failed to retrieve cpu metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.CPUCores = cpuInfo.CpuCores
-		metadata.CPULogicalProcessors = cpuInfo.CpuLogicalProcessors
-		metadata.CPUVendor = cpuInfo.VendorId
-		metadata.CPUModel = cpuInfo.ModelName
-		metadata.CPUModelID = cpuInfo.Model
-		metadata.CPUFamily = cpuInfo.Family
-		metadata.CPUStepping = cpuInfo.Stepping
-		metadata.CPUFrequency = cpuInfo.Mhz
-		metadata.CPUCacheSize = cpuInfo.CacheSizeBytes
+		metadata.CPUCores, _ = cpuInfo.CPUCores.Value()
+		metadata.CPULogicalProcessors, _ = cpuInfo.CPULogicalProcessors.Value()
+		metadata.CPUVendor, _ = cpuInfo.VendorID.Value()
+		metadata.CPUModel, _ = cpuInfo.ModelName.Value()
+		metadata.CPUModelID, _ = cpuInfo.Model.Value()
+		metadata.CPUFamily, _ = cpuInfo.Family.Value()
+		metadata.CPUStepping, _ = cpuInfo.Stepping.Value()
+		metadata.CPUFrequency, _ = cpuInfo.Mhz.Value()
+		cpuCacheSize, _ := cpuInfo.CacheSizeKB.Value()
+		metadata.CPUCacheSize = cpuCacheSize * 1024
 	}
 
 	platformInfo := platformGet()
