@@ -50,19 +50,4 @@ service:
 `
 
 // defaultLogsConfig is the logs OTLP pipeline configuration.
-const defaultLogsConfig string = `
-receivers:
-  otlp:
-
-exporters:
-  logsagent:
-
-service:
-  telemetry:
-    metrics:
-      level: none
-  pipelines:
-    logs:
-      receivers: [otlp]
-      exporters: [logsagent]
-`
+const defaultLogsConfig string = ``

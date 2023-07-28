@@ -10,6 +10,7 @@ package otlp
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"

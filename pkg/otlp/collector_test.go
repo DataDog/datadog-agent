@@ -65,14 +65,7 @@ func TestStartPipeline(t *testing.T) {
 	config.Datadog.Set("hostname", "otlp-testhostname")
 	defer config.Datadog.Set("hostname", "")
 
-	pcfg := PipelineConfig{
-		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
-		TracePort:          5003,
-		MetricsEnabled:     true,
-		TracesEnabled:      true,
-		LogsEnabled:        true,
-		Metrics:            map[string]interface{}{},
-	}
+	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 

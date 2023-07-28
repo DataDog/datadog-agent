@@ -9,6 +9,7 @@ package otlp
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
