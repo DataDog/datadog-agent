@@ -46,7 +46,7 @@ kitchen_test_security_agent_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-77"
+        KITCHEN_OSVERS: "centos-79"
         KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "rhel-85,rhel-91"
