@@ -118,6 +118,13 @@ describe "security-agent" do
       }
       include_examples "passes", "host", env
     end
+  when "fentry"
+    context 'functional tests running directly on host (with fentry)' do
+      env = {
+        "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY" => "true"
+      }
+      include_examples "passes", "host", env
+    end
   when "docker"
     context 'functional test running inside a container' do
       env = {}
