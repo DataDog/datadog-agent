@@ -129,7 +129,7 @@ int hook_vfs_open(ctx_t *ctx) {
     return handle_open_event(syscall, file, path, inode);
 }
 
-HOOK_ENTRY("do_entry_open")
+HOOK_ENTRY("do_dentry_open")
 int hook_do_dentry_open(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
