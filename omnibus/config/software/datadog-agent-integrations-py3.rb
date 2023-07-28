@@ -99,6 +99,13 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
+if redhat? && !arm?
+  # RPM builds are done on CentOS 6 which is based on glibc v2.12 however newer libraries require v2.17, see:
+  # https://blog.rust-lang.org/2022/08/01/Increasing-glibc-kernel-requirements.html
+  dependency 'pydantic-core-py3'
+  blacklist_packages.push(/^pydantic-core==/)
+end
+
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
 # even when doing a 32 bit build.  Do a specific check for the 32 bit
 # build

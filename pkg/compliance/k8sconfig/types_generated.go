@@ -612,7 +612,7 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	}
 	if v, ok := flags["--config"]; ok {
 		delete(flags, "--config")
-		res.Config = l.loadConfigFileMeta(v)
+		res.Config = l.loadKubeletConfigFileMeta(v)
 	}
 	if v, ok := flags["--event-burst"]; ok {
 		delete(flags, "--event-burst")

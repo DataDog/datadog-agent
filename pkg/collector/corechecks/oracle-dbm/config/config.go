@@ -33,6 +33,7 @@ type QueryMetricsConfig struct {
 	CollectionInterval int64 `yaml:"collection_interval"`
 	DBRowsLimit        int   `yaml:"db_rows_limit"`
 	PlanCacheRetention int   `yaml:"plan_cache_retention"`
+	DisableLastActive  bool  `yaml:"disable_last_active"`
 }
 
 type SysMetricsConfig struct {

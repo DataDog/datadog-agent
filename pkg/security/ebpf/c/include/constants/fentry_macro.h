@@ -19,6 +19,7 @@ typedef unsigned long long ctx_t;
 #define HOOK_SYSCALL_COMPAT_ENTRY2(name, ...) SYSCALL_FENTRY2(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_ENTRY3(name, ...) SYSCALL_FENTRY3(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_ENTRY4(name, ...) SYSCALL_FENTRY4(name, __VA_ARGS__)
+#define HOOK_SYSCALL_EXIT(name) SYSCALL_FEXIT(name)
 #define TAIL_CALL_TARGET(_name) SEC("fentry/start_kernel") // `start_kernel` is only used at boot time, the hook should never be hit
 
 #define CTX_PARM1(ctx) (u64)(ctx[0])
@@ -26,6 +27,9 @@ typedef unsigned long long ctx_t;
 #define CTX_PARM3(ctx) (u64)(ctx[2])
 
 #define CTX_PARMRET(ctx, argc) (u64)(ctx[argc])
+#define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, 1)
+
+#define DR_KPROBE_OR_FENTRY DR_FENTRY
 
 #else
 
@@ -45,6 +49,7 @@ typedef struct pt_regs ctx_t;
 #define HOOK_SYSCALL_COMPAT_ENTRY2(name, ...) SYSCALL_COMPAT_KPROBE2(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_ENTRY3(name, ...) SYSCALL_COMPAT_KPROBE3(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_ENTRY4(name, ...) SYSCALL_COMPAT_KPROBE4(name, __VA_ARGS__)
+#define HOOK_SYSCALL_EXIT(name) SYSCALL_KRETPROBE(name)
 #define TAIL_CALL_TARGET(name) SEC("kprobe/" name)
 
 #define CTX_PARM1(ctx) PT_REGS_PARM1(ctx)
@@ -52,6 +57,9 @@ typedef struct pt_regs ctx_t;
 #define CTX_PARM3(ctx) PT_REGS_PARM3(ctx)
 
 #define CTX_PARMRET(ctx, _argc) PT_REGS_RC(ctx)
+#define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, _)
+
+#define DR_KPROBE_OR_FENTRY DR_KPROBE
 
 #endif
 

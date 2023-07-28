@@ -45,7 +45,7 @@ func main() {
 	flag.StringVar(&packageName, "pkg-name", "", "Package name to use in the output")
 	flag.Parse()
 
-	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP\(\s*(.*?)\s*,.*?\)`)
+	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP(?:_FLAGS)?\(\s*(.*?)\s*,.*?\)`)
 	defineMatcher := regexp.MustCompile(`\s*#define BPF`)
 
 	f, err := os.Open(runtimePath)
