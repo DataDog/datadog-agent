@@ -165,6 +165,8 @@ func (v *agentSuite) TestDefaultInstalledChecks() {
 
 	output := v.Env().Agent.ConfigCheck()
 
+	assert.NotContains(v.T(), output, "=== Configuration errors ===")
+
 	for _, testCheck := range testChecks {
 		v.T().Run(fmt.Sprintf("default - %s test", testCheck.CheckName), func(t *testing.T) {
 			result, err := MatchCheckToTemplate(testCheck.CheckName, output)
