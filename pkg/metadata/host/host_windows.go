@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -89,15 +88,16 @@ func getSystemStats() *systemStats {
 	if x, found := cache.Cache.Get(key); found {
 		stats = x.(*systemStats)
 	} else {
-		cpuInfo, _ := cpu.GetCpuInfo()
+		cpuInfo := cpu.CollectInfo()
 		hostInfo := getHostInfo()
-		cores, _ := strconv.Atoi(cpuInfo["cpu_cores"])
+		cores, _ := cpuInfo.CPUCores.Value()
 		c32 := int32(cores)
+		modelName, _ := cpuInfo.ModelName.Value()
 
 		stats = &systemStats{
 			Machine:   runtime.GOARCH,
 			Platform:  runtime.GOOS,
-			Processor: cpuInfo["model_name"],
+			Processor: modelName,
 			CPUCores:  c32,
 			Pythonv:   strings.Split(GetPythonVersion(), " ")[0],
 		}

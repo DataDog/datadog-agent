@@ -233,8 +233,9 @@ SYSCALL_COMPAT_KRETPROBE(openat) {
     return kprobe_sys_open_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(openat2) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_EXIT(openat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_open_exit")
@@ -303,15 +304,25 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_open_callback")
-int __attribute__((always_inline)) kprobe_dr_open_callback(struct pt_regs *ctx) {
+int kprobe_dr_open_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     return dr_open_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_open_callback")
+int fentry_dr_open_callback(ctx_t *ctx) {
+    // int retval = PT_REGS_RC(ctx);
+    int retval = 0; // TODO(paulcacheux): fix this
+    return dr_open_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_open_callback")
-int __attribute__((always_inline)) tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_open_callback(args, args->ret);
 }
 
