@@ -17,12 +17,13 @@ const ContentTypeProtobuf = "application/protobuf"
 
 type protoSerializer struct{}
 
-func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
+func (protoSerializer) Marshal(conns *network.Connections, bytes []byte) ([]byte, error) {
 	payload := modelConnections(conns)
-	buf, err := payload.MarshalVT()
-
-	returnToPool(payload)
-	return buf, err
+	if payload.SizeVT() > len(bytes) {
+		bytes = make([]byte, payload.SizeVT())
+	}
+	_, err := payload.MarshalToVT(bytes)
+	return bytes, err
 }
 
 func (protoSerializer) Unmarshal(blob []byte) (*model.Connections, error) {

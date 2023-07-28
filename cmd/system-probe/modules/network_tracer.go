@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -80,6 +81,12 @@ type networkTracer struct {
 	restartTimer *time.Timer
 }
 
+var pool = sync.Pool{
+	New: func() any {
+		return make([]byte, 0)
+	},
+}
+
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
@@ -100,7 +107,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		contentType := req.Header.Get("Accept")
 		marshaler := encoding.GetMarshaler(contentType)
-		writeConnections(w, marshaler, cs)
+		writeConnections(w, marshaler, cs, &pool)
 
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
@@ -131,7 +138,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 		contentType := req.Header.Get("Accept")
 		marshaler := encoding.GetMarshaler(contentType)
-		writeConnections(w, marshaler, cs)
+		writeConnections(w, marshaler, cs, &pool)
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
@@ -285,10 +292,12 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections, pool *sync.Pool) {
 	defer network.Reclaim(cs)
 
-	buf, err := marshaler.Marshal(cs)
+	bs := pool.Get().([]byte)
+	buf, err := marshaler.Marshal(cs, bs)
+
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
@@ -297,6 +306,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf) //nolint:errcheck
+	pool.Put(bs)
 	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }
 

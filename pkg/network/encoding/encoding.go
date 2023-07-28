@@ -31,7 +31,7 @@ var (
 
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
-	Marshal(conns *network.Connections) ([]byte, error)
+	Marshal(conns *network.Connections, bytes []byte) ([]byte, error)
 	ContentType() string
 }
 
@@ -43,10 +43,10 @@ type Unmarshaler interface {
 // GetMarshaler returns the appropriate Marshaler based on the given accept header
 func GetMarshaler(accept string) Marshaler {
 	if strings.Contains(accept, ContentTypeProtobuf) {
-		return pSerializer
+		return nil
 	}
 
-	return jSerializer
+	return nil
 }
 
 // GetUnmarshaler returns the appropriate Unmarshaler based on the given content type
