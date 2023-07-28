@@ -159,15 +159,25 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_mkdir_callback")
-int __attribute__((always_inline)) kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
+int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     return dr_mkdir_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_mkdir_callback")
+int fentry_dr_mkdir_callback(ctx_t *ctx) {
+    // int retval = CTX_PARMRET(ctx);
+    int retval = 0; // TODO(paulcacheux): find a way to get the retval
+    return dr_mkdir_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_mkdir_callback")
-int __attribute__((always_inline)) tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mkdir_callback(args, args->ret);
 }
 
