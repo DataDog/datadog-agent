@@ -2,10 +2,11 @@
 #define _HELPERS_EXEC_H
 
 #include "constants/offsets/filesystem.h"
+#include "constants/fentry_macro.h"
 
 #include "process.h"
 
-int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
+int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
     if (syscall->exec.is_parsed) {
         return 0;
     }
@@ -28,7 +29,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, dr_type);
 
     return 0;
 }

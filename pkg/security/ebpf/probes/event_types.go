@@ -99,7 +99,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("mprotect_fixup", fentry),
 				kprobeOrFentry("exit_itimers", fentry),
 				kprobeOrFentry("vfs_open", fentry),
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_dentry_open"}},
+				kprobeOrFentry("do_dentry_open", fentry),
 				kprobeOrFentry("commit_creds", fentry),
 				kprobeOrFentry("switch_task_namespaces", fentry),
 				kprobeOrFentry("do_coredump", fentry),
