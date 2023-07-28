@@ -42,7 +42,7 @@ func (ms *MovingSum) AddBytes(byteValue int64) {
 
 	ms.dropOldbuckets()
 	now := ms.clock.Now()
-	if len(ms.buckets) == 0 || ms.buckets != nil && now.Sub(ms.buckets[len(ms.buckets)-1].timestamp) >= ms.bucketSize {
+	if len(ms.buckets) == 0 || now.Sub(ms.buckets[len(ms.buckets)-1].timestamp) >= ms.bucketSize {
 		// Create a new bucket if necessary
 		ms.buckets = append(ms.buckets, Bucket{
 			timestamp: now,

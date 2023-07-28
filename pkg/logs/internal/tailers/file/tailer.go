@@ -15,13 +15,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
@@ -157,7 +157,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	timeWindow := 24 * time.Hour
 	totalBucket := 24
 	bucketSize := timeWindow / time.Duration(totalBucket)
-	movingSum := util.NewMovingSum(timeWindow, bucketSize, getCurrentTime())
+	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
 	t := &Tailer{
@@ -368,11 +368,6 @@ func getFormattedTime() string {
 	utc := now.UTC().Format("2006-01-02 15:04:05 UTC")
 	milliseconds := now.UnixNano() / 1e6
 	return fmt.Sprintf("%s / %s (%d)", local, utc, milliseconds)
-}
-
-// getCurrentTime returns current timestamp
-func getCurrentTime() clock.Clock {
-	return clock.New()
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.
