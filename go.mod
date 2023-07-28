@@ -198,7 +198,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.75.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rcv0013
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0014
 	go.opentelemetry.io/collector/processor/batchprocessor v0.75.0
 	go.opentelemetry.io/collector/receiver v0.75.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
@@ -219,7 +219,7 @@ require (
 	golang.org/x/tools v0.11.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
-	google.golang.org/grpc v1.56.1
+	google.golang.org/grpc v1.56.2
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.49.1
