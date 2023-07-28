@@ -236,7 +236,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
 	assert.Equal(t, "true", executionSpan.Meta["cold_start"])
-	assert.Equal(t, "false", executionSpan.Meta["proactive_initialization"])
+	assert.Equal(t, "", executionSpan.Meta["proactive_initialization"])
 	assert.Equal(t, testString, executionSpan.Meta["function.request"])
 	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
