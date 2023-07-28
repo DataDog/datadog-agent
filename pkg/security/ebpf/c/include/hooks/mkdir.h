@@ -84,6 +84,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MKDIR_CALLBACK_KPROBE_KEY : DR_MKDIR_CALLBACK_TRACEPOINT_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
+    syscall->resolver.sysretval = retval;
 
     resolve_dentry(ctx, dr_type);
 
@@ -128,11 +129,13 @@ int tracepoint_handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *
     return sys_mkdir_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -161,24 +164,21 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
 
 SEC("kprobe/dr_mkdir_callback")
 int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return dr_mkdir_callback(ctx, retval);
+    return dr_mkdir_callback(ctx);
 }
 
 #ifdef USE_FENTRY
 
 TAIL_CALL_TARGET("dr_mkdir_callback")
 int fentry_dr_mkdir_callback(ctx_t *ctx) {
-    // int retval = CTX_PARMRET(ctx);
-    int retval = 0; // TODO(paulcacheux): find a way to get the retval
-    return dr_mkdir_callback(ctx, retval);
+    return dr_mkdir_callback(ctx);
 }
 
 #endif // USE_FENTRY
 
 SEC("tracepoint/dr_mkdir_callback")
 int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_mkdir_callback(args, args->ret);
+    return dr_mkdir_callback(args);
 }
 
 #endif
