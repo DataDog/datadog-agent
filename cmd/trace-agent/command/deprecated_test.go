@@ -16,44 +16,44 @@ func TestFixDeprecatedFlags(t *testing.T) {
 	tests := []struct {
 		cli        string
 		expectArgs []string
+		expectWarn string
 	}{
 		{
 			cli: "-config datadog.yaml",
 			expectArgs: []string{
-				"--cfgpath",
+				"--config",
 				"datadog.yaml",
 			},
 		},
 		{
 			cli: "-config=datadog.yaml",
 			expectArgs: []string{
-				"--cfgpath=datadog.yaml",
+				"--config=datadog.yaml",
 			},
 		},
 		{
-			cli: "--cfgpath=datadog.yaml",
+			cli: "--config=datadog.yaml",
 			expectArgs: []string{
-				"--cfgpath=datadog.yaml",
-			},
-		},
-		{
-			cli: "-sysprobe-config system-probe.yaml",
-			expectArgs: []string{
-				"--sysprobe-config",
-				"system-probe.yaml",
+				"--config=datadog.yaml",
 			},
 		},
 		{
 			cli: "-pid pidfile",
 			expectArgs: []string{
-				"--pid",
+				"--pidfile",
 				"pidfile",
 			},
 		},
 		{
 			cli: "-info",
 			expectArgs: []string{
-				"--info",
+				"info",
+			},
+		},
+		{
+			cli: "--info",
+			expectArgs: []string{
+				"info",
 			},
 		},
 		{
@@ -63,24 +63,9 @@ func TestFixDeprecatedFlags(t *testing.T) {
 			},
 		},
 		{
-			cli: "-check process",
+			cli: "--version",
 			expectArgs: []string{
-				"check",
-				"process",
-			},
-		},
-		{
-			cli: "--check process",
-			expectArgs: []string{
-				"check",
-				"process",
-			},
-		},
-		{
-			cli: "-check=process",
-			expectArgs: []string{
-				"check",
-				"process",
+				"version",
 			},
 		},
 		{

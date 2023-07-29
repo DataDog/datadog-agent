@@ -17,22 +17,24 @@ import (
 // - display warnings when deprecated flags are encountered
 func FixDeprecatedFlags(args []string, w io.Writer) []string {
 	var (
-		replaceCfgPath = cli.ReplaceFlagExact("--cfgpath")
-		replaceVersion = cli.ReplaceFlagExact("version")
-		replaceCheck   = cli.ReplaceFlagSubCommandPosArg("check")
+		replacePid        = cli.ReplaceFlagExact("--pidfile")
+		replaceInfo       = cli.ReplaceFlagExact("info")
+		replaceVersion    = cli.ReplaceFlagExact("version")
+		replaceCpuProfile = cli.ReplaceFlagExact("--cpu-profile")
+		replaceMemProfile = cli.ReplaceFlagExact("--mem-profile")
 	)
 
 	deprecatedFlags := map[string]cli.ReplaceFlagFunc{
 		// Global flags
-		"-config":          replaceCfgPath,
-		"--config":         replaceCfgPath,
-		"-sysprobe-config": cli.ReplaceFlagPosix,
-		"-version":         replaceVersion,
-		"--version":        replaceVersion,
-		"-check":           replaceCheck,
-		"--check":          replaceCheck,
-		"-pid":             cli.ReplaceFlagPosix,
-		"-info":            cli.ReplaceFlagPosix,
+		"-config":   cli.ReplaceFlagPosix,
+		"-version":  replaceVersion,
+		"--version": replaceVersion,
+		"-info":     replaceInfo,
+		"--info":    replaceInfo,
+		"-pid":      replacePid,
+		// Profiling flags
+		"-cpuprofile": replaceCpuProfile,
+		"-memprofile": replaceMemProfile,
 		// Windows flags
 		"-start-service": cli.ReplaceFlagPosix,
 		"-stop-service":  cli.ReplaceFlagPosix,
@@ -40,4 +42,5 @@ func FixDeprecatedFlags(args []string, w io.Writer) []string {
 	}
 
 	return cli.FixDeprecatedFlags(args, w, deprecatedFlags)
+
 }
