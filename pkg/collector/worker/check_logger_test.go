@@ -35,7 +35,7 @@ func addExpvarsCheckStats(c check.Check) {
 }
 
 func setUp() {
-	config.Datadog.Set(loggingFrequencyConfigKey, fmt.Sprintf("20"))
+	config.Datadog.Set(loggingFrequencyConfigKey, "20")
 
 	expvars.Reset()
 }

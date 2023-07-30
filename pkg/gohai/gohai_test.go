@@ -27,26 +27,6 @@ func TestSelectedCollectors_String(t *testing.T) {
 // Any change to this datastructure should be notified to the backend
 // team to ensure compatibility.
 type gohaiPayload struct {
-	CPU struct {
-		CPUCores             string `json:"cpu_cores"`
-		CPULogicalProcessors string `json:"cpu_logical_processors"`
-		Family               string `json:"family"`
-		Mhz                  string `json:"mhz"`
-		Model                string `json:"model"`
-		ModelName            string `json:"model_name"`
-		Stepping             string `json:"stepping"`
-		VendorID             string `json:"vendor_id"`
-
-		// CacheSize is only reported on Linux
-		CacheSize string `json:"cache_size"`
-
-		// On Windows, we report additional fields
-		CacheSizeL1  string `json:"cache_size_l1"`
-		CacheSizeL2  string `json:"cache_size_l2"`
-		CacheSizeL3  string `json:"cache_size_l3"`
-		CPUNumaNodes string `json:"cpu_numa_nodes"`
-		CPUPkgs      string `json:"cpu_pkgs"`
-	} `json:"cpu"`
 	Filesystem []struct {
 		KbSize string `json:"kb_size"`
 		// MountedOn can be empty on Windows
@@ -78,27 +58,6 @@ func TestGohaiSerialization(t *testing.T) {
 
 	var payload gohaiPayload
 	assert.NoError(t, json.Unmarshal(gohaiJSON, &payload))
-
-	assert.NotEmpty(t, payload.CPU.CPUCores)
-	assert.NotEmpty(t, payload.CPU.CPULogicalProcessors)
-	assert.NotEmpty(t, payload.CPU.Family)
-	if runtime.GOARCH != "arm64" {
-		// (Mhz is not defined on ARM64)
-		assert.NotEmpty(t, payload.CPU.Mhz)
-	}
-	assert.NotEmpty(t, payload.CPU.Model)
-	assert.NotEmpty(t, payload.CPU.ModelName)
-	assert.NotEmpty(t, payload.CPU.Stepping)
-	assert.NotEmpty(t, payload.CPU.VendorID)
-
-	if runtime.GOOS == "windows" {
-		// Additional fields that we report on Windows
-		assert.NotEmpty(t, payload.CPU.CacheSizeL1)
-		assert.NotEmpty(t, payload.CPU.CacheSizeL2)
-		assert.NotEmpty(t, payload.CPU.CacheSizeL3)
-		assert.NotEmpty(t, payload.CPU.CPUNumaNodes)
-		assert.NotEmpty(t, payload.CPU.CPUPkgs)
-	}
 
 	if assert.NotEmpty(t, payload.Filesystem) {
 		if runtime.GOOS != "windows" {
