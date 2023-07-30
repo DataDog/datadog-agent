@@ -8,7 +8,6 @@ package main
 import (
 	"encoding/json"
 	"net"
-	"os"
 	"runtime"
 	"testing"
 
@@ -70,10 +69,6 @@ type gohaiPayload struct {
 }
 
 func TestGohaiSerialization(t *testing.T) {
-	if os.Getenv("CI") != "" && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-		t.Skip("Test disabled on arm64 Linux CI runners, as df doesn't work")
-	}
-
 	gohai, err := Collect()
 
 	assert.NoError(t, err)
