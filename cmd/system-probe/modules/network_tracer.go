@@ -111,7 +111,7 @@ func min(a, b int) int {
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
 	start := time.Now()
 	//MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message"))
-	maxConnsPerMessage := 10
+	maxConnsPerMessage := 600
 	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
