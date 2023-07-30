@@ -2,11 +2,14 @@ source 'https://rubygems.org'
 
 # Install omnibus
 gem 'chef-sugar', git: 'https://github.com/chef/chef-sugar.git', tag: 'v3.6.0'
-gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: (ENV['OMNIBUS_RUBY_VERSION'] || 'datadog-5.5.0')
 
+# from tip of https://github.com/timsutton/omnibus-ruby/tree/tsutton/datadog-5.5.0-apple-silicon
+gem 'omnibus', git: 'https://github.com/timsutton/omnibus-ruby.git', ref: 'fd30852b5774db318372e146806a5d08d0211d90'
 # Use Chef's software definitions. It is recommended that you write your own
 # software definitions, but you can clone/fork Chef's to get you started.
-gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: (ENV['OMNIBUS_SOFTWARE_VERSION'] || 'master')
+
+# from tip of https://github.com/timsutton/omnibus-software/tree/apple-silicon
+gem 'omnibus-software', git: 'https://github.com/timsutton/omnibus-software.git', ref: 'b36fcb54d16f1a9e8f17387548a42c3b0ef6904e'
 
 
 gem 'mixlib-cli', '~> 1.7.0'
