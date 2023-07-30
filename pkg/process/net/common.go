@@ -57,6 +57,7 @@ type RemoteSysProbeUtil struct {
 
 	path       string
 	httpClient http.Client
+	connsData  []byte
 }
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
@@ -163,6 +164,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 }
 
 func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*model.Connections, error) {
+	var conns *model.Connections
 	// Create a context with a timeout of 10 seconds
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -179,16 +181,27 @@ func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*mod
 		return nil, err
 	}
 
-	res, err := response.Recv()
-	if err != nil {
-		return nil, err
+	for {
+		res, err := response.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		r.connsData = append(r.connsData, res.GetData()...)
 	}
 
-	conns, err := netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
+	conns, err = netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(r.connsData)
 	if err != nil {
 		return nil, err
 	}
 	fmt.Printf("[Getconnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
+
+	if err != nil {
+		return nil, err
+	}
+
 	return conns, nil
 }
 

@@ -111,7 +111,7 @@ func min(a, b int) int {
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
 	start := time.Now()
 	//MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message"))
-	maxConnsPerMessage := 1000
+	maxConnsPerMessage := 10
 	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
@@ -119,28 +119,31 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		return err
 	}
 
-	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	conns, err := getConnectionsFromMarshaler(marshaler, cs)
-	if err != nil {
-		return err
-	}
+	for len(cs.Conns) > 0 {
+		finalBatchSize := min(maxConnsPerMessage, len(cs.Conns))
+		rest := cs.Conns[finalBatchSize:]
+		cs.Conns = cs.Conns[:finalBatchSize]
+		marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
+		conns, err := getConnectionsFromMarshaler(marshaler, cs)
+		if err != nil {
+			return err
+		}
 
-	if nt.restartTimer != nil {
-		nt.restartTimer.Reset(inactivityRestartDuration)
-	}
-	count := runCounter.Inc()
-	logRequests(id, count, len(cs.Conns), start)
+		if nt.restartTimer != nil {
+			nt.restartTimer.Reset(inactivityRestartDuration)
+		}
 
-	for len(conns) > 0 {
-		batchSize := min(maxConnsPerMessage, len(conns))
-		batchConns := conns[:batchSize]
-		// iterate over all the connections
-		err = s2.Send(&connectionserver.Connection{Data: batchConns})
+		count := runCounter.Inc()
+		logRequests(id, count, len(cs.Conns), start)
+
+		err = s2.Send(&connectionserver.Connection{Data: conns})
 		if err != nil {
 			log.Errorf("unable to send current connection batch due to: %v", err)
 		}
-		conns = conns[batchSize:]
+
+		cs.Conns = rest
 	}
+
 	return nil
 }
 
