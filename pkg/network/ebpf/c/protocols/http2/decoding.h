@@ -374,6 +374,19 @@ int socket__http2_filter(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memcpy(&dispatcher_args_copy, args, sizeof(dispatcher_arguments_t));
 
+    // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key in
+    // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
+    skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
+
+    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
+    if (is_tcp_termination(&local_skb_info)) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+        flip_tuple(&dispatcher_args_copy.tup);
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+        flip_tuple(&dispatcher_args_copy.tup);
+        goto delete_iteration;
+    }
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -388,16 +401,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
         if (tail_call_state == NULL) {
             return 0;
         }
-    }
-
-    // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key in
-    // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
-    skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
-
-    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
-    if (is_tcp_termination(&local_skb_info)) {
-        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
-        goto delete_iteration;
     }
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
