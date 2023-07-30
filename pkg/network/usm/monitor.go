@@ -49,6 +49,9 @@ var (
 		http2.Spec,
 		kafka.Spec,
 		javaTLSSpec,
+		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
+		// factory.
+		opensslSpec,
 	}
 )
 
@@ -83,10 +86,12 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
+
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr.Manager.Manager, sockFD, bpfTelemetry)
 
 	enabledProtocols, disabledProtocols, err := initProtocols(c, mgr)
 	if err != nil {
