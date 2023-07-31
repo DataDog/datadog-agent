@@ -12,13 +12,13 @@ import manager "github.com/DataDog/ebpf-manager"
 // ptraceProbes holds the list of probes used to track ptrace events
 var ptraceProbes []*manager.Probe
 
-func getPTraceProbes() []*manager.Probe {
+func getPTraceProbes(fentry bool) []*manager.Probe {
 	ptraceProbes = append(ptraceProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "ptrace",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	ptraceProbes = append(ptraceProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,

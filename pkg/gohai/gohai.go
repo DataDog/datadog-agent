@@ -61,7 +61,10 @@ func (collector *CollectorV2[T]) Collect() (interface{}, error) {
 type SelectedCollectors map[string]struct{}
 
 var collectors = []Collector{
-	&cpu.Cpu{},
+	&CollectorV2[*cpu.Info]{
+		name:    "cpu",
+		collect: cpu.CollectInfo,
+	},
 	&filesystem.FileSystem{},
 	&CollectorV2[*memory.Info]{
 		name:    "memory",

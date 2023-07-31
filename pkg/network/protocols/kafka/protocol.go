@@ -73,6 +73,10 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+func (p *protocol) Name() string {
+	return "Kafka"
+}
+
 // ConfigureOptions add the necessary options for the kafka monitoring to work,
 // to be used by the manager. These are:
 // - Set the `kafka_last_tcp_seq_per_connection` map size to the value of the `max_tracked_connection` configuration variable.

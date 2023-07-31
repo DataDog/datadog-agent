@@ -131,12 +131,6 @@ func PrometheusScrapeChecksTransformer(in string) interface{} {
 	return promChecks
 }
 
-// MetadataProviders helps unmarshalling `metadata_providers` config param
-type MetadataProviders struct {
-	Name     string        `mapstructure:"name"`
-	Interval time.Duration `mapstructure:"interval"`
-}
-
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
 	Name                    string `mapstructure:"name"`
@@ -1840,12 +1834,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 		cloudProviderFromConfig,
 		cloudProviderName)
 	return false
-}
-
-// FileUsedDir returns the absolute path to the folder containing the config
-// file used to populate the registry
-func FileUsedDir() string {
-	return filepath.Dir(Datadog.ConfigFileUsed())
 }
 
 func isLocalAddress(address string) (string, error) {

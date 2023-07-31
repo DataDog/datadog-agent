@@ -26,15 +26,15 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     return 0;
 }
 
-SYSCALL_KPROBE3(lchown, const char*, filename, uid_t, user, gid_t, group) {
+HOOK_SYSCALL_ENTRY3(lchown, const char*, filename, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
-SYSCALL_KPROBE3(fchown, int, fd, uid_t, user, gid_t, group) {
+HOOK_SYSCALL_ENTRY3(fchown, int, fd, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
-SYSCALL_KPROBE3(chown, const char*, filename, uid_t, user, gid_t, group) {
+HOOK_SYSCALL_ENTRY3(chown, const char*, filename, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
@@ -50,7 +50,7 @@ SYSCALL_KPROBE3(chown16, const char*, filename, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
-SYSCALL_KPROBE4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t, group) {
+HOOK_SYSCALL_ENTRY4(fchownat, int, dirfd, const char*, filename, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
@@ -91,16 +91,19 @@ int __attribute__((always_inline)) kprobe_sys_chown_ret(struct pt_regs *ctx) {
     return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(lchown) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(lchown) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(fchown) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(fchown) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(chown) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(chown) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chown_ret(ctx, retval);
 }
 
 SYSCALL_KRETPROBE(lchown16) {
@@ -115,8 +118,9 @@ SYSCALL_KRETPROBE(chown16) {
     return kprobe_sys_chown_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(fchownat) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(fchownat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chown_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_chown_exit")

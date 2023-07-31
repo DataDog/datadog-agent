@@ -7,6 +7,7 @@
 #include "ip.h"
 
 #include "protocols/http2/decoding-defs.h"
+#include "protocols/http2/helpers.h"
 #include "protocols/http2/maps-defs.h"
 #include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
@@ -305,6 +306,16 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 }
 
 static __always_inline bool http2_entrypoint(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx) {
+    // Checking for preface
+    if (skb_info->data_off + HTTP2_MARKER_SIZE <= skb->len) {
+        char preface[HTTP2_MARKER_SIZE];
+        bpf_memset((char*)preface, 0, HTTP2_MARKER_SIZE);
+        bpf_skb_load_bytes(skb, skb_info->data_off, preface, HTTP2_MARKER_SIZE);
+        if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
+            skb_info->data_off += HTTP2_MARKER_SIZE;
+        }
+    }
+
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
         return false;
@@ -363,6 +374,21 @@ int socket__http2_filter(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memcpy(&dispatcher_args_copy, args, sizeof(dispatcher_arguments_t));
 
+    // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key
+    // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
+    skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
+
+    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
+    if (is_tcp_termination(&local_skb_info)) {
+        // Deleting the entry for the original tuple.
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+        // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
+        // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
+        flip_tuple(&dispatcher_args_copy.tup);
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+        return 0;
+    }
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -377,16 +403,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
         if (tail_call_state == NULL) {
             return 0;
         }
-    }
-
-    // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key in
-    // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
-    skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
-
-    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
-    if (is_tcp_termination(&local_skb_info)) {
-        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
-        goto delete_iteration;
     }
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);

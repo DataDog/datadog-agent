@@ -237,7 +237,7 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.Graph, prefix s
 }
 
 func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.Graph) utils.GraphID {
-	label := fmt.Sprintf("<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\">")
+	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\">"
 	for _, s := range p.Syscalls {
 		label += "<TR><TD>" + model.Syscall(s).String() + "</TD></TR>"
 	}
