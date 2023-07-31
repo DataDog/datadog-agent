@@ -10,9 +10,6 @@
 package processes
 
 import (
-	"strings"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes/gops"
 )
 
@@ -20,19 +17,16 @@ import (
 // compatible with the legacy "processes" resource check.
 type ProcessField [7]interface{}
 
-// getProcesses return a JSON payload which is compatible with
-// the legacy "processes" resource check
-func getProcesses(limit int) ([]interface{}, error) {
+func getProcessGroups(limit int) ([]ProcessGroup, error) {
 	processGroups, err := gops.TopRSSProcessGroups(limit)
 	if err != nil {
 		return nil, err
 	}
 
-	snapData := make([]ProcessField, len(processGroups))
-
+	snapData := make([]ProcessGroup, len(processGroups))
 	for i, processGroup := range processGroups {
-		processField := ProcessField{
-			strings.Join(processGroup.Usernames(), ","),
+		processGroup := ProcessGroup{
+			processGroup.Usernames(),
 			0, // pct_cpu, requires two consecutive samples to be computed, so not fetched for now
 			processGroup.PctMem(),
 			processGroup.VMS(),
@@ -40,8 +34,8 @@ func getProcesses(limit int) ([]interface{}, error) {
 			processGroup.Name(),
 			len(processGroup.Pids()),
 		}
-		snapData[i] = processField
+		snapData[i] = processGroup
 	}
 
-	return []interface{}{time.Now().Unix(), snapData}, nil
+	return snapData, nil
 }

@@ -6,7 +6,11 @@
 // Package processes regroups collecting information about running processes.
 package processes
 
-import "flag"
+import (
+	"flag"
+	"strings"
+	"time"
+)
 
 var options struct {
 	limit int
@@ -26,18 +30,43 @@ func (processes *Processes) Name() string {
 	return name
 }
 
+type ProcessGroup struct {
+	Usernames []string
+	PctCPU    int
+	PctMem    float64
+	VMS       uint64
+	RSS       uint64
+	Name      string
+	NbPids    int
+}
+
+func Get() ([]ProcessGroup, error) {
+	return getProcessGroups(options.limit)
+}
+
 // Collect collects the processes information.
 // Returns an object which can be converted to a JSON or an error if nothing could be collected.
 // Tries to collect as much information as possible.
 func (processes *Processes) Collect() (result interface{}, err error) {
-	// even if getProcesses returns nil, simply assigning to result
-	// will have a non-nil return, because it has a valid inner
-	// type (more info here: https://golang.org/doc/faq#nil_error )
-	// so, jump through the hoop of temporarily storing the return,
-	// and explicitly return nil if it fails.
-	gpresult, err := getProcesses(options.limit)
-	if gpresult == nil {
+	processGroups, err := Get()
+	if err != nil {
 		return nil, err
 	}
-	return gpresult, err
+
+	snapData := make([]ProcessField, len(processGroups))
+
+	for i, processGroup := range processGroups {
+		processField := ProcessField{
+			strings.Join(processGroup.Usernames, ","),
+			processGroup.PctCPU,
+			processGroup.PctMem,
+			processGroup.VMS,
+			processGroup.RSS,
+			processGroup.Name,
+			processGroup.NbPids,
+		}
+		snapData[i] = processField
+	}
+
+	return []interface{}{time.Now().Unix(), snapData}, nil
 }
