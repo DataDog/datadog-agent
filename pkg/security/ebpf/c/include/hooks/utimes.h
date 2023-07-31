@@ -31,15 +31,15 @@ SYSCALL_KPROBE0(utime32) {
     return trace__sys_utimes();
 }
 
-SYSCALL_COMPAT_TIME_KPROBE0(utimes) {
+HOOK_SYSCALL_COMPAT_TIME_ENTRY0(utimes) {
     return trace__sys_utimes();
 }
 
-SYSCALL_COMPAT_TIME_KPROBE0(utimensat) {
+HOOK_SYSCALL_COMPAT_TIME_ENTRY0(utimensat) {
     return trace__sys_utimes();
 }
 
-SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
+HOOK_SYSCALL_COMPAT_TIME_ENTRY0(futimesat) {
     return trace__sys_utimes();
 }
 
