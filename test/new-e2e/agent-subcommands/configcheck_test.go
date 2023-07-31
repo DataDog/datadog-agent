@@ -107,55 +107,55 @@ func (v *agentSuite) TestDefaultInstalledChecks() {
 	v.UpdateEnv(e2e.AgentStackDef(nil))
 
 	testChecks := []CheckConfigOutput{
-		CheckConfigOutput{
+		{
 			CheckName:  "cpu",
 			Filepath:   "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default",
 			InstanceId: "cpu:",
 			Settings:   "{}",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "disk",
 			Filepath:   "file:/etc/datadog-agent/conf.d/disk.d/conf.yaml.default",
 			InstanceId: "disk:",
 			Settings:   "use_mount: false",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "file_handle",
 			Filepath:   "file:/etc/datadog-agent/conf.d/file_handle.d/conf.yaml.default",
 			InstanceId: "file_handle:",
 			Settings:   "{}",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "io",
 			Filepath:   "file:/etc/datadog-agent/conf.d/io.d/conf.yaml.default",
 			InstanceId: "io:",
 			Settings:   "{}",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "load",
 			Filepath:   "file:/etc/datadog-agent/conf.d/load.d/conf.yaml.default",
 			InstanceId: "load:",
 			Settings:   "{}",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "memory",
 			Filepath:   "file:/etc/datadog-agent/conf.d/memory.d/conf.yaml.default",
 			InstanceId: "memory:",
 			Settings:   "{}",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "network",
 			Filepath:   "file:/etc/datadog-agent/conf.d/network.d/conf.yaml.default",
 			InstanceId: "network:",
 			Settings:   "{}",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "ntp",
 			Filepath:   "file:/etc/datadog-agent/conf.d/ntp.d/conf.yaml.default",
 			InstanceId: "ntp:",
 			Settings:   "{}",
 		},
-		CheckConfigOutput{
+		{
 			CheckName:  "uptime",
 			Filepath:   "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default",
 			InstanceId: "uptime:",
