@@ -39,9 +39,8 @@ int hook_do_renameat2(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/vfs_rename")
-int kprobe_vfs_rename(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_rename")
+int hook_vfs_rename(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;
@@ -56,10 +55,10 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
     struct dentry *target_dentry;
 
     if (get_vfs_rename_input_type() == VFS_RENAME_REGISTER_INPUT) {
-        src_dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-        target_dentry = (struct dentry *)PT_REGS_PARM4(ctx);
+        src_dentry = (struct dentry *)CTX_PARM2(ctx);
+        target_dentry = (struct dentry *)CTX_PARM4(ctx);
     } else {
-        struct renamedata *rename_data = (struct renamedata *)PT_REGS_PARM1(ctx);
+        struct renamedata *rename_data = (struct renamedata *)CTX_PARM1(ctx);
 
         bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *) rename_data + get_vfs_rename_src_dentry_offset());
         bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *) rename_data + get_vfs_rename_target_dentry_offset());
@@ -105,7 +104,7 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_RENAME);
