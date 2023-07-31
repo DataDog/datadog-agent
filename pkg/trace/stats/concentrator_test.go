@@ -85,6 +85,7 @@ func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
+		e.CustomTags = []string{""}
 		expectedM[e.Service+e.Resource] = e
 	}
 	for _, a := range actual {
@@ -644,7 +645,7 @@ func TestCustomTagStats(t *testing.T) {
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			if st.Name == "postgres.query" {
-				assert.Equal("costcenter:canada,georegion:amer", st.CustomTags)
+				assert.Equal([]string([]string{"costcenter:canada", "georegion:amer"}), st.CustomTags)
 			}
 		}
 	})

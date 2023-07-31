@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,9 @@ func wrapPayloads(p []pb.ClientStatsPayload) pb.StatsPayload {
 }
 
 func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64, customKey CustomTagKey) pb.ClientStatsPayload {
+
+	splitCustomTags := strings.Split(string(customKey), ",")
+
 	return pb.ClientStatsPayload{
 		Env:     "test-env",
 		Version: "test-version",
@@ -61,7 +65,7 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, dura
 						Hits:           hits,
 						Errors:         errors,
 						Duration:       duration,
-						CustomTags:     string(customKey),
+						CustomTags:     splitCustomTags,
 					},
 				},
 			},
@@ -130,7 +134,7 @@ func agg2Counts(insertionTime time.Time, p pb.ClientStatsPayload) pb.ClientStats
 			s.Stats[j].TopLevelHits = 0
 			s.Stats[j].OkSummary = nil
 			s.Stats[j].ErrorSummary = nil
-			s.Stats[j].CustomTags = ""
+			s.Stats[j].CustomTags = nil
 		}
 	}
 	return p

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"strings"
+
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
@@ -39,6 +41,7 @@ type rcClient struct {
 	taskProcessed    map[string]bool
 	fallbackLogLevel *string
 	latestLogLevel   *string
+	latestCustomTags *string
 
 	listeners []RCAgentTaskListener
 }
@@ -120,6 +123,13 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 			pkglog.Infof("Removing remote-config log level override, falling back to %s", *rc.fallbackLogLevel)
 			err = settings.SetRuntimeSetting("log_level", *rc.fallbackLogLevel)
 		}
+	}
+
+	if len(mergedConfig.CustomTags) > 0 && mergedConfig.CustomTags != *rc.latestCustomTags {
+		splitString := strings.Split(mergedConfig.CustomTags, ":")
+		pkglog.Infof("Adding custom tag %s to span %s through remote config", splitString[0], splitString[1])
+		err = settings.SetRuntimeSetting("custom_tags", mergedConfig.CustomTags)
+		*rc.latestCustomTags = mergedConfig.CustomTags
 	}
 
 	// Apply the new status to all configs

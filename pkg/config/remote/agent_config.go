@@ -25,7 +25,8 @@ type AgentConfig struct {
 
 // ConfigContent contains the configurations set by remote-config
 type ConfigContent struct {
-	LogLevel string `json:"log_level"`
+	LogLevel   string `json:"log_level"`
+	CustomTags string `json:"custom_tags"`
 }
 
 type agentConfigData struct {

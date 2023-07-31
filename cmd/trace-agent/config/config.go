@@ -238,7 +238,6 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 
 	var customTagsMap = coreconfig.Datadog.GetStringMapStringSlice("apm_config.custom_tags")
 	c.CustomTags = applyCustomTagsConfig(customTagsMap)
-	log.Info(c.CustomTags)
 
 	c.PeerServiceAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")

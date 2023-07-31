@@ -316,21 +316,21 @@ func (m *ClientStatsBucket) GetAgentTimeShift() int64 {
 
 // ClientGroupedStats aggregate stats on spans grouped by service, name, resource, status_code, type
 type ClientGroupedStats struct {
-	Service        string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
-	Name           string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Resource       string `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource,omitempty"`
-	HTTPStatusCode uint32 `protobuf:"varint,4,opt,name=HTTP_status_code,json=HTTPStatusCode,proto3" json:"HTTP_status_code,omitempty"`
-	Type           string `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
-	DBType         string `protobuf:"bytes,6,opt,name=DB_type,json=DBType,proto3" json:"DB_type,omitempty"`
-	Hits           uint64 `protobuf:"varint,7,opt,name=hits,proto3" json:"hits,omitempty"`
-	Errors         uint64 `protobuf:"varint,8,opt,name=errors,proto3" json:"errors,omitempty"`
-	Duration       uint64 `protobuf:"varint,9,opt,name=duration,proto3" json:"duration,omitempty"`
-	OkSummary      []byte `protobuf:"bytes,10,opt,name=okSummary,proto3" json:"okSummary,omitempty"`
-	ErrorSummary   []byte `protobuf:"bytes,11,opt,name=errorSummary,proto3" json:"errorSummary,omitempty"`
-	Synthetics     bool   `protobuf:"varint,12,opt,name=synthetics,proto3" json:"synthetics,omitempty"`
-	TopLevelHits   uint64 `protobuf:"varint,13,opt,name=topLevelHits,proto3" json:"topLevelHits,omitempty"`
-	PeerService    string `protobuf:"bytes,14,opt,name=peer_service,json=peerService,proto3" json:"peer_service,omitempty"`
-	CustomTags     string `protobuf:"bytes,15,opt,name=custom_tags,json=customTags,proto3" json:"custom_tags,omitempty"`
+	Service        string   `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Name           string   `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Resource       string   `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource,omitempty"`
+	HTTPStatusCode uint32   `protobuf:"varint,4,opt,name=HTTP_status_code,json=HTTPStatusCode,proto3" json:"HTTP_status_code,omitempty"`
+	Type           string   `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
+	DBType         string   `protobuf:"bytes,6,opt,name=DB_type,json=DBType,proto3" json:"DB_type,omitempty"`
+	Hits           uint64   `protobuf:"varint,7,opt,name=hits,proto3" json:"hits,omitempty"`
+	Errors         uint64   `protobuf:"varint,8,opt,name=errors,proto3" json:"errors,omitempty"`
+	Duration       uint64   `protobuf:"varint,9,opt,name=duration,proto3" json:"duration,omitempty"`
+	OkSummary      []byte   `protobuf:"bytes,10,opt,name=okSummary,proto3" json:"okSummary,omitempty"`
+	ErrorSummary   []byte   `protobuf:"bytes,11,opt,name=errorSummary,proto3" json:"errorSummary,omitempty"`
+	Synthetics     bool     `protobuf:"varint,12,opt,name=synthetics,proto3" json:"synthetics,omitempty"`
+	TopLevelHits   uint64   `protobuf:"varint,13,opt,name=topLevelHits,proto3" json:"topLevelHits,omitempty"`
+	PeerService    string   `protobuf:"bytes,14,opt,name=peer_service,json=peerService,proto3" json:"peer_service,omitempty"`
+	CustomTags     []string `protobuf:"bytes,15,rep,name=custom_tags,json=customTags,proto3" json:"custom_tags,omitempty"`
 }
 
 func (m *ClientGroupedStats) Reset()         { *m = ClientGroupedStats{} }
@@ -464,11 +464,11 @@ func (m *ClientGroupedStats) GetPeerService() string {
 	return ""
 }
 
-func (m *ClientGroupedStats) GetCustomTags() string {
+func (m *ClientGroupedStats) GetCustomTags() []string {
 	if m != nil {
 		return m.CustomTags
 	}
-	return ""
+	return nil
 }
 
 func init() {
@@ -481,7 +481,7 @@ func init() {
 func init() { proto.RegisterFile("stats.proto", fileDescriptor_b4756a0aec8b9d44) }
 
 var fileDescriptor_b4756a0aec8b9d44 = []byte{
-	// 661 bytes of a gzipped FileDescriptorProto
+	// 662 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x54, 0xc1, 0x6e, 0xda, 0x40,
 	0x10, 0xc5, 0xd8, 0x21, 0x61, 0x20, 0x34, 0x5d, 0xb5, 0xa9, 0x15, 0x45, 0x0e, 0x45, 0x55, 0x84,
 	0x2a, 0x95, 0xa8, 0xe9, 0x17, 0x94, 0x50, 0x35, 0x91, 0x7a, 0x88, 0x0c, 0xea, 0x15, 0x19, 0x33,
@@ -520,10 +520,10 @@ var fileDescriptor_b4756a0aec8b9d44 = []byte{
 	0x63, 0x35, 0x43, 0x15, 0xfa, 0xfa, 0xfb, 0xeb, 0xb7, 0xb8, 0xc6, 0xe8, 0x19, 0x8a, 0x27, 0x5f,
 	0x70, 0x81, 0xf3, 0x4b, 0xbd, 0xf1, 0x3e, 0x6d, 0x50, 0xe2, 0xd8, 0x6b, 0x68, 0x26, 0x88, 0x62,
 	0x5c, 0x78, 0xde, 0xca, 0x02, 0xa6, 0xb9, 0x61, 0xee, 0xfb, 0x09, 0x34, 0xfc, 0x54, 0x2a, 0x1e,
-	0x8d, 0x29, 0x67, 0xcf, 0xa8, 0x03, 0x32, 0x6a, 0xe4, 0x05, 0xb2, 0x6f, 0xdf, 0x3d, 0x38, 0xc6,
-	0xfd, 0x83, 0x63, 0xfc, 0x79, 0x70, 0x8c, 0xef, 0x8f, 0x4e, 0xe5, 0xfe, 0xd1, 0xa9, 0xfc, 0x7a,
-	0x74, 0x2a, 0x93, 0x1a, 0xfd, 0xc7, 0x7d, 0xf8, 0x17, 0x00, 0x00, 0xff, 0xff, 0xbe, 0x45, 0xc3,
-	0x85, 0x25, 0x05, 0x00, 0x00,
+	0x8d, 0x29, 0x67, 0xcf, 0x28, 0x67, 0x90, 0x51, 0x23, 0x2f, 0x90, 0x7d, 0xfb, 0xee, 0xc1, 0x31,
+	0xee, 0x1f, 0x1c, 0xe3, 0xcf, 0x83, 0x63, 0x7c, 0x7f, 0x74, 0x2a, 0xf7, 0x8f, 0x4e, 0xe5, 0xd7,
+	0xa3, 0x53, 0x99, 0xd4, 0xe8, 0x3f, 0xee, 0xc3, 0xbf, 0x00, 0x00, 0x00, 0xff, 0xff, 0xd9, 0x1d,
+	0x02, 0x40, 0x25, 0x05, 0x00, 0x00,
 }
 
 func (m *StatsPayload) Marshal() (dAtA []byte, err error) {
@@ -832,10 +832,19 @@ func (m *ClientGroupedStats) MarshalTo(dAtA []byte) (int, error) {
 		i += copy(dAtA[i:], m.PeerService)
 	}
 	if len(m.CustomTags) > 0 {
-		dAtA[i] = 0x7a
-		i++
-		i = encodeVarintStats(dAtA, i, uint64(len(m.CustomTags)))
-		i += copy(dAtA[i:], m.CustomTags)
+		for _, s := range m.CustomTags {
+			dAtA[i] = 0x7a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
 	}
 	return i, nil
 }
@@ -1019,9 +1028,11 @@ func (m *ClientGroupedStats) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovStats(uint64(l))
 	}
-	l = len(m.CustomTags)
-	if l > 0 {
-		n += 1 + l + sovStats(uint64(l))
+	if len(m.CustomTags) > 0 {
+		for _, s := range m.CustomTags {
+			l = len(s)
+			n += 1 + l + sovStats(uint64(l))
+		}
 	}
 	return n
 }
@@ -2246,7 +2257,7 @@ func (m *ClientGroupedStats) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.CustomTags = string(dAtA[iNdEx:postIndex])
+			m.CustomTags = append(m.CustomTags, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

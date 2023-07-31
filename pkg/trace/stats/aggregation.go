@@ -80,8 +80,6 @@ func getStatusCode(s *pb.Span) uint32 {
 func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTagConf map[string][]string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 
-	// log.Info("conf map: ")
-	// log.Info(customTagConf)
 	customTagSlice := []string{}
 
 	spanTags, ok := customTagConf[s.Name]
@@ -108,7 +106,6 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		}
 	}
 	customKey := NewCustomTagKey(customTagSlice)
-	log.Info("tag key: " + customKey)
 
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
@@ -130,6 +127,10 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
+
+	separator := ","
+	joinedCustomTags := strings.Join(g.CustomTags, separator)
+
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:    g.Resource,
@@ -139,6 +140,6 @@ func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
 			StatusCode:  g.HTTPStatusCode,
 			Synthetics:  g.Synthetics,
 		},
-		CustomTagKey: CustomTagKey(g.CustomTags),
+		CustomTagKey: CustomTagKey(joinedCustomTags),
 	}
 }
