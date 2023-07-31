@@ -3,8 +3,12 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-
+workers_override = ENV['OMNIBUS_WORKERS_OVERRIDE']
 flavor = ENV['AGENT_FLAVOR']
+
+if !workers_override.nil?
+  workers = workers_override
+end
 
 if flavor.nil? || flavor == 'base'
   name 'agent'

@@ -525,6 +525,9 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
 
+    if os.environ.get('KUBERNETES_CPU_REQUEST'):
+        env['OMNIBUS_WORKERS_OVERRIDE'] = os.environ.get('KUBERNETES_CPU_REQUEST')
+
     return env
 
 
