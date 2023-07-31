@@ -131,7 +131,7 @@ for values in "$TMPDIR"/values-*.yaml; do
     rm -rf "${type:?}"
     mkdir "${type:?}"
 
-    helm template --kube-version 1.21 --namespace default datadog "${HELM_DATADOG_CHART:-datadog/datadog}" --set datadog.apiKey=DUMMY_API_KEY --values "$values" --output-dir "$TMPDIR/generated_$type"
+    helm template --kube-version 1.24 --namespace default datadog "${HELM_DATADOG_CHART:-datadog/datadog}" --set datadog.apiKey=DUMMY_API_KEY --values "$values" --output-dir "$TMPDIR/generated_$type"
     for file in "$TMPDIR/generated_$type"/datadog/templates/*.yaml; do
         # Skip files containing only comments like `containers-common-env.yaml`
         if [[ "$(yq eval '. | length' "$file")" == 0 ]]; then
