@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Increasing the collection interval for all teh checks except for activity samples from 10s to 60s.
+    Increasing the collection interval for all the checks except for activity samples from 10s to 60s.

@@ -68,7 +68,7 @@ type Check struct {
 	dbHostname                              string
 	dbVersion                               string
 	driver                                  string
-	nonActivityLastRun                      time.Time
+	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	filePath                                string
 	isRDS                                   bool
@@ -123,9 +123,9 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
-	nonActivityIntervalExpired := checkIntervalExpired(&c.nonActivityLastRun, c.config.NonActivityCollectionInterval)
+	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
-	if nonActivityIntervalExpired {
+	if metricIntervalExpired {
 		err := c.OS_Stats()
 		if err != nil {
 			db, errConnect := c.Connect()
@@ -178,7 +178,7 @@ func (c *Check) Run() error {
 				}
 			}
 		}
-		if nonActivityIntervalExpired {
+		if metricIntervalExpired {
 			if c.config.SharedMemory.Enabled {
 				err := c.SharedMemory()
 				if err != nil {

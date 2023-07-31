@@ -78,31 +78,31 @@ type CustomQuery struct {
 
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                        string               `yaml:"server"`
-	Port                          int                  `yaml:"port"`
-	ServiceName                   string               `yaml:"service_name"`
-	Username                      string               `yaml:"username"`
-	Password                      string               `yaml:"password"`
-	TnsAlias                      string               `yaml:"tns_alias"`
-	TnsAdmin                      string               `yaml:"tns_admin"`
-	Protocol                      string               `yaml:"protocol"`
-	Wallet                        string               `yaml:"wallet"`
-	DBM                           bool                 `yaml:"dbm"`
-	Tags                          []string             `yaml:"tags"`
-	LogUnobfuscatedQueries        bool                 `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions             obfuscate.SQLConfig  `yaml:"obfuscator_options"`
-	InstantClient                 bool                 `yaml:"instant_client"`
-	ReportedHostname              string               `yaml:"reported_hostname"`
-	QuerySamples                  QuerySamplesConfig   `yaml:"query_samples"`
-	QueryMetrics                  QueryMetricsConfig   `yaml:"query_metrics"`
-	SysMetrics                    SysMetricsConfig     `yaml:"sysmetrics"`
-	Tablespaces                   TablespacesConfig    `yaml:"tablespaces"`
-	ProcessMemory                 ProcessMemoryConfig  `yaml:"process_memory"`
-	SharedMemory                  SharedMemoryConfig   `yaml:"shared_memory"`
-	ExecutionPlans                ExecutionPlansConfig `yaml:"execution_plans"`
-	AgentSQLTrace                 AgentSQLTrace        `yaml:"agent_sql_trace"`
-	CustomQueries                 []CustomQuery        `yaml:"custom_queries"`
-	NonActivityCollectionInterval int64                `yaml:"non_activity_collection_interval"`
+	Server                   string               `yaml:"server"`
+	Port                     int                  `yaml:"port"`
+	ServiceName              string               `yaml:"service_name"`
+	Username                 string               `yaml:"username"`
+	Password                 string               `yaml:"password"`
+	TnsAlias                 string               `yaml:"tns_alias"`
+	TnsAdmin                 string               `yaml:"tns_admin"`
+	Protocol                 string               `yaml:"protocol"`
+	Wallet                   string               `yaml:"wallet"`
+	DBM                      bool                 `yaml:"dbm"`
+	Tags                     []string             `yaml:"tags"`
+	LogUnobfuscatedQueries   bool                 `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions        obfuscate.SQLConfig  `yaml:"obfuscator_options"`
+	InstantClient            bool                 `yaml:"instant_client"`
+	ReportedHostname         string               `yaml:"reported_hostname"`
+	QuerySamples             QuerySamplesConfig   `yaml:"query_samples"`
+	QueryMetrics             QueryMetricsConfig   `yaml:"query_metrics"`
+	SysMetrics               SysMetricsConfig     `yaml:"sysmetrics"`
+	Tablespaces              TablespacesConfig    `yaml:"tablespaces"`
+	ProcessMemory            ProcessMemoryConfig  `yaml:"process_memory"`
+	SharedMemory             SharedMemoryConfig   `yaml:"shared_memory"`
+	ExecutionPlans           ExecutionPlansConfig `yaml:"execution_plans"`
+	AgentSQLTrace            AgentSQLTrace        `yaml:"agent_sql_trace"`
+	CustomQueries            []CustomQuery        `yaml:"custom_queries"`
+	MetricCollectionInterval int64                `yaml:"metric_collection_interval"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -128,7 +128,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Defaults begin
 	var DEFAULT_NON_ACTIVITY_COLLECTION_INTERVAL int64
 	DEFAULT_NON_ACTIVITY_COLLECTION_INTERVAL = 60
-	instance.NonActivityCollectionInterval = DEFAULT_NON_ACTIVITY_COLLECTION_INTERVAL
+	instance.MetricCollectionInterval = DEFAULT_NON_ACTIVITY_COLLECTION_INTERVAL
 
 	instance.ObfuscatorOptions.DBMS = common.IntegrationName
 	instance.ObfuscatorOptions.TableNames = true
