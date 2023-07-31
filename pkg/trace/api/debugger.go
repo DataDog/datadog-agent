@@ -25,19 +25,23 @@ const (
 
 	debuggerDiagnosticsURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
 
-	// logsIntakeMaximumTagsLength is the maximum number of characters we send as ddtags.
-	logsIntakeMaximumTagsLength = 4001
+	// intakeMaximumTagsLength is the maximum number of characters we send as ddtags.
+	intakeMaximumTagsLength = 4001
 )
 
+// debuggerLogsProxyHandler returns an http.Handler proxying Dynamic Instrumentation dynamic logs
+// to the logs intake.
 func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
 	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
 }
 
+// debuggerDiagnosticsProxyHandler returns an http.Handler proxying Dynamic Instrumentation diagnostic messages
+// to the debugger intake.
 func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
 	return r.debuggerProxyHandler(debuggerDiagnosticsURLTemplate, r.conf.DebuggerDiagnosticsProxy)
 }
 
-// debuggerProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
+// debuggerProxyHandler returns an http.Handler proxying requests to the configured intake. If the intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
 func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig config.DebuggerProxyConfig) http.Handler {
 	hostTags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
@@ -100,9 +104,9 @@ func getDirector(hostTags string, cidProvider IDProvider, containerTags func(str
 			tags = fmt.Sprintf("%s,%s", tags, qtags)
 		}
 		maxLen := len(tags)
-		if maxLen > logsIntakeMaximumTagsLength {
-			log.Warn("Truncating tags in debugger endpoint. Got %d, max is %d.", maxLen, logsIntakeMaximumTagsLength)
-			maxLen = logsIntakeMaximumTagsLength
+		if maxLen > intakeMaximumTagsLength {
+			log.Warn("Truncating tags in debugger endpoint. Got %d, max is %d.", maxLen, intakeMaximumTagsLength)
+			maxLen = intakeMaximumTagsLength
 		}
 		tags = tags[0:maxLen]
 		q.Set("ddtags", tags)
