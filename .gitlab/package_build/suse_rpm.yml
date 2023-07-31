@@ -76,7 +76,6 @@ agent_suse-x64-a6:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
@@ -94,7 +93,6 @@ agent_suse-x64-a7:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
@@ -147,7 +145,6 @@ dogstatsd_suse-x64:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
