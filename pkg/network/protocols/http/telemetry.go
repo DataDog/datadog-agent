@@ -30,7 +30,7 @@ type Telemetry struct {
 }
 
 func NewTelemetry(protocol string) *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup("usm.http", fmt.Sprintf("protocol:%s", protocol))
+	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
 
 	return &Telemetry{
 		protocol:    protocol,
