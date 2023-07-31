@@ -12,12 +12,15 @@ upgrade:
     have changed from single-dash arguments to double-dash arguments.
     For example, ``-config`` must now be provided as ``--config``.
     Additionally, subcommands have been added, these may be listed with the
-    ``--help`` switch.
+    ``--help`` switch. For backward-compatibility reasons the old CLI arguments
+    will still work in the foreseeable future but may be removed in future versions.
 deprecations:
   - |
     The command line arguments to the Datadog Agent Trace Agent ``trace-agent``
     have changed from single-dash arguments to double-dash arguments.
-    For example, ``-config`` must now be provided as ``--config``.
+    For example, ``-config`` must now be provided as ``--config``. For backward-
+    compatibility reasons the old CLI arguments will still work in the foreseeable
+    future but may be removed in future versions.
 other:
   - |
     Please note that significant changes have been introduced to the Datadog Trace
