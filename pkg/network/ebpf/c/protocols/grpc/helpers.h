@@ -4,6 +4,7 @@
 #include "bpf_builtins.h"
 
 #include "protocols/http2/decoding-defs.h"
+#include "protocols/http2/defs.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/grpc/defs.h"
 
