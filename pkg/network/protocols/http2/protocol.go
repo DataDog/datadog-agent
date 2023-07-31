@@ -76,12 +76,16 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, fmt.Errorf("http2 feature not available on pre %s kernels", MinimumKernelVersion.String())
 	}
 
-	telemetry := http.NewTelemetry()
+	telemetry := http.NewTelemetry("http2")
 
 	return &protocol{
 		cfg:       cfg,
 		telemetry: telemetry,
 	}, nil
+}
+
+func (p *protocol) Name() string {
+	return "HTTP2"
 }
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
