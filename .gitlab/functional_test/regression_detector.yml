@@ -53,7 +53,7 @@ single-machine-performance-regression_detector:
     - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
-    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
+    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
     - chmod +x smp
     - BASELINE_SHA="${SMP_MERGE_BASE}"
     - echo "Computing baseline..."
