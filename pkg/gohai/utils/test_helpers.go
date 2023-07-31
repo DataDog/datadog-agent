@@ -5,10 +5,13 @@
 package utils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // AssertDecodedValue asserts that either
@@ -27,4 +30,27 @@ func AssertDecodedValue[T any](t *testing.T, decoded string, value *Value[T], un
 		// if the field is an error then the json string associated to that field should be empty
 		assert.Empty(t, decoded)
 	}
+}
+
+// RequireMarshallJSON checks that
+// - the given info struct can generate some object using AsJSON function
+// - that object can be marshalled into a json
+// - the JSON can be unmarshalled into the given decoded struct
+// - the JSON doesn't contain unexpected fields
+func RequireMarshallJSON[T Jsonable, U any](t *testing.T, info T, decoded *U) {
+	marshallable, _, err := info.AsJSON()
+	require.NoError(t, err)
+
+	marshalled, err := json.Marshal(marshallable)
+	require.NoError(t, err)
+
+	decoder := json.NewDecoder(bytes.NewReader(marshalled))
+	// do not ignore unknown fields
+	decoder.DisallowUnknownFields()
+
+	err = decoder.Decode(decoded)
+	require.NoError(t, err)
+
+	// check that we read the full json
+	require.False(t, decoder.More())
 }
