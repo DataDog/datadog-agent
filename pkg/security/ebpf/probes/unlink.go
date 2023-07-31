@@ -14,7 +14,7 @@ var unlinkProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_vfs_unlink",
+			EBPFFuncName: "hook_vfs_unlink",
 		},
 	},
 	{
