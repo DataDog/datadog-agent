@@ -16,7 +16,6 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
