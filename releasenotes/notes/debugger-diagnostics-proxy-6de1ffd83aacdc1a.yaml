@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add Dynamic Instrumentation diagnostics proxy endpoint to the trace-agent http server.
