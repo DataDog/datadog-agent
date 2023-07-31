@@ -90,13 +90,13 @@ func getAttrProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "utime",
-	}, fentry, EntryAndExit, true)...)
+	}, fentry, EntryAndExit|SupportFentry, true)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "utime32",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,

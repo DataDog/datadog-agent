@@ -23,11 +23,11 @@ int __attribute__((always_inline)) trace__sys_utimes() {
 
 // On old kernels, we have sys_utime and compat_sys_utime.
 // On new kernels, we have _x64_sys_utime32, __ia32_sys_utime32, __x64_sys_utime, __ia32_sys_utime
-SYSCALL_COMPAT_KPROBE0(utime) {
+HOOK_SYSCALL_COMPAT_ENTRY0(utime) {
     return trace__sys_utimes();
 }
 
-SYSCALL_KPROBE0(utime32) {
+HOOK_SYSCALL_ENTRY0(utime32) {
     return trace__sys_utimes();
 }
 
