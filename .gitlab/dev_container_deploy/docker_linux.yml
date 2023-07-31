@@ -222,6 +222,19 @@ dev_nightly-a7:
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
         IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py3-jmx,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py3-jmx
 
+# deploy nightly build to single-machine-performance
+single_machine_performance-nightly-amd64-a7:
+  extends: .docker_publish_job_definition
+  stage: container_build
+  rules:
+    !reference [.on_deploy_nightly_repo_branch_a7]
+  needs:
+    - docker_build_agent7
+  variables:
+    IMG_REGISTRIES: internal-aws-smp
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+    IMG_DESTINATIONS: 08450328-agent:nightly-${COMMIT_TIME}-${CI_COMMIT_SHA}-7-amd64
+
 # deploys nightlies to agent-dev
 dev_nightly-dogstatsd:
   extends: .docker_publish_job_definition
