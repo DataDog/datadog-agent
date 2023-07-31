@@ -112,8 +112,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(splice) {
-    return sys_splice_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(splice) {
+    return sys_splice_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_splice_exit")

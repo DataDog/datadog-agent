@@ -159,12 +159,12 @@ int module_load(struct tracepoint_module_module_load_t *args) {
     return trace_init_module_ret(args, 0, modname);
 }
 
-SYSCALL_KRETPROBE(init_module) {
-    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
+HOOK_SYSCALL_EXIT(init_module) {
+    return trace_init_module_ret(ctx, (int)SYSCALL_PARMRET(ctx), NULL);
 }
 
-SYSCALL_KRETPROBE(finit_module) {
-    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
+HOOK_SYSCALL_EXIT(finit_module) {
+    return trace_init_module_ret(ctx, (int)SYSCALL_PARMRET(ctx), NULL);
 }
 
 HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
@@ -203,8 +203,8 @@ int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval
     return 0;
 }
 
-SYSCALL_KRETPROBE(delete_module) {
-    return trace_delete_module_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(delete_module) {
+    return trace_delete_module_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_init_module_exit")

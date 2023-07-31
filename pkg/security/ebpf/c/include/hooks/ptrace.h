@@ -61,8 +61,8 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(ptrace) {
-    return sys_ptrace_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(ptrace) {
+    return sys_ptrace_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_ptrace_exit")

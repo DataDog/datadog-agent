@@ -183,17 +183,14 @@ int kretprobe_do_unlinkat(struct pt_regs *ctx) {
     return sys_unlink_ret(ctx, retval);
 }
 
-int __attribute__((always_inline)) kprobe_sys_unlink_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(unlink) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_unlink_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(unlink) {
-    return kprobe_sys_unlink_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(unlinkat) {
-    return kprobe_sys_unlink_ret(ctx);
+HOOK_SYSCALL_EXIT(unlinkat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_unlink_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_unlink_exit")
