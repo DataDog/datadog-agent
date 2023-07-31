@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-// +build test
-
 package mapper
 
 import (
@@ -522,9 +519,7 @@ func getMapper(t *testing.T, configString string) (*MetricMapper, error) {
 
 	cfg := fxutil.Test[configComponent.Component](t, fx.Options(
 		configComponent.MockModule,
-		fx.Replace(configComponent.MockParams{
-			Params: configComponent.Params{ConfFilePath: configString},
-		}),
+		fx.Replace(configComponent.MockParams{ConfigYaml: configString}),
 	))
 
 	err := cfg.(config.ConfigLoader).UnmarshalKey("dogstatsd_mapper_profiles", &profiles)

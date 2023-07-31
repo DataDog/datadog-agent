@@ -64,31 +64,22 @@ func fulfillDeps(t testing.TB) serverDeps {
 	return fulfillDepsWithConfigOverride(t, map[string]interface{}{})
 }
 
-func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
+func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
 		serverDebug.MockModule,
-		fx.Replace(configComponent.MockParams{
-			Overrides: overrides,
-			Features:  features,
-		}),
+		fx.Replace(configComponent.MockParams{Overrides: overrides}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
 		Module,
 	))
 }
 
-func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
-	return fulfillDepsWithConfigOverrideAndFeatures(t, overrides, nil)
-}
-
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
 		serverDebug.MockModule,
-		fx.Replace(configComponent.MockParams{
-			Params: configComponent.Params{ConfFilePath: yaml},
-		}),
+		fx.Replace(configComponent.MockParams{ConfigYaml: yaml}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
 		Module,
@@ -636,6 +627,8 @@ func TestE2EParsing(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
+	config.SetFeatures(t, config.EKSFargate)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 
@@ -643,7 +636,7 @@ func TestExtraTags(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 
-	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
+	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
@@ -676,7 +669,9 @@ func TestStaticTags(t *testing.T) {
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 	cfg["tags"] = []string{"from:dd_tags"}
 
-	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
+	config.SetFeatures(t, config.EKSFargate)
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)

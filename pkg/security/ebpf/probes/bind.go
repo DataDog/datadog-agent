@@ -18,7 +18,7 @@ func getBindProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "bind",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 
 	bindProbes = append(bindProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{

@@ -486,10 +486,6 @@ func (c *safeConfig) Warnings() *Warnings {
 	return nil
 }
 
-func (c *safeConfig) Object() ConfigReader {
-	return c
-}
-
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) Config {
 	config := safeConfig{

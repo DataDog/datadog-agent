@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -101,7 +102,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	getRegistryJSON(fb)
 
 	getVersionHistory(fb)
-	fb.CopyFile(filepath.Join(config.FileUsedDir(), "install_info"))
+	fb.CopyFile(filepath.Join(configUtils.ConfFileDirectory(config.Datadog), "install_info"))
 
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)

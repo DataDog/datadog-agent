@@ -108,9 +108,8 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_security_inode_rmdir_callback")
-int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
+int kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -122,6 +121,24 @@ int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struc
     }
     return 0;
 }
+
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_security_inode_rmdir_callback")
+int fentry_dr_security_inode_rmdir_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_RMDIR);
+        return mark_as_discarded(syscall);
+    }
+    return 0;
+}
+
+#endif // USE_FENTRY
 
 int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
@@ -162,8 +179,8 @@ int kretprobe_do_rmdir(struct pt_regs *ctx) {
     return sys_rmdir_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(rmdir) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(rmdir) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_rmdir_ret(ctx, retval);
 }
 

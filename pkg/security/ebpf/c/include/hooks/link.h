@@ -100,9 +100,8 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_link_src_callback")
-int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *ctx) {
+int kprobe_dr_link_src_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -115,6 +114,25 @@ int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *c
 
     return 0;
 }
+
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_link_src_callback")
+int fentry_dr_link_src_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_LINK);
+        return mark_as_discarded(syscall);
+    }
+
+    return 0;
+}
+
+#endif // USE_FENTRY
 
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
@@ -142,6 +160,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
         syscall->resolver.callback = dr_type == DR_KPROBE ? DR_LINK_DST_CALLBACK_KPROBE_KEY : DR_LINK_DST_CALLBACK_TRACEPOINT_KEY;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
+        syscall->resolver.sysretval = retval;
 
         resolve_dentry(ctx, dr_type);
     }
@@ -163,12 +182,14 @@ int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
     return sys_link_ret(ctx, retval, DR_KPROBE);
 }
 
-SYSCALL_KRETPROBE(link) {
-    return kprobe_sys_link_ret(ctx);
+HOOK_SYSCALL_EXIT(link) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(linkat) {
-    return kprobe_sys_link_ret(ctx);
+HOOK_SYSCALL_EXIT(linkat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_link_exit")
@@ -176,11 +197,13 @@ int tracepoint_handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
     return sys_link_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -204,16 +227,23 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_link_dst_callback")
-int __attribute__((always_inline)) kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
-    int ret = PT_REGS_RC(ctx);
-    return dr_link_dst_callback(ctx, ret);
+int kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
+    return dr_link_dst_callback(ctx);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_link_dst_callback")
+int fentry_dr_link_dst_callback(ctx_t *ctx) {
+    return dr_link_dst_callback(ctx);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_link_dst_callback")
-int __attribute__((always_inline)) tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_link_dst_callback(args, args->ret);
+int tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_link_dst_callback(args);
 }
 
 #endif

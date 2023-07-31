@@ -205,7 +205,6 @@
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
 /comp/systray @DataDog/windows-agent
-/comp/trace @DataDog/agent-apm
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
 
@@ -258,6 +257,7 @@
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
+/pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/oracle-dbm        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
@@ -389,6 +389,7 @@
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/ebpf-platform
+/tasks/kmt.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
