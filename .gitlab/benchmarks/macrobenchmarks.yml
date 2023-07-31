@@ -30,7 +30,6 @@ variables:
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: datadog-agent
 
     # Uncomment to force k8s memory limits for CI job container.
-    # You might also want to set DD_APM_MAX_MEMORY to 500000000 or similar to avoid OOMs in constrained environment.
     # KUBERNETES_MEMORY_REQUEST: "4Gi"
     # KUBERNETES_MEMORY_LIMIT: "4Gi"
 
