@@ -8,11 +8,8 @@ package testutil
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
-
-var conf = &config.AgentConfig{}
 
 func TestRandomBucket(t *testing.T) {
 
