@@ -65,3 +65,10 @@ func (value *Value[T]) Error() error {
 	_, err := value.Value()
 	return err
 }
+
+// ValueOrDefault returns the value stored in the Value[T], or the default value of the type
+// in case of error.
+func (value *Value[T]) ValueOrDefault() T {
+	val, _ := value.Value()
+	return val
+}
