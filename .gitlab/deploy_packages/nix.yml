@@ -1,4 +1,47 @@
 ---
+#
+# Agent v6
+#
+deploy_packages_deb-x64-6:
+  extends: .deploy_packages_deb-6
+  needs: [ agent_deb-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_deb-arm64-6:
+  extends: .deploy_packages_deb-6
+  needs: [ agent_deb-arm64-a6 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_heroku_deb-x64-6:
+  extends: .deploy_packages_deb-6
+  needs: [ agent_heroku_deb-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_rpm-x64-6:
+  extends: .deploy_packages_rpm-6
+  needs: [ agent_rpm-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_rpm-arm64-6:
+  extends: .deploy_packages_rpm-6
+  needs: [ agent_rpm-arm64-a6 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+# NOTE: no SuSE ARM builds currently.
+deploy_packages_suse_rpm-x64-6:
+  extends: .deploy_packages_suse_rpm-6
+  needs: [ agent_suse-x64-a6 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+#
+# Agent v6
+#
 deploy_packages_deb-x64-7:
   extends: .deploy_packages_deb-7
   needs: [ agent_deb-x64-a7 ]
@@ -104,7 +147,7 @@ deploy_packages_dogstatsd_suse_rpm-x64-7:
 deploy_packages_dmg-x64-a7:
   rules:
     !reference [.on_deploy_a7]
-  stage: deploy7
+  stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
   needs: ["agent_dmg-x64-a7"]
@@ -117,7 +160,7 @@ deploy_packages_dmg-x64-a7:
 deploy_staging_dsd:
   rules:
     !reference [.on_deploy_a7]
-  stage: deploy7
+  stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
   dependencies: ["build_dogstatsd-binary_x64"]
@@ -130,7 +173,7 @@ deploy_staging_dsd:
 deploy_staging_iot_agent:
   rules:
     !reference [.on_deploy_a7]
-  stage: deploy7
+  stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
   dependencies: ["build_iot_agent-binary_x64"]

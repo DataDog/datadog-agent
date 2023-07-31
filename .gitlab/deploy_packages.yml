@@ -1,0 +1,9 @@
+---
+# deploy_7 stage
+# Contains jobs which deploy Agent 7 to staging repositories and to Dockerhub / GCR.
+
+include:
+  - /.gitlab/deploy_packages/cluster_agent_cloudfoundry.yml
+  - /.gitlab/deploy_packages/nix.yml
+  - /.gitlab/deploy_packages/windows.yml
+  - /.gitlab/deploy_packages/winget.yml
