@@ -378,6 +378,7 @@ func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIde
 	return nil
 }
 
+// EBPF telemetry depends on the presence of the 'lock xadd' instruction
 func EBPFTelemetrySupported() bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
