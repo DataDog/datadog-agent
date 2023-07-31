@@ -29,7 +29,6 @@ agent_dmg-x64-a7:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
   before_script:
