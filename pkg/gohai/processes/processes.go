@@ -44,6 +44,10 @@ func Get() ([]ProcessGroup, error) {
 	return getProcessGroups(options.limit)
 }
 
+// ProcessField is an untyped representation of a process group,
+// compatible with the legacy "processes" resource check.
+type ProcessField [7]interface{}
+
 // Collect collects the processes information.
 // Returns an object which can be converted to a JSON or an error if nothing could be collected.
 // Tries to collect as much information as possible.

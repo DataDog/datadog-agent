@@ -13,10 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes/gops"
 )
 
-// ProcessField is an untyped representation of a process group,
-// compatible with the legacy "processes" resource check.
-type ProcessField [7]interface{}
-
 func getProcessGroups(limit int) ([]ProcessGroup, error) {
 	processGroups, err := gops.TopRSSProcessGroups(limit)
 	if err != nil {
