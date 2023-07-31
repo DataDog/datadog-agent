@@ -39,4 +39,5 @@ type InvocationEndDetails struct {
 	ResponseRawPayload []byte
 	Coldstart          bool
 	ProactiveInit      bool
+	Runtime            string
 }
