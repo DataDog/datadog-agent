@@ -15,7 +15,7 @@ single-machine-performance-regression_detector:
     when: always
   variables:
     SMP_VERSION: 0.9.2
-    LADING_VERSION: 0.17.2
+    LADING_VERSION: 0.17.3
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
     REPLICAS: 20
