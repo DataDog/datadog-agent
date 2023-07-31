@@ -485,11 +485,10 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 }
 
 func (c *Check) StatementMetrics() (int, error) {
-	start := time.Now()
-
-	if !c.statementsLastRun.IsZero() && start.Sub(c.statementsLastRun).Milliseconds() < c.config.QueryMetrics.CollectionInterval*1000 {
+	if !checkIntervalExpired(&c.statementsLastRun, c.config.QueryMetrics.CollectionInterval) {
 		return 0, nil
 	}
+	start := c.statementsLastRun
 
 	sender, err := c.GetSender()
 	if err != nil {
@@ -910,7 +909,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 
 		c.copyToPreviousMap(newCache)
-		c.statementsLastRun = start
 	} else {
 		heartbeatStatement := "__other__"
 		queryRowHeartbeat := QueryRow{QuerySignature: heartbeatStatement}

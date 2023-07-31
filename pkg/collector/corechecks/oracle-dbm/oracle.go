@@ -30,7 +30,6 @@ import (
 
 var MAX_OPEN_CONNECTIONS = 10
 var DEFAULT_SQL_TRACED_RUNS = 10
-
 var DB_TIMEOUT = "20000"
 
 // The structure is filled by activity sampling and serves as a filter for query metrics
@@ -69,6 +68,7 @@ type Check struct {
 	dbHostname                              string
 	dbVersion                               string
 	driver                                  string
+	nonActivityLastRun                      time.Time
 	statementsLastRun                       time.Time
 	filePath                                string
 	isRDS                                   bool
@@ -97,6 +97,15 @@ func handleServiceCheck(c *Check, err error) {
 	sender.Commit()
 }
 
+func checkIntervalExpired(lastRun *time.Time, collectionInterval int64) bool {
+	start := time.Now()
+	if lastRun.IsZero() || start.Sub(*lastRun).Milliseconds() >= collectionInterval*1000 {
+		*lastRun = start
+		return true
+	}
+	return false
+}
+
 // Run executes the check.
 func (c *Check) Run() error {
 	if c.db == nil {
@@ -114,41 +123,45 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
-	err := c.OS_Stats()
-	if err != nil {
-		db, errConnect := c.Connect()
-		if errConnect != nil {
-			handleServiceCheck(c, errConnect)
-		} else if db == nil {
-			handleServiceCheck(c, fmt.Errorf("empty connection"))
+	nonActivityIntervalExpired := checkIntervalExpired(&c.nonActivityLastRun, c.config.NonActivityCollectionInterval)
+
+	if nonActivityIntervalExpired {
+		err := c.OS_Stats()
+		if err != nil {
+			db, errConnect := c.Connect()
+			if errConnect != nil {
+				handleServiceCheck(c, errConnect)
+			} else if db == nil {
+				handleServiceCheck(c, fmt.Errorf("empty connection"))
+			} else {
+				handleServiceCheck(c, nil)
+			}
+			if errClosing := CloseDatabaseConnection(db); err != nil {
+				log.Errorf("Error closing connection %s", errClosing)
+			}
+			return fmt.Errorf("failed to collect os stats %w", err)
 		} else {
 			handleServiceCheck(c, nil)
 		}
-		if errClosing := CloseDatabaseConnection(db); err != nil {
-			log.Errorf("Error closing connection %s", errClosing)
-		}
-		return fmt.Errorf("failed to collect os stats %w", err)
-	} else {
-		handleServiceCheck(c, nil)
-	}
 
-	if c.config.SysMetrics.Enabled {
-		log.Trace("Entered sysmetrics")
-		err := c.SysMetrics()
-		if err != nil {
-			return fmt.Errorf("failed to collect sysmetrics %w", err)
+		if c.config.SysMetrics.Enabled {
+			log.Trace("Entered sysmetrics")
+			err := c.SysMetrics()
+			if err != nil {
+				return fmt.Errorf("failed to collect sysmetrics %w", err)
+			}
 		}
-	}
-	if c.config.Tablespaces.Enabled {
-		err := c.Tablespaces()
-		if err != nil {
-			return err
+		if c.config.Tablespaces.Enabled {
+			err := c.Tablespaces()
+			if err != nil {
+				return err
+			}
 		}
-	}
-	if c.config.ProcessMemory.Enabled {
-		err := c.ProcessMemory()
-		if err != nil {
-			return err
+		if c.config.ProcessMemory.Enabled {
+			err := c.ProcessMemory()
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -165,16 +178,18 @@ func (c *Check) Run() error {
 				}
 			}
 		}
-		if c.config.SharedMemory.Enabled {
-			err := c.SharedMemory()
-			if err != nil {
-				return err
+		if nonActivityIntervalExpired {
+			if c.config.SharedMemory.Enabled {
+				err := c.SharedMemory()
+				if err != nil {
+					return err
+				}
 			}
-		}
-		if len(c.config.CustomQueries) > 0 {
-			err := c.CustomQueries()
-			if err != nil {
-				log.Errorf("failed to execute custom queries %s", err)
+			if len(c.config.CustomQueries) > 0 {
+				err := c.CustomQueries()
+				if err != nil {
+					log.Errorf("failed to execute custom queries %s", err)
+				}
 			}
 		}
 	}
