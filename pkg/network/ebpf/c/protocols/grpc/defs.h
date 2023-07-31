@@ -16,7 +16,7 @@ typedef enum {
 // field_index represents the different way a header index can be formatted
 // according to the HPACK specification (RFC 7541: 6. Binary format)
 // We not handling the case of non-indexed field.
-union field_index {
+typedef union {
     struct {
         __u8 index : 7;
         __u8 reserved : 1;
@@ -26,13 +26,13 @@ union field_index {
         __u8 reserved : 2;
     } __attribute__((packed)) literal;
     __u8 raw;
-} __attribute__((packed));
+} __attribute__((packed)) field_index;
 
-// hpack_length represents the length of a string as represented in HPACK
+// string_literal_header represents the length of a string as represented in HPACK
 // (see RFC 7541: 5.2 String Literal Representation).
-struct hpack_length {
+typedef struct {
     __u8 length : 7;
     __u8 is_huffman : 1;
-} __attribute__((packed));
+} __attribute__((packed)) string_literal_header;
 
 #endif
