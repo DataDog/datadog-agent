@@ -535,7 +535,6 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
     return handle_interpreted_exec_event(ctx, syscall, interpreter);
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/setup_new_exec")
 int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
     struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);

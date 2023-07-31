@@ -79,7 +79,7 @@ def normalize_traces(stage):
 
     def sort__dd_tags_container(log):
         tags = log.get("tags") or {}
-        tags = tags.get("_dd.tag.container")
+        tags = tags.get("_dd.tags.container")
         if not tags:
             return
         tags = tags.split(',')

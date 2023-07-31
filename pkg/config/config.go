@@ -1836,12 +1836,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-// FileUsedDir returns the absolute path to the folder containing the config
-// file used to populate the registry
-func FileUsedDir() string {
-	return filepath.Dir(Datadog.ConfigFileUsed())
-}
-
 func isLocalAddress(address string) (string, error) {
 	if address == "localhost" {
 		return address, nil

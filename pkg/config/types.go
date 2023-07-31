@@ -67,11 +67,7 @@ type ConfigReader interface {
 	// its subkeys is set.
 	IsSectionSet(section string) bool
 
-	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() *Warnings
-
-	// Object returns ConfigReader to config (completes config.Component interface)
-	Object() ConfigReader
 }
 
 type ConfigWriter interface {

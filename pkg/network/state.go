@@ -349,30 +349,39 @@ func (ns *networkState) logTelemetry() {
 	dnsPidCollisionsDelta := stateTelemetry.dnsPidCollisions.Load() - ns.lastTelemetry.dnsPidCollisions
 
 	// Flush log line if any metric is non-zero
-	if statsUnderflowsDelta > 0 || statsCookieCollisionsDelta > 0 || closedConnDroppedDelta > 0 || connDroppedDelta > 0 || timeSyncCollisionsDelta > 0 ||
-		dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 || http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || dnsPidCollisionsDelta > 0 {
-		s := "state telemetry: "
-		s += " [%d stats stats_underflows]"
-		s += " [%d stats cookie collisions]"
+	if connDroppedDelta > 0 || closedConnDroppedDelta > 0 || dnsStatsDroppedDelta > 0 ||
+		httpStatsDroppedDelta > 0 || http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 {
+		s := "State telemetry: "
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
-		s += " [%d dns stats dropped]"
+		s += " [%d DNS stats dropped]"
 		s += " [%d HTTP stats dropped]"
 		s += " [%d HTTP2 stats dropped]"
 		s += " [%d Kafka stats dropped]"
-		s += " [%d DNS pid collisions]"
-		s += " [%d time sync collisions]"
 		log.Warnf(s,
-			statsUnderflowsDelta,
-			statsCookieCollisionsDelta,
 			connDroppedDelta,
 			closedConnDroppedDelta,
 			dnsStatsDroppedDelta,
 			httpStatsDroppedDelta,
 			http2StatsDroppedDelta,
 			kafkaStatsDroppedDelta,
+		)
+	}
+
+	// debug metrics that aren't useful for customers to see
+	if statsCookieCollisionsDelta > 0 || statsUnderflowsDelta > 0 ||
+		timeSyncCollisionsDelta > 0 || dnsPidCollisionsDelta > 0 {
+		s := "State telemetry debug: "
+		s += " [%d stats cookie collisions]"
+		s += " [%d stats underflows]"
+		s += " [%d time sync collisions]"
+		s += " [%d DNS pid collisions]"
+		log.Debugf(s,
+			statsCookieCollisionsDelta,
+			statsUnderflowsDelta,
+			timeSyncCollisionsDelta,
 			dnsPidCollisionsDelta,
-			timeSyncCollisionsDelta)
+		)
 	}
 
 	ns.lastTelemetry.closedConnDropped = stateTelemetry.closedConnDropped.Load()
@@ -937,10 +946,10 @@ func fixConnectionDirection(c *ConnectionStats) {
 		return
 	}
 
-	sourceEphemeral := IsEphemeralPort(int(c.SPort))
+	sourceEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
 	var destNotEphemeral bool
 	if c.IntraHost {
-		destNotEphemeral = !IsEphemeralPort(int(c.DPort))
+		destNotEphemeral = IsPortInEphemeralRange(c.Family, c.Type, c.DPort) != EphemeralTrue
 	} else {
 		// use a much more restrictive range
 		// for non-ephemeral ports if the

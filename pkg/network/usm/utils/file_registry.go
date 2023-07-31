@@ -9,6 +9,7 @@ package utils
 
 import (
 	"fmt"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -46,7 +47,7 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID pathIdentifierSet
+	blocklistByID *simplelru.LRU[PathIdentifier, struct{}]
 
 	telemetry registryTelemetry
 }
@@ -80,11 +81,16 @@ func NewFileRegistry() *FileRegistry {
 		telemetry.OptPrometheus,
 	)
 
+	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
+	if err != nil {
+		log.Warnf("running without block cache list, creation error: %s", err)
+		blocklistByID = nil
+	}
 	return &FileRegistry{
 		procRoot:      util.GetProcRoot(),
 		byID:          make(map[PathIdentifier]*registration),
 		byPID:         make(map[uint32]pathIdentifierSet),
-		blocklistByID: make(pathIdentifierSet),
+		blocklistByID: blocklistByID,
 		telemetry: registryTelemetry{
 			fileHookFailed:               metricGroup.NewCounter("hook_failed"),
 			fileRegistered:               metricGroup.NewCounter("registered"),
@@ -126,9 +132,11 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		return
 	}
 
-	if _, found := r.blocklistByID[pathID]; found {
-		r.telemetry.fileBlocked.Add(1)
-		return
+	if r.blocklistByID != nil {
+		if _, found := r.blocklistByID.Get(pathID); found {
+			r.telemetry.fileBlocked.Add(1)
+			return
+		}
 	}
 
 	if reg, found := r.byID[pathID]; found {
@@ -147,9 +155,11 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	if err := activationCB(path); err != nil {
 		// we are calling `deactivationCB` here as some uprobes could be already attached
 		_ = deactivationCB(FilePath{ID: pathID})
-		// add `pathID` to blocklist so we don't attempt to re-register files
-		// that are problematic for some reason
-		r.blocklistByID[pathID] = struct{}{}
+		if r.blocklistByID != nil {
+			// add `pathID` to blocklist so we don't attempt to re-register files
+			// that are problematic for some reason
+			r.blocklistByID.Add(pathID, struct{}{})
+		}
 		r.telemetry.fileHookFailed.Add(1)
 		return
 	}

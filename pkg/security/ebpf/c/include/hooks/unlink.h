@@ -89,9 +89,8 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_unlink_callback")
-int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
+int kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
@@ -103,6 +102,24 @@ int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx
 
     return 0;
 }
+
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_unlink_callback")
+int fentry_dr_unlink_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->resolver.ret < 0) {
+        return mark_as_discarded(syscall);
+    }
+
+    return 0;
+}
+
+#endif // USE_FENTRY
 
 int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
@@ -166,17 +183,14 @@ int kretprobe_do_unlinkat(struct pt_regs *ctx) {
     return sys_unlink_ret(ctx, retval);
 }
 
-int __attribute__((always_inline)) kprobe_sys_unlink_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(unlink) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_unlink_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(unlink) {
-    return kprobe_sys_unlink_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(unlinkat) {
-    return kprobe_sys_unlink_ret(ctx);
+HOOK_SYSCALL_EXIT(unlinkat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_unlink_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_unlink_exit")

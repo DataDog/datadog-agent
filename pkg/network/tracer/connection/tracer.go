@@ -498,6 +498,12 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 
 // Describe returns all descriptions of the collector
 func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
+	ch <- ConnTracerTelemetry.tcpFailedConnects
+	ch <- ConnTracerTelemetry.TcpSentMiscounts
+	ch <- ConnTracerTelemetry.unbatchedTcpClose
+	ch <- ConnTracerTelemetry.unbatchedUdpClose
+	ch <- ConnTracerTelemetry.UdpSendsProcessed
+	ch <- ConnTracerTelemetry.UdpSendsMissed
 	ch <- ConnTracerTelemetry.UdpDroppedConns
 	ch <- ConnTracerTelemetry.TcpDroppedConns
 }
@@ -580,6 +586,13 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to get UDP port binding map: %w", err)
 	}
 	for p, count := range udpPorts {
+		// ignore ephemeral port binds as they are more likely to be from
+		// clients calling bind with port 0
+		if network.IsPortInEphemeralRange(network.AFINET, network.UDP, p.Port) == network.EphemeralTrue {
+			log.Debugf("ignoring initial ephemeral UDP port bind to %d", p)
+			continue
+		}
+
 		log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
 		err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
