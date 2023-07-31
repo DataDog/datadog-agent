@@ -10,14 +10,12 @@ package filesystem
 import (
 	"fmt"
 	"strings"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 
 	log "github.com/cihub/seelog"
 	"github.com/moby/sys/mountinfo"
 )
-
-var getFSSizeFn = getFSSize
-var getFSDevFn = getFSDev
 
 // These FS types should be excluded from listing
 var IgnoredFSTypes = map[string]struct{}{
@@ -52,10 +50,21 @@ var RemoteFSTypes = map[string]struct{}{
 	"vxfs":       {},
 }
 
-// returns the size of the filesystem
-func getFSSize(mount *mountinfo.Info) (uint64, error) {
-	var statfs syscall.Statfs_t
-	if err := syscall.Statfs(mount.Mountpoint, &statfs); err != nil {
+// FSInfoGetter provides function to get information about a given filesystem: its size and its dev id
+type FSInfoGetter interface {
+	// Size returns the size of the given filesystem
+	Size(mount *mountinfo.Info) (uint64, error)
+
+	// Dev returns the dev id of the given filesystem
+	// the return type is interface{} because `syscall.Stat_t` uses different types for Dev depending on the platform
+	Dev(mount *mountinfo.Info) (interface{}, error)
+}
+
+type UnixFSInfo struct{}
+
+func (UnixFSInfo) Size(mount *mountinfo.Info) (uint64, error) {
+	var statfs unix.Statfs_t
+	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
 		return 0, fmt.Errorf("statfs %s: %v", mount.Source, err)
 	}
 
@@ -63,11 +72,9 @@ func getFSSize(mount *mountinfo.Info) (uint64, error) {
 	return sizeKB, nil
 }
 
-// returns the dev id of the given filesystem
-// the return type is interface{} because `syscall.Stat_t` uses different types for Dev depending on the platform
-func getFSDev(mount *mountinfo.Info) (interface{}, error) {
-	var stat syscall.Stat_t
-	if err := syscall.Stat(mount.Mountpoint, &stat); err != nil {
+func (UnixFSInfo) Dev(mount *mountinfo.Info) (interface{}, error) {
+	var stat unix.Stat_t
+	if err := unix.Stat(mount.Mountpoint, &stat); err != nil {
 		return 0, fmt.Errorf("stat %s: %w", mount.Source, err)
 	}
 
@@ -75,7 +82,7 @@ func getFSDev(mount *mountinfo.Info) (interface{}, error) {
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
-	return getFileSystemInfoWithMounts(nil)
+	return getFileSystemInfoWithMounts(nil, UnixFSInfo{})
 }
 
 // returns whether to use the new mountInfo instead of the old one
@@ -91,7 +98,7 @@ func replaceDev(old, new MountInfo) bool {
 }
 
 // Internal method to help testing with test mounts
-func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, error) {
+func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo FSInfoGetter) ([]MountInfo, error) {
 	var err error
 	mounts := initialMounts
 
@@ -113,7 +120,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, 
 			continue
 		}
 
-		sizeKB, err := getFSSizeFn(mount)
+		sizeKB, err := fsInfo.Size(mount)
 		if err != nil {
 			log.Info(err)
 			continue
@@ -130,7 +137,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, 
 			MountedOn: mount.Mountpoint,
 		}
 
-		dev, err := getFSDevFn(mount)
+		dev, err := fsInfo.Dev(mount)
 		if err != nil {
 			log.Info(err)
 			continue
