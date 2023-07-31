@@ -32,12 +32,21 @@ type Component interface {
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
+}
 
-	// Object returns wrapped config
-	Object() config.ConfigReader
+// Mock implements mock-specific methods.
+type Mock interface {
+	Component
+	config.ConfigWriter
 }
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newConfig),
+)
+
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+	fx.Supply(MockParams{}),
 )

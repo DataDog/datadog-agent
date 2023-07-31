@@ -51,11 +51,7 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() config.ConfigReader {
-	return c
-}
-
-func (c *cfg) SysProbeObject() *sysconfig.Config {
+func (c *cfg) Object() *sysconfig.Config {
 	return c.syscfg
 }
 

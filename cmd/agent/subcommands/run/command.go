@@ -57,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -484,19 +485,6 @@ func startAgent(
 		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
-	// Start OTLP intake
-	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
-	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
-	if otlpEnabled {
-		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer)
-		if err != nil {
-			log.Errorf("Could not start OTLP: %s", err)
-		} else {
-			log.Debug("OTLP pipeline started")
-		}
-	}
-
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		err = traps.StartServer(hostnameDetected, demux)
@@ -528,16 +516,33 @@ func startAgent(
 		}
 	}
 
+	var logsAgentChannel chan *message.Message
+
 	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
 	if pkgconfig.Datadog.GetBool("logs_enabled") || pkgconfig.Datadog.GetBool("log_enabled") {
 		if pkgconfig.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
-		if _, err := logs.Start(common.AC); err != nil {
+		if logsAgent, err := logs.Start(common.AC); err != nil {
 			log.Error("Could not start logs-agent: ", err)
+		} else {
+			logsAgentChannel = logsAgent.GetPipelineProvider().NextPipelineChan()
 		}
 	} else {
 		log.Info("logs-agent disabled")
+	}
+
+	// Start OTLP intake
+	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
+	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
+	if otlpEnabled {
+		var err error
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, logsAgentChannel)
+		if err != nil {
+			log.Errorf("Could not start OTLP: %s", err)
+		} else {
+			log.Debug("OTLP pipeline started")
+		}
 	}
 
 	// Start NetFlow server
