@@ -22,7 +22,7 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
         return PAYLOAD_UNDETERMINED;
     }
 
-    struct hpack_length len;
+    string_literal_header len;
     if (skb_info->data_off + sizeof(len) > frame_end) {
         return PAYLOAD_UNDETERMINED;
     }
@@ -43,7 +43,7 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
 static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
-    union field_index idx;
+    field_index idx;
     grpc_status_t status = PAYLOAD_UNDETERMINED;
 
     __u32 frame_end = skb_info->data_off + frame_length;
