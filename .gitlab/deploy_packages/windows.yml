@@ -1,6 +1,6 @@
 ---
 #
-# Agent v7
+# Agent v6
 #
 deploy_packages_windows-x64-6:
   rules:
