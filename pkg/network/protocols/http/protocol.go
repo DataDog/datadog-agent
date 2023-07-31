@@ -70,12 +70,16 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String())
 	}
 
-	telemetry := NewTelemetry()
+	telemetry := NewTelemetry("http")
 
 	return &protocol{
 		cfg:       cfg,
 		telemetry: telemetry,
 	}, nil
+}
+
+func (p *protocol) Name() string {
+	return "HTTP"
 }
 
 // ConfigureOptions add the necessary options for the http monitoring to work,

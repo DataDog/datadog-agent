@@ -13,6 +13,8 @@ include:
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
+  - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
@@ -68,6 +70,7 @@ stages:
   - package_build
   - kitchen_deploy
   - kitchen_testing
+  - kitchen_tests_upload
   - pkg_metrics
   - container_build
   - container_scan
@@ -80,6 +83,7 @@ stages:
   - choco_build
   - choco_deploy
   - internal_image_deploy
+  - install_script_testing 
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
@@ -149,21 +153,21 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v17856289-aba8641
+  DATADOG_AGENT_BUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v17856289-aba8641
+  DATADOG_AGENT_WINBUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v17856289-aba8641
+  DATADOG_AGENT_ARMBUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17856289-aba8641
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v17856289-aba8641
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17856289-aba8641
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17856289-aba8641
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_BUILDERS: v16852259-65c480c
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: efed150be993
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: b26f1d056477
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -854,21 +858,23 @@ workflow:
 
 .on_system_probe_changes_or_manual:
   - changes:
-      - pkg/collector/corechecks/ebpf/**/*
-      - pkg/ebpf/**/*
-      - pkg/network/**/*
-      - pkg/util/kernel/**/*
-      - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-      - test/kitchen/test/integration/system-probe-test/**/*
-      - test/kitchen/test/integration/win-sysprobe-test/**/*
-      - .gitlab/functional_test/system_probe.yml
-      - .gitlab/kernel_version_testing/system_probe.yml
-      - test/new-e2e/system-probe/**/*
-      - test/new-e2e/scenarios/system-probe/**/*
-      - test/new-e2e/runner/**/*
-      - test/new-e2e-utils/**/*
-      - test/new-e2e/go.mod
-      - tasks/system_probe.py
+      paths:
+        - pkg/collector/corechecks/ebpf/**/*
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+        - pkg/util/kernel/**/*
+        - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+        - test/kitchen/test/integration/system-probe-test/**/*
+        - test/kitchen/test/integration/win-sysprobe-test/**/*
+        - .gitlab/functional_test/system_probe.yml
+        - .gitlab/kernel_version_testing/system_probe.yml
+        - test/new-e2e/system-probe/**/*
+        - test/new-e2e/scenarios/system-probe/**/*
+        - test/new-e2e/runner/**/*
+        - test/new-e2e-utils/**/*
+        - test/new-e2e/go.mod
+        - tasks/system_probe.py
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true

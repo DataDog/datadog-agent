@@ -38,7 +38,7 @@ func TestPromCounterInitializer(t *testing.T) {
 	assert.Zero(t, len(startMetrics))
 
 	// Set some values and ensure that we have those counters
-	counter.Initialize("mycheck", "mystate")
+	counter.InitializeToZero("mycheck", "mystate")
 
 	endMetrics, err := promTelemetry.Gather()
 	if !assert.NoError(t, err) {

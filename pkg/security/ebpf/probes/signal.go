@@ -25,7 +25,7 @@ func getSignalProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "kill",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	signalProbes = append(signalProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,

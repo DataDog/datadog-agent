@@ -115,7 +115,7 @@ int hook_mnt_want_write_file_path(ctx_t *ctx) {
 }
 #endif
 
-SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
+HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MOUNT,
     };
@@ -125,7 +125,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
     return 0;
 }
 
-SYSCALL_KPROBE1(unshare, unsigned long, flags) {
+HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNSHARE_MNTNS,
         .unshare_mntns = {
@@ -143,7 +143,7 @@ SYSCALL_KPROBE1(unshare, unsigned long, flags) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(unshare) {
+HOOK_SYSCALL_EXIT(unshare) {
     pop_syscall(EVENT_UNSHARE_MNTNS);
     return 0;
 }
@@ -212,9 +212,8 @@ int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_one_callback")
-int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
+int kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
@@ -241,9 +240,8 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(st
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_two_callback")
-int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
+int kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
@@ -270,6 +268,67 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(st
 
     return 0;
 }
+
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_unshare_mntns_stage_one_callback")
+int fentry_dr_unshare_mntns_stage_one_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
+    if (!syscall) {
+        return 0;
+    }
+
+    struct dentry *mp_dentry = syscall->unshare_mntns.mp_dentry;
+
+    syscall->unshare_mntns.path_key.mount_id = get_mount_mount_id(syscall->unshare_mntns.parent);
+    syscall->unshare_mntns.path_key.ino = get_dentry_ino(mp_dentry);
+    update_path_id(&syscall->unshare_mntns.path_key, 0);
+
+    syscall->resolver.key = syscall->unshare_mntns.path_key;
+    syscall->resolver.dentry = mp_dentry;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_UNSHARE_MNTNS_STAGE_TWO_CALLBACK_KPROBE_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_FENTRY);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_UNSHARE_MNTNS);
+
+    return 0;
+}
+
+TAIL_CALL_TARGET("dr_unshare_mntns_stage_two_callback")
+int fentry_dr_unshare_mntns_stage_two_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
+    if (!syscall) {
+        return 0;
+    }
+
+    struct unshare_mntns_event_t event = {
+        .mountfields.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt),
+        .mountfields.device = get_mount_dev(syscall->unshare_mntns.mnt),
+        .mountfields.parent_key.mount_id = syscall->unshare_mntns.path_key.mount_id,
+        .mountfields.parent_key.ino= syscall->unshare_mntns.path_key.ino,
+        .mountfields.parent_key.path_id = syscall->unshare_mntns.path_key.path_id,
+        .mountfields.root_key.mount_id = syscall->unshare_mntns.root_key.mount_id,
+        .mountfields.root_key.ino = syscall->unshare_mntns.root_key.ino,
+        .mountfields.root_key.path_id = syscall->unshare_mntns.root_key.path_id,
+        .mountfields.bind_src_mount_id = 0, // do not consider mnt ns copies as bind mounts
+    };
+    bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->unshare_mntns.fstype);
+
+    if (event.mountfields.mount_id == 0 && event.mountfields.device == 0) {
+        return 0;
+    }
+
+    send_event(ctx, EVENT_UNSHARE_MNTNS, event);
+
+    return 0;
+}
+
+#endif // USE_FENTRY
 
 // fentry blocked by: tail call
 SEC("kprobe/clone_mnt")
@@ -406,6 +465,7 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
     syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MOUNT_CALLBACK_KPROBE_KEY : DR_MOUNT_CALLBACK_TRACEPOINT_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
+    syscall->resolver.sysretval = retval;
 
     resolve_dentry(ctx, dr_type);
 
@@ -424,11 +484,13 @@ int tracepoint_handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *
     return sys_mount_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_mount_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     struct mount_event_t event = {
         .syscall.retval = retval,
@@ -457,16 +519,23 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_mount_callback")
-int __attribute__((always_inline)) kprobe_dr_mount_callback(struct pt_regs *ctx) {
-    int ret = PT_REGS_RC(ctx);
-    return dr_mount_callback(ctx, ret);
+int kprobe_dr_mount_callback(struct pt_regs *ctx) {
+    return dr_mount_callback(ctx);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_mount_callback")
+int fentry_dr_mount_callback(ctx_t *ctx) {
+    return dr_mount_callback(ctx);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_mount_callback")
-int __attribute__((always_inline)) tracepoint_dr_mount_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_mount_callback(args, args->ret);
+int tracepoint_dr_mount_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_mount_callback(args);
 }
 
 #endif
