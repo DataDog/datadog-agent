@@ -115,13 +115,14 @@ int __attribute__((always_inline)) kprobe_sys_mkdir_ret(struct pt_regs *ctx) {
     return sys_mkdir_ret(ctx, retval, DR_KPROBE);
 }
 
-SYSCALL_KRETPROBE(mkdir)
-{
-    return kprobe_sys_mkdir_ret(ctx);
+HOOK_SYSCALL_EXIT(mkdir) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(mkdirat) {
-    return kprobe_sys_mkdir_ret(ctx);
+HOOK_SYSCALL_EXIT(mkdirat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_mkdir_exit")

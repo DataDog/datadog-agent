@@ -182,12 +182,14 @@ int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
     return sys_link_ret(ctx, retval, DR_KPROBE);
 }
 
-SYSCALL_KRETPROBE(link) {
-    return kprobe_sys_link_ret(ctx);
+HOOK_SYSCALL_EXIT(link) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(linkat) {
-    return kprobe_sys_link_ret(ctx);
+HOOK_SYSCALL_EXIT(linkat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_link_exit")

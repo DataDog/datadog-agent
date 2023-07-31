@@ -169,21 +169,19 @@ int kretprobe_do_renameat2(struct pt_regs *ctx) {
     return sys_rename_ret(ctx, retval, DR_KPROBE);
 }
 
-int __attribute__((always_inline)) kprobe_sys_rename_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_EXIT(rename) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(rename) {
-    return kprobe_sys_rename_ret(ctx);
+HOOK_SYSCALL_EXIT(renameat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(renameat) {
-    return kprobe_sys_rename_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(renameat2) {
-    return kprobe_sys_rename_ret(ctx);
+HOOK_SYSCALL_EXIT(renameat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_rename_exit")
