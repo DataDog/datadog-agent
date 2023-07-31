@@ -207,12 +207,6 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
-
-int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE);
-}
-
 HOOK_SYSCALL_EXIT(creat) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
