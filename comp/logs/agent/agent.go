@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
 )
 
@@ -30,31 +31,35 @@ type logsAgent struct {
 	config    configComponent.Component
 }
 
-func newLogsAgent(deps dependencies) Component {
-	logsAgent := &logsAgent{log: deps.Log, config: deps.Config}
-	deps.Lc.Append(fx.Hook{
-		OnStart: logsAgent.start,
-		OnStop:  logsAgent.stop,
-	})
-	return logsAgent
+func newLogsAgent(deps dependencies) util.Optional[Component] {
+
+	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
+		if deps.Config.GetBool("log_enabled") {
+			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
+		}
+
+		logsAgent := &logsAgent{log: deps.Log, config: deps.Config}
+		deps.Lc.Append(fx.Hook{
+			OnStart: logsAgent.start,
+			OnStop:  logsAgent.stop,
+		})
+
+		return util.NewOptional[Component](logsAgent)
+	}
+
+	deps.Log.Info("logs-agent disabled")
+	return util.NewNoneOptional[Component]()
+
 }
 
 func (l *logsAgent) start(context.Context) error {
 
-	if l.config.GetBool("logs_enabled") || l.config.GetBool("log_enabled") {
-		if l.config.GetBool("log_enabled") {
-			l.log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
-		}
-		logsAgent, err := logs.CreateAgent()
-		if err != nil {
-			l.log.Error("Could not start logs-agent: ", err)
-			return err
-		}
-		l.logsAgent = logsAgent
-	} else {
-		l.log.Info("logs-agent disabled")
+	logsAgent, err := logs.CreateAgent()
+	if err != nil {
+		l.log.Error("Could not start logs-agent: ", err)
+		return err
 	}
-
+	l.logsAgent = logsAgent
 	return nil
 }
 

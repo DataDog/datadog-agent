@@ -174,7 +174,7 @@ func run(log log.Component,
 	demux *aggregator.AgentDemultiplexer,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
-	logsAgent logsAgent.Component,
+	logsAgent util.Optional[logsAgent.Component],
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -240,7 +240,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		capture replay.Component,
 		rcclient rcclient.Component,
 		forwarder defaultforwarder.Component,
-		logsAgent logsAgent.Component,
+		logsAgent util.Optional[logsAgent.Component],
 		metadataRunner runner.Component,
 		sharedSerializer serializer.MetricSerializer,
 	) error {
@@ -322,7 +322,7 @@ func startAgent(
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	rcclient rcclient.Component,
-	logsAgent logsAgent.Component,
+	logsAgent util.Optional[logsAgent.Component],
 	sharedForwarder defaultforwarder.Component,
 	sharedSerializer serializer.MetricSerializer,
 ) error {
@@ -448,7 +448,9 @@ func startAgent(
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
-	logsAgent.AddScheduler(adScheduler.New(common.AC))
+	if logsAgent, ok := logsAgent.Get(); ok {
+		logsAgent.AddScheduler(adScheduler.New(common.AC))
+	}
 
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {

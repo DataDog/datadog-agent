@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
 )
 
@@ -18,13 +19,13 @@ type mockLogsAgent struct {
 	addedSchedulers []schedulers.Scheduler
 }
 
-func newMock(deps dependencies) Component {
+func newMock(deps dependencies) util.Optional[Component] {
 	logsAgent := &mockLogsAgent{}
 	deps.Lc.Append(fx.Hook{
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
 	})
-	return logsAgent
+	return util.NewOptional[Component](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {
