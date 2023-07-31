@@ -23,22 +23,32 @@ const (
 	// logsIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
 	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
 
+	debuggerDiagnosticsURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
+
 	// logsIntakeMaximumTagsLength is the maximum number of characters we send as ddtags.
 	logsIntakeMaximumTagsLength = 4001
 )
 
+func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
+	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
+}
+
+func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
+	return r.debuggerProxyHandler(debuggerDiagnosticsURLTemplate, r.conf.DebuggerDiagnosticsProxy)
+}
+
 // debuggerProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
-func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
+func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig config.DebuggerProxyConfig) http.Handler {
 	hostTags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		hostTags = hostTags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
 	}
-	intake := fmt.Sprintf(logsIntakeURLTemplate, r.conf.Site)
-	if v := r.conf.DebuggerProxy.DDURL; v != "" {
+	intake := fmt.Sprintf(urlTemplate, r.conf.Site)
+	if v := proxyConfig.DDURL; v != "" {
 		intake = v
 	} else if site := r.conf.Site; site != "" {
-		intake = fmt.Sprintf(logsIntakeURLTemplate, site)
+		intake = fmt.Sprintf(urlTemplate, site)
 	}
 	target, err := url.Parse(intake)
 	if err != nil {
@@ -46,11 +56,11 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 		return debuggerErrorHandler(fmt.Errorf("error parsing debugger intake URL %q: %v", intake, err))
 	}
 	apiKey := r.conf.APIKey()
-	if k := r.conf.DebuggerProxy.APIKey; k != "" {
+	if k := proxyConfig.APIKey; k != "" {
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		r.conf.NewHTTPTransport(), target, apiKey, r.conf.DebuggerProxy.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{})
+		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{})
 	return newDebuggerProxy(r.conf, transport, hostTags)
 }
 
