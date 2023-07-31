@@ -136,9 +136,9 @@ send_pkg_size-a7:
             local arch="${3}"
 
             # record the total uncompressed size of each package
-            for package in "agent dogstatsd iot-agent heroku-agent"; do
+            for package in agent dogstatsd iot-agent heroku-agent; do
                 if [ ! -d "${base}/${package}" ]; then continue; fi
-                add_metric datadog.agent.package.size $(du -sB1 ${base}/${package} | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:${package} agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+                add_metric datadog.agent.package.size $(du -sB1 "${base}/${package}" | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:${package} agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
             done
 
             # record the size of each of the important binaries in each package
