@@ -34,6 +34,10 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
 
     bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
     skb_info->data_off += sizeof(len);
+
+    // Check if the content-type length allows holding *at least* "application/grpc".
+    // The size *can be larger* as some implementations will for example use
+    // "application/grpc+protobuf" and we want to match those.
     if (len.length < GRPC_CONTENT_TYPE_LEN) {
         return PAYLOAD_NOT_GRPC;
     }
