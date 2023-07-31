@@ -391,8 +391,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"load_module": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_kernel_read_file"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_kernel_module_from_file"}},
+					kprobeOrFentry("security_kernel_read_file", fentry),
+					kprobeOrFentry("security_kernel_module_from_file", fentry, withSkipIfFentry(true)),
 				}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_parse_args"}},
 			}},

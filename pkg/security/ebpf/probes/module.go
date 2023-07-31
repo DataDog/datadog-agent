@@ -14,13 +14,13 @@ var moduleProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_kernel_read_file",
+			EBPFFuncName: "hook_security_kernel_read_file",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_kernel_module_from_file",
+			EBPFFuncName: "hook_security_kernel_module_from_file",
 		},
 	},
 	{
