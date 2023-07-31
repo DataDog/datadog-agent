@@ -76,7 +76,6 @@ int kprobe_parse_args(struct pt_regs *ctx) {
 }
 
 #ifndef USE_FENTRY
-// fentry blocked by: tail call
 HOOK_ENTRY("security_kernel_module_from_file")
 int hook_security_kernel_module_from_file(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
@@ -84,7 +83,6 @@ int hook_security_kernel_module_from_file(ctx_t *ctx) {
 }
 #endif
 
-// fentry blocked by: tail call
 HOOK_ENTRY("security_kernel_read_file")
 int hook_security_kernel_read_file(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
