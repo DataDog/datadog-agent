@@ -1729,5 +1729,5 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 func assertProtocolStack(t *testing.T, stack, expectedStack *protocols.Stack) bool {
 	t.Helper()
 
-	return reflect.DeepEqual(stack, expectedStack)
+	return assert.Equal(t, stack, expectedStack)
 }
