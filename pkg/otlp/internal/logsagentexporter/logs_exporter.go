@@ -58,6 +58,7 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					} else {
 						tags = append(strings.Split(ddTags, ","), otelTag)
 					}
+					// Tags are set in the message origin instead
 					ddLog.Ddtags = nil
 					service := ""
 					if ddLog.Service != nil {
