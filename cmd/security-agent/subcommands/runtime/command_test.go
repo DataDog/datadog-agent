@@ -65,7 +65,6 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 				args:   &checkPoliciesCliParams{evaluateAllPolicySources: true},
 				client: secagent.NewMockRuntimeSecurityClient(),
 			},
-			// TODO: Ensure security-monitoring is ok with {} instead of null for Approvers
 			reportFromSysProbe: `{
 	"Policies": {
 		"exec": {

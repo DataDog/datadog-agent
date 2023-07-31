@@ -8,8 +8,8 @@
 package kfilters
 
 import (
+	"encoding/json"
 	"errors"
-	"strings"
 )
 
 // PolicyMode represents the policy mode (accept or deny)
@@ -54,18 +54,14 @@ func (m PolicyMode) MarshalJSON() ([]byte, error) {
 		return nil, errors.New("invalid policy mode")
 	}
 
-	return []byte(`"` + s + `"`), nil
+	return json.Marshal(s)
 }
 
 // MarshalJSON returns the JSON encoding of the policy flags
 func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	flags := f.StringArray()
 
-	for idx, flag := range flags {
-		flags[idx] = "\"" + flag + "\""
-	}
-
-	return []byte("[" + strings.Join(flags, ",") + "]"), nil
+	return json.Marshal(flags)
 }
 
 func (f PolicyFlag) StringArray() []string {
