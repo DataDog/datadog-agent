@@ -56,12 +56,17 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
 
 // fentry blocked by: parse args special bug
 SEC("kprobe/parse_args")
-int kprobe_parse_args(struct pt_regs *ctx){
-    char *args = (char *) PT_REGS_PARM2(ctx);
+int kprobe_parse_args(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
+
+    char *name = (char *)PT_REGS_PARM1(ctx);
+    char *args = (char *)PT_REGS_PARM2(ctx);
+
+    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), name);
+
     int len = bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
     if (len == sizeof(syscall->init_module.args)) {
         syscall->init_module.args_truncated = 1;
@@ -81,28 +86,6 @@ SEC("kprobe/security_kernel_read_file")
 int kprobe_security_kernel_read_file(struct pt_regs *ctx) {
     struct file *f = (struct file *)PT_REGS_PARM1(ctx);
     return trace_kernel_file(ctx, f);
-}
-
-int __attribute__((always_inline)) trace_module(struct module *mod) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
-    if (!syscall) {
-        return 0;
-    }
-
-    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &mod->name[0]);
-    return 0;
-}
-
-HOOK_ENTRY("do_init_module")
-int hook_do_init_module(ctx_t *ctx) {
-    struct module *mod = (struct module *)CTX_PARM1(ctx);
-    return trace_module(mod);
-}
-
-HOOK_ENTRY("module_put")
-int hook_module_put(ctx_t *ctx) {
-    struct module *mod = (struct module *)CTX_PARM1(ctx);
-    return trace_module(mod);
 }
 
 int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
@@ -138,7 +121,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
     return 0;
 }
 
-// only loaded on rhel-7 based kernels
+// only attached on rhel-7 based kernels
 SEC("tracepoint/module/module_load")
 int module_load(struct tracepoint_module_module_load_t *args) {
     // check if the tracepoint is hit by a kworker
