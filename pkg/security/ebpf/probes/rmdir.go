@@ -26,7 +26,7 @@ var rmdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_rmdir",
+			EBPFFuncName: "rethook_do_rmdir",
 		},
 	},
 }

@@ -171,10 +171,9 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kretprobe/do_rmdir")
-int kretprobe_do_rmdir(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_EXIT("do_rmdir")
+int rethook_do_rmdir(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 2);
     return sys_rmdir_ret(ctx, retval);
 }
 

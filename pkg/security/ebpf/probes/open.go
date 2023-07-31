@@ -44,7 +44,7 @@ var openProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_io_openat2",
+			EBPFFuncName: "rethook_io_openat2",
 		},
 	},
 	{

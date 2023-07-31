@@ -26,7 +26,7 @@ var linkProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_linkat",
+			EBPFFuncName: "rethook_do_linkat",
 		},
 	},
 }
