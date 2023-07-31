@@ -83,6 +83,8 @@ agent_deb-x64-a6:
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
@@ -100,6 +102,8 @@ agent_deb-x64-a7:
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
@@ -117,6 +121,8 @@ agent_deb-arm64-a6:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_arm64.deb'
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
@@ -134,6 +140,8 @@ agent_deb-arm64-a7:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
