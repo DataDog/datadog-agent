@@ -71,29 +71,29 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
     return 0;
 }
 
-int __attribute__((always_inline)) kprobe_sys_utimes_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+ HOOK_SYSCALL_COMPAT_EXIT(utime) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_COMPAT_KRETPROBE(utime) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_EXIT(utime32) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(utime32) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_COMPAT_TIME_EXIT(utimes) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_COMPAT_TIME_KRETPROBE(utimes) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_COMPAT_TIME_EXIT(utimensat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_COMPAT_TIME_KRETPROBE(utimensat) {
-    return kprobe_sys_utimes_ret(ctx);
-}
-
-SYSCALL_COMPAT_TIME_KRETPROBE(futimesat) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_COMPAT_TIME_EXIT(futimesat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_utimes_exit")

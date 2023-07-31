@@ -200,6 +200,8 @@
 
 #define SYSCALL_TIME_FENTRY0(name, ...) SYSCALL_TIME_HOOKx(0,fentry,FENTRY,_##name,__VA_ARGS__)
 
+#define SYSCALL_TIME_FEXIT(name) SYSCALL_TIME_HOOKx(0,fexit,FEXIT,_##name,__VA_ARGS__)
+
 #define SYSCALL_COMPAT_TIME_KRETPROBE(name, ...) SYSCALL_COMPAT_TIME_HOOKx(0,kretprobe,KRETPROBE,_##name)
 
 #endif
