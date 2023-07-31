@@ -162,7 +162,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
 }
 
 HOOK_EXIT("do_renameat2")
-int rethook_do_renameat2(struct pt_regs *ctx) {
+int rethook_do_renameat2(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx, 5);
     return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }

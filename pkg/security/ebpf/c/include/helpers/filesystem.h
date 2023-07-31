@@ -99,7 +99,7 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
-void __attribute__((always_inline)) fill_resolver_mnt(struct pt_regs *ctx, struct syscall_cache_t *syscall, int dr_type) {
+void __attribute__((always_inline)) fill_resolver_mnt(void *ctx, struct syscall_cache_t *syscall, int dr_type) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->unshare_mntns.mnt));
     syscall->unshare_mntns.root_key.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt);
     syscall->unshare_mntns.root_key.ino = get_dentry_ino(dentry);
