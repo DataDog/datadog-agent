@@ -7,14 +7,17 @@ if not exist c:\mnt\ goto nomntdir
 
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~1
 
-call %~p0extract-modcache.bat
-call %~p0extract-tools-modcache.bat
 
-mkdir \dev\go\src\github.com\DataDog\datadog-agent
-cd \dev\go\src\github.com\DataDog\datadog-agent
-xcopy /e/s/h/q c:\mnt\*.*
+set TEST_ROOT=c:\buildroot
+mkdir %TEST_ROOT%\datadog-agent
+if not exist %TEST_ROOT%\datadog-agent exit /b 2
+cd %TEST_ROOT%\datadog-agent || exit /b 3
+xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
-Powershell -C "c:\mnt\tasks\winbuildscripts\lint.ps1" || exit /b 2
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache_tools
+
+Powershell -C "%TEST_ROOT%\datadog-agent\tasks\winbuildscripts\lint.ps1" || exit /b 2
 
 goto :EOF
 

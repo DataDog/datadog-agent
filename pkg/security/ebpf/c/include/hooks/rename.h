@@ -18,15 +18,15 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async) {
     return 0;
 }
 
-SYSCALL_KPROBE0(rename) {
+HOOK_SYSCALL_ENTRY0(rename) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat) {
+HOOK_SYSCALL_ENTRY0(renameat) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat2) {
+HOOK_SYSCALL_ENTRY0(renameat2) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
@@ -152,6 +152,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         syscall->resolver.callback = dr_type == DR_KPROBE ? DR_RENAME_CALLBACK_KPROBE_KEY : DR_RENAME_CALLBACK_TRACEPOINT_KEY;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
+        syscall->resolver.sysretval = retval;
 
         resolve_dentry(ctx, dr_type);
     }
@@ -168,21 +169,19 @@ int kretprobe_do_renameat2(struct pt_regs *ctx) {
     return sys_rename_ret(ctx, retval, DR_KPROBE);
 }
 
-int __attribute__((always_inline)) kprobe_sys_rename_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_EXIT(rename) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(rename) {
-    return kprobe_sys_rename_ret(ctx);
+HOOK_SYSCALL_EXIT(renameat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(renameat) {
-    return kprobe_sys_rename_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(renameat2) {
-    return kprobe_sys_rename_ret(ctx);
+HOOK_SYSCALL_EXIT(renameat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_rename_exit")
@@ -190,11 +189,13 @@ int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t 
     return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -216,16 +217,23 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_rename_callback")
-int __attribute__((always_inline)) kprobe_dr_rename_callback(struct pt_regs *ctx) {
-    int ret = PT_REGS_RC(ctx);
-    return dr_rename_callback(ctx, ret);
+int kprobe_dr_rename_callback(struct pt_regs *ctx) {
+    return dr_rename_callback(ctx);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_rename_callback")
+int fentry_dr_rename_callback(ctx_t *ctx) {
+    return dr_rename_callback(ctx);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_rename_callback")
-int __attribute__((always_inline)) tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_rename_callback(args, args->ret);
+int tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_rename_callback(args);
 }
 
 #endif
