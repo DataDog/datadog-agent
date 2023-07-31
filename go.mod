@@ -216,7 +216,7 @@ require (
 	golang.org/x/sys v0.10.0
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.11.0
+	golang.org/x/tools v0.11.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.56.1
