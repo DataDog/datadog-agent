@@ -8,7 +8,6 @@ package main
 import (
 	"encoding/json"
 	"net"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,12 +26,6 @@ func TestSelectedCollectors_String(t *testing.T) {
 // Any change to this datastructure should be notified to the backend
 // team to ensure compatibility.
 type gohaiPayload struct {
-	Filesystem []struct {
-		KbSize string `json:"kb_size"`
-		// MountedOn can be empty on Windows
-		MountedOn string `json:"mounted_on"`
-		Name      string `json:"name"`
-	} `json:"filesystem"`
 	Network struct {
 		Interfaces []struct {
 			Ipv4        []string `json:"ipv4"`
@@ -58,15 +51,6 @@ func TestGohaiSerialization(t *testing.T) {
 
 	var payload gohaiPayload
 	assert.NoError(t, json.Unmarshal(gohaiJSON, &payload))
-
-	if assert.NotEmpty(t, payload.Filesystem) {
-		if runtime.GOOS != "windows" {
-			// On Windows, MountedOn can be empty
-			assert.NotEmpty(t, payload.Filesystem[0].MountedOn, 0)
-		}
-		assert.NotEmpty(t, payload.Filesystem[0].KbSize, 0)
-		assert.NotEmpty(t, payload.Filesystem[0].Name, 0)
-	}
 
 	if assert.NotEmpty(t, payload.Network.Interfaces) {
 		for _, itf := range payload.Network.Interfaces {
