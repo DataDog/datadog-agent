@@ -49,8 +49,7 @@ func NewErrorValue[T any](err error) Value[T] {
 
 // Value returns the value and the error stored in the Value[T].
 //
-// If the Value[T] represents an error, it returns the default value of type T
-// and a non-nil error, otherwise the stored value of type T and a nil error.
+// If it contains an error, the returned value is unspecified.
 func (value *Value[T]) Value() (T, error) {
 	if value.initialized {
 		return value.value, value.err
@@ -69,6 +68,11 @@ func (value *Value[T]) Error() error {
 // ValueOrDefault returns the value stored in the Value[T], or the default value of the type
 // in case of error.
 func (value *Value[T]) ValueOrDefault() T {
-	val, _ := value.Value()
-	return val
+	val, err := value.Value()
+	if err == nil {
+		return val
+	} else {
+		var def T
+		return def
+	}
 }

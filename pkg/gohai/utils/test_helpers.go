@@ -33,8 +33,8 @@ func AssertDecodedValue[T any](t *testing.T, decoded string, value *Value[T], un
 }
 
 // RequireMarshallJSON checks that
-// - the given info struct can generate some object using AsJSON function
-// - that object can be marshalled into a json
+// - calling the AsJSON function succeeds
+// - the object returned generates a json without error
 // - the JSON can be unmarshalled into the given decoded struct
 // - the JSON doesn't contain unexpected fields
 func RequireMarshallJSON[T Jsonable, U any](t *testing.T, info T, decoded *U) {
