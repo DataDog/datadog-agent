@@ -226,7 +226,7 @@ func TestFilterEmptySize(t *testing.T) {
 	mockSize := func(mount *mountinfo.Info) (uint64, error) {
 		return 0, nil
 	}
-	mockFSInfo := newMockFSInfo().withSize(mockSize)
+	mockFSInfo := newMockFSInfo().withSizeKB(mockSize)
 
 	initialMounts := []*mountinfo.Info{
 		newTestInputMountinfo("Normal"),
@@ -322,14 +322,14 @@ func randString() string {
 // mock filesystem info helpers
 
 type mockFSInfo struct {
-	size func(*mountinfo.Info) (uint64, error)
-	dev  func(*mountinfo.Info) (interface{}, error)
+	sizeKb func(*mountinfo.Info) (uint64, error)
+	dev    func(*mountinfo.Info) (interface{}, error)
 }
 
 func newMockFSInfo() *mockFSInfo {
 	counter := 0
 	return &mockFSInfo{
-		size: func(*mountinfo.Info) (uint64, error) {
+		sizeKb: func(*mountinfo.Info) (uint64, error) {
 			return 1, nil
 		},
 		dev: func(*mountinfo.Info) (interface{}, error) {
@@ -339,8 +339,8 @@ func newMockFSInfo() *mockFSInfo {
 	}
 }
 
-func (mock *mockFSInfo) withSize(size func(*mountinfo.Info) (uint64, error)) *mockFSInfo {
-	mock.size = size
+func (mock *mockFSInfo) withSizeKB(sizeKb func(*mountinfo.Info) (uint64, error)) *mockFSInfo {
+	mock.sizeKb = sizeKb
 	return mock
 }
 
@@ -349,8 +349,8 @@ func (mock *mockFSInfo) withDev(dev func(*mountinfo.Info) (interface{}, error)) 
 	return mock
 }
 
-func (mock *mockFSInfo) Size(mount *mountinfo.Info) (uint64, error) {
-	return mock.size(mount)
+func (mock *mockFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
+	return mock.sizeKb(mount)
 }
 
 func (mock *mockFSInfo) Dev(mount *mountinfo.Info) (interface{}, error) {

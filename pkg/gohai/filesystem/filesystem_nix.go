@@ -52,8 +52,8 @@ var RemoteFSTypes = map[string]struct{}{
 
 // FSInfoGetter provides function to get information about a given filesystem: its size and its dev id
 type FSInfoGetter interface {
-	// Size returns the size of the given filesystem
-	Size(mount *mountinfo.Info) (uint64, error)
+	// SizeKB returns the size of the given filesystem in KB
+	SizeKB(mount *mountinfo.Info) (uint64, error)
 
 	// Dev returns the dev id of the given filesystem
 	// the return type is interface{} because `syscall.Stat_t` uses different types for Dev depending on the platform
@@ -62,7 +62,7 @@ type FSInfoGetter interface {
 
 type UnixFSInfo struct{}
 
-func (UnixFSInfo) Size(mount *mountinfo.Info) (uint64, error) {
+func (UnixFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
 	var statfs unix.Statfs_t
 	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
 		return 0, fmt.Errorf("statfs %s: %v", mount.Source, err)
@@ -120,7 +120,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo FSInfoG
 			continue
 		}
 
-		sizeKB, err := fsInfo.Size(mount)
+		sizeKB, err := fsInfo.SizeKB(mount)
 		if err != nil {
 			log.Info(err)
 			continue
