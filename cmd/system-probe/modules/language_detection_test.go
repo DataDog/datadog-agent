@@ -41,7 +41,10 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 
 	detectLanguage(rec, httptest.NewRequest(http.MethodGet, "/", bytes.NewReader(reqBytes)))
 
-	resBytes, err := io.ReadAll(rec.Result().Body)
+	resBody := rec.Result().Body
+	defer resBody.Close()
+
+	resBytes, err := io.ReadAll(resBody)
 	require.NoError(t, err)
 
 	var detectLanguageResponse languageDetectionProto.DetectLanguageResponse
