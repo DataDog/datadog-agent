@@ -69,6 +69,9 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
 
     resolve_dentry(ctx, DR_KPROBE);
 
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_current_or_impersonated_exec_syscall();
+
     return 0;
 }
 

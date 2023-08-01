@@ -52,13 +52,14 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					log := lsl.At(k)
 					ddLog := logsmapping.Transform(log, res, logger)
 
-					content, err := ddLog.MarshalJSON()
-					if err != nil {
-						logger.Error("Error parsing log: " + err.Error())
+					var tags []string
+					if ddTags := ddLog.GetDdtags(); ddTags == "" {
+						tags = []string{otelTag}
+					} else {
+						tags = append(strings.Split(ddTags, ","), otelTag)
 					}
-
-					tags := append(strings.Split(ddLog.GetDdtags(), ","), otelTag)
-					// TODO: remove tags in ddLog.Ddtags
+					// Tags are set in the message origin instead
+					ddLog.Ddtags = nil
 					service := ""
 					if ddLog.Service != nil {
 						service = *ddLog.Service
@@ -74,6 +75,12 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					origin := message.NewOrigin(logSource)
 					origin.SetTags(tags)
 					origin.SetService(service)
+					origin.SetSource(logSourceName)
+
+					content, err := ddLog.MarshalJSON()
+					if err != nil {
+						logger.Error("Error parsing log: " + err.Error())
+					}
 
 					message := message.NewMessage(content, origin, status, timestamp.Unix())
 

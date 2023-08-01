@@ -31,6 +31,9 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
 
     resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_EXEC);
+
     return 0;
 }
 

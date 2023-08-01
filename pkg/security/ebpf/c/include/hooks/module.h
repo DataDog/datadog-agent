@@ -44,6 +44,7 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     syscall->resolver.dentry = syscall->init_module.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_INIT_MODULE : 0;
     syscall->resolver.iteration = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);

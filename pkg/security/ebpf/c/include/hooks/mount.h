@@ -474,9 +474,9 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
     return 0;
 }
 
-SYSCALL_COMPAT_KRETPROBE(mount) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_mount_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_COMPAT_EXIT(mount) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_mount_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_mount_exit")
