@@ -6,10 +6,12 @@
 package testutil
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -19,10 +21,13 @@ import (
 func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
 	clientBin := buildGoTLSClientBin(t)
 	clientCmd := fmt.Sprintf("%s %s %d", clientBin, serverAddr, numRequests)
-	c, clientInput, err := nettestutil.StartCommand(clientCmd)
+
+	timedCtx, cancel := context.WithTimeout(context.Background(), time.Second*60)
+	c, clientInput, err := nettestutil.StartCommandCtx(timedCtx, clientCmd)
 
 	require.NoError(t, err)
 	return func() {
+		defer cancel()
 		_, err = clientInput.Write([]byte{1})
 		require.NoError(t, err)
 		err = c.Wait()
