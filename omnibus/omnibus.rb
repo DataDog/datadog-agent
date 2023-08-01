@@ -15,7 +15,7 @@ append_timestamp false
 # This cache is only necessary because Datadog is building
 # the agent over and over again in a highly distributed environment.
 if ENV["OMNIBUS_WORKERS_OVERRIDE"]
-  workers ENV["OMNIBUS_WORKERS_OVERRIDE"]
+  workers ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
 end
 
 if ENV["S3_OMNIBUS_CACHE_BUCKET"]
