@@ -165,7 +165,7 @@ def download_artifacts(run_id, destination="."):
     print(color_message(f"Downloading artifacts for run {run_id} to {destination}", "blue"))
     github_workflows = create_or_refresh_macos_build_github_workflows()
     run_artifacts = github_workflows.workflow_run_artifacts(run_id)
-    if len(run_artifacts) == 0:
+    if run_artifacts["total_count"] == 0:
         raise ConnectionError
 
     print("Found the following artifacts: ", run_artifacts)
