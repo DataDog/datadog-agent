@@ -109,4 +109,5 @@ type ClassificationProgram = uint32
 const (
 	ClassificationQueues ClassificationProgram = 0x2
 	ClassificationDBs    ClassificationProgram = 0x3
+	ClassificationGRPC   ClassificationProgram = 0x5
 )

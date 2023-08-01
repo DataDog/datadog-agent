@@ -98,6 +98,7 @@ typedef enum {
     CLASSIFICATION_DBS_PROG,
     __PROG_API,
     // API classification programs go here
+    CLASSIFICATION_GRPC_PROG,
     __PROG_ENCRYPTION,
     // Encryption classification programs go here
     CLASSIFICATION_PROG_MAX,
@@ -114,6 +115,7 @@ typedef enum {
     PROG_HTTP,
     PROG_HTTP2,
     PROG_KAFKA,
+    PROG_GRPC,
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;

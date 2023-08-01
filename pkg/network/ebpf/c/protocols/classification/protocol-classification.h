@@ -187,13 +187,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     if (app_layer_proto != PROTOCOL_UNKNOWN) {
         update_protocol_information(usm_ctx, protocol_stack, app_layer_proto);
 
-        if (app_layer_proto != PROTOCOL_HTTP2) {
-            mark_as_fully_classified(protocol_stack);
-            return;
+        if (app_layer_proto == PROTOCOL_HTTP2) {
+            // If we found HTTP2, then we try to classify its content.
+            goto next_program;
         }
 
-        // If we found HTTP2, then we try to classify its content.
-        classify_grpc(usm_ctx, protocol_stack, skb, &skb_info);
+        mark_as_fully_classified(protocol_stack);
+        return;
     }
 
  next_program:
@@ -243,6 +243,22 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     mark_as_fully_classified(protocol_stack);
  next_program:
     classification_next_program(skb, usm_ctx);
+}
+
+__maybe_unused static __always_inline void protocol_classifier_entrypoint_grpc(struct __sk_buff *skb) {
+    usm_context_t *usm_ctx = usm_context(skb);
+    if (!usm_ctx) {
+        return;
+    }
+
+    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
+    if (!protocol_stack) {
+        return;
+    }
+
+     classify_grpc(usm_ctx, protocol_stack, skb, &usm_ctx->skb_info);
+
+     classification_next_program(skb, usm_ctx);
 }
 
 #endif
