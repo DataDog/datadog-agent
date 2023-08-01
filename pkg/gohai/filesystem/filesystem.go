@@ -12,25 +12,33 @@ import (
 	"time"
 )
 
+// FileSystem implements the Collector interface, providing information about mounted filesystems.
 type FileSystem struct{}
 
+// MountInfo represents a mounted filesystem.
 type MountInfo struct {
-	Name      string `json:"name"`
-	SizeKB    uint64 `json:"kb_size"`
+	// Name is the name of the mounted filesystem.
+	Name string `json:"name"`
+	// SizeKB is the size of the mounted filesystem in KB.
+	SizeKB uint64 `json:"kb_size"`
+	// MountedOn is the mount point path of the mounted filesystem.
 	MountedOn string `json:"mounted_on"`
 }
 
 var (
 	timeout = 2 * time.Second
+	// ErrTimeoutExceeded represents a timeout error
 	ErrTimeoutExceeded = errors.New("timeout exceeded")
 )
 
 const name = "filesystem"
 
+// Name implements the Collector interface.
 func (fs *FileSystem) Name() string {
 	return name
 }
 
+// Collect implements the Collector interface.
 func (fs *FileSystem) Collect() (interface{}, error) {
 	mounts, err := Get()
 	if err != nil {
@@ -50,6 +58,7 @@ func (fs *FileSystem) Collect() (interface{}, error) {
 	return results, nil
 }
 
+// Get returns the list of mounted filesystems
 func Get() ([]MountInfo, error) {
 	return getWithTimeout(timeout)
 }
@@ -57,7 +66,7 @@ func Get() ([]MountInfo, error) {
 func getWithTimeout(timeout time.Duration) ([]MountInfo, error) {
 	type infoRes struct {
 		data []MountInfo
-		err error
+		err  error
 	}
 
 	mountInfoChan := make(chan infoRes, 1)
@@ -65,7 +74,7 @@ func getWithTimeout(timeout time.Duration) ([]MountInfo, error) {
 		mountInfo, err := getFileSystemInfo()
 		mountInfoChan <- infoRes{
 			data: mountInfo,
-			err: err,
+			err:  err,
 		}
 	}()
 

@@ -17,8 +17,8 @@ import (
 	"github.com/moby/sys/mountinfo"
 )
 
-// These FS types should be excluded from listing
-var IgnoredFSTypes = map[string]struct{}{
+// ignoredFSTypes are filesystem types to ignore
+var ignoredFSTypes = map[string]struct{}{
 	"autofs":      {},
 	"debugfs":     {},
 	"devfs":       {},
@@ -37,8 +37,8 @@ var IgnoredFSTypes = map[string]struct{}{
 	"sysfs":       {},
 }
 
-// These FS types are known to be remote
-var RemoteFSTypes = map[string]struct{}{
+// remoteFSTypes are filesystem types known to be remote
+var remoteFSTypes = map[string]struct{}{
 	"acfs":       {},
 	"afs":        {},
 	"auristorfs": {},
@@ -50,8 +50,8 @@ var RemoteFSTypes = map[string]struct{}{
 	"vxfs":       {},
 }
 
-// FSInfoGetter provides function to get information about a given filesystem: its size and its dev id
-type FSInfoGetter interface {
+// fsInfoGetter provides function to get information about a given filesystem: its size and its dev id
+type fsInfoGetter interface {
 	// SizeKB returns the size of the given filesystem in KB
 	SizeKB(mount *mountinfo.Info) (uint64, error)
 
@@ -60,9 +60,9 @@ type FSInfoGetter interface {
 	Dev(mount *mountinfo.Info) (interface{}, error)
 }
 
-type UnixFSInfo struct{}
+type unixFSInfo struct{}
 
-func (UnixFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
+func (unixFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
 	var statfs unix.Statfs_t
 	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
 		return 0, fmt.Errorf("statfs %s: %v", mount.Source, err)
@@ -72,7 +72,7 @@ func (UnixFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
 	return sizeKB, nil
 }
 
-func (UnixFSInfo) Dev(mount *mountinfo.Info) (interface{}, error) {
+func (unixFSInfo) Dev(mount *mountinfo.Info) (interface{}, error) {
 	var stat unix.Stat_t
 	if err := unix.Stat(mount.Mountpoint, &stat); err != nil {
 		return 0, fmt.Errorf("stat %s: %w", mount.Source, err)
@@ -82,10 +82,20 @@ func (UnixFSInfo) Dev(mount *mountinfo.Info) (interface{}, error) {
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
-	return getFileSystemInfoWithMounts(nil, UnixFSInfo{})
+	return getFileSystemInfoWithMounts(nil, unixFSInfo{})
 }
 
-// returns whether to use the new mountInfo instead of the old one
+// replaceDev returns whether to use the new mountInfo instead of the old one.
+//
+// The same filesystem can appear several times in the list of filesystems, for example when it
+// has several mount points.
+// In order to have each filesystem appear only once in the final list, we get the "dev id" of the
+// fs using the stat syscall, then keep only one entry per id with the following logic:
+// - prefer fs whose name contains a /
+// - prefer fs with shorter mount path ("closer to the root")
+// - prefer the most recent one (ie. the new one)
+//
+// This behavior is inspired by what df does.
 func replaceDev(old, new MountInfo) bool {
 	if strings.ContainsRune(new.Name, '/') && !strings.ContainsRune(old.Name, '/') {
 		return true
@@ -97,8 +107,8 @@ func replaceDev(old, new MountInfo) bool {
 	return old.Name != new.Name && old.MountedOn == new.MountedOn
 }
 
-// Internal method to help testing with test mounts
-func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo FSInfoGetter) ([]MountInfo, error) {
+// getFileSystemInfoWithMounts is an internal method to help testing with test mounts
+func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoGetter) ([]MountInfo, error) {
 	var err error
 	mounts := initialMounts
 
@@ -157,9 +167,14 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo FSInfoG
 	return mountInfos, nil
 }
 
+// isExcludedFS returns whether to ignore the given filesystem type and source.
+//
+// It is ignored if
+// - the type is in ignoredFSTypes
+// - we only want local filesystems but it is detected as remote
 func isExcludedFS(fsType string, fsSource string, localOnly bool) bool {
 	// Some filesystems should be ignored based on type
-	if _, ok := IgnoredFSTypes[fsType]; ok {
+	if _, ok := ignoredFSTypes[fsType]; ok {
 		return true
 	}
 
@@ -170,6 +185,13 @@ func isExcludedFS(fsType string, fsSource string, localOnly bool) bool {
 	return false
 }
 
+// isRemoteFS returns whether a filesystem with the given type and source is remote.
+//
+// It is considered remote if
+// - the source contains a ':'
+// - the source is "-hosts"
+// - the source starts with "//" and the type is "smbfs", "smb3" or "cifs"
+// - the type is in remoteFSTypes
 func isRemoteFS(fsType string, fsSource string) bool {
 	// If we have a `:` in the source, it should be remote
 	if strings.Contains(fsSource, ":") {
@@ -191,6 +213,6 @@ func isRemoteFS(fsType string, fsSource string) bool {
 	}
 
 	// Check for general FS types that are known to be remote
-	_, found := RemoteFSTypes[fsType]
+	_, found := remoteFSTypes[fsType]
 	return found
 }
