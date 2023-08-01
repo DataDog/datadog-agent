@@ -163,9 +163,11 @@ def download_artifacts(run_id, destination="."):
     Download all artifacts for a given job in the specified location.
     """
     print(color_message(f"Downloading artifacts for run {run_id} to {destination}", "blue"))
-
     github_workflows = create_or_refresh_macos_build_github_workflows()
     run_artifacts = github_workflows.workflow_run_artifacts(run_id)
+    if len(run_artifacts) == 0:
+        raise ConnectionError
+
     print("Found the following artifacts: ", run_artifacts)
 
     if run_artifacts is None:
@@ -196,7 +198,7 @@ def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_
             download_artifacts(run_id, destination)
             print(color_message(f"Successfully downloaded artifacts for run {run_id} to {destination}", "blue"))
             return
-        except requests.exceptions.RequestException:
+        except (requests.exceptions.RequestException, ConnectionError):
             retry -= 1
             print(f'Connectivity issue while downloading the artifact, retrying... {retry} attempts left')
             sleep(retry_interval)

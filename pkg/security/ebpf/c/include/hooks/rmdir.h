@@ -179,8 +179,8 @@ int kretprobe_do_rmdir(struct pt_regs *ctx) {
     return sys_rmdir_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(rmdir) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(rmdir) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_rmdir_ret(ctx, retval);
 }
 

@@ -26,18 +26,6 @@ var moduleProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_do_init_module",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_module_put",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
 			EBPFFuncName: "module_load",
 		},
 	},
@@ -55,18 +43,18 @@ func getModuleProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "init_module",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	moduleProbes = append(moduleProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "finit_module",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	moduleProbes = append(moduleProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "delete_module",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return moduleProbes
 }

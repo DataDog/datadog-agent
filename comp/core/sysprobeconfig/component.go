@@ -32,8 +32,7 @@ type Component interface {
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
 
-	// SysProbeObject returns the wrapper sysconfig
-	SysProbeObject() *sysconfig.Config
+	Object() *sysconfig.Config
 }
 
 // Mock implements mock-specific methods.

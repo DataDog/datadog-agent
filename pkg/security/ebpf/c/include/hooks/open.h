@@ -129,16 +129,15 @@ int hook_vfs_open(ctx_t *ctx) {
     return handle_open_event(syscall, file, path, inode);
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/do_dentry_open")
-int kprobe_do_dentry_open(struct pt_regs *ctx) {
+HOOK_ENTRY("do_dentry_open")
+int hook_do_dentry_open(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
     }
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
-    struct inode *inode = (struct inode *)PT_REGS_PARM2(ctx);
+    struct file *file = (struct file *)CTX_PARM1(ctx);
+    struct inode *inode = (struct inode *)CTX_PARM2(ctx);
 
     return handle_exec_event(ctx, syscall, file, &file->f_path, inode);
 }
@@ -198,6 +197,7 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     syscall->resolver.callback = dr_type == DR_KPROBE ? DR_OPEN_CALLBACK_KPROBE_KEY : DR_OPEN_CALLBACK_TRACEPOINT_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
+    syscall->resolver.sysretval = retval;
 
     // tail call
     resolve_dentry(ctx, dr_type);
@@ -207,30 +207,29 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
-
-int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_EXIT(creat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(creat) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(open_by_handle_at) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(truncate) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(truncate) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(open) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(open) {
-    return kprobe_sys_open_ret(ctx);
-}
-
-SYSCALL_COMPAT_KRETPROBE(openat) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(openat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 HOOK_SYSCALL_EXIT(openat2) {
@@ -261,11 +260,13 @@ int hook_filp_close(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -306,24 +307,21 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
 
 SEC("kprobe/dr_open_callback")
 int kprobe_dr_open_callback(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return dr_open_callback(ctx, retval);
+    return dr_open_callback(ctx);
 }
 
 #ifdef USE_FENTRY
 
 TAIL_CALL_TARGET("dr_open_callback")
 int fentry_dr_open_callback(ctx_t *ctx) {
-    // int retval = PT_REGS_RC(ctx);
-    int retval = 0; // TODO(paulcacheux): fix this
-    return dr_open_callback(ctx, retval);
+    return dr_open_callback(ctx);
 }
 
 #endif // USE_FENTRY
 
 SEC("tracepoint/dr_open_callback")
 int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_open_callback(args, args->ret);
+    return dr_open_callback(args);
 }
 
 #endif

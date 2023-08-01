@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
@@ -111,7 +112,7 @@ type ActivityTree struct {
 	validator    ActivityTreeOwner
 	pathsReducer *PathsReducer
 
-	CookieToProcessNode map[cookieSelector]*ProcessNode
+	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
 	ProcessNodes        []*ProcessNode `json:"-"`
 
 	// top level lists used to summarize the content of the tree
@@ -119,18 +120,21 @@ type ActivityTree struct {
 	SyscallsMask map[int]int
 }
 
+const COOKIE_TO_PROCESS_NODE_CACHE_SIZE = 128
+
 // NewActivityTree returns a new ActivityTree instance
 func NewActivityTree(validator ActivityTreeOwner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
-	at := &ActivityTree{
+	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](COOKIE_TO_PROCESS_NODE_CACHE_SIZE, nil)
+
+	return &ActivityTree{
 		treeType:            treeType,
 		validator:           validator,
 		pathsReducer:        pathsReducer,
 		Stats:               NewActivityTreeNodeStats(),
-		CookieToProcessNode: make(map[cookieSelector]*ProcessNode),
+		CookieToProcessNode: cache,
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
-	return at
 }
 
 // ComputeSyscallsList computes the top level list of syscalls
@@ -389,7 +393,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 			cookie:   entry.Cookie,
 		}
 		var found bool
-		node, found = at.CookieToProcessNode[cs]
+		node, found = at.CookieToProcessNode.Get(cs)
 		if found {
 			return node, nil, false, nil
 		}
@@ -398,7 +402,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 	defer func() {
 		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
 		if cs.isSet() && node != nil {
-			at.CookieToProcessNode[cs] = node
+			at.CookieToProcessNode.Add(cs, node)
 		}
 	}()
 

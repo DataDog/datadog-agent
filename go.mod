@@ -127,7 +127,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.3
-	github.com/hashicorp/consul/api v1.20.0
+	github.com/hashicorp/consul/api v1.21.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
@@ -152,7 +152,7 @@ require (
 	github.com/open-policy-agent/opa v0.54.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.75.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/image-spec v1.1.0-rc3
+	github.com/opencontainers/image-spec v1.1.0-rc4
 	github.com/opencontainers/runtime-spec v1.1.0-rc.3
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
@@ -216,7 +216,7 @@ require (
 	golang.org/x/sys v0.10.0
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.11.0
+	golang.org/x/tools v0.11.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.56.1
