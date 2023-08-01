@@ -1225,14 +1225,22 @@ func (p *Probe) FlushSyscalls() {
 	// iteration in eBPF is a difficult subject since the map can be edited by the kernel side
 	// at the same time
 	// to resolve this issue we ignore errors
+	cleaned := 0
 	for iter.Next(&key, &value) {
 		// ignore error
-		_ = m.Delete(key)
+
+		timeNs := int64(model.ByteOrder.Uint32(value[20:24])) << 32
+		fmt.Println(time.Unix(0, timeNs))
+
+		if err := m.Delete(key); err == nil {
+			cleaned++
+		}
 	}
 
 	if err := iter.Err(); err != nil {
 		seclog.Errorf("syscall flushing encoutered an error: %v", err)
 	}
+	seclog.Errorf("syscall flushing: cleaned %d", cleaned)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that

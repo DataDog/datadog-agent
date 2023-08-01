@@ -25,6 +25,8 @@ struct syscall_cache_t {
     u8 discarded;
     u8 async;
 
+    u32 time_ns;
+
     struct dentry_resolver_input_t resolver;
 
     union {
