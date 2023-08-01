@@ -1217,8 +1217,8 @@ func (p *Probe) FlushSyscalls() {
 	}
 
 	var (
-		key   interface{}
-		value interface{}
+		key   uint64
+		value [352]byte
 		iter  = m.Iterate()
 	)
 
