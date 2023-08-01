@@ -20,7 +20,7 @@ import (
 func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
 		now := time.Now()
-		tel := NewTelemetry()
+		tel := NewTelemetry("http")
 		buffer := newIncompleteBuffer(config.New(), tel)
 		request := &EbpfTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
@@ -49,7 +49,7 @@ func TestOrphanEntries(t *testing.T) {
 	})
 
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
-		tel := NewTelemetry()
+		tel := NewTelemetry("http")
 		buffer := newIncompleteBuffer(config.New(), tel)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()

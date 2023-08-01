@@ -8,7 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE0(splice) {
+HOOK_SYSCALL_ENTRY0(splice) {
     struct policy_t policy = fetch_policy(EVENT_SPLICE);
     if (is_discarded_by_process(policy.mode, EVENT_SPLICE)) {
         return 0;
@@ -112,8 +112,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(splice) {
-    return sys_splice_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(splice) {
+    return sys_splice_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_splice_exit")

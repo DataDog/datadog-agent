@@ -31,12 +31,12 @@ var rmdirProbes = []*manager.Probe{
 	},
 }
 
-func getRmdirProbe() []*manager.Probe {
+func getRmdirProbe(fentry bool) []*manager.Probe {
 	rmdirProbes = append(rmdirProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "rmdir",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return rmdirProbes
 }
