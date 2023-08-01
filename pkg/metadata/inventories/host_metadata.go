@@ -97,15 +97,15 @@ func getHostMetadata() *HostMetadata {
 	} else {
 		logWarnings(warnings)
 
-		metadata.CPUCores, _ = cpuInfo.CPUCores.Value()
-		metadata.CPULogicalProcessors, _ = cpuInfo.CPULogicalProcessors.Value()
-		metadata.CPUVendor, _ = cpuInfo.VendorID.Value()
-		metadata.CPUModel, _ = cpuInfo.ModelName.Value()
-		metadata.CPUModelID, _ = cpuInfo.Model.Value()
-		metadata.CPUFamily, _ = cpuInfo.Family.Value()
-		metadata.CPUStepping, _ = cpuInfo.Stepping.Value()
-		metadata.CPUFrequency, _ = cpuInfo.Mhz.Value()
-		cpuCacheSize, _ := cpuInfo.CacheSizeKB.Value()
+		metadata.CPUCores = cpuInfo.CPUCores.ValueOrDefault()
+		metadata.CPULogicalProcessors = cpuInfo.CPULogicalProcessors.ValueOrDefault()
+		metadata.CPUVendor = cpuInfo.VendorID.ValueOrDefault()
+		metadata.CPUModel = cpuInfo.ModelName.ValueOrDefault()
+		metadata.CPUModelID = cpuInfo.Model.ValueOrDefault()
+		metadata.CPUFamily = cpuInfo.Family.ValueOrDefault()
+		metadata.CPUStepping = cpuInfo.Stepping.ValueOrDefault()
+		metadata.CPUFrequency = cpuInfo.Mhz.ValueOrDefault()
+		cpuCacheSize := cpuInfo.CacheSizeKB.ValueOrDefault()
 		metadata.CPUCacheSize = cpuCacheSize * 1024
 	}
 
@@ -130,10 +130,9 @@ func getHostMetadata() *HostMetadata {
 	} else {
 		logWarnings(warnings)
 
-		// Value() returns the default value of the type in case of error so we can use it directly
-		memoryTotalKb, _ := memoryInfo.TotalBytes.Value()
+		memoryTotalKb := memoryInfo.TotalBytes.ValueOrDefault()
 		metadata.MemoryTotalKb = memoryTotalKb / 1024
-		metadata.MemorySwapTotalKb, _ = memoryInfo.SwapTotalKb.Value()
+		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
 	networkInfo, warnings, err := networkGet()
