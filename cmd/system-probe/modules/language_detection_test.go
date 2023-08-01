@@ -48,11 +48,6 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 	err = proto.Unmarshal(resBytes, &detectLanguageResponse)
 	require.NoError(t, err)
 
-	// Hacky workaround for the fact that EqualExportedValues doesn't support top level pointer equality.
-	type box struct {
-		*languageDetectionProto.DetectLanguageResponse
-	}
-
 	assert.True(t, proto.Equal(
 		&languageDetectionProto.DetectLanguageResponse{
 			Languages: []*languageDetectionProto.Language{{
