@@ -689,6 +689,7 @@ def kitchen_prepare(ctx, skip_linters=False):
         ctx,
         bundle_ebpf=False,
         race=True,
+        debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
     )
