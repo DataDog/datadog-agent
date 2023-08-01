@@ -6,6 +6,7 @@
 package client
 
 import (
+	"os"
 	"strings"
 	"testing"
 

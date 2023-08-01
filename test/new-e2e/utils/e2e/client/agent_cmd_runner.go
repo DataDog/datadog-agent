@@ -22,6 +22,7 @@ type executeAgentCmdWithError func(arguments []string) (string, error)
 type AgentCommandRunner struct {
 	t                        *testing.T
 	executeAgentCmdWithError executeAgentCmdWithError
+	isReady                  bool
 }
 
 // Create a new instance of AgentCommandRunner
@@ -29,12 +30,17 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 	agent := &AgentCommandRunner{
 		t:                        t,
 		executeAgentCmdWithError: executeAgentCmdWithError,
+		isReady:                  false,
 	}
-	agent.waitForReadyTimeout(1 * time.Minute)
 	return agent
 }
 
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
+	if !agent.isReady {
+		err := agent.waitForReadyTimeout(1 * time.Minute)
+		require.NoErrorf(agent.t, err, "the agent is not ready")
+		agent.isReady = true
+	}
 	args := newAgentArgs(commandArgs...)
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
@@ -49,6 +55,12 @@ func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string 
 
 func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
+}
+
+// IsReady runs status command and returns true if the agent is ready.
+// This function should rarely be used.
+func (a *Agent) IsReady() (bool, error) {
+	return a.Status().isReady()
 }
 
 type Status struct {
