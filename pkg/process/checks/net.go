@@ -330,9 +330,6 @@ func batchConnections(
 		})
 	}
 
-	//batchSize := min(maxConnsPerMessage, len(cxs))
-	//batchConns := cxs[:batchSize] // Connections for this particular batch
-
 	ctrIDForPID := make(map[int32]string)
 	batchDNS := make(map[string]*model.DNSDatabaseEntry)
 	namemap := make(map[string]int32)
