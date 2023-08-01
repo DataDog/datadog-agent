@@ -55,25 +55,24 @@ func Get() ([]MountInfo, error) {
 }
 
 func getWithTimeout(timeout time.Duration) ([]MountInfo, error) {
-	mountInfoChan := make(chan []MountInfo, 1)
-	errChan := make(chan error, 1)
-	timeoutChan := time.After(timeout)
+	type infoRes struct {
+		data []MountInfo
+		err error
+	}
 
+	mountInfoChan := make(chan infoRes, 1)
 	go func() {
 		mountInfo, err := getFileSystemInfo()
-		if err == nil {
-			mountInfoChan <- mountInfo
-		} else {
-			errChan <- err
+		mountInfoChan <- infoRes{
+			data: mountInfo,
+			err: err,
 		}
 	}()
 
 	select {
-	case mountInfo := <-mountInfoChan:
-		return mountInfo, nil
-	case err := <-errChan:
-		return nil, err
-	case <-timeoutChan:
+	case info := <-mountInfoChan:
+		return info.data, info.err
+	case <-time.After(timeout):
 		return nil, ErrTimeoutExceeded
 	}
 }
