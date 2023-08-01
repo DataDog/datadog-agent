@@ -128,10 +128,6 @@ func getFileSystemInfo() ([]MountInfo, error) {
 			outstring := convertWindowsString(buf)
 
 			size, _ := getDiskSize(outstring)
-			sizeKB := uint64(0)
-			if size != 0 {
-				sizeKB = uint64(size) / 1024
-			}
 
 			mountpts := getMountPoints(outstring)
 			var mountName string
@@ -140,7 +136,7 @@ func getFileSystemInfo() ([]MountInfo, error) {
 			}
 			mountInfo := MountInfo{
 				Name:      outstring,
-				SizeKB:    sizeKB,
+				SizeKB:    size / 1024,
 				MountedOn: mountName,
 			}
 			fileSystemInfo = append(fileSystemInfo, mountInfo)
