@@ -3,7 +3,6 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build darwin || linux
-// +build darwin linux
 
 package filesystem
 
