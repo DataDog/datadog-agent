@@ -40,6 +40,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1185,12 +1186,9 @@ func (et ErrTimeout) Error() string {
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test
 func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
-	err := ErrTimeout{
-		"timeout, details: ",
+	return ErrTimeout{
+		fmt.Sprintf("timeout, details: %s, probe stats: %+v", GetStatusMetrics(probe), spew.Sdump(ddebpf.GetProbeStats())),
 	}
-
-	err.msg += GetStatusMetrics(probe)
-	return err
 }
 
 // ActionMessage is used to send a message from an action function to its callback
