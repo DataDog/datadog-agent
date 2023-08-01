@@ -1205,6 +1205,22 @@ func (p *Probe) FlushDiscarders() error {
 	return bumpDiscardersRevision(p.Erpc)
 }
 
+func shouldRemoveSyscallEntry(value []byte) bool {
+	if len(value) < 24 {
+		return false
+	}
+
+	bytes := model.ByteOrder.Uint32(value[20:24])
+	if bytes == 0 {
+		return false
+	}
+
+	timeNs := int64(bytes) << 32
+	fmt.Println(timeNs)
+
+	return false
+}
+
 // FlushSyscalls does a best effort flush of the in-flight syscalls map
 func (p *Probe) FlushSyscalls() {
 	seclog.Debugf("Flushing in-flight syscalls")
@@ -1227,11 +1243,13 @@ func (p *Probe) FlushSyscalls() {
 	// to resolve this issue we ignore errors
 	cleaned := 0
 	for iter.Next(&key, &value) {
+
+		eventType := model.ByteOrder.Uint64(value[8:16])
+		seclog.Errorf("syscall flushing: %v", eventType)
+
+		shouldRemoveSyscallEntry(value[:])
+
 		// ignore error
-
-		timeNs := int64(model.ByteOrder.Uint32(value[20:24])) << 32
-		fmt.Println(time.Unix(0, timeNs))
-
 		if err := m.Delete(key); err == nil {
 			cleaned++
 		}
