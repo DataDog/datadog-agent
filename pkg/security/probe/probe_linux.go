@@ -1418,7 +1418,9 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
-	p.FlushSyscalls()
+	if !p.Config.RuntimeSecurity.ActivityDumpEnabled {
+		p.FlushSyscalls()
+	}
 
 	if err := p.updateProbes(rs.GetEventTypes()); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
