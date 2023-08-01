@@ -20,8 +20,10 @@ type MountInfo struct {
 	MountedOn string `json:"mounted_on"`
 }
 
-var timeout = 2 * time.Second
-var ErrTimeoutExceeded = errors.New("timeout exceeded")
+var (
+	timeout = 2 * time.Second
+	ErrTimeoutExceeded = errors.New("timeout exceeded")
+)
 
 const name = "filesystem"
 
