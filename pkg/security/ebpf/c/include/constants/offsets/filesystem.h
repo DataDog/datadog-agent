@@ -254,7 +254,7 @@ void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *fla
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
 #ifdef DEBUG
-    bpf_printk("get_overlayfs_ino lower: %d upper: %d\n", lower_inode, upper_inode);
+    bpf_printk("get_overlayfs_ino lower: %d upper: %d", lower_inode, upper_inode);
 #endif
 
     if (upper_inode) {
