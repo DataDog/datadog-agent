@@ -24,7 +24,7 @@ const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 func TestNixFSTypeFiltering(t *testing.T) {
 	mockFSInfo := newMockFSInfo()
 
-	var testCases = []struct {
+	testCases := []struct {
 		FSType   string
 		FSName   string
 		Included bool
@@ -139,7 +139,7 @@ func TestNixFSTypeFiltering(t *testing.T) {
 func TestNixMissingMountValues(t *testing.T) {
 	mockFSInfo := newMockFSInfo()
 
-	var testCases = []struct {
+	testCases := []struct {
 		Desc           string
 		InputMounts    []*mountinfo.Info
 		ExpectedMounts []MountInfo
@@ -242,7 +242,7 @@ func TestFilterDev(t *testing.T) {
 	}
 	mockFSInfo := newMockFSInfo().withDev(mockDev)
 
-	var testCases = []struct {
+	testCases := []struct {
 		Desc           string
 		InputMounts    []*mountinfo.Info
 		ExpectedMounts []MountInfo
