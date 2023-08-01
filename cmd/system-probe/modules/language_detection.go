@@ -41,6 +41,11 @@ func (l languageDetectionModule) Register(router *module.Router) error {
 	return nil
 }
 
+// Close closes resources associated with the language detection module.
+// The language detection module doesn't do anything except route to the privileged language detection api.
+// This API currently does not hold any resources over its lifetime, so there is no need to release any resources when the
+// module is closed.
+
 func (l languageDetectionModule) Close() {}
 
 func getRequestPids(proto *languageDetectionProto.DetectLanguageRequest) []int {

@@ -53,12 +53,14 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 		*languageDetectionProto.DetectLanguageResponse
 	}
 
-	assert.EqualExportedValues(t, box{&languageDetectionProto.DetectLanguageResponse{
-		Languages: []*languageDetectionProto.Language{{
-			Name:    string(mockGoLanguage.Name),
-			Version: mockGoLanguage.Version,
-		}}},
-	}, box{&detectLanguageResponse})
+	assert.True(t, proto.Equal(
+		&languageDetectionProto.DetectLanguageResponse{
+			Languages: []*languageDetectionProto.Language{{
+				Name:    string(mockGoLanguage.Name),
+				Version: mockGoLanguage.Version,
+			}}},
+		&detectLanguageResponse,
+	))
 }
 
 type mockDetector struct {
