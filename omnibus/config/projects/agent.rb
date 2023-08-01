@@ -5,9 +5,6 @@
 require "./lib/ostools.rb"
 flavor = ENV['AGENT_FLAVOR']
 
-if ENV["OMNIBUS_WORKERS_OVERRIDE"]
-  workers ENV["OMNIBUS_WORKERS_OVERRIDE"]
-end
 if flavor.nil? || flavor == 'base'
   name 'agent'
   package_name 'datadog-agent'
