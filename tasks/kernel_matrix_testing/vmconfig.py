@@ -130,14 +130,14 @@ table = [
     ["ubuntu-18 (bionic)", TICK, CROSS],
     ["ubuntu-20 (focal)", TICK, TICK],
     ["ubuntu-22 (jammy)", TICK, TICK],
-    ["amazon linux 2 - 4.14", TICK, TICK],
-    ["amazon linux 2 - 5.4", TICK, TICK],
-    ["amazon linux 2 - 5.10", TICK, TICK],
-    ["amazon linux 2 - 5.15", TICK, CROSS],
-    ["fedora 35 - 5.14", TICK, TICK],
-    ["fedora 36 - 5.14", TICK, TICK],
-    ["fedora 37 - 5.14", TICK, TICK],
-    ["fedora 38 - 5.14", TICK, TICK],
+    ["amazon linux 2 - v4.14", TICK, TICK],
+    ["amazon linux 2 - v5.4", TICK, TICK],
+    ["amazon linux 2 - v5.10", TICK, TICK],
+    ["amazon linux 2 - v5.15", TICK, CROSS],
+    ["fedora 35 - v5.14.10", TICK, TICK],
+    ["fedora 36 - v5.17.5", TICK, TICK],
+    ["fedora 37 - v6.0.7", TICK, TICK],
+    ["fedora 38 - v6.2.9", TICK, TICK],
 ]
 
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
