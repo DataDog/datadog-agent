@@ -1222,8 +1222,12 @@ func (p *Probe) FlushSyscalls() {
 		iter  = m.Iterate()
 	)
 
+	// iteration in eBPF is a difficult subject since the map can be edited by the kernel side
+	// at the same time
+	// to resolve this issue we ignore errors
 	for iter.Next(&key, &value) {
-		m.Delete(key)
+		// ignore error
+		_ = m.Delete(key)
 	}
 
 	if err := iter.Err(); err != nil {
