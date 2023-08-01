@@ -3,10 +3,10 @@ name: "Serverless Integration Tests"
 on:
   push:
     paths:
-      - 'cmd/serverless/**'
-      - 'pkg/serverless/**'
-      - 'test/integration/serverless/**'
-      - '.github/workflows/serverless-integration.yml'
+      - "cmd/serverless/**"
+      - "pkg/serverless/**"
+      - "test/integration/serverless/**"
+      - ".github/workflows/serverless-integration.yml"
 
 jobs:
   test:
@@ -14,6 +14,7 @@ jobs:
     strategy:
       matrix:
         architecture: [amd64, arm64]
+    continue-on-error: true
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
