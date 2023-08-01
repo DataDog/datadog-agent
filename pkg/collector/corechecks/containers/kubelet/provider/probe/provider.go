@@ -38,13 +38,12 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 		"prober_probe_total": provider.proberProbeTotal,
 	}
 
-	var scraperConfig *prometheus.ScraperConfig
+	scraperConfig := &prometheus.ScraperConfig{AllowNotFound: true}
 	if config.ProbesMetricsEndpoint != nil {
-		scraperConfig = &prometheus.ScraperConfig{Path: "/metrics/probes"}
+		scraperConfig.Path = "/metrics/probes"
 	}
 
 	provider.Provider = prometheus.NewProvider(config, transformers, scraperConfig)
-	provider.AllowNotFound = true
 	return provider
 }
 

@@ -24,12 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
+// Provider provides the metrics related to data collected from a prometheus Kubelet endpoint.
+//
+// It is based on the python openmetrics mixin which is defined in the integrations-core repo, however in its current
+// form it has been trimmed down to focus on the functionality used by the kubelet check specifically. Do not assume that
+// this is a complete implementation of that.
 type Provider struct {
 	Config              *common.KubeletConfig
 	ScraperConfig       *ScraperConfig
 	transformers        map[string]func(*model.Sample, sender.Sender)
-	AllowNotFound       bool
 	metricMapping       map[string]string
 	wildcardRegex       *regexp.Regexp
 	ignoredMetrics      map[string]bool
@@ -38,6 +41,8 @@ type Provider struct {
 
 type ScraperConfig struct {
 	Path string
+	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
+	AllowNotFound bool
 }
 
 func NewProvider(config *common.KubeletConfig, transformers map[string]func(*model.Sample, sender.Sender), scraperConfig *ScraperConfig) *Provider {
@@ -50,6 +55,9 @@ func NewProvider(config *common.KubeletConfig, transformers map[string]func(*mod
 	}
 
 	var wildcardMetrics []string
+	var wildcardRegex, ignoredRegex *regexp.Regexp
+	var err error
+	// Build metric include list
 	metricMappings := map[string]string{}
 	for _, v := range config.Metrics {
 		switch val := v.(type) {
@@ -71,11 +79,14 @@ func NewProvider(config *common.KubeletConfig, transformers map[string]func(*mod
 		}
 	}
 	// TODO translate properly (python supports regex or glob format, and converts glob to regex)
-	compile, err := regexp.Compile(strings.Join(wildcardMetrics, "|"))
-	if err != nil {
-		return nil
+	if len(wildcardMetrics) > 0 {
+		wildcardRegex, err = regexp.Compile(strings.Join(wildcardMetrics, "|"))
+		if err != nil {
+			return nil
+		}
 	}
 
+	// Build metric exclude list
 	var ignoredMetricsWildcard []string
 	ignoredMetrics := map[string]bool{}
 	for _, v := range config.IgnoreMetrics {
@@ -86,9 +97,11 @@ func NewProvider(config *common.KubeletConfig, transformers map[string]func(*mod
 		}
 	}
 	// TODO translate properly (python supports regex or glob format, and converts glob to regex)
-	ignoredRegex, err := regexp.Compile(strings.Join(ignoredMetricsWildcard, "|"))
-	if err != nil {
-		return nil
+	if len(ignoredMetricsWildcard) > 0 {
+		ignoredRegex, err = regexp.Compile(strings.Join(ignoredMetricsWildcard, "|"))
+		if err != nil {
+			return nil
+		}
 	}
 
 	return &Provider{
@@ -96,7 +109,7 @@ func NewProvider(config *common.KubeletConfig, transformers map[string]func(*mod
 		ScraperConfig:       scraperConfig,
 		transformers:        transformers,
 		metricMapping:       metricMappings,
-		wildcardRegex:       compile,
+		wildcardRegex:       wildcardRegex,
 		ignoredMetrics:      ignoredMetrics,
 		ignoredMetricsRegex: ignoredRegex,
 	}
@@ -109,7 +122,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		log.Debugf("Unable to collect query probes endpoint: %s", err)
 		return err
 	}
-	if status == 404 && p.AllowNotFound {
+	if status == 404 && p.ScraperConfig.AllowNotFound {
 		return nil
 	}
 
@@ -120,24 +133,13 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 	// Report metrics
 	for _, metric := range metrics {
+		// Handle a Prometheus metric according to the following flow:
+		// - search `p.Config.metricMapping` for a prometheus.metric to datadog.metric mapping
+		// - call check method with the same name as the metric
+		// - log info if none of the above worked
 		if metric == nil {
 			continue
 		}
-		// TODO: double check the contents of `process`
-
-		// TODO: Something about METRICS_WITH_COUNTERS
-		/*
-			TODO: implement process_metric:
-			Handle a Prometheus metric according to the following flow:
-			- search `scraper_config['metrics_mapper']` for a prometheus.metric to datadog.metric mapping
-			- call check method with the same name as the metric
-			- log info if none of the above worked
-
-			`metric_transformers` is a dict of `<metric name>:<function to run when the metric name is encountered>`
-			`scraper_config['metrics_mapper']` appears to be a combination of `default_instance.get('metrics', []) + instance.get('metrics', [])`
-		*/
-		// _store_labels ???
-		p.storeLabels(metric)
 		metricName := string(metric.Metric["__name__"])
 		// check metric name in ignore_metrics (or if it matches an ignored regex)
 		if _, ok := p.ignoredMetrics[metricName]; ok {
@@ -147,9 +149,6 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		if p.ignoredMetricsRegex != nil && p.ignoredMetricsRegex.MatchString(metricName) {
 			continue
 		}
-		// _send_telemetry_counter ???
-		// _join_labels ???
-		p.joinLabels(metric)
 		// finally, flow listed above
 		if mName, ok := p.metricMapping[metricName]; ok {
 			p.submitMetric(metric, mName, sender)
@@ -171,7 +170,6 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 }
 
 func (p *Provider) submitMetric(metric *model.Sample, metricName string, sender sender.Sender) {
-	// TODO
 	nameWithNamespace := metricName
 	if p.Config.Namespace != "" {
 		nameWithNamespace = fmt.Sprintf("%s.%s", strings.TrimSuffix(p.Config.Namespace, "."), metricName)
@@ -180,14 +178,6 @@ func (p *Provider) submitMetric(metric *model.Sample, metricName string, sender 
 	tags := p.Config.Tags
 
 	sender.Gauge(nameWithNamespace, float64(metric.Value), "", tags)
-}
-
-func (p *Provider) storeLabels(metric *model.Sample) {
-	// TODO
-}
-
-func (p *Provider) joinLabels(metric *model.Sample) {
-	// TODO
 }
 
 // ParseMetrics parses prometheus-formatted metrics from the input data.
