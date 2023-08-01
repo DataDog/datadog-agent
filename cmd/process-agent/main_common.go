@@ -32,6 +32,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -46,7 +47,6 @@ import (
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
-	processAgentCollectors "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/process-agent"
 )
 
 const (
@@ -194,7 +194,7 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 }
 
 func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
-	return anyChecksEnabled(checks) || processAgentCollectors.AnyCollectorsEnabled(cfg)
+	return anyChecksEnabled(checks) || collector.Enabled(cfg)
 }
 
 // cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
@@ -222,6 +222,7 @@ type miscDeps struct {
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
 // Todo: (Components) WorkloadMeta, remoteTagger, statsd
+// Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), false); err != nil {
 		_ = log.Criticalf("Error configuring statsd: %s", err)
@@ -255,6 +256,8 @@ func initMisc(deps miscDeps) error {
 	}
 	tagger.SetDefaultTagger(t)
 
+	localProcessCollector := collector.NewProcessCollector(deps.Config)
+
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
@@ -270,6 +273,13 @@ func initMisc(deps miscDeps) error {
 			if err != nil {
 				_ = log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
+			}
+
+			if collector.Enabled(deps.Config) {
+				err := localProcessCollector.Start(appCtx, store)
+				if err != nil {
+					return err
+				}
 			}
 
 			return nil

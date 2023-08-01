@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package process
+package collector
 
 import (
 	"context"
@@ -171,7 +171,7 @@ func TestEnabled(t *testing.T) {
 	type testCase struct {
 		name                                                    string
 		processCollectionEnabled, remoteProcessCollectorEnabled bool
-		shouldExpectEnabled                                     bool
+		expectEnabled                                           bool
 		flavor                                                  string
 	}
 
@@ -181,28 +181,28 @@ func TestEnabled(t *testing.T) {
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: true,
 			flavor:                        flavor.SecurityAgent,
-			shouldExpectEnabled:           false,
+			expectEnabled:                 false,
 		},
 		{
 			name:                          "process check enabled",
 			processCollectionEnabled:      true,
 			remoteProcessCollectorEnabled: false,
 			flavor:                        flavor.ProcessAgent,
-			shouldExpectEnabled:           false,
+			expectEnabled:                 false,
 		},
 		{
 			name:                          "remote collector disabled",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: false,
 			flavor:                        flavor.ProcessAgent,
-			shouldExpectEnabled:           false,
+			expectEnabled:                 false,
 		},
 		{
 			name:                          "collector enabled",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: true,
 			flavor:                        flavor.ProcessAgent,
-			shouldExpectEnabled:           true,
+			expectEnabled:                 true,
 		},
 	}
 
@@ -214,12 +214,7 @@ func TestEnabled(t *testing.T) {
 			cfg.Set("process_config.process_collection.enabled", tc.processCollectionEnabled)
 			cfg.Set("workloadmeta.remote_process_collector.Enabled", tc.remoteProcessCollectorEnabled)
 
-			err := Enabled(cfg)
-			if tc.shouldExpectEnabled {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
+			assert.Equal(t, tc.expectEnabled, Enabled(cfg))
 		})
 	}
 }

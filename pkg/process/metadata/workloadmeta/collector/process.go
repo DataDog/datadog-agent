@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package process
+package collector
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -21,16 +20,7 @@ import (
 
 const collectorId = "local-process"
 
-func init() {
-	// The process collector can run either when workloadmeta is in local or remote collector mode.
-	workloadmeta.RegisterCollector(collectorId, newProcessCollector)
-	workloadmeta.RegisterRemoteCollector(collectorId, newProcessCollector)
-}
-
-func newProcessCollector() workloadmeta.Collector {
-	// TODO: Inject config.Datadog via fx once collectors are migrated to components.
-	ddConfig := config.Datadog
-
+func NewProcessCollector(ddConfig config.ConfigReader) workloadmeta.Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
 
 	processData := checks.NewProcessData(ddConfig)
@@ -46,9 +36,6 @@ func newProcessCollector() workloadmeta.Collector {
 	}
 }
 
-// Compile time check to ensure that `collector` implements `workloadmeta.Collector`.
-var _ workloadmeta.Collector = (*collector)(nil)
-
 type collector struct {
 	ddConfig config.ConfigReader
 
@@ -63,10 +50,6 @@ type collector struct {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	if err := Enabled(c.ddConfig); err != nil {
-		return err
-	}
-
 	err := c.grpcServer.Start()
 	if err != nil {
 		return err
@@ -88,6 +71,8 @@ func (c *collector) run(ctx context.Context, store workloadmeta.Store, container
 	defer c.grpcServer.Stop()
 	defer store.Unsubscribe(containerEvt)
 	defer collectionTicker.Stop()
+
+	log.Info("Starting local process collector")
 
 	for {
 		select {
@@ -134,17 +119,17 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
 // Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `workloadmeta.remote_process_collector.enabled`
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
-func Enabled(cfg config.ConfigReader) error {
+func Enabled(cfg config.ConfigReader) bool {
 	if flavor.GetFlavor() != flavor.ProcessAgent {
-		return dderrors.NewDisabled(collectorId, "the local process collector can only run in the process agent")
+		return false
 	}
 
 	if cfg.GetBool("process_config.process_collection.enabled") {
-		return dderrors.NewDisabled(collectorId, "the process check is enabled")
+		return false
 	}
 
 	if !cfg.GetBool("workloadmeta.remote_process_collector.enabled") {
-		return dderrors.NewDisabled(collectorId, "the process collector is disabled")
+		return false
 	}
-	return nil
+	return true
 }
