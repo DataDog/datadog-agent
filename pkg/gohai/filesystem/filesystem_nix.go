@@ -56,8 +56,7 @@ type fsInfoGetter interface {
 	SizeKB(mount *mountinfo.Info) (uint64, error)
 
 	// Dev returns the dev id of the given filesystem
-	// the return type is interface{} because `syscall.Stat_t` uses different types for Dev depending on the platform
-	Dev(mount *mountinfo.Info) (interface{}, error)
+	Dev(mount *mountinfo.Info) (uint64, error)
 }
 
 type unixFSInfo struct{}
@@ -72,13 +71,13 @@ func (unixFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
 	return sizeKB, nil
 }
 
-func (unixFSInfo) Dev(mount *mountinfo.Info) (interface{}, error) {
+func (unixFSInfo) Dev(mount *mountinfo.Info) (uint64, error) {
 	var stat unix.Stat_t
 	if err := unix.Stat(mount.Mountpoint, &stat); err != nil {
 		return 0, fmt.Errorf("stat %s: %w", mount.Source, err)
 	}
 
-	return stat.Dev, nil
+	return uint64(stat.Dev), nil
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
@@ -116,7 +115,7 @@ func replaceDev(old, new MountInfo) bool {
 func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoGetter) ([]MountInfo, error) {
 	mounts := initialMounts
 
-	devMountInfos := map[interface{}]MountInfo{}
+	devMountInfos := map[uint64]MountInfo{}
 	for _, mount := range mounts {
 		// Skip mounts that seem to be missing data
 		if mount.Source == "" || mount.Source == "none" || mount.FSType == "" || mount.Mountpoint == "" {
