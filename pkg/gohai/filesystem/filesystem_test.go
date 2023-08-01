@@ -18,13 +18,7 @@ import (
 )
 
 func TestGetTimeout(t *testing.T) {
-	prevTimeout := timeout
-	timeout = time.Nanosecond
-	defer func() {
-		timeout = prevTimeout
-	}()
-
-	mountInfo, err := new(FileSystem).Get()
+	mountInfo, err := getWithTimeout(time.Nanosecond)
 	fmt.Println(mountInfo, err)
 	require.ErrorIs(t, err, ErrTimeoutExceeded)
 }
@@ -73,7 +67,7 @@ func TestCollect(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	mounts, err := new(FileSystem).Get()
+	mounts, err := Get()
 	require.NoError(t, err)
 
 	require.NotEmpty(t, mounts)

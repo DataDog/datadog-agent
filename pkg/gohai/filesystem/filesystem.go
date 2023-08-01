@@ -30,7 +30,7 @@ func (fs *FileSystem) Name() string {
 }
 
 func (fs *FileSystem) Collect() (interface{}, error) {
-	mounts, err := fs.Get()
+	mounts, err := Get()
 	if err != nil {
 		return nil, err
 	}
@@ -48,9 +48,14 @@ func (fs *FileSystem) Collect() (interface{}, error) {
 	return results, nil
 }
 
-func (fs *FileSystem) Get() ([]MountInfo, error) {
+func Get() ([]MountInfo, error) {
+	return getWithTimeout(timeout)
+}
+
+func getWithTimeout(timeout time.Duration) ([]MountInfo, error) {
 	mountInfoChan := make(chan []MountInfo, 1)
 	errChan := make(chan error, 1)
+	timeoutChan := time.After(timeout)
 
 	go func() {
 		mountInfo, err := getFileSystemInfo()
@@ -66,7 +71,7 @@ func (fs *FileSystem) Get() ([]MountInfo, error) {
 		return mountInfo, nil
 	case err := <-errChan:
 		return nil, err
-	case <-time.After(timeout):
+	case <-timeoutChan:
 		return nil, ErrTimeoutExceeded
 	}
 }
