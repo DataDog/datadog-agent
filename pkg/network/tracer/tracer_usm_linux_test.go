@@ -26,11 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/host"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/gopsutil/host"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -315,7 +316,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	httpKeys := make(map[uint16]http.Key)
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
-		allConnections = append(allConnections, payload.Conns...)
+		allConnections = append(allConnections, payload.BufferedConns.Connections()...)
 		found := false
 		for key, stats := range payload.HTTP {
 			if key.Path.Content != "/200/foobar" {
@@ -902,7 +903,7 @@ func (s *USMSuite) TestJavaInjection() {
 								continue
 							}
 
-							for _, c := range payload.Conns {
+							for _, c := range payload.BufferedConns.Connections() {
 								if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 									return true
 								}
@@ -1177,7 +1178,7 @@ func (s *USMSuite) TestTLSClassification() {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
-					for _, c := range payload.Conns {
+					for _, c := range payload.BufferedConns.Connections() {
 						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
 							return true
 						}

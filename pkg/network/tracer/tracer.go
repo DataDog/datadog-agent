@@ -84,8 +84,7 @@ type Tracer struct {
 	bpfTelemetry *nettelemetry.EBPFTelemetry
 	lastCheck    *atomic.Int64
 
-	activeBuffer *network.ConnectionBuffer
-	bufferLock   sync.Mutex
+	bufferLock sync.Mutex
 
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
@@ -189,7 +188,6 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(cfg),
 		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry),
-		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(cfg.ExcludedSourceConnections),
 		destExcludes:               network.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
@@ -367,25 +365,18 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		log.Tracef("GetActiveConnections clientID=%s", clientID)
 	}
 	t.ebpfTracer.FlushPending()
-	latestTime, active, err := t.getConnections(t.activeBuffer)
+	buffer := t.state.GetClientBuffer(clientID)
+	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
+	delta := t.state.GetDelta(clientID, latestTime, buffer.ConnectionBuffer, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), network.NewLocalResolver(t.config))
 
-	t.activeBuffer.Reset()
+	tracerTelemetry.payloadSizePerClient.Set(float64(buffer.Len()), clientID)
 
-	// resolve local connections, if process event
-	// stream is enabled
-	if t.processCache != nil {
-		network.ResolveLocal(delta.BufferedData.Conns)
-	}
-
-	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
-
-	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
-	for _, conn := range delta.Conns {
+	ips := make(map[util.Address]struct{}, buffer.Len()/2)
+	for _, conn := range buffer.Connections() {
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
 	}
@@ -398,7 +389,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
-		BufferedData:                delta.BufferedData,
+		BufferedConns:               buffer,
 		DNS:                         names,
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
@@ -663,13 +654,13 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	activeBuffer := network.NewConnectionBuffer(512, 512)
-	_, connections, err := t.getConnections(activeBuffer)
+	_, _, err := t.getConnections(activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 	return &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: connections,
+		BufferedConns: &network.ClientBuffer{
+			ConnectionBuffer: activeBuffer,
 		},
 	}, nil
 

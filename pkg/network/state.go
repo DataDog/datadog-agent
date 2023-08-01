@@ -74,13 +74,16 @@ const (
 // - closed connections
 // - sent and received bytes per connection
 type State interface {
+	GetClientBuffer(clientID string) *ClientBuffer
+
 	// GetDelta returns a Delta object for the given client when provided the latest set of active connections
 	GetDelta(
 		clientID string,
 		latestTime uint64,
-		active []ConnectionStats,
+		activeBuffer *ConnectionBuffer,
 		dns dns.StatsByKeyByNameByType,
 		usmStats map[protocols.ProtocolType]interface{},
+		resolver LocalResolver,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -114,7 +117,7 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	BufferedData
+	*ConnectionBuffer
 	HTTP     map[http.Key]*http.RequestStats
 	HTTP2    map[http.Key]*http.RequestStats
 	Kafka    map[kafka.Key]*kafka.RequestStat
@@ -241,32 +244,77 @@ func (ns *networkState) GetTelemetryDelta(
 	return nil
 }
 
+func (ns *networkState) GetClientBuffer(clientID string) *ClientBuffer {
+	ns.Lock()
+	defer ns.Unlock()
+
+	return clientPool.Get(clientID)
+}
+
 // GetDelta returns the connections for the given client
 // If the client is not registered yet, we register it and return the connections we have in the global state
 // Otherwise we return both the connections with last stats and the closed connections for this client
 func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
-	active []ConnectionStats,
+	activeBuffer *ConnectionBuffer,
 	dnsStats dns.StatsByKeyByNameByType,
 	usmStats map[protocols.ProtocolType]interface{},
+	resolver LocalResolver,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
 
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
+	active := activeBuffer.Connections()
 	connsByKey := ns.getConnsByCookie(active)
 
-	clientBuffer := clientPool.Get(id)
 	client := ns.getClient(id)
 	defer client.Reset(connsByKey)
 
 	// Update all connections with relevant up-to-date stats for client
-	ns.mergeConnections(id, connsByKey, clientBuffer)
+	closed := ns.mergeConnections(id, connsByKey)
 
-	conns := clientBuffer.Connections()
+	// remove connections that are not active anymore
+	removed := 0
+	for a := 0; a < len(active)-removed; {
+		if _, ok := connsByKey[active[a].Cookie]; !ok {
+			active[a], active[len(active)-1] = active[len(active)-1], active[a]
+			removed++
+			continue
+		}
+
+		a++
+	}
+	if removed > 0 {
+		activeBuffer.Reclaim(removed)
+	}
+
+	if len(closed) > 0 && activeBuffer == nil {
+		activeBuffer = NewConnectionBuffer(len(closed), len(closed)/2)
+	}
+	for _, c := range closed {
+		*activeBuffer.Next() = *c
+	}
+
+	conns := activeBuffer.Connections()
 	ns.determineConnectionIntraHost(conns)
+
+	// do local resolution and aggregation if available
+	resolved := resolver.Resolve(conns)
+	aggr := newConnectionAggregator(len(conns), resolved)
+	removed = 0
+	for i := 0; i < len(conns)-removed; {
+		if aggr.Aggregate(&conns[i]) {
+			conns[i], conns[len(conns)-1] = conns[len(conns)-1], conns[i]
+			removed++
+			continue
+		}
+		i++
+	}
+	activeBuffer.Reclaim(removed)
+
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
 	}
@@ -286,14 +334,11 @@ func (ns *networkState) GetDelta(
 	}
 
 	return Delta{
-		BufferedData: BufferedData{
-			Conns:  conns,
-			buffer: clientBuffer,
-		},
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		DNSStats: client.dnsStats,
-		Kafka:    client.kafkaStatsDelta,
+		ConnectionBuffer: activeBuffer,
+		HTTP:             client.httpStatsDelta,
+		HTTP2:            client.http2StatsDelta,
+		DNSStats:         client.dnsStats,
+		Kafka:            client.kafkaStatsDelta,
 	}
 }
 
@@ -649,17 +694,16 @@ func (ns *networkState) getClient(clientID string) *client {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[StatCookie]*ConnectionStats, buffer *clientBuffer) {
+func (ns *networkState) mergeConnections(id string, active map[StatCookie]*ConnectionStats) (closed []*ConnectionStats) {
 	now := time.Now()
 
 	client := ns.clients[id]
 	client.lastFetch = now
 
 	// connections aggregated by tuple
-	closed := client.closedConnections
-	aggrConns := newConnectionAggregator(len(closed))
-	for i := range closed {
-		closedConn := &closed[i]
+	closed = make([]*ConnectionStats, 0, len(client.closedConnections)/2)
+	for i := range client.closedConnections {
+		closedConn := &client.closedConnections[i]
 		cookie := closedConn.Cookie
 		if activeConn := active[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
@@ -681,32 +725,26 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 		ns.updateConnWithStats(client, cookie, closedConn)
 
 		if closedConn.Last.IsZero() {
+			// not reporting an "empty" connection
 			continue
 		}
 
-		if !aggrConns.Aggregate(closedConn) {
-			*buffer.Next() = *closedConn
-		}
+		closed = append(closed, closedConn)
 	}
 
-	aggrConns.WriteTo(buffer)
-
-	aggrConns = newConnectionAggregator(len(active))
 	// Active connections
 	for cookie, c := range active {
 		ns.createStatsForCookie(client, cookie)
 		ns.updateConnWithStats(client, cookie, c)
 
 		if c.Last.IsZero() {
+			// not reporting an "empty" connection
+			delete(active, cookie)
 			continue
-		}
-
-		if !aggrConns.Aggregate(c) {
-			*buffer.Next() = *c
 		}
 	}
 
-	aggrConns.WriteTo(buffer)
+	return closed
 }
 
 func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c *ConnectionStats) {
@@ -968,10 +1006,11 @@ type connectionAggregator struct {
 		rttSum, rttVarSum uint64
 		count             uint32
 	}
-	buf []byte
+	buf      []byte
+	resolved bool
 }
 
-func newConnectionAggregator(size int) *connectionAggregator {
+func newConnectionAggregator(size int, resolved bool) *connectionAggregator {
 	return &connectionAggregator{
 		conns: make(map[string]*struct {
 			*ConnectionStats
@@ -979,18 +1018,24 @@ func newConnectionAggregator(size int) *connectionAggregator {
 			rttVarSum uint64
 			count     uint32
 		}, size),
-		buf: make([]byte, ConnectionByteKeyMaxLen),
+		buf:      make([]byte, ConnectionByteKeyMaxLen),
+		resolved: resolved,
 	}
 }
 
-func (a *connectionAggregator) key(c *ConnectionStats) (key string, rolledUp bool) {
+func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledUp, dportRolledUp bool) {
+	if !a.resolved {
+		return string(c.ByteKey(a.buf)), false, false
+	}
+
 	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
 	ephemeralSport := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
+	ephemeralDport := c.IntraHost && IsPortInEphemeralRange(c.Family, c.Type, c.DPort) == EphemeralTrue
 
 	if c.Type != UDP ||
 		!isShortLived ||
-		!ephemeralSport {
-		return string(c.ByteKey(a.buf)), false
+		(!ephemeralSport && !ephemeralDport) {
+		return string(c.ByteKey(a.buf)), false, false
 	}
 
 	if ephemeralSport {
@@ -1000,12 +1045,23 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, rolledUp boo
 			c.SPort = sport
 		}()
 	}
-
-	var containerID string
-	if c.ContainerID != nil {
-		containerID = *c.ContainerID
+	if ephemeralDport {
+		dport := c.DPort
+		c.DPort = 0
+		defer func() {
+			c.DPort = dport
+		}()
 	}
-	return string(c.ByteKey(a.buf)) + containerID, true
+
+	k := string(c.ByteKey(a.buf))
+	if c.ContainerID.Source != nil {
+		k += *c.ContainerID.Source
+	}
+	if c.ContainerID.Dest != nil {
+		k += *c.ContainerID.Dest
+	}
+
+	return k, ephemeralSport, ephemeralDport
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -1016,7 +1072,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, rolledUp boo
 //   - the other connection's ip translation is nil OR
 //   - the other connection's ip translation is not nil AND the nat info is the same
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key, rolledUp := a.key(c)
+	key, sportRolledUp, dportRolledUp := a.key(c)
 	aggrConn, ok := a.conns[key]
 	if !ok {
 		a.conns[key] = &struct {
@@ -1031,7 +1087,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 			count:           1,
 		}
 
-		return true
+		return false
 	}
 
 	if !(aggrConn.IPTranslation == nil ||
@@ -1051,7 +1107,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	if aggrConn.IPTranslation == nil {
 		aggrConn.IPTranslation = c.IPTranslation
 	}
-	if rolledUp {
+	if sportRolledUp {
 		// more than one connection with
 		// source port dropped in key,
 		// so set source port to 0
@@ -1060,19 +1116,17 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 			aggrConn.IPTranslation.ReplDstPort = 0
 		}
 	}
+	if dportRolledUp {
+		// more than one connection with
+		// dest port dropped in key,
+		// so set source port to 0
+		aggrConn.DPort = 0
+		if aggrConn.IPTranslation != nil {
+			aggrConn.IPTranslation.ReplSrcPort = 0
+		}
+	}
 
 	return true
-}
-
-// WriteTo writes the aggregated connections to a clientBuffer,
-// computing an average for RTT and RTTVar for each
-// connection
-func (a connectionAggregator) WriteTo(buffer *clientBuffer) {
-	for _, c := range a.conns {
-		c.RTT = uint32(c.rttSum / uint64(c.count))
-		c.RTTVar = uint32(c.rttVarSum / uint64(c.count))
-		*buffer.Next() = *c.ConnectionStats
-	}
 }
 
 func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision bool) {

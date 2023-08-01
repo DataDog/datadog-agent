@@ -9,10 +9,21 @@ import (
 	"fmt"
 	"net/netip"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ResolveLocal binds container IDs to the Raddr of connections
+type LocalResolver struct {
+	processEventsEnabled bool
+}
+
+func NewLocalResolver(cfg *config.Config) LocalResolver {
+	return LocalResolver{
+		processEventsEnabled: cfg.EnableProcessEventMonitoring,
+	}
+}
+
+// Resolve binds container IDs to the Raddr of connections
 //
 // An attempt is made to resolve as many local containers as possible.
 //
@@ -28,7 +39,11 @@ import (
 //
 // Only connections that are local are resolved, i.e., for
 // which conn.IntrHost is set to true.
-func ResolveLocal(conns []ConnectionStats) {
+func (r LocalResolver) Resolve(conns []ConnectionStats) bool {
+	if r.processEventsEnabled {
+		return false
+	}
+
 	type connKey struct {
 		laddr, raddr netip.AddrPort
 		proto        ConnectionType
@@ -99,6 +114,8 @@ func ResolveLocal(conns []ConnectionStats) {
 			conn.ContainerID.Dest = cid
 		}
 	}
+
+	return true
 }
 
 func translatedSource(conn *ConnectionStats) netip.AddrPort {

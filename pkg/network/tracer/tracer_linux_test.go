@@ -1287,7 +1287,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", port)
 	connections := getConnections(t, tr)
-	for _, c := range connections.Conns {
+	for _, c := range connections.BufferedConns.Connections() {
 		t.Log(c)
 	}
 
@@ -1677,7 +1677,9 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		var found bool
-		conn, found = findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), getConnections(t, tr))
+		conns := getConnections(t, tr)
+		t.Log(conns)
+		conn, found = findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), conns)
 		return found
 	}, 3*time.Second, 500*time.Millisecond)
 

@@ -118,15 +118,9 @@ func (e EphemeralPortType) String() string {
 	}
 }
 
-// BufferedData encapsulates data whose underlying memory can be recycled
-type BufferedData struct {
-	Conns  []ConnectionStats
-	buffer *clientBuffer
-}
-
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	BufferedData
+	BufferedConns               *ClientBuffer
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry

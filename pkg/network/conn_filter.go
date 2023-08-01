@@ -62,7 +62,7 @@ func FirstConnection(c *Connections, filters ...ConnectionFilterFunc) *Connectio
 func FilterConnections(c *Connections, filters ...ConnectionFilterFunc) []ConnectionStats {
 	var results []ConnectionStats
 ConnLoop:
-	for _, conn := range c.Conns {
+	for _, conn := range c.BufferedConns.Connections() {
 		for _, f := range filters {
 			if !f(conn) {
 				continue ConnLoop

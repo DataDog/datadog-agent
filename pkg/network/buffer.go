@@ -20,9 +20,20 @@ func NewConnectionBuffer(initSize, minSize int) *ConnectionBuffer {
 	}
 }
 
+func NewConnectionBufferFromSlice(conns []ConnectionStats) *ConnectionBuffer {
+	return &ConnectionBuffer{
+		buf: conns,
+		off: len(conns),
+	}
+}
+
 // Next returns the next `ConnectionStats` object available for writing.
 // It will resize the internal buffer if necessary.
 func (b *ConnectionBuffer) Next() *ConnectionStats {
+	if b == nil {
+		return nil
+	}
+
 	if b.off >= len(b.buf) {
 		b.buf = append(b.buf, ConnectionStats{})
 	}
@@ -33,12 +44,20 @@ func (b *ConnectionBuffer) Next() *ConnectionStats {
 
 // Append slice to ConnectionBuffer
 func (b *ConnectionBuffer) Append(slice []ConnectionStats) {
+	if b == nil {
+		return
+	}
+
 	b.buf = append(b.buf[:b.off], slice...)
 	b.off += len(slice)
 }
 
 // Reclaim captures the last n entries for usage again.
 func (b *ConnectionBuffer) Reclaim(n int) {
+	if b == nil {
+		return
+	}
+
 	b.off -= n
 	if b.off < 0 {
 		b.off = 0
@@ -48,21 +67,37 @@ func (b *ConnectionBuffer) Reclaim(n int) {
 // Connections returns a slice of all the `ConnectionStats` objects returned via `Next`
 // since the last `Reset`.
 func (b *ConnectionBuffer) Connections() []ConnectionStats {
+	if b == nil {
+		return nil
+	}
+
 	return b.buf[:b.off]
 }
 
 // Len returns the count of the number of written `ConnectionStats` objects since last `Reset`.
 func (b *ConnectionBuffer) Len() int {
+	if b == nil {
+		return 0
+	}
+
 	return b.off
 }
 
 // Capacity returns the current capacity of the buffer
 func (b *ConnectionBuffer) Capacity() int {
+	if b == nil {
+		return 0
+	}
+
 	return cap(b.buf)
 }
 
 // Reset returns the written object count back to zero. It may resize the internal buffer based on past usage.
 func (b *ConnectionBuffer) Reset() {
+	if b == nil {
+		return
+	}
+
 	// shrink buffer if less than half used
 	half := cap(b.buf) / 2
 	if b.off <= half && half >= b.minBufferSize {
