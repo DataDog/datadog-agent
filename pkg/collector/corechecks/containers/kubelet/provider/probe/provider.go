@@ -39,7 +39,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	}
 
 	scraperConfig := &prometheus.ScraperConfig{AllowNotFound: true}
-	if config.ProbesMetricsEndpoint != nil {
+	if config.ProbesMetricsEndpoint == nil || *config.ProbesMetricsEndpoint != "" {
 		scraperConfig.Path = "/metrics/probes"
 	}
 

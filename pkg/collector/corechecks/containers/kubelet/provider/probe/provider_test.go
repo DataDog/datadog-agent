@@ -72,16 +72,91 @@ var (
 
 func TestProvider_Provide(t *testing.T) {
 	probesEndpoint := "http://10.8.0.1:10255/metrics/probes"
+	probesEndpointDisabled := ""
+
+	type metrics struct {
+		name  string
+		value float64
+		tags  []string
+	}
+
+	expectedMetrics := []metrics{
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
+			value: 3,
+			tags:  []string{"instance_tag:something", "kube_namespace:default", "pod_name:datadog-t9f28", "kube_container_name:agent"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "readiness_probe.success.total",
+			value: 3,
+			tags:  []string{"instance_tag:something", "kube_namespace:default", "pod_name:datadog-t9f28", "kube_container_name:agent"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
+			value: 281049,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
+			value: 281049,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit-gke"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
+			value: 1686298,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "readiness_probe.success.total",
+			value: 1686303,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "startup_probe.success.total",
+			value: 70,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "startup_probe.failure.total",
+			value: 70,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "readiness_probe.failure.total",
+			value: 180,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.failure.total",
+			value: 100,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "readiness_probe.success.total",
+			value: 1686127,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
+			value: 1686306,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
+			value: 1686298,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:sidecar"},
+		},
+		{
+			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
+			value: 1686298,
+			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:dnsmasq"},
+		},
+	}
 
 	type response struct {
 		filename string
 		code     int
 		err      error
-	}
-	type metrics struct {
-		name  string
-		value float64
-		tags  []string
 	}
 	type want struct {
 		metrics []metrics
@@ -104,78 +179,7 @@ func TestProvider_Provide(t *testing.T) {
 				err:      nil,
 			},
 			want: want{
-				metrics: []metrics{
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
-						value: 3,
-						tags:  []string{"instance_tag:something", "kube_namespace:default", "pod_name:datadog-t9f28", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "readiness_probe.success.total",
-						value: 3,
-						tags:  []string{"instance_tag:something", "kube_namespace:default", "pod_name:datadog-t9f28", "kube_container_name:agent"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
-						value: 281049,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
-						value: 281049,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit-gke"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
-						value: 1686298,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "readiness_probe.success.total",
-						value: 1686303,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "startup_probe.success.total",
-						value: 70,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "startup_probe.failure.total",
-						value: 70,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "readiness_probe.failure.total",
-						value: 180,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.failure.total",
-						value: 100,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "readiness_probe.success.total",
-						value: 1686127,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
-						value: 1686306,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
-						value: 1686298,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:sidecar"},
-					},
-					{
-						name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
-						value: 1686298,
-						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:dnsmasq"},
-					},
-				},
+				metrics: expectedMetrics,
 			},
 		},
 		{
@@ -221,9 +225,23 @@ func TestProvider_Provide(t *testing.T) {
 			},
 		},
 		{
-			name:           "no probe endpoint supplied no metrics reported",
+			name:           "no probe endpoint supplied default used metrics reported",
 			podsFile:       "../../testdata/pod_list_probes.json",
 			probesEndpoint: nil,
+			response: response{
+				filename: "../../testdata/probes.txt",
+				code:     200,
+				err:      nil,
+			},
+			want: want{
+				metrics: expectedMetrics,
+				err:     nil,
+			},
+		},
+		{
+			name:           "empty string probe endpoint supplied no metrics reported",
+			podsFile:       "../../testdata/pod_list_probes.json",
+			probesEndpoint: &probesEndpointDisabled,
 			response: response{
 				filename: "../../testdata/probes.txt",
 				code:     200,
