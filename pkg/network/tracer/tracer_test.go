@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mohae/deepcopy"
 	"io"
 	"math/rand"
 	"net"
@@ -1006,6 +1007,30 @@ func getConnections(t *testing.T, tr *Tracer) *network.Connections {
 	return connections
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func getConnectionsBatch(t *testing.T, tr *Tracer) []*network.Connections {
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetActiveConnections(clientID)
+	require.NoError(t, err)
+	var resuls []*network.Connections
+
+	for len(connections.Conns) > 0 {
+		finalBatchSize := min(600, len(connections.Conns))
+		rest := connections.Conns[finalBatchSize:]
+		connections.Conns = connections.Conns[:finalBatchSize]
+		bla := deepcopy.Copy(connections).(*network.Connections)
+		resuls = append(resuls, bla)
+		connections.Conns = rest
+	}
+	return resuls
+}
+
 const (
 	validDNSServer = "8.8.8.8"
 )
@@ -1356,9 +1381,11 @@ func (s *TracerSuite) TestTCPDirection() {
 
 	// Send a HTTP request to the test server
 	client := new(nethttp.Client)
-	resp, err := client.Get("http://" + serverAddr + "/test")
-	require.NoError(t, err)
-	resp.Body.Close()
+	for i := 0; i < 2000; i++ {
+		resp, err := client.Get("http://" + serverAddr + "/test")
+		require.NoError(t, err)
+		resp.Body.Close()
+	}
 
 	// Iterate through active connections until we find connection created above
 	var outgoingConns []network.ConnectionStats
@@ -1376,7 +1403,77 @@ func (s *TracerSuite) TestTCPDirection() {
 			})
 		}
 
-		return len(outgoingConns) == 1 && len(incomingConns) == 1
+		return len(outgoingConns) == 2000 && len(incomingConns) == 2000
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
+
+	// Verify connection directions
+	conn := outgoingConns[0]
+	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
+	conn = incomingConns[0]
+	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
+func (s *TracerSuite) TestTCPDirection2() {
+	t := s.T()
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	// Start an HTTP server on localhost:8080
+	serverAddr := "127.0.0.1:8080"
+	srv := &nethttp.Server{
+		Addr: serverAddr,
+		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
+			t.Logf("received http request from %s", req.RemoteAddr)
+			io.Copy(io.Discard, req.Body)
+			w.WriteHeader(200)
+		}),
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
+	srv.SetKeepAlivesEnabled(false)
+	go func() {
+		_ = srv.ListenAndServe()
+	}()
+	defer srv.Shutdown(context.Background())
+
+	// Allow the HTTP server time to get set up
+	time.Sleep(time.Millisecond * 500)
+
+	// Send a HTTP request to the test server
+	client := new(nethttp.Client)
+	for i := 0; i < 2000; i++ {
+		resp, err := client.Get("http://" + serverAddr + "/test")
+		require.NoError(t, err)
+		resp.Body.Close()
+	}
+
+	// Iterate through active connections until we find connection created above
+	var outgoingConns []network.ConnectionStats
+	var incomingConns []network.ConnectionStats
+	var finaloutgoingConns []network.ConnectionStats
+	var finalincomingConns []network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnectionsBatch(t, tr)
+		if len(outgoingConns) == 0 {
+			for _, con := range conns {
+				outgoingConns = searchConnections(con, func(cs network.ConnectionStats) bool {
+					return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
+				})
+				finaloutgoingConns = append(finaloutgoingConns, outgoingConns...)
+			}
+
+		}
+		if len(incomingConns) == 0 {
+			for _, con := range conns {
+				incomingConns = searchConnections(con, func(cs network.ConnectionStats) bool {
+					return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+				})
+				finalincomingConns = append(finalincomingConns, incomingConns...)
+			}
+
+		}
+
+		return len(finaloutgoingConns) == 2000 && len(finalincomingConns) == 2000
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find incoming and outgoing http connections matching: %s", serverAddr)
 
 	// Verify connection directions

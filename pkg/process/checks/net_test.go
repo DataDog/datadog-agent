@@ -36,44 +36,44 @@ func makeConnections(n int) []*model.Connection {
 	return conns
 }
 
-//func TestDNSNameEncoding(t *testing.T) {
-//	p := makeConnections(5)
-//	p[0].Raddr.Ip = "1.1.2.1"
-//	p[1].Raddr.Ip = "1.1.2.2"
-//	p[2].Raddr.Ip = "1.1.2.3"
-//	p[3].Raddr.Ip = "1.1.2.4"
-//	p[4].Raddr.Ip = "1.1.2.5"
-//
-//	dns := map[string]*model.DNSEntry{
-//		"1.1.2.1": {Names: []string{"host1.domain.com"}},
-//		"1.1.2.2": {Names: []string{"host2.domain.com", "host2.domain2.com"}},
-//		"1.1.2.3": {Names: []string{"host3.domain.com", "host3.domain2.com", "host3.domain3.com"}},
-//		"1.1.2.4": {Names: []string{"host4.domain.com"}},
-//		"1.1.2.5": {Names: nil},
-//	}
-//	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
-//	maxConnsPerMessage := 10
-//	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
-//	assert.Equal(t, len(chunks), 1)
-//
-//	chunk := chunks[0]
-//	conns := chunk.(*model.CollectorConnections)
-//	dnsParsed := make(map[string]*model.DNSEntry)
-//	for _, conn := range p {
-//		ip := conn.Raddr.Ip
-//		dnsParsed[ip] = &model.DNSEntry{}
-//		model.IterateDNSV2(conns.EncodedDnsLookups, ip,
-//			func(i, total int, entry int32) bool {
-//				host, e := conns.GetDNSNameByOffset(entry)
-//				assert.Nil(t, e)
-//				assert.Equal(t, total, len(dns[ip].Names))
-//				dnsParsed[ip].Names = append(dnsParsed[ip].Names, host)
-//				return true
-//			})
-//	}
-//	assert.Equal(t, dns, dnsParsed)
-//
-//}
+func TestDNSNameEncoding(t *testing.T) {
+	p := makeConnections(5)
+	p[0].Raddr.Ip = "1.1.2.1"
+	p[1].Raddr.Ip = "1.1.2.2"
+	p[2].Raddr.Ip = "1.1.2.3"
+	p[3].Raddr.Ip = "1.1.2.4"
+	p[4].Raddr.Ip = "1.1.2.5"
+
+	dns := map[string]*model.DNSEntry{
+		"1.1.2.1": {Names: []string{"host1.domain.com"}},
+		"1.1.2.2": {Names: []string{"host2.domain.com", "host2.domain2.com"}},
+		"1.1.2.3": {Names: []string{"host3.domain.com", "host3.domain2.com", "host3.domain3.com"}},
+		"1.1.2.4": {Names: []string{"host4.domain.com"}},
+		"1.1.2.5": {Names: nil},
+	}
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	maxConnsPerMessage := 10
+	chunks := batchConnections(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex)
+	assert.Equal(t, len(chunks), 1)
+
+	chunk := chunks[0]
+	conns := chunk.(*model.CollectorConnections)
+	dnsParsed := make(map[string]*model.DNSEntry)
+	for _, conn := range p {
+		ip := conn.Raddr.Ip
+		dnsParsed[ip] = &model.DNSEntry{}
+		model.IterateDNSV2(conns.EncodedDnsLookups, ip,
+			func(i, total int, entry int32) bool {
+				host, e := conns.GetDNSNameByOffset(entry)
+				assert.Nil(t, e)
+				assert.Equal(t, total, len(dns[ip].Names))
+				dnsParsed[ip].Names = append(dnsParsed[ip].Names, host)
+				return true
+			})
+	}
+	assert.Equal(t, dns, dnsParsed)
+
+}
 
 func TestNetworkConnectionBatching(t *testing.T) {
 	for i, tc := range []struct {
