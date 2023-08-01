@@ -1,8 +1,8 @@
 import json
 import os
 
-from .githubapp import GithubApp, GithubAppException
 from .github_api import GithubAPI
+from .githubapp import GithubApp, GithubAppException
 
 __all__ = ["GithubWorkflows", "GithubException", "get_github_app_token"]
 
