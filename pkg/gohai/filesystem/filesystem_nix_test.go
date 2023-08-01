@@ -87,7 +87,6 @@ func TestNixFSTypeFiltering(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run("TestIgnoringOfFSType/"+tc.FSType, func(t *testing.T) {
 			inputMounts := []*mountinfo.Info{
 				{
@@ -206,7 +205,6 @@ func TestNixMissingMountValues(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Desc, func(t *testing.T) {
 			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSInfo)
 			require.NoError(t, err)
@@ -277,7 +275,6 @@ func TestFilterDev(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Desc, func(t *testing.T) {
 			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSInfo)
 			require.NoError(t, err)
