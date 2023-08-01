@@ -71,9 +71,13 @@ const (
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "inet_csk_accept_exit"
 
-	// inetBindRet is the kretprobe of the bind() syscall for IPv4
+	// inetBind traces the bind() syscall for IPv4
+	inetBind = "inet_bind_enter"
+	// inet6Bind traces the bind() syscall for IPv6
+	inet6Bind = "inet6_bind_enter"
+	// inetBindRet traces the bind() syscall for IPv4
 	inetBindRet = "inet_bind_exit"
-	// inet6BindRet is the kretprobe of the bind() syscall for IPv6
+	// inet6BindRet traces the bind() syscall for IPv6
 	inet6BindRet = "inet6_bind_exit"
 
 	// sockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
@@ -81,6 +85,8 @@ const (
 )
 
 var programs = map[string]struct{}{
+	inetBind:                  {},
+	inet6Bind:                 {},
 	inet6BindRet:              {},
 	inetBindRet:               {},
 	inetCskAcceptReturn:       {},
@@ -157,6 +163,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, udpDestroySockReturn)
+		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpRecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
@@ -168,6 +175,7 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
 		enableProgram(enabled, udpv6DestroySockReturn)
+		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
 		enableProgram(enabled, udpv6RecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
