@@ -37,12 +37,12 @@ func getMkdirProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mkdir",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mkdirat",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return mkdirProbes
 }

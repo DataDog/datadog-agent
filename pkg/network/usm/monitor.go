@@ -44,7 +44,7 @@ var (
 	startupError error
 
 	// knownProtocols holds all known protocols supported by USM to initialize.
-	knownProtocols = []protocols.ProtocolSpec{
+	knownProtocols = []*protocols.ProtocolSpec{
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
@@ -319,11 +319,7 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []
 
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {
-			// As we're keeping pointers to the disables specs, we're suffering from a common golang-gotcha
-			// Assuming we have http and kafka, http is disabled, kafka is not. Without the following line we'll end up
-			// with enabledProtocols = [kafka] and disabledProtocols = [kafka].
-			spec := spec
-			disabledProtocols = append(disabledProtocols, &spec)
+			disabledProtocols = append(disabledProtocols, spec)
 		}
 	}
 

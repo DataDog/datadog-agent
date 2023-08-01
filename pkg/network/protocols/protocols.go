@@ -70,9 +70,9 @@ type Protocol interface {
 	GetStats() *ProtocolStats
 }
 
-type protocolFactory func(*config.Config) (Protocol, error)
+type ProtocolFactory func(*config.Config) (Protocol, error)
 type ProtocolSpec struct {
-	Factory   protocolFactory
+	Factory   ProtocolFactory
 	Maps      []*manager.Map
 	Probes    []*manager.Probe
 	TailCalls []manager.TailCallRoute

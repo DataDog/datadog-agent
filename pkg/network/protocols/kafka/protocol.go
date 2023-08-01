@@ -34,7 +34,7 @@ const (
 	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
 )
 
-var Spec = protocols.ProtocolSpec{
+var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{
 		{

@@ -40,7 +40,7 @@ const (
 	eventStream    = "http"
 )
 
-var Spec = protocols.ProtocolSpec{
+var Spec = &protocols.ProtocolSpec{
 	Factory: newHttpProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
@@ -70,7 +70,7 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String())
 	}
 
-	telemetry := NewTelemetry()
+	telemetry := NewTelemetry("http")
 
 	return &protocol{
 		cfg:       cfg,
