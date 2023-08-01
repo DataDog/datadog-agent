@@ -52,7 +52,6 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 		defaultPolicy *Policy
 	)
 
-	// use the providers in the order of insertion, keep the very last default policy
 	p.remoteConfigProvidersFirst()
 	for _, provider := range p.Providers {
 		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters)
@@ -67,9 +66,7 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 		for _, policy := range policies {
 			if policy.Name == DefaultPolicyName {
 				if defaultPolicy == nil {
-					defaultPolicy = policy
-				} else if policy.Source == PolicySourceRC {
-					defaultPolicy = policy // This ensures that a RC default policy always overwrites a local default policy, regardless of the order the providers were loaded
+					defaultPolicy = policy // only load the first seen default policy
 				}
 			} else {
 				allPolicies = append(allPolicies, policy)
