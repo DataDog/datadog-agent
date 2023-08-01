@@ -377,7 +377,7 @@ type Process struct {
 	Variables            eval.Variables `field:"-"`
 
 	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecChild     bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsExecExec      bool `field:"-"`         // Indicates whether the process is an exec following another exec
 	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
 	Source uint64 `field:"-"`
