@@ -43,7 +43,7 @@ const (
 	eventStream    = "http2"
 )
 
-var Spec = protocols.ProtocolSpec{
+var Spec = &protocols.ProtocolSpec{
 	Factory: newHttpProtocol,
 	Maps: []*manager.Map{
 		{
