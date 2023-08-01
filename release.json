@@ -7,7 +7,7 @@
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "kfairise/enable_workers_override",
+        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.9",
         "JMXFETCH_HASH": "fb5c3fc2fb42db1ee5c3a7c6187b316d79d69c50b967db0b7ffde590622d0395",
         "MACOS_BUILD_VERSION": "master",
@@ -19,7 +19,7 @@
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "kfairise/enable_workers_override",
+        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.9",
         "JMXFETCH_HASH": "fb5c3fc2fb42db1ee5c3a7c6187b316d79d69c50b967db0b7ffde590622d0395",
         "MACOS_BUILD_VERSION": "master",
