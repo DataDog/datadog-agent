@@ -526,7 +526,7 @@ def get_omnibus_env(
     env['AGENT_FLAVOR'] = flavor.name
 
     if os.environ.get('KUBERNETES_CPU_REQUEST'):
-        env['OMNIBUS_WORKERS_OVERRIDE'] = os.environ.get('KUBERNETES_CPU_REQUEST')
+        env['OMNIBUS_WORKERS_OVERRIDE'] = int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1
 
     return env
 
