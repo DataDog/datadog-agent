@@ -308,6 +308,7 @@ type testModule struct {
 	statsdClient  *statsdclient.StatsdClient
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
+	tracePipe     *tracePipeLogger
 }
 
 var testMod *testModule
@@ -886,6 +887,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
+		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+			return testMod, err
+		}
 
 		if err = testMod.reloadConfiguration(); err != nil {
 			return testMod, err
@@ -978,6 +982,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if opts.preStartCallback != nil {
 		opts.preStartCallback(testMod)
+	}
+
+	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+		return nil, err
 	}
 
 	if err := testMod.eventMonitor.Start(); err != nil {
@@ -1528,6 +1536,11 @@ func (tm *testModule) Close() {
 
 	// make sure we don't leak syscalls
 	tm.validateSyscallsInFlight()
+
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
+	}
 
 	tm.statsdClient.Flush()
 
