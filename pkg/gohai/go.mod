@@ -10,7 +10,6 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.2
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.8.0
-	golang.org/x/text v0.10.0
 )
 
 require (

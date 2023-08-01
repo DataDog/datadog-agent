@@ -14,8 +14,6 @@ import (
 	"github.com/moby/sys/mountinfo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // Used for dynamic test field value generation
@@ -88,10 +86,9 @@ func TestNixFSTypeFiltering(t *testing.T) {
 		{"smbfs", "//" + randString(), false},
 	}
 
-	caser := cases.Title(language.English)
 	for _, tc := range testCases {
 		tc := tc
-		t.Run("TestIgnoringOfFSType/"+caser.String(tc.FSType), func(t *testing.T) {
+		t.Run("TestIgnoringOfFSType/"+tc.FSType, func(t *testing.T) {
 			inputMounts := []*mountinfo.Info{
 				{
 					Source:     tc.FSName,
