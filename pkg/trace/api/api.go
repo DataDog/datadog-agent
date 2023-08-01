@@ -465,7 +465,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		// this payload can not be accepted
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
-		w.WriteHeader(http.StatusTooManyRequests)
+		if h := req.Header.Get(header.SendRealHTTPStatus); h != "" {
+			w.WriteHeader(http.StatusTooManyRequests)
+		} else {
+			w.WriteHeader(r.rateLimiterResponse)
+		}
 		r.replyOK(req, v, w)
 		ts.PayloadRefused.Inc()
 		return
