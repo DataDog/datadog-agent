@@ -21,7 +21,7 @@ type jsonSerializer struct {
 	marshaller jsonpb.Marshaler
 }
 
-func (j jsonSerializer) Marshal(conns *network.Connections, _ []byte) ([]byte, error) {
+func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
 	payload := modelConnections(conns)
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, payload)
