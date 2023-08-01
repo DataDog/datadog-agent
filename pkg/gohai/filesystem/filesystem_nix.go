@@ -82,7 +82,12 @@ func (unixFSInfo) Dev(mount *mountinfo.Info) (interface{}, error) {
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
-	return getFileSystemInfoWithMounts(nil, unixFSInfo{})
+	mounts, err := mountinfo.GetMounts(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return getFileSystemInfoWithMounts(mounts, unixFSInfo{})
 }
 
 // replaceDev returns whether to use the new mountInfo instead of the old one.
@@ -109,15 +114,7 @@ func replaceDev(old, new MountInfo) bool {
 
 // getFileSystemInfoWithMounts is an internal method to help testing with test mounts
 func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoGetter) ([]MountInfo, error) {
-	var err error
 	mounts := initialMounts
-
-	if mounts == nil {
-		mounts, err = mountinfo.GetMounts(nil)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	devMountInfos := map[interface{}]MountInfo{}
 	for _, mount := range mounts {
