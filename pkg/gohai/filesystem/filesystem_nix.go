@@ -16,39 +16,6 @@ import (
 	"github.com/moby/sys/mountinfo"
 )
 
-// ignoredFSTypes are filesystem types to ignore
-var ignoredFSTypes = map[string]struct{}{
-	"autofs":      {},
-	"debugfs":     {},
-	"devfs":       {},
-	"devpts":      {},
-	"devtmpfs":    {},
-	"fuse.portal": {},
-	"fusectl":     {},
-	"ignore":      {},
-	"kernfs":      {},
-	"mqueue":      {},
-	"none":        {},
-	"proc":        {},
-	"rpc_pipefs":  {},
-	"squashfs":    {},
-	"subfs":       {},
-	"sysfs":       {},
-}
-
-// remoteFSTypes are filesystem types known to be remote
-var remoteFSTypes = map[string]struct{}{
-	"acfs":       {},
-	"afs":        {},
-	"auristorfs": {},
-	"coda":       {},
-	"fhgfs":      {},
-	"gpfs":       {},
-	"ibrix":      {},
-	"ocfs2":      {},
-	"vxfs":       {},
-}
-
 // fsInfoGetter provides function to get information about a given filesystem: its size and its dev id
 type fsInfoGetter interface {
 	// SizeKB returns the size of the given filesystem in KB
@@ -121,7 +88,11 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoG
 			continue
 		}
 
-		if isExcludedFS(mount.FSType, mount.Source) {
+		if isDummyFS(mount.FSType) {
+			continue
+		}
+
+		if isRemoteFS(mount.FSType, mount.Source) {
 			continue
 		}
 
@@ -162,18 +133,31 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoG
 	return mountInfos, nil
 }
 
-// isExcludedFS returns whether to ignore the given filesystem type and source.
-//
-// It is ignored if
-// - the type is in ignoredFSTypes
-// - it is remote
-func isExcludedFS(fsType string, fsSource string) bool {
-	// Some filesystems should be ignored based on type
-	if _, ok := ignoredFSTypes[fsType]; ok {
-		return true
+// isDummyFS returns whether to ignore the filesystem type
+func isDummyFS(fsType string) bool {
+	// hardcoded list of types to ignore, from gnulib implementation
+	// https://github.com/coreutils/gnulib/blob/fc3c64b0a0e0acffd6de1e76fa23b787fc8e931b/lib/mountlist.c#L171-L201
+	ignoredFSTypes := map[string]struct{}{
+		"autofs":      {},
+		"debugfs":     {},
+		"devfs":       {},
+		"devpts":      {},
+		"devtmpfs":    {}, // added by a patch on ubuntu
+		"fuse.portal": {},
+		"fusectl":     {},
+		"ignore":      {},
+		"kernfs":      {},
+		"mqueue":      {},
+		"none":        {},
+		"proc":        {},
+		"rpc_pipefs":  {},
+		"squashfs":    {}, // added by a patch on ubuntu
+		"subfs":       {},
+		"sysfs":       {},
 	}
 
-	return isRemoteFS(fsType, fsSource)
+	_, found := ignoredFSTypes[fsType]
+	return found
 }
 
 // isRemoteFS returns whether a filesystem with the given type and source is remote.
@@ -182,7 +166,10 @@ func isExcludedFS(fsType string, fsSource string) bool {
 // - the source contains a ':'
 // - the source is "-hosts"
 // - the source starts with "//" and the type is "smbfs", "smb3" or "cifs"
-// - the type is in remoteFSTypes
+// - the type is known to be remote
+//
+// The logic comes from gnulib
+// https://github.com/coreutils/gnulib/blob/fc3c64b0a0e0acffd6de1e76fa23b787fc8e931b/lib/mountlist.c#L231-L254
 func isRemoteFS(fsType string, fsSource string) bool {
 	// If we have a `:` in the source, it should be remote
 	if strings.Contains(fsSource, ":") {
@@ -203,7 +190,19 @@ func isRemoteFS(fsType string, fsSource string) bool {
 		}
 	}
 
-	// Check for general FS types that are known to be remote
+	// list of known remote filesystem types
+	var remoteFSTypes = map[string]struct{}{
+		"acfs":       {},
+		"afs":        {},
+		"auristorfs": {},
+		"coda":       {},
+		"fhgfs":      {},
+		"gpfs":       {},
+		"ibrix":      {},
+		"ocfs2":      {},
+		"vxfs":       {},
+	}
+
 	_, found := remoteFSTypes[fsType]
 	return found
 }
