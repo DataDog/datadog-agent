@@ -65,7 +65,8 @@ func getFileSystemInfo() ([]MountInfo, error) {
 // - prefer fs with shorter mount path ("closer to the root")
 // - prefer the most recent one (ie. the new one)
 //
-// This behavior is inspired by what df does.
+// This behavior is inspired by what df does
+// https://github.com/coreutils/coreutils/blob/73ba9f71e159d48d8fa490096aa4b8b7cc27ae5a/src/df.c#L775-L797
 func replaceDev(old, new MountInfo) bool {
 	if strings.ContainsRune(new.Name, '/') && !strings.ContainsRune(old.Name, '/') {
 		return true
