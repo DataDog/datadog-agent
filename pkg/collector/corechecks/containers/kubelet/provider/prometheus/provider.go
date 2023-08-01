@@ -1,0 +1,207 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build kubelet
+
+package prometheus
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
+	"golang.org/x/exp/maps"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
+type Provider struct {
+	Config              *common.KubeletConfig
+	ScraperConfig       *ScraperConfig
+	transformers        map[string]func(*model.Sample, sender.Sender)
+	AllowNotFound       bool
+	metricMapping       map[string]string
+	wildcardRegex       *regexp.Regexp
+	ignoredMetrics      map[string]bool
+	ignoredMetricsRegex *regexp.Regexp
+}
+
+type ScraperConfig struct {
+	Path string
+}
+
+func NewProvider(config *common.KubeletConfig, transformers map[string]func(*model.Sample, sender.Sender), scraperConfig *ScraperConfig) *Provider {
+	if config == nil {
+		config = &common.KubeletConfig{}
+	}
+
+	if scraperConfig == nil {
+		scraperConfig = &ScraperConfig{}
+	}
+
+	var wildcardMetrics []string
+	metricMappings := map[string]string{}
+	for _, v := range config.Metrics {
+		switch val := v.(type) {
+		case string:
+			metricMappings[val] = val
+			if strings.Contains(val, "*") {
+				wildcardMetrics = append(wildcardMetrics, val)
+			}
+		case map[interface{}]interface{}:
+			for k1, v1 := range val {
+				if _, ok := k1.(string); !ok {
+					continue
+				}
+				if _, ok := v1.(string); !ok {
+					continue
+				}
+				metricMappings[k1.(string)] = v1.(string)
+			}
+		}
+	}
+	// TODO translate properly (python supports regex or glob format, and converts glob to regex)
+	compile, err := regexp.Compile(strings.Join(wildcardMetrics, "|"))
+	if err != nil {
+		return nil
+	}
+
+	var ignoredMetricsWildcard []string
+	ignoredMetrics := map[string]bool{}
+	for _, v := range config.IgnoreMetrics {
+		ignoredMetrics[v] = true
+
+		if strings.Contains(v, "*") {
+			ignoredMetricsWildcard = append(ignoredMetricsWildcard, v)
+		}
+	}
+	// TODO translate properly (python supports regex or glob format, and converts glob to regex)
+	ignoredRegex, err := regexp.Compile(strings.Join(ignoredMetricsWildcard, "|"))
+	if err != nil {
+		return nil
+	}
+
+	return &Provider{
+		Config:              config,
+		ScraperConfig:       scraperConfig,
+		transformers:        transformers,
+		metricMapping:       metricMappings,
+		wildcardRegex:       compile,
+		ignoredMetrics:      ignoredMetrics,
+		ignoredMetricsRegex: ignoredRegex,
+	}
+}
+
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
+	// Collect raw data
+	data, status, err := kc.QueryKubelet(context.TODO(), p.ScraperConfig.Path)
+	if err != nil {
+		log.Debugf("Unable to collect query probes endpoint: %s", err)
+		return err
+	}
+	if status == 404 && p.AllowNotFound {
+		return nil
+	}
+
+	metrics, err := ParseMetrics(data)
+	if err != nil {
+		return err
+	}
+
+	// Report metrics
+	for _, metric := range metrics {
+		if metric == nil {
+			continue
+		}
+		// TODO: double check the contents of `process`
+
+		// TODO: Something about METRICS_WITH_COUNTERS
+		/*
+			TODO: implement process_metric:
+			Handle a Prometheus metric according to the following flow:
+			- search `scraper_config['metrics_mapper']` for a prometheus.metric to datadog.metric mapping
+			- call check method with the same name as the metric
+			- log info if none of the above worked
+
+			`metric_transformers` is a dict of `<metric name>:<function to run when the metric name is encountered>`
+			`scraper_config['metrics_mapper']` appears to be a combination of `default_instance.get('metrics', []) + instance.get('metrics', [])`
+		*/
+		// _store_labels ???
+		p.storeLabels(metric)
+		metricName := string(metric.Metric["__name__"])
+		// check metric name in ignore_metrics (or if it matches an ignored regex)
+		if _, ok := p.ignoredMetrics[metricName]; ok {
+			continue
+		}
+
+		if p.ignoredMetricsRegex != nil && p.ignoredMetricsRegex.MatchString(metricName) {
+			continue
+		}
+		// _send_telemetry_counter ???
+		// _join_labels ???
+		p.joinLabels(metric)
+		// finally, flow listed above
+		if mName, ok := p.metricMapping[metricName]; ok {
+			p.submitMetric(metric, mName, sender)
+			continue
+		}
+
+		if transformer, ok := p.transformers[metricName]; ok {
+			transformer(metric, sender)
+			continue
+		}
+
+		if p.wildcardRegex != nil && p.wildcardRegex.MatchString(metricName) {
+			p.submitMetric(metric, metricName, sender)
+		}
+
+		log.Debugf("Skipping metric `%s` as it is not defined in the metrics mapper, has no transformer function, nor does it match any wildcards.", metricName)
+	}
+	return nil
+}
+
+func (p *Provider) submitMetric(metric *model.Sample, metricName string, sender sender.Sender) {
+	// TODO
+	nameWithNamespace := metricName
+	if p.Config.Namespace != "" {
+		nameWithNamespace = fmt.Sprintf("%s.%s", strings.TrimSuffix(p.Config.Namespace, "."), metricName)
+	}
+
+	tags := p.Config.Tags
+
+	sender.Gauge(nameWithNamespace, float64(metric.Value), "", tags)
+}
+
+func (p *Provider) storeLabels(metric *model.Sample) {
+	// TODO
+}
+
+func (p *Provider) joinLabels(metric *model.Sample) {
+	// TODO
+}
+
+// ParseMetrics parses prometheus-formatted metrics from the input data.
+func ParseMetrics(data []byte) (model.Vector, error) {
+	reader := bytes.NewReader(data)
+	var parser expfmt.TextParser
+	mf, err := parser.TextToMetricFamilies(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{Timestamp: model.Now()}, maps.Values(mf)...)
+	if err != nil {
+		return nil, err
+	}
+	return metrics, nil
+}

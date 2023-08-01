@@ -10,12 +10,14 @@ package probe
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -69,6 +71,8 @@ var (
 )
 
 func TestProvider_Provide(t *testing.T) {
+	probesEndpoint := "http://10.8.0.1:10255/metrics/probes"
+
 	type response struct {
 		filename string
 		code     int
@@ -84,14 +88,16 @@ func TestProvider_Provide(t *testing.T) {
 		err     error
 	}
 	tests := []struct {
-		name     string
-		podsFile string
-		response response
-		want     want
+		name           string
+		podsFile       string
+		probesEndpoint *string
+		response       response
+		want           want
 	}{
 		{
-			name:     "probes exist metrics are reported",
-			podsFile: "../../testdata/pod_list_probes.json",
+			name:           "probes exist metrics are reported",
+			podsFile:       "../../testdata/pod_list_probes.json",
+			probesEndpoint: &probesEndpoint,
 			response: response{
 				filename: "../../testdata/probes.txt",
 				code:     200,
@@ -163,8 +169,9 @@ func TestProvider_Provide(t *testing.T) {
 			},
 		},
 		{
-			name:     "endpoint 404 returns no error",
-			podsFile: "../../testdata/pod_list_probes.json",
+			name:           "endpoint 404 returns no error",
+			podsFile:       "../../testdata/pod_list_probes.json",
+			probesEndpoint: &probesEndpoint,
 			response: response{
 				filename: "",
 				code:     404,
@@ -176,8 +183,9 @@ func TestProvider_Provide(t *testing.T) {
 			},
 		},
 		{
-			name:     "endpoint error returns error",
-			podsFile: "../../testdata/pod_list_probes.json",
+			name:           "endpoint error returns error",
+			podsFile:       "../../testdata/pod_list_probes.json",
+			probesEndpoint: &probesEndpoint,
 			response: response{
 				filename: "",
 				code:     0,
@@ -189,8 +197,23 @@ func TestProvider_Provide(t *testing.T) {
 			},
 		},
 		{
-			name:     "no pod metadata no metrics reported",
-			podsFile: "",
+			name:           "no pod metadata no metrics reported",
+			podsFile:       "",
+			probesEndpoint: &probesEndpoint,
+			response: response{
+				filename: "../../testdata/probes.txt",
+				code:     200,
+				err:      nil,
+			},
+			want: want{
+				metrics: nil,
+				err:     nil,
+			},
+		},
+		{
+			name:           "no probe endpoint supplied no metrics reported",
+			podsFile:       "../../testdata/pod_list_probes.json",
+			probesEndpoint: nil,
 			response: response{
 				filename: "../../testdata/probes.txt",
 				code:     200,
@@ -215,7 +238,10 @@ func TestProvider_Provide(t *testing.T) {
 			}
 			tagger.SetDefaultTagger(fakeTagger)
 
-			store, err := storePopulatedFromFile(t, tt.podsFile)
+			store, err := storePopulatedFromFile(tt.podsFile)
+			if err != nil {
+				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
+			}
 
 			kubeletMock := mock.NewKubeletMock()
 			var content []byte
@@ -231,16 +257,21 @@ func TestProvider_Provide(t *testing.T) {
 				Error:        tt.response.err,
 			}
 
-			config := &common.KubeletConfig{Tags: []string{"instance_tag:something"}}
+			config := &common.KubeletConfig{
+				OpenmetricsInstance: types.OpenmetricsInstance{
+					Tags: []string{"instance_tag:something"},
+				},
+				ProbesMetricsEndpoint: tt.probesEndpoint,
+			}
 
-			p := &Provider{
-				filter: &containers.Filter{
+			p := NewProvider(
+				&containers.Filter{
 					Enabled:         true,
 					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 				},
-				config: config,
-				store:  store,
-			}
+				config,
+				store,
+			)
 
 			err = p.Provide(kubeletMock, mockSender)
 			if !reflect.DeepEqual(err, tt.want.err) {
@@ -255,7 +286,7 @@ func TestProvider_Provide(t *testing.T) {
 	}
 }
 
-func storePopulatedFromFile(t *testing.T, filename string) (*workloadmetatesting.Store, error) {
+func storePopulatedFromFile(filename string) (*workloadmetatesting.Store, error) {
 	store := workloadmetatesting.NewStore()
 
 	if filename == "" {
@@ -263,10 +294,13 @@ func storePopulatedFromFile(t *testing.T, filename string) (*workloadmetatesting
 	}
 
 	podList, err := os.ReadFile(filename)
+	if err != nil {
+		return store, errors.New(fmt.Sprintf("unable to load pod list, err: %v", err))
+	}
 	var pods *kubelet.PodList
 	err = json.Unmarshal(podList, &pods)
 	if err != nil {
-		t.Errorf("unable to load pod list, err: %v", err)
+		return store, errors.New(fmt.Sprintf("unable to load pod list, err: %v", err))
 	}
 
 	for _, pod := range pods.Items {
@@ -286,7 +320,7 @@ func storePopulatedFromFile(t *testing.T, filename string) (*workloadmetatesting
 					// try the resolved image ID if the image name in the container
 					// status is a SHA256. this seems to happen sometimes when
 					// pinning the image to a SHA256
-					image, err = workloadmeta.NewContainerImage(container.ImageID, container.ImageID)
+					image, _ = workloadmeta.NewContainerImage(container.ImageID, container.ImageID)
 				}
 			}
 
@@ -295,7 +329,7 @@ func storePopulatedFromFile(t *testing.T, filename string) (*workloadmetatesting
 				ID:   containerID,
 				Name: container.Name,
 			}
-			podContainer.Image, err = workloadmeta.NewContainerImage(container.ImageID, container.Image)
+			podContainer.Image, _ = workloadmeta.NewContainerImage(container.ImageID, container.Image)
 
 			podContainer.Image.ID = container.ImageID
 
