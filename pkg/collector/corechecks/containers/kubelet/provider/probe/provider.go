@@ -55,6 +55,8 @@ func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) 
 		metricSuffix = "liveness_probe"
 	} else if probeType == "Readiness" {
 		metricSuffix = "readiness_probe"
+	} else if probeType == "Startup" {
+		metricSuffix = "startup_probe"
 	} else {
 		log.Debugf("Unsupported probe type %s", probeType)
 		return

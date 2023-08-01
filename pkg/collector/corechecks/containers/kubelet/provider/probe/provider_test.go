@@ -136,6 +136,16 @@ func TestProvider_Provide(t *testing.T) {
 						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
 					},
 					{
+						name:  common.KubeletMetricsPrefix + "startup_probe.success.total",
+						value: 70,
+						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "startup_probe.failure.total",
+						value: 70,
+						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:kube-dns-c598bd956-wgf4n", "kube_container_name:kubedns"},
+					},
+					{
 						name:  common.KubeletMetricsPrefix + "readiness_probe.failure.total",
 						value: 180,
 						tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:calico-node-9qkw7", "kube_container_name:calico-node"},

@@ -12,6 +12,8 @@ prober_probe_total{container="fluentbit-gke",namespace="kube-system",pod="fluent
 prober_probe_total{container="kubedns",namespace="kube-system",pod="kube-dns-c598bd956-wgf4n",pod_uid="03bc86a4-c87a-4537-9b0f-17e52cfd3162",probe_type="Liveness",result="successful"} 1.686298e+06
 prober_probe_total{container="kubedns",namespace="kube-system",pod="kube-dns-c598bd956-wgf4n",pod_uid="03bc86a4-c87a-4537-9b0f-17e52cfd3162",probe_type="Readiness",result="successful"} 1.686303e+06
 prober_probe_total{container="sidecar",namespace="kube-system",pod="kube-dns-c598bd956-wgf4n",pod_uid="03bc86a4-c87a-4537-9b0f-17e52cfd3162",probe_type="Liveness",result="successful"} 1.686298e+06
+prober_probe_total{container="kubedns",namespace="kube-system",pod="kube-dns-c598bd956-wgf4n",pod_uid="03bc86a4-c87a-4537-9b0f-17e52cfd3162",probe_type="Startup",result="successful"} 70
+prober_probe_total{container="kubedns",namespace="kube-system",pod="kube-dns-c598bd956-wgf4n",pod_uid="03bc86a4-c87a-4537-9b0f-17e52cfd3162",probe_type="Startup",result="failed"} 70
 # HELP process_start_time_seconds [ALPHA] Start time of the process since unix epoch in seconds.
 # TYPE process_start_time_seconds gauge
 process_start_time_seconds 1.63055914421e+09
