@@ -41,7 +41,6 @@ func (l languageDetectionModule) Register(router *module.Router) error {
 	return nil
 }
 
-// There are no resources we need to clean up
 func (l languageDetectionModule) Close() {}
 
 func getRequestPids(proto *languageDetectionProto.DetectLanguageRequest) []int {
@@ -94,6 +93,6 @@ func detectLanguage(writer http.ResponseWriter, request *http.Request) {
 
 	_, err = writer.Write(b)
 	if err != nil {
-		log.Error("/lang/detect succeeded but failed to write a response:", err.Error())
+		log.Error("/language_detection/detect succeeded but failed to write a response:", err.Error())
 	}
 }
