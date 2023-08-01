@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 type protocol struct {
@@ -89,6 +90,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 
 func (p *protocol) PreStart(mgr *manager.Manager) error {
