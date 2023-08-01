@@ -28,7 +28,7 @@ func getProcessGroups(limit int) ([]ProcessGroup, error) {
 			processGroup.VMS(),
 			processGroup.RSS(),
 			processGroup.Name(),
-			len(processGroup.Pids()),
+			processGroup.Pids(),
 		}
 		snapData[i] = processGroup
 	}

@@ -22,7 +22,9 @@ func TestGet(t *testing.T) {
 	require.NotEmpty(t, processes)
 	for _, process := range processes {
 		assert.NotEmpty(t, process.Name)
+
 		assert.NotEmpty(t, process.Usernames)
+		assert.IsIncreasing(t, process.Usernames)
 
 		assert.GreaterOrEqual(t, process.PctCPU, 0)
 		assert.LessOrEqual(t, process.PctCPU, 100)
@@ -33,7 +35,7 @@ func TestGet(t *testing.T) {
 		assert.GreaterOrEqual(t, process.VMS, uint64(0))
 		assert.GreaterOrEqual(t, process.RSS, uint64(0))
 
-		assert.Greater(t, process.NbPids, 0)
+		assert.NotEmpty(t, process.Pids)
 	}
 }
 

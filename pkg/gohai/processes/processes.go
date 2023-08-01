@@ -30,16 +30,25 @@ func (processes *Processes) Name() string {
 	return name
 }
 
+// ProcessGroup represents the information about a single process group
 type ProcessGroup struct {
+	// Usernames is the sorted list of usernames of running processes in that groups.
 	Usernames []string
-	PctCPU    int
-	PctMem    float64
-	VMS       uint64
-	RSS       uint64
-	Name      string
-	NbPids    int
+	// PctCPU is the percentage of cpu used by the group.
+	PctCPU int
+	// PctMem is the percentage of memory used by the group.
+	PctMem float64
+	// VMS is the vms of the group.
+	VMS uint64
+	// RSS is the RSS used by the group.
+	RSS uint64
+	// Name is the name of the group.
+	Name string
+	// Pids is the list of pids in the group.
+	Pids []int32
 }
 
+// Get returns a list of process groups information or an error
 func Get() ([]ProcessGroup, error) {
 	return getProcessGroups(options.limit)
 }
@@ -67,7 +76,7 @@ func (processes *Processes) Collect() (result interface{}, err error) {
 			processGroup.VMS,
 			processGroup.RSS,
 			processGroup.Name,
-			processGroup.NbPids,
+			len(processGroup.Pids),
 		}
 		snapData[i] = processField
 	}
