@@ -12,6 +12,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
@@ -86,4 +87,8 @@ func (l *logsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 
 func (l *logsAgent) Flush(ctx context.Context) {
 	logs.Flush(ctx)
+}
+
+func (l *logsAgent) GetPipelineProvider() pipeline.Provider {
+	return l.logsAgent.GetPipelineProvider()
 }

@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -31,6 +32,9 @@ type Component interface {
 
 	// Flush synchronously flushes the pipelines managed by the Logs Agent.
 	Flush(ctx context.Context)
+
+	// GetPipelineProvider gets the pipeline provider
+	GetPipelineProvider() pipeline.Provider
 }
 
 // Mock implements mock-specific methods.

@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
@@ -51,3 +52,7 @@ func (a *mockLogsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver
 }
 
 func (a *mockLogsAgent) Flush(ctx context.Context) {}
+
+func (a *mockLogsAgent) GetPipelineProvider() pipeline.Provider {
+	return nil
+}

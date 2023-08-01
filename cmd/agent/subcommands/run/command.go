@@ -61,7 +61,9 @@ import (
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/netflow"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -520,6 +522,19 @@ func startAgent(
 			log.Errorf("Could not start dogstatsd: %s", err)
 		} else {
 			log.Debugf("dogstatsd started")
+		}
+	}
+
+	// Start OTLP intake
+	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
+	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
+	if logsAgent, ok := logsAgent.Get(); otlpEnabled && ok {
+		var err error
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, logsAgent.GetPipelineProvider().NextPipelineChan())
+		if err != nil {
+			log.Errorf("Could not start OTLP: %s", err)
+		} else {
+			log.Debug("OTLP pipeline started")
 		}
 	}
 
