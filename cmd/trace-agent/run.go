@@ -237,22 +237,24 @@ func Run(ctx context.Context) {
 	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
 	// prepare go runtime
-	maxmem, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
+	cgmem, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
 	if err != nil {
 		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
 	}
 
-	if cfg.MaxMemory > 0 && (maxmem == 0 || int64(cfg.MaxMemory) < maxmem) {
-		log.Infof("apm_config.max_memory: %vMiB", int64(cfg.MaxMemory)/(1024*1024))
-		maxmem = int64(cfg.MaxMemory)
-	}
 	if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
 		log.Infof("GOMEMLIMIT manually set to: %v", lim)
-	} else if maxmem > 0 {
-		finalmem := int64(float64(maxmem) * 0.9) // leave some headroom
-		debug.SetMemoryLimit(int64(finalmem))
-		log.Infof("Maximum memory available: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", maxmem/(1024*1024), finalmem/(1024*1024))
+	} else if cfg.MaxMemory > 0 && (cgmem == 0 || int64(cfg.MaxMemory) < cgmem) {
+		// We have a apm_config.max_memory that's lower than the cgroup limit.
+		log.Infof("apm_config.max_memory: %vMiB", int64(cfg.MaxMemory)/(1024*1024))
+		finalmem := int64(cfg.MaxMemory * 0.9)
+		debug.SetMemoryLimit(finalmem)
+		log.Infof("Maximum memory available: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(cfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
+	} else if cgmem > 0 {
+		// cgroup already constrained the memory
+		log.Infof("Memory constrained by cgroup. Setting GOMEMLIMIT to: %vMiB", cgmem/(1024*1024))
 	} else {
+		// There are no memory constraints
 		log.Infof("GOMEMLIMIT unconstrained.")
 	}
 
