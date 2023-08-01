@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
+	cebpf "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
@@ -107,6 +108,9 @@ type PlatformProbe struct {
 
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
+
+	// Maps
+	syscallsMap *cebpf.Map
 
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
@@ -270,6 +274,11 @@ func (p *Probe) Init() error {
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
 	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
+
+	p.syscallsMap, err = managerhelper.Map(p.Manager, "syscalls")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -1196,6 +1205,32 @@ func (p *Probe) FlushDiscarders() error {
 	return bumpDiscardersRevision(p.Erpc)
 }
 
+// FlushSyscalls does a best effort flush of the in-flight syscalls map
+func (p *Probe) FlushSyscalls() {
+	seclog.Debugf("Flushing in-flight syscalls")
+
+	m := p.syscallsMap
+
+	if m == nil {
+		seclog.Errorf("flushing syscalls: nil-map")
+		return
+	}
+
+	var (
+		key   interface{}
+		value interface{}
+		iter  = m.Iterate()
+	)
+
+	for iter.Next(&key, &value) {
+		m.Delete(key)
+	}
+
+	if err := iter.Err(); err != nil {
+		seclog.Errorf("syscall flushing encoutered an error: %v", err)
+	}
+}
+
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
@@ -1378,6 +1413,8 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 	if err := p.FlushDiscarders(); err != nil {
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
+
+	p.FlushSyscalls()
 
 	if err := p.updateProbes(rs.GetEventTypes()); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
