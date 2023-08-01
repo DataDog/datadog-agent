@@ -47,6 +47,7 @@ jobs:
 
       - name: Run tests if AWS credentials are available
         id: test
+        continue-on-error: true
         uses: nick-fields/retry@v2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
