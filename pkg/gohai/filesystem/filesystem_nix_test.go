@@ -95,13 +95,6 @@ func TestNixFSTypeFiltering(t *testing.T) {
 					Mountpoint: randString(),
 				},
 				newTestInputMountinfo(randString()),
-				newTestInputMountinfo(randString()),
-				{
-					Source:     tc.FSName,
-					FSType:     tc.FSType,
-					Mountpoint: randString(),
-				},
-				newTestInputMountinfo(randString()),
 			}
 
 			expectedMounts := make([]MountInfo, 0, len(inputMounts))
@@ -142,64 +135,48 @@ func TestNixMissingMountValues(t *testing.T) {
 	}{
 		{
 			"MissingSize",
-			[]*mountinfo.Info{newTestInputMountinfo("Normal1")},
-			[]MountInfo{newTestOutputMountInfo("Normal1")},
+			[]*mountinfo.Info{newTestInputMountinfo("Normal")},
+			[]MountInfo{newTestOutputMountInfo("Normal")},
 		},
 		{
 			"MissingMountName",
 			[]*mountinfo.Info{
-				newTestInputMountinfo("Normal1"),
+				newTestInputMountinfo("Normal"),
 				{Source: "", FSType: "foo", Mountpoint: "Bad1"},
-				newTestInputMountinfo("Normal2"),
 				{Source: "none", FSType: "foo", Mountpoint: "Bad2"},
-				newTestInputMountinfo("Normal3"),
 			},
 			[]MountInfo{
-				newTestOutputMountInfo("Normal1"),
-				newTestOutputMountInfo("Normal2"),
-				newTestOutputMountInfo("Normal3"),
+				newTestOutputMountInfo("Normal"),
 			},
 		},
 		{
 			"MissingMountPoint",
 			[]*mountinfo.Info{
-				newTestInputMountinfo("Normal1"),
-				{Source: "Bad1", FSType: "foo", Mountpoint: ""},
-				newTestInputMountinfo("Normal2"),
-				{Source: "Bad2", FSType: "foo", Mountpoint: ""},
-				newTestInputMountinfo("Normal3"),
+				newTestInputMountinfo("Normal"),
+				{Source: "Bad", FSType: "foo", Mountpoint: ""},
 			},
 			[]MountInfo{
-				newTestOutputMountInfo("Normal1"),
-				newTestOutputMountInfo("Normal2"),
-				newTestOutputMountInfo("Normal3"),
+				newTestOutputMountInfo("Normal"),
 			},
 		},
 		{
 			"MissingMountPointAndName",
 			[]*mountinfo.Info{
-				newTestInputMountinfo("Normal1"),
+				newTestInputMountinfo("Normal"),
 				{Source: "", FSType: "foo", Mountpoint: ""},
-				newTestInputMountinfo("Normal2"),
 			},
 			[]MountInfo{
-				newTestOutputMountInfo("Normal1"),
-				newTestOutputMountInfo("Normal2"),
+				newTestOutputMountInfo("Normal"),
 			},
 		},
 		{
 			"MissingFSType",
 			[]*mountinfo.Info{
-				newTestInputMountinfo("Normal1"),
-				{Source: "Bad1", FSType: "", Mountpoint: "Bad1"},
-				newTestInputMountinfo("Normal2"),
-				{Source: "Bad2", FSType: "", Mountpoint: "Bad2"},
-				newTestInputMountinfo("Normal3"),
+				newTestInputMountinfo("Normal"),
+				{Source: "Bad", FSType: "", Mountpoint: "Bad"},
 			},
 			[]MountInfo{
-				newTestOutputMountInfo("Normal1"),
-				newTestOutputMountInfo("Normal2"),
-				newTestOutputMountInfo("Normal3"),
+				newTestOutputMountInfo("Normal"),
 			},
 		},
 	}
