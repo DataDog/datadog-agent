@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package datadog.langaugedetection;
+package datadog.languagedetection;
 
 option go_package = "pkg/proto/pbgo/languagedetection";  // golang
 
