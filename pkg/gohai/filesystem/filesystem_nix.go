@@ -122,7 +122,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoG
 			continue
 		}
 
-		if isExcludedFS(mount.FSType, mount.Source, true) {
+		if isExcludedFS(mount.FSType, mount.Source) {
 			continue
 		}
 
@@ -167,18 +167,14 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoG
 //
 // It is ignored if
 // - the type is in ignoredFSTypes
-// - we only want local filesystems but it is detected as remote
-func isExcludedFS(fsType string, fsSource string, localOnly bool) bool {
+// - it is remote
+func isExcludedFS(fsType string, fsSource string) bool {
 	// Some filesystems should be ignored based on type
 	if _, ok := ignoredFSTypes[fsType]; ok {
 		return true
 	}
 
-	if localOnly && isRemoteFS(fsType, fsSource) {
-		return true
-	}
-
-	return false
+	return isRemoteFS(fsType, fsSource)
 }
 
 // isRemoteFS returns whether a filesystem with the given type and source is remote.
