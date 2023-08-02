@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	//tlmBytesIn = telemetry.NewCounter("process", "payloads_bytes_in",
-	//	[]string{"type"}, "Count of bytes before encoding payload")
+	tlmBytesIn = telemetry.NewCounter("process", "payloads_bytes_in",
+		[]string{"type"}, "Count of bytes before encoding payload")
 	tlmBytesOut = telemetry.NewCounter("process", "payloads_bytes_out",
 		[]string{"type"}, "Count of bytes after encoding payload")
 )
@@ -29,7 +29,7 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	}
 
 	typeTag := "type:" + msgType.String()
-	//tlmBytesIn.Add(float64(m.Size()), typeTag)
+	tlmBytesIn.Add(float64(1000), typeTag)
 
 	var encoded []byte
 	if msgType == model.TypeCollectorProcEvent {
