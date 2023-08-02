@@ -78,6 +78,9 @@ func (l *logsAgent) AddScheduler(scheduler schedulers.Scheduler) {
 }
 
 func (l *logsAgent) IsRunning() bool {
+	if l.logsAgent == nil {
+		return false
+	}
 	return logs.IsAgentRunning()
 }
 
@@ -90,5 +93,8 @@ func (l *logsAgent) Flush(ctx context.Context) {
 }
 
 func (l *logsAgent) GetPipelineProvider() pipeline.Provider {
-	return l.logsAgent.GetPipelineProvider()
+	if l.logsAgent != nil {
+		return l.logsAgent.GetPipelineProvider()
+	}
+	return nil
 }
