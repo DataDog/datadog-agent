@@ -34,11 +34,6 @@
                     "dir": "amzn2-kvm-2.0-amd64-5.10.qcow2",
                     "tag": "amzn_5.10",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-amd64-5.10.qcow2"
-                },
-                {
-                    "dir": "amzn2-kvm-2.0-amd64-5.15.qcow2",
-                    "tag": "amzn_5.15",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-amd64-5.15.qcow2"
                 }
             ],
             "vcpu": [
