@@ -21,6 +21,7 @@ if arm?
 end
 
 if osx?
+  dependency 'postgresql'
   dependency 'unixodbc'
 end
 
