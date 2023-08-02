@@ -74,7 +74,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient),
+		policyMonitor:             NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
