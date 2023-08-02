@@ -54,7 +54,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -438,9 +437,10 @@ func startAgent(
 			log.Errorf("Failed to start config management service: %s", err)
 		}
 
-		if err := rcclient.Listen("core-agent", []data.Product{data.ProductAgentTask, data.ProductAgentConfig}); err != nil {
+		if err := rcclient.Start("core-agent"); err != nil {
 			pkglog.Errorf("Failed to start the RC client component: %s", err)
 		}
+		rcclient.SubscribeAgentTask()
 	}
 
 	// create and setup the Autoconfig instance
