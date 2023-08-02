@@ -20,13 +20,13 @@ var mkdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_mkdirat",
+			EBPFFuncName: "hook_do_mkdirat",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_mkdirat",
+			EBPFFuncName: "rethook_do_mkdirat",
 		},
 	},
 }

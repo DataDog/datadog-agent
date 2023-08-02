@@ -90,9 +90,9 @@ func getSystemStats() *systemStats {
 	} else {
 		cpuInfo := cpu.CollectInfo()
 		hostInfo := getHostInfo()
-		cores, _ := cpuInfo.CPUCores.Value()
+		cores := cpuInfo.CPUCores.ValueOrDefault()
 		c32 := int32(cores)
-		modelName, _ := cpuInfo.ModelName.Value()
+		modelName := cpuInfo.ModelName.ValueOrDefault()
 
 		stats = &systemStats{
 			Machine:   runtime.GOARCH,

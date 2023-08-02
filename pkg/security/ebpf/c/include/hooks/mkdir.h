@@ -94,7 +94,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
 }
 
 HOOK_ENTRY("do_mkdirat")
-int kprobe_do_mkdirat(ctx_t *ctx) {
+int hook_do_mkdirat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         umode_t mode = (umode_t)CTX_PARM3(ctx);
@@ -103,16 +103,10 @@ int kprobe_do_mkdirat(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kretprobe/do_mkdirat")
-int kretprobe_do_mkdirat(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_mkdir_ret(ctx, retval, DR_KPROBE);
-}
-
-int __attribute__((always_inline)) kprobe_sys_mkdir_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_mkdir_ret(ctx, retval, DR_KPROBE);
+HOOK_EXIT("do_mkdirat")
+int rethook_do_mkdirat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 3);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 HOOK_SYSCALL_EXIT(mkdir) {

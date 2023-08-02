@@ -138,8 +138,8 @@ github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5Tl
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/datadog-operator v1.0.3 h1:zBGNnmFsU99wttrt0PWXXRgJvTRGeWt3YD7wUh7VBd4=
 github.com/DataDog/datadog-operator v1.0.3/go.mod h1:CXTLg7VFcpaMvjbwkKTxKUIzxRumfSe01/CWOINo4c0=
-github.com/DataDog/ebpf-manager v0.2.11 h1:DK1VBC1pXjjHQwGqBhnEe1yoTlzzOI7Ek1DvHFkKYyE=
-github.com/DataDog/ebpf-manager v0.2.11/go.mod h1:KDs7en18FwWMVz3iCnGIvOCZdyuXozS+w4YrCIQbtM0=
+github.com/DataDog/ebpf-manager v0.2.12 h1:0edkO5sSedIOlwSQK8qJfs5XqnCoM9RoxTOXIqozrH8=
+github.com/DataDog/ebpf-manager v0.2.12/go.mod h1:pcPSCI1TxwCjWTg+n2/hRqt1NN9LdsufFFZYmi8CCJY=
 github.com/DataDog/extendeddaemonset v0.9.0-rc.2 h1:uTE/QEU0oYtHnebKSMbxap7XMG5603WQxNP/UX63E7k=
 github.com/DataDog/extendeddaemonset v0.9.0-rc.2/go.mod h1:JgKVGTsjdTdtJjNyxRZjcs81/rng6LJ3XX/0D7Y12Gc=
 github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1 h1:YpYdpEG3ohpETQTzz9u4bTvvJUzkRFwMyLrx/jtbU5g=
@@ -2549,8 +2549,8 @@ golang.org/x/tools v0.1.12/go.mod h1:hNGJHUnrk76NpqgfD5Aqm5Crs+Hm0VOH/i9J2+nxYbc
 golang.org/x/tools v0.3.0/go.mod h1:/rWhSS2+zyEVwoJf8YAX6L2f0ntZ7Kn/mGgAWcipA5k=
 golang.org/x/tools v0.4.0/go.mod h1:UE5sM2OK9E/d67R0ANs2xJizIymRP5gJU295PvKXxjQ=
 golang.org/x/tools v0.6.0/go.mod h1:Xwgl3UAJ/d3gWutnCtw505GrjyAbvKui8lOU390QaIU=
-golang.org/x/tools v0.11.0 h1:EMCa6U9S2LtZXLAMoWiR/R8dAQFRqbAitmbJ2UKhoi8=
-golang.org/x/tools v0.11.0/go.mod h1:anzJrxPjNtfgiYQYirP2CPGzGLxrH2u2QBhn6Bf3qY8=
+golang.org/x/tools v0.11.1 h1:ojD5zOW8+7dOGzdnNgersm8aPfcDjhMp12UfG93NIMc=
+golang.org/x/tools v0.11.1/go.mod h1:anzJrxPjNtfgiYQYirP2CPGzGLxrH2u2QBhn6Bf3qY8=
 golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=

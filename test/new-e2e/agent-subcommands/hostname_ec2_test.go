@@ -28,9 +28,6 @@ func (v *agentSuite) TestAgentHostnameDefaultsToResourceId() {
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("")))
 
 	metadata := client.NewEC2Metadata(v.Env().VM)
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	hostname := v.Env().Agent.Hostname()
 
 	// Default configuration of hostname for EC2 instances is the resource-id
@@ -40,8 +37,6 @@ func (v *agentSuite) TestAgentHostnameDefaultsToResourceId() {
 
 func (v *agentSuite) TestAgentConfigHostnameVarOverride() {
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("hostname: hostname.from.var")))
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
 	assert.Equal(v.T(), hostname, "hostname.from.var")
@@ -51,9 +46,6 @@ func (v *agentSuite) TestAgentConfigHostnameFileOverride() {
 	fileContent := "hostname.from.file"
 	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | tee /tmp/hostname`, fileContent))
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("hostname_file: /tmp/hostname")))
-
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
 	assert.Equal(v.T(), hostname, fileContent)
@@ -65,9 +57,6 @@ func (v *agentSuite) TestAgentConfigHostnameForceAsCanonical() {
 hostname_force_config_as_canonical: true`
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig(config)))
 
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	hostname := v.Env().Agent.Hostname()
 	assert.Equal(v.T(), hostname, "ip-172-29-113-35.ec2.internal")
 }
@@ -78,21 +67,14 @@ func (v *agentSuite) TestAgentConfigPrioritizeEC2Id() {
 ec2_prioritize_instance_id_as_hostname: true`
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig(config)))
 
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	hostname := v.Env().Agent.Hostname()
 	assert.Equal(v.T(), hostname, "hostname.from.var")
 }
 
 func (v *agentSuite) TestAgentConfigPreferImdsv2() {
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("ec2_prefer_imdsv2: true")))
 	// e2e metadata provider already uses IMDSv2
 	metadata := client.NewEC2Metadata(v.Env().VM)
-
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("ec2_prefer_imdsv2: true")))
-
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
 	resourceId := metadata.Get("instance-id")

@@ -21,8 +21,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -45,6 +43,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -71,51 +70,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 type checkPoliciesCliParams struct {
 	*command.GlobalParams
 
-	dir string
-}
-
-// checkPoliciesCommands is deprecated
-func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &checkPoliciesCliParams{
-		GlobalParams: globalParams,
-	}
-
-	checkPoliciesCmd := &cobra.Command{
-		Use:   "check-policies",
-		Short: "check policies and return a report",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(checkPolicies,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy check` instead",
-	}
-
-	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-
-	return []*cobra.Command{checkPoliciesCmd}
-}
-
-// reloadPoliciesCommands is deprecated
-func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	reloadPoliciesCmd := &cobra.Command{
-		Use:   "reload",
-		Short: "Reload policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(reloadRuntimePolicies,
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy reload` instead",
-	}
-	return []*cobra.Command{reloadPoliciesCmd}
+	dir                      string
+	evaluateAllPolicySources bool
 }
 
 func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -190,6 +146,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	}
 
 	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, flags.EvaluateLoadedPolicies, false, "Evaluate loaded policies")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -430,7 +387,41 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func checkPoliciesInner(policiesDir string) error {
+func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
+	if args.evaluateAllPolicySources {
+		client, err := secagent.NewRuntimeSecurityClient()
+		if err != nil {
+			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+		}
+		defer client.Close()
+
+		return checkPoliciesLoaded(client, os.Stdout)
+	} else {
+		return checkPoliciesLocal(args, os.Stdout)
+	}
+}
+
+func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
+	output, err := client.GetRuleSetReport()
+	if err != nil {
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("get policies request failed: %s", output.Error)
+	}
+
+	transformedOutput := output.GetRuleSetReportMessage().FromProtoToKFiltersRuleSetReport()
+
+	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
+	}
+
+	return nil
+}
+
+func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	cfg := &pconfig.Config{
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
@@ -459,7 +450,7 @@ func checkPoliciesInner(policiesDir string) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(args.dir, false)
 	if err != nil {
 		return err
 	}
@@ -481,13 +472,12 @@ func checkPoliciesInner(policiesDir string) error {
 	}
 
 	content, _ := json.MarshalIndent(report, "", "\t")
-	fmt.Printf("%s\n", string(content))
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
+	}
 
 	return nil
-}
-
-func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
-	return checkPoliciesInner(args.dir)
 }
 
 // EvalReport defines a report of an evaluation
@@ -756,7 +746,7 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	if downloadPolicyArgs.check {
-		if err := checkPoliciesInner(tempDir); err != nil {
+		if err := checkPolicies(log, config, &checkPoliciesCliParams{dir: tempDir}); err != nil {
 			return err
 		}
 	}
