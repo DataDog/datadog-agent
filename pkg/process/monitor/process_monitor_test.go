@@ -79,21 +79,14 @@ func TestProcessMonitorSanity(t *testing.T) {
 		return numberOfExecs.Load() > 1
 	}, time.Second, time.Millisecond*200, "didn't capture exec events %d", numberOfExecs.Load())
 
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	telNotEqual := func(t *testing.T, expected int64, m string) {
-		require.NotEqual(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exec"], "process.monitor.exec")
-	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exit"], "process.monitor.exit")
-	telNotEqual(t, 0, "process.monitor.exec")
-	telNotEqual(t, 0, "process.monitor.exit")
-	telEqual(t, 0, "process.monitor.restart")
-	telEqual(t, 0, "process.monitor.reinitFailed")
-	telEqual(t, 0, "process.monitor.process_scan_failed")
-	require.GreaterOrEqual(t, tel["process.monitor.callback_executed"], int64(1), "process.monitor.callback_executed")
+	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
+	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
+	require.NotEqual(t, int64(0), pm.tel.exec.Get())
+	require.NotEqual(t, int64(0), pm.tel.exit.Get())
+	require.Equal(t, int64(0), pm.tel.restart.Get())
+	require.Equal(t, int64(0), pm.tel.reinitFailed.Get())
+	require.Equal(t, int64(0), pm.tel.processScanFailed.Get())
+	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }
 
 func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
@@ -146,21 +139,14 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
 
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	telNotEqual := func(t *testing.T, expected int64, m string) {
-		require.NotEqual(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exec"], "process.monitor.exec")
-	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exit"], "process.monitor.exit")
-	telNotEqual(t, 0, "process.monitor.exec")
-	telNotEqual(t, 0, "process.monitor.exit")
-	telEqual(t, 0, "process.monitor.restart")
-	telEqual(t, 0, "process.monitor.reinit_failed")
-	telEqual(t, 0, "process.monitor.process_scan_failed")
-	require.GreaterOrEqual(t, tel["process.monitor.callback_executed"], int64(1), "process.monitor.callback_executed")
+	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
+	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
+	require.NotEqual(t, int64(0), pm.tel.exec.Get())
+	require.NotEqual(t, int64(0), pm.tel.exit.Get())
+	require.Equal(t, int64(0), pm.tel.restart.Get())
+	require.Equal(t, int64(0), pm.tel.reinitFailed.Get())
+	require.Equal(t, int64(0), pm.tel.processScanFailed.Get())
+	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }
 
 func TestProcessMonitorRefcount(t *testing.T) {
@@ -215,19 +201,12 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 		return captured
 	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from other namespace")
 
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	telNotEqual := func(t *testing.T, expected int64, m string) {
-		require.NotEqual(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exec"], "process.monitor.exec")
-	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exit"], "process.monitor.exit")
-	telNotEqual(t, 0, "process.monitor.exec")
-	telNotEqual(t, 0, "process.monitor.exit")
-	telEqual(t, 0, "process.monitor.restart")
-	telEqual(t, 0, "process.monitor.reinit_failed")
-	telEqual(t, 0, "process.monitor.process_scan_failed")
-	require.GreaterOrEqual(t, tel["process.monitor.callback_executed"], int64(1), "process.monitor.callback_executed")
+	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
+	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
+	require.NotEqual(t, int64(0), pm.tel.exec.Get())
+	require.NotEqual(t, int64(0), pm.tel.exit.Get())
+	require.Equal(t, int64(0), pm.tel.restart.Get())
+	require.Equal(t, int64(0), pm.tel.reinitFailed.Get())
+	require.Equal(t, int64(0), pm.tel.processScanFailed.Get())
+	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }
