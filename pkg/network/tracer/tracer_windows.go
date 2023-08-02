@@ -153,7 +153,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	_, err := t.driverInterface.GetOpenConnectionStats(t.activeBuffer, func(c *network.ConnectionStats) bool {
+	conns := network.NewConnections()
+	_, err := t.driverInterface.GetOpenConnectionStats(conns.Buffer(), func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
@@ -165,7 +166,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
-	activeConnStats := t.activeBuffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
@@ -175,12 +175,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	var delta network.Delta
 	if t.usmMonitor != nil { //nolint
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats())
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), conns.Buffer(), t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), network.NewLocalResolver(t.config))
 	} else {
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), conns.Buffer(), t.reverseDNS.GetDNSStats(), nil, network.NewLocalResolver(t.config))
 	}
 
-	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
@@ -190,13 +189,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	names := t.reverseDNS.Resolve(ips)
 	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
-	return &network.Connections{
-		BufferedData:  delta.BufferedData,
-		HTTP:          delta.HTTP,
-		DNS:           names,
-		DNSStats:      delta.DNSStats,
-		ConnTelemetry: telemetryDelta,
-	}, nil
+	conns.Conns = delta.Conns
+	conns.HTTP = delta.HTTP
+	conns.DNS = names
+	conns.DNSStats = delta.DNSStats
+	conns.ConnTelemetry = telemetryDelta
+	return conns, nil
 }
 
 // RegisterClient registers the client
