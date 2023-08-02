@@ -44,7 +44,7 @@ var openProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_io_openat2",
+			EBPFFuncName: "rethook_io_openat2",
 		},
 	},
 	{
@@ -61,7 +61,7 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "open",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
@@ -73,19 +73,19 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "open_by_handle_at",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "truncate",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "openat",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,

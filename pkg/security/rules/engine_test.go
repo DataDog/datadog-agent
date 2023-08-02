@@ -11,11 +11,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 )
 
+// This test is less important now that remoteConfigProvidersFirst() exists, which enforces that the RC providers are first
 func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 	type fields struct {
 		config *config.RuntimeSecurityConfig
@@ -29,13 +29,13 @@ func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 		{
 			name:     "RC enabled",
 			fields:   fields{config: &config.RuntimeSecurityConfig{RemoteConfigurationEnabled: true}},
-			wantType: rconfig.PolicyProviderType,
+			wantType: rules.PolicyProviderTypeRC,
 			wantLen:  2,
 		},
 		{
 			name:     "RC disabled",
 			fields:   fields{config: &config.RuntimeSecurityConfig{RemoteConfigurationEnabled: false}},
-			wantType: rules.PolicyProviderType,
+			wantType: rules.PolicyProviderTypeDir,
 			wantLen:  1,
 		},
 	}

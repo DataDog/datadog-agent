@@ -123,6 +123,12 @@
     SYSCALL_ABI_HOOKx(x,32,type,TYPE,compat_,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
     SYSCALL_HOOK_COMMON(x,type,TYPE,name,__VA_ARGS__)
+  #define SYSCALL_TIME_HOOKx(x,type,TYPE,name,...) \
+    SYSCALL_ABI_HOOKx(x,32,type,TYPE,,name,,__VA_ARGS__) \
+    SYSCALL_ABI_HOOKx(x,32,type,TYPE,,name,_time32,__VA_ARGS__) \
+    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
+    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,_time32,__VA_ARGS__) \
+    SYSCALL_HOOK_COMMON(x,type,TYPE,name,__VA_ARGS__)
   #define SYSCALL_COMPAT_TIME_HOOKx(x,type,TYPE,name,...) \
     SYSCALL_ABI_HOOKx(x,32,type,TYPE,compat_,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,32,type,TYPE,,name,_time32,__VA_ARGS__) \
@@ -142,6 +148,10 @@
     SYSCALL_HOOK_COMMON(x,type,TYPE,name,__VA_ARGS__)
   #define SYSCALL_COMPAT_HOOKx(x,type,TYPE,name,...) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
+    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
+    SYSCALL_HOOK_COMMON(x,type,TYPE,name,__VA_ARGS__)
+  #define SYSCALL_TIME_HOOKx(x,type,TYPE,name,...) \
+    SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
     SYSCALL_HOOK_COMMON(x,type,TYPE,name,__VA_ARGS__)
   #define SYSCALL_COMPAT_TIME_HOOKx(x,type,TYPE,name,...) \
@@ -187,6 +197,10 @@
 #define SYSCALL_COMPAT_TIME_KPROBE4(name, ...) SYSCALL_COMPAT_TIME_HOOKx(4,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_TIME_KPROBE5(name, ...) SYSCALL_COMPAT_TIME_HOOKx(5,kprobe,KPROBE,_##name,__VA_ARGS__)
 #define SYSCALL_COMPAT_TIME_KPROBE6(name, ...) SYSCALL_COMPAT_TIME_HOOKx(6,kprobe,KPROBE,_##name,__VA_ARGS__)
+
+#define SYSCALL_TIME_FENTRY0(name, ...) SYSCALL_TIME_HOOKx(0,fentry,FENTRY,_##name,__VA_ARGS__)
+
+#define SYSCALL_TIME_FEXIT(name) SYSCALL_TIME_HOOKx(0,fexit,FEXIT,_##name,__VA_ARGS__)
 
 #define SYSCALL_COMPAT_TIME_KRETPROBE(name, ...) SYSCALL_COMPAT_TIME_HOOKx(0,kretprobe,KRETPROBE,_##name)
 
