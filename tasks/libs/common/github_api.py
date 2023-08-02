@@ -1,114 +1,174 @@
-import json
+import base64
 import os
 import platform
+import re
 import subprocess
 
+import requests
+from github import Auth, Github, GithubException, GithubIntegration, GithubObject
 from invoke.exceptions import Exit
 
-from .remote_api import RemoteAPI
+__all__ = ["GithubAPI"]
 
-__all__ = ["GithubAPI", "get_github_token"]
+errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 
-class GithubAPI(RemoteAPI):
+class GithubAPI:
     """
     Helper class to perform API calls against the Github API, using a Github PAT.
     """
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository="", api_token=""):
-        super(GithubAPI, self).__init__("GitHub API")
-        self.api_token = api_token
-        self.repository = repository
-        self.authorization_error_message = (
-            "HTTP 401: The token is invalid. Is the Github token provided still allowed to perform this action?"
-        )
+    def __init__(self, repository=""):
+        self._auth = self._chose_auth()
+        self._github = Github(auth=self._auth)
+        self._repository = self._github.get_repo(repository)
 
     def repo(self):
         """
         Gets the repo info.
         """
 
-        path = f"/repos/{self.repository}"
-        return self.make_request(path, method="GET", json_output=True)
+        return self._repository
 
     def get_branch(self, branch_name):
         """
         Gets info on a given branch in the given Github repository.
         """
-
-        path = f"/repos/{self.repository}/branches/{branch_name}"
-        return self.make_request(path, method="GET", json_output=True)
+        try:
+            return self._repository.get_branch(branch_name)
+        except GithubException as e:
+            if e.status == 404:
+                return None
+            raise e
 
     def create_pr(self, pr_title, pr_body, base_branch, target_branch):
         """
         Creates a PR in the given Github repository.
         """
-
-        path = f"/repos/{self.repository}/pulls"
-        data = json.dumps({"head": target_branch, "base": base_branch, "title": pr_title, "body": pr_body})
-        return self.make_request(path, method="POST", json_output=True, data=data)
+        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, target=target_branch)
 
     def update_pr(self, pull_number, milestone_number, labels):
         """
         Updates a given PR with the provided milestone number and labels.
         """
-
-        path = f"/repos/{self.repository}/issues/{pull_number}"
-        data = json.dumps(
-            {
-                "milestone": milestone_number,
-                "labels": labels,
-            }
-        )
-        return self.make_request(path, method="POST", json_output=True, data=data)
+        pr = self._repository.get_pull(pull_number)
+        milestone = self._repository.get_milestone(milestone_number)
+        issue = pr.as_issue()
+        issue.edit(milestone=milestone, labels=labels)
+        return pr
 
     def get_milestone_by_name(self, milestone_name):
         """
         Searches for a milestone in the given repository that matches the provided name,
         and returns data about it.
         """
-        path = f"/repos/{self.repository}/milestones"
-        res = self.make_request(path, method="GET", json_output=True)
-        for milestone in res:
-            if milestone["title"] == milestone_name:
+        milestones = self._repository.get_milestones()
+        for milestone in milestones:
+            if milestone.title == milestone_name:
                 return milestone
         return None
 
-    def make_request(self, path, headers=None, method="GET", data=None, json_output=False):
+    def get_pulls(self, milestone=None, labels=None):
+        if milestone is None:
+            m = GithubObject.NotSet
+        else:
+            m = self.get_milestone_by_name(milestone)
+            if not m:
+                print(f'Unknown milestone {milestone}')
+                return None
+        if labels is None:
+            labels = []
+        issues = self._repository.get_issues(milestone=m, state='all', labels=labels)
+        return [i.as_pull_request() for i in issues if i.pull_request is not None]
+
+    def get_tags(self, pattern=""):
         """
-        Utility to make an HTTP request to the GitHub API.
-        See RemoteAPI#request.
-
-        Adds "Authorization: token {self.api_token}" and "Accept: application/vnd.github.v3+json"
-        to the headers to be able to authenticate ourselves to GitHub.
+        List all tags starting with the provided pattern.
+        If the pattern is empty or None, all tags will be returned
         """
-        headers = dict(headers or [])
-        headers["Authorization"] = f"token {self.api_token}"
-        headers["Accept"] = "application/vnd.github.v3+json"
+        tags = self._repository.get_tags()
+        if pattern is None or len(pattern) == 0:
+            return list(tags)
+        return [t for t in tags if t.name.startswith(pattern)]
 
-        return self.request(
-            path=path,
-            headers=headers,
-            data=data,
-            json_input=False,
-            json_output=json_output,
-            stream_output=False,
-            method=method,
-        )
+    def trigger_workflow(self, workflow_name, ref, inputs=None):
+        """
+        Create a pipeline targeting a given reference of a project.
+        ref must be a branch or a tag.
+        """
+        workflow = self._repository.get_workflow(workflow_name)
+        if workflow is None:
+            return False
+        if inputs is None:
+            inputs = dict()
+        return workflow.create_dispatch(ref, inputs)
 
+    def workflow_run(self, run_id):
+        """
+        Gets info on a specific workflow.
+        """
+        return self._repository.get_workflow_run(run_id)
 
-def get_github_token():
-    if "GITHUB_TOKEN" not in os.environ:
-        print("GITHUB_TOKEN not found in env. Trying keychain...")
+    def download_artifact(self, artifact, destination_dir):
+        """
+        Downloads the artifact identified by artifact_id to destination_dir.
+        """
+        headers = {
+            "Authorization": f'{self._auth.token_type} {self._auth.token}',
+            "Accept": "application/vnd.github.v3+json",
+        }
+
+        url = artifact.archive_download_url
+        # Retrying this request if needed is handled by the caller
+        with requests.get(url, headers=headers, stream=True) as r:
+            r.raise_for_status()
+            zip_target_path = os.path.join(destination_dir, f"{artifact.id}.zip")
+            with open(zip_target_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+        return zip_target_path
+
+    def latest_workflow_run_for_ref(self, workflow_name, ref):
+        """
+        Gets latest workflow run for a given reference
+        """
+        workflow = self._repository.get_workflow(workflow_name)
+        runs = workflow.get_runs(branch=ref)
+        return max(runs, key=lambda run: run.created_at, default=None)
+
+    def _chose_auth(self):
+        """
+        Attempt to find a working authentication, in order:
+            - Personal access token through GITHUB_TOKEN environment variable
+            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
+              variables (can also use GITHUB_INSTALLATION_ID to save a request)
+            - A token from macOS keychain
+        """
+        if "GITHUB_TOKEN" in os.environ:
+            return Auth.Token(os.environ["GITHUB_TOKEN"])
+        if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
+            installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
+            if installation_id is None:
+                # Even if we don't know the installation id, there's an API endpoint to
+                # retrieve it, given the other credentials (app id + key).
+                appAuth = Auth.AppAuth(int(os.environ['GITHUB_APP_ID']), base64.b64decode(os.environ['GITHUB_KEY_B64']))
+                integration = GithubIntegration(auth=appAuth)
+                installations = integration.get_installations()
+                if len(installations) == 0:
+                    raise Exit(message='No usable installation found', code=1)
+                installation_id = installations[0]
+            return Auth.AppAuth(
+                int(os.environ['GITHUB_APP_ID']), base64.b64decode(os.environ['GITHUB_KEY_B64'])
+            ).get_installation_auth(installation_id)
         if platform.system() == "Darwin":
             try:
                 output = subprocess.check_output(
                     ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
                 )
                 if output:
-                    return output.strip()
+                    return Auth.Token(output.strip())
             except subprocess.CalledProcessError:
                 print("GITHUB_TOKEN not found in keychain...")
                 pass
@@ -119,4 +179,3 @@ def get_github_token():
             "or export it from your .bashrc or equivalent.",
             code=1,
         )
-    return os.environ["GITHUB_TOKEN"]
