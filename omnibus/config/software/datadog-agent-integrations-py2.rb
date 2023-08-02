@@ -229,6 +229,9 @@ build do
       end
 
       if !blacklist_flag
+        if line.start_with?('psycopg[binary]') && !windows?
+            line.sub! 'psycopg[binary]', 'psycopg[c]'
+        end
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line
@@ -236,9 +239,6 @@ build do
           end
         # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
         # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
-        end
-        if line.include?('psycopg[binary]') && !windows?
-            line = 'psycopg[c]'
         end
         requirements.push(line)
       end
