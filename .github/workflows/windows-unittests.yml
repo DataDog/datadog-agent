@@ -60,3 +60,6 @@ jobs:
 
       - name: Upload Codecov results
         uses: codecov/codecov-action@v3
+        with:
+          flags: windows
+          name: codecov-windows
