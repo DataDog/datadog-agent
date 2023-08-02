@@ -250,6 +250,10 @@ build do
       end
 
       if !blacklist_flag
+        # on non windows OS, we use the c version of the psycopg installation
+        if line.include?('psycopg[binary]') && !windows?
+          line = 'psycopg[c]'
+        end
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line
