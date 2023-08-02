@@ -38,6 +38,7 @@ var (
 
 // processMonitorTelemetry
 type processMonitorTelemetry struct {
+	mg *telemetry.MetricGroup
 	// process monitor will process :
 	//  o events refer to netlink events received (not only exec and exit)
 	//  o exec process netlink events
@@ -63,6 +64,7 @@ func newProcessMonitorTelemetry() processMonitorTelemetry {
 		telemetry.OptPrometheus,
 	)
 	return processMonitorTelemetry{
+		mg:      metricGroup,
 		events:  metricGroup.NewCounter("events"),
 		exec:    metricGroup.NewCounter("exec"),
 		exit:    metricGroup.NewCounter("exit"),
@@ -263,11 +265,8 @@ func (pm *ProcessMonitor) mainEventLoop() {
 				return
 			}
 		case <-logTicker.C:
-			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; restart counter: %d; max channel size: %d / 2 minutes)",
-				pm.tel.events.Get(),
-				pm.tel.exec.Get(),
-				pm.tel.exit.Get(),
-				pm.tel.restart.Get(),
+			log.Debugf("process monitor stats - %s; max channel size: %d / 2 minutes)",
+				pm.tel.mg.Summary(),
 				maxChannelSize,
 			)
 			maxChannelSize = 0
