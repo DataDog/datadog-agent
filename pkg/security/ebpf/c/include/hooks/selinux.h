@@ -63,7 +63,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     cache_syscall(&syscall);
 
     // tail call
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_SELINUX);
