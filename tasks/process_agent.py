@@ -155,16 +155,4 @@ def gen_mocks(ctx):
     """
     Generate mocks
     """
-
-    interfaces = {
-        "./pkg/process/runner": ["Submitter"],
-        "./pkg/process/checks": ["Check", "CheckWithRealTime"],
-        "./pkg/process/net": ["SysProbeUtil"],
-        "./pkg/process/procutil": ["Probe"],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake --name=\"{interface_regex}\"")
+    ctx.run("mockery")
