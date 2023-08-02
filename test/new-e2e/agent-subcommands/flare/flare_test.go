@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agentsubcommands
+package flare
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
@@ -22,13 +23,20 @@ func TestFlareSuite(t *testing.T) {
 	e2e.Run(t, &commandFlareSuite{}, e2e.AgentStackDef(nil), params.WithDevMode())
 }
 
-func (v *commandFlareSuite) TestFlareCreation() {
+func waitForAgentAndGetFlare(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
 	err := v.Env().Agent.WaitForReady()
 	assert.NoError(v.T(), err)
 
-	_ = v.Env().Agent.Flare(client.WithArgs("--email e2e@test.com --send"))
+	_ = v.Env().Agent.Flare(flareArgs...)
 
 	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
 	assert.NoError(v.T(), err)
-	assert.Equal(v.T(), flare.GetEmail(), "e2e@test.com")
+
+	return flare
+}
+
+func (v *commandFlareSuite) TestFlareDefaultFiles() {
+	flare := waitForAgentAndGetFlare(v, client.WithArgs("--email e2e@test.com --send"))
+
+	assertFilesExist(v.T(), flare, defaultFlareFiles)
 }
