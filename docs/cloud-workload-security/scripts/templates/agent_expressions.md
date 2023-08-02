@@ -4,7 +4,7 @@ kind: documentation
 description: "Agent expression attributes and operators for CSM Threats Rules"
 disable_edit: true
 further_reading:
-- link: "/security/cloud_workload_security/getting_started/"
+- link: "/security/threats/getting_started/"
   tag: "Documentation"
   text: "Get started with Datadog CSM Threats"
 ---
