@@ -92,7 +92,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 
 		settings := profiling.Settings{
 			ProfilingURL:         site,
-			Socket:               cfg.GetString(l.ConfigPrefix + "internal_profiling.socket"),
+			Socket:               cfg.GetString(l.ConfigPrefix + "internal_profiling.unix_socket"),
 			Env:                  cfg.GetString(l.ConfigPrefix + "env"),
 			Service:              l.Service,
 			Period:               cfg.GetDuration(l.ConfigPrefix + "internal_profiling.period"),

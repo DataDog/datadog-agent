@@ -14,11 +14,11 @@ import (
 
 // Settings contains the settings for internal profiling, to be passed to Start().
 type Settings struct {
-	// Socket specifies the UDS to which profiles will be sent. This takes
-	// precedence over ProfilingURL if set.
+	// Socket specifies a unix socket to which profiles will be sent.
 	Socket string
-	// ProfilingURL specifies the URL to which profiles will be sent. This can be constructed
-	// from a site value with ProfilingURLTemplate.
+	// ProfilingURL specifies the URL to which profiles will be sent in
+	// agentless mode. This can be constructed from a site value with
+	// ProfilingURLTemplate.
 	ProfilingURL string
 	// Env specifies the environment to which profiles should be registered.
 	Env string

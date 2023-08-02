@@ -42,6 +42,7 @@ func Start(settings Settings) error {
 	}
 
 	options := []profiler.Option{
+		profiler.WithURL(settings.ProfilingURL),
 		profiler.WithEnv(settings.Env),
 		profiler.WithService(settings.Service),
 		profiler.WithPeriod(settings.Period),
@@ -54,8 +55,6 @@ func Start(settings Settings) error {
 
 	if settings.Socket != "" {
 		options = append(options, profiler.WithUDS(settings.Socket))
-	} else {
-		options = append(options, profiler.WithURL(settings.ProfilingURL))
 	}
 
 	// If block or mutex profiling was configured via runtime configuration, pass current
