@@ -8,12 +8,10 @@ package rconfig
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/hashicorp/go-multierror"
-	"github.com/skydive-project/go-debouncer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -26,6 +24,7 @@ import (
 const (
 	securityAgentRCPollInterval = time.Second * 1
 	debounceDelay               = 5 * time.Second
+	maxPolicySize               = 1 * 1024 * 1024 // Mb
 )
 
 // RCPolicyProvider defines a remote config policy provider
@@ -112,7 +111,11 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	load := func(id string, cfg []byte) {
 		reader := bytes.NewReader(cfg)
 
-		policy, err := rules.LoadPolicy(id, "remote-config", reader, macroFilters, ruleFilters)
+		// Capping the max size of the policy.
+		// Also implemented backend-side in this PR : https://github.com/DataDog/dd-go/pull/93103
+		limitedReader := io.LimitReader(reader, maxPolicySize)
+
+		policy, err := rules.LoadPolicy(id, "remote-config", limitedReader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
