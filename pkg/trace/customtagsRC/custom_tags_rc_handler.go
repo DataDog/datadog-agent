@@ -78,13 +78,10 @@ func (h *RemoteConfigHandler) updateCustomTags(config CustomTagsConfig) {
 	if customTagsConf != nil && customTagsConf.CustomTagsArr != nil {
 
 		var customTagsList = *config.CustomTagsArr
-		customTagsMap := make(map[string][]string)
 		for tag := range customTagsList {
 			tagName, tagValue, _ := strings.Cut(customTagsList[tag], ":")
-			customTagsMap[tagName] = []string{tagValue}
+			h.agentConfig.CustomTags[tagName] = []string{tagValue}
 		}
-
-		customTagsMap = h.agentConfig.CustomTags
 
 	}
 }
