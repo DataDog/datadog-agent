@@ -67,7 +67,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		}
 	})
 
-	agentConns := make([]*model.Connection, conns.BufferedConns.Len())
+	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns.HTTP)
 	defer httpEncoder.Close()
@@ -76,11 +76,11 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	http2Encoder := newHTTP2Encoder(conns.HTTP2)
 	defer http2Encoder.Close()
 
-	ipc := make(ipCache, conns.BufferedConns.Len()/2)
+	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
 	tagsSet := network.NewTagsSet()
 
-	for i, conn := range conns.BufferedConns.Connections() {
+	for i, conn := range conns.Conns {
 		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 

@@ -365,42 +365,33 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		log.Tracef("GetActiveConnections clientID=%s", clientID)
 	}
 	t.ebpfTracer.FlushPending()
-	buffer := t.state.GetClientBuffer(clientID)
-	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
+
+	conns := network.NewConnections()
+	latestTime, active, err := t.getConnections(conns.Buffer())
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, buffer.ConnectionBuffer, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), network.NewLocalResolver(t.config))
+	delta := t.state.GetDelta(clientID, latestTime, conns.Buffer(), t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), network.NewLocalResolver(t.config))
 
-	tracerTelemetry.payloadSizePerClient.Set(float64(buffer.Len()), clientID)
+	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
 
-	ips := make(map[util.Address]struct{}, buffer.Len()/2)
-	for _, conn := range buffer.Connections() {
+	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
+	for _, conn := range delta.Conns {
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
 	}
-	names := t.reverseDNS.Resolve(ips)
-	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
-	rctm := t.getRuntimeCompilationTelemetry()
-	khfr := int32(kernel.HeaderProvider.GetResult())
-	coretm := ddebpf.GetCORETelemetryByAsset()
-	pbassets := netebpf.GetModulesInUse()
+	conns.Conns = delta.Conns
+	conns.DNS = t.reverseDNS.Resolve(ips)
+	conns.DNSStats = delta.DNSStats
+	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
+	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
+	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
+	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
+	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
-	return &network.Connections{
-		BufferedConns:               buffer,
-		DNS:                         names,
-		DNSStats:                    delta.DNSStats,
-		HTTP:                        delta.HTTP,
-		HTTP2:                       delta.HTTP2,
-		Kafka:                       delta.Kafka,
-		ConnTelemetry:               ctm,
-		KernelHeaderFetchResult:     khfr,
-		CompilationTelemetryByAsset: rctm,
-		CORETelemetryByAsset:        coretm,
-		PrebuiltAssets:              pbassets,
-	}, nil
+	return conns, nil
 }
 
 // RegisterClient registers a clientID with the tracer
@@ -654,15 +645,11 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	activeBuffer := network.NewConnectionBuffer(512, 512)
-	_, _, err := t.getConnections(activeBuffer)
+	_, conns, err := t.getConnections(activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
-	return &network.Connections{
-		BufferedConns: &network.ClientBuffer{
-			ConnectionBuffer: activeBuffer,
-		},
-	}, nil
+	return &network.Connections{Conns: conns}, nil
 
 }
 

@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -120,7 +121,7 @@ func (e EphemeralPortType) String() string {
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	BufferedConns               *ClientBuffer
+	Conns                       []ConnectionStats
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
@@ -131,6 +132,50 @@ type Connections struct {
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
+
+	buffer *ConnectionBuffer
+}
+
+const defaultConnectionsBufferSize = 1024
+
+var connectionsBufferPool = sync.Pool{
+	New: func() any {
+		c := &Connections{
+			buffer: NewConnectionBuffer(defaultConnectionsBufferSize, 256),
+		}
+		c.Conns = c.buffer.Connections()
+		return c
+	},
+}
+
+func NewConnections() *Connections {
+	c := connectionsBufferPool.Get().(*Connections)
+	c.reset()
+	c.Conns = c.buffer.Connections()
+	return c
+}
+
+func (c *Connections) reset() {
+	c.Conns = nil
+	c.DNS = nil
+	c.ConnTelemetry = nil
+	c.CompilationTelemetryByAsset = nil
+	c.CORETelemetryByAsset = nil
+	c.PrebuiltAssets = nil
+	c.HTTP = nil
+	c.HTTP2 = nil
+	c.Kafka = nil
+	c.DNSStats = nil
+}
+
+func (c *Connections) Buffer() *ConnectionBuffer {
+	return c.buffer
+}
+
+func (c *Connections) Reclaim() {
+	c.reset()
+	c.buffer.Reset()
+	connectionsBufferPool.Put(c)
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe

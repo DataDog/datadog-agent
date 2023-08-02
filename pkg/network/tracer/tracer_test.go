@@ -528,7 +528,7 @@ func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
 	assert.NoError(t, err)
 
 	// Iterate through active connections making sure there are no local DNS calls
-	for _, c := range getConnections(t, tr).BufferedConns.Connections() {
+	for _, c := range getConnections(t, tr).Conns {
 		assert.False(t, isLocalDNS(c))
 	}
 }
@@ -556,7 +556,7 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 	found := false
 
 	// Iterate through active connections making sure theres at least one connection
-	for _, c := range getConnections(t, tr).BufferedConns.Connections() {
+	for _, c := range getConnections(t, tr).Conns {
 		found = found || isLocalDNS(c)
 	}
 
@@ -590,14 +590,14 @@ func (s *TracerSuite) TestShouldSkipExcludedConnection() {
 
 	// Make sure we're not picking up 127.0.0.1:80
 	cxs := getConnections(t, tr)
-	for _, c := range cxs.BufferedConns.Connections() {
+	for _, c := range cxs.Conns {
 		assert.False(t, c.Source.String() == "127.0.0.1" && c.SPort == 80, "connection %s should be excluded", c)
 		assert.False(t, c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.TCP, "connection %s should be excluded", c)
 	}
 
 	// ensure one of the connections is UDP to 127.0.0.1:80
 	assert.Condition(t, func() bool {
-		for _, c := range cxs.BufferedConns.Connections() {
+		for _, c := range cxs.Conns {
 			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 && c.Type == network.UDP {
 				return true
 			}
@@ -626,7 +626,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 	var zeroConn network.ConnectionStats
 	require.Eventually(t, func() bool {
 		cxs := getConnections(t, tr)
-		for _, c := range cxs.BufferedConns.Connections() {
+		for _, c := range cxs.Conns {
 			if c.Dest.String() == "127.0.0.1" && c.DPort == 80 {
 				zeroConn = c
 				return true
@@ -638,7 +638,7 @@ func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
 	// next call should not have the same connection
 	cxs := getConnections(t, tr)
 	found := false
-	for _, c := range cxs.BufferedConns.Connections() {
+	for _, c := range cxs.Conns {
 		if c.Source == zeroConn.Source && c.SPort == zeroConn.SPort &&
 			c.Dest == zeroConn.Dest && c.DPort == zeroConn.DPort &&
 			c.Pid == zeroConn.Pid {

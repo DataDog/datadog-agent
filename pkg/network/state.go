@@ -74,13 +74,11 @@ const (
 // - closed connections
 // - sent and received bytes per connection
 type State interface {
-	GetClientBuffer(clientID string) *ClientBuffer
-
 	// GetDelta returns a Delta object for the given client when provided the latest set of active connections
 	GetDelta(
 		clientID string,
 		latestTime uint64,
-		activeBuffer *ConnectionBuffer,
+		buffer *ConnectionBuffer,
 		dns dns.StatsByKeyByNameByType,
 		usmStats map[protocols.ProtocolType]interface{},
 		resolver LocalResolver,
@@ -117,7 +115,7 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	*ConnectionBuffer
+	Conns    []ConnectionStats
 	HTTP     map[http.Key]*http.RequestStats
 	HTTP2    map[http.Key]*http.RequestStats
 	Kafka    map[kafka.Key]*kafka.RequestStat
@@ -244,20 +242,13 @@ func (ns *networkState) GetTelemetryDelta(
 	return nil
 }
 
-func (ns *networkState) GetClientBuffer(clientID string) *ClientBuffer {
-	ns.Lock()
-	defer ns.Unlock()
-
-	return clientPool.Get(clientID)
-}
-
 // GetDelta returns the connections for the given client
 // If the client is not registered yet, we register it and return the connections we have in the global state
 // Otherwise we return both the connections with last stats and the closed connections for this client
 func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
-	activeBuffer *ConnectionBuffer,
+	buffer *ConnectionBuffer,
 	dnsStats dns.StatsByKeyByNameByType,
 	usmStats map[protocols.ProtocolType]interface{},
 	resolver LocalResolver,
@@ -267,7 +258,7 @@ func (ns *networkState) GetDelta(
 
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
-	active := activeBuffer.Connections()
+	active := buffer.Connections()
 	connsByKey := ns.getConnsByCookie(active)
 
 	client := ns.getClient(id)
@@ -288,17 +279,18 @@ func (ns *networkState) GetDelta(
 		a++
 	}
 	if removed > 0 {
-		activeBuffer.Reclaim(removed)
+		buffer.Reclaim(removed)
 	}
 
-	if len(closed) > 0 && activeBuffer == nil {
-		activeBuffer = NewConnectionBuffer(len(closed), len(closed)/2)
+	if buffer == nil {
+		buffer = NewConnectionBuffer(defaultConnectionsBufferSize, 256)
 	}
+
 	for _, c := range closed {
-		*activeBuffer.Next() = *c
+		*buffer.Next() = *c
 	}
 
-	conns := activeBuffer.Connections()
+	conns := buffer.Connections()
 	ns.determineConnectionIntraHost(conns)
 
 	// do local resolution and aggregation if available
@@ -313,7 +305,10 @@ func (ns *networkState) GetDelta(
 		}
 		i++
 	}
-	activeBuffer.Reclaim(removed)
+
+	if removed > 0 {
+		buffer.Reclaim(removed)
+	}
 
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -334,11 +329,11 @@ func (ns *networkState) GetDelta(
 	}
 
 	return Delta{
-		ConnectionBuffer: activeBuffer,
-		HTTP:             client.httpStatsDelta,
-		HTTP2:            client.http2StatsDelta,
-		DNSStats:         client.dnsStats,
-		Kafka:            client.kafkaStatsDelta,
+		Conns:    buffer.Connections(),
+		HTTP:     client.httpStatsDelta,
+		HTTP2:    client.http2StatsDelta,
+		DNSStats: client.dnsStats,
+		Kafka:    client.kafkaStatsDelta,
 	}
 }
 
@@ -785,7 +780,6 @@ func (ns *networkState) RemoveClient(clientID string) {
 	ns.Lock()
 	defer ns.Unlock()
 	delete(ns.clients, clientID)
-	clientPool.RemoveExpiredClient(clientID)
 }
 
 func (ns *networkState) RemoveExpiredClients(now time.Time) {
@@ -796,7 +790,6 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 		if c.lastFetch.Add(ns.clientExpiry).Before(now) {
 			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closedConnections))
 			delete(ns.clients, id)
-			clientPool.RemoveExpiredClient(id)
 		}
 	}
 }

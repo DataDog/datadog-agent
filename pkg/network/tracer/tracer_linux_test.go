@@ -1287,7 +1287,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	t.Logf("port: %d", port)
 	connections := getConnections(t, tr)
-	for _, c := range connections.BufferedConns.Connections() {
+	for _, c := range connections.Conns {
 		t.Log(c)
 	}
 
