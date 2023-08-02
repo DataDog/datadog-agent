@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
@@ -38,9 +39,59 @@ func folderExists(t *testing.T, flare flare.Flare, filename string) {
 	}
 }
 
+// assertLogsFolderOnlyContainsLogFile verifies that all files in "logs" folder are logs file (filename containing ".log") or folders
+func assertLogsFolderOnlyContainsLogFile(t *testing.T, flare flare.Flare) {
+	// Get all files in "logs/" folder
+	logFiles := filterFilenameByPrefix(flare.GetFilenames(), "logs/")
+	verifyAssertionsOnFilesList(t, flare, logFiles, assertIsLogFileOrFolder)
+}
+
+// assertIsLogFileOrFolder verifies if a file is a log file (contains ".log" in its name) or if it's a folder
+func assertIsLogFileOrFolder(t *testing.T, flare flare.Flare, filename string) {
+	isLogFileOrFolder := strings.Contains(filename, ".log") || isDir(flare, filename)
+	assert.True(t, isLogFileOrFolder, "'%v' is in logs/ folder but is not a log file (does not contains .log, and is not a folder)", filename)
+}
+
+// assertLogsFolderOnlyContainsLogFile verifies that all files in "etc" folder are configuration file (filename containing ".yaml" / ".yml") or folders
+func assertEtcFolderOnlyContainsConfigFile(t *testing.T, flare flare.Flare) {
+	// Get all files in "etc/" folder
+	configFiles := filterFilenameByPrefix(flare.GetFilenames(), "etc/")
+	verifyAssertionsOnFilesList(t, flare, configFiles, assertIsConfigFileOrFolder)
+}
+
+// assertIsConfigFileOrFolder verifies if a file is a configuration file (contains ".yaml"/".yml" in its name) or if it's a folder
+func assertIsConfigFileOrFolder(t *testing.T, flare flare.Flare, filename string) {
+	assert.False(t, strings.HasSuffix(filename, ".example"), "Found '%v' configuration file but example configurations should not be included in flare")
+
+	isConfigFileOrFolder := strings.Contains(filename, ".yml") || strings.Contains(filename, ".yaml") || isDir(flare, filename)
+	assert.True(t, isConfigFileOrFolder, "'%v' is in etc/ folder but is not a configuration file (does not contains .yml or .yaml, and is not a folder)", filename)
+}
+
 // verifyAssetionsOnFilesList runs an assertion function on all files in filenames
 func verifyAssertionsOnFilesList(t *testing.T, flare flare.Flare, filenames []string, assertFn func(*testing.T, flare.Flare, string)) {
 	for _, filename := range filenames {
 		assertFn(t, flare, filename)
 	}
+}
+
+// filterFilenameByPrefix returns all filenames starting with `suffix`.
+// This is used to get all files from a folder since all files in the 'foo' folder have a name starting with "foo/"
+func filterFilenameByPrefix(filenames []string, suffix string) []string {
+	var filteredFilenames []string
+
+	for _, filename := range filenames {
+		if strings.HasPrefix(filename, suffix) {
+			filteredFilenames = append(filteredFilenames, filename)
+		}
+	}
+	return filteredFilenames
+}
+
+// isDir returns true if a `filename` is a directory
+func isDir(flare flare.Flare, filename string) bool {
+	fileInfo, err := flare.GetFileInfo(filename)
+	if err != nil {
+		return false
+	}
+	return fileInfo.IsDir()
 }

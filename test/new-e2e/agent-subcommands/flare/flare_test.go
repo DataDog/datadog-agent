@@ -42,4 +42,7 @@ func (v *commandFlareSuite) TestFlareDefaultFiles() {
 	assertFilesExist(v.T(), flare, defaultLogFiles)
 	assertFilesExist(v.T(), flare, defaultConfigFiles)
 	assertFoldersExist(v.T(), flare, defaultFlareFolders)
+
+	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
+	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
 }
