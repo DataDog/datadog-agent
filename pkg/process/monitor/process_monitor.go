@@ -36,8 +36,8 @@ var (
 	}
 )
 
-// processMonitorTelemertry
-type processMonitorTelemertry struct {
+// processMonitorTelemetry
+type processMonitorTelemetry struct {
 	// process monitor will process :
 	//  o events refer to netlink events received (not only exec and exit)
 	//  o exec process netlink events
@@ -57,7 +57,7 @@ type processMonitorTelemertry struct {
 	callbackExecuted  *telemetry.Counter
 }
 
-func (pmt *processMonitorTelemertry) initialize() {
+func (pmt *processMonitorTelemetry) initialize() {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.process.monitor",
 		telemetry.OptPrometheus,
@@ -101,7 +101,7 @@ type ProcessMonitor struct {
 	processExitCallbacks      map[*ProcessCallback]struct{}
 	callbackRunner            chan func()
 
-	tel processMonitorTelemertry
+	tel processMonitorTelemetry
 }
 
 type ProcessCallback func(pid uint32)
