@@ -34,11 +34,10 @@ from .utils import (
     generate_config,
     get_build_flags,
     get_version,
-    get_version_numeric_only,
-    get_win_py_runtime_var,
     has_both_python,
     load_release_versions,
 )
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -138,29 +137,22 @@ def build(
     )
 
     if sys.platform == 'win32':
-        py_runtime_var = get_win_py_runtime_var(python_runtimes)
-
-        windres_target = "pe-x86-64"
-
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        # This generates the manifest resource. The manifest resource is necessary for
-        # being able to load the ancient C-runtime that comes along with Python 2.7
-        # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        build_maj, build_min, build_patch = ver.split(".")
-
-        command = f"windmc --target {windres_target} -r cmd/agent cmd/agent/agentmsg.mc "
-        ctx.run(command, env=env)
-
-        command = f"windres --target {windres_target} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{arch}=1"
-        command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
-        ctx.run(command, env=env)
+        build_messagetable(ctx, env, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            env,
+            "cmd/agent/windows_resources/agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/agent/rsrc.syso",
+        )
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
