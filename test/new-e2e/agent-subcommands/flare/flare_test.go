@@ -39,4 +39,6 @@ func (v *commandFlareSuite) TestFlareDefaultFiles() {
 	flare := waitForAgentAndGetFlare(v, client.WithArgs("--email e2e@test.com --send"))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
+	assertFilesExist(v.T(), flare, defaultLogFiles)
+	assertFilesExist(v.T(), flare, defaultConfigFiles)
 }

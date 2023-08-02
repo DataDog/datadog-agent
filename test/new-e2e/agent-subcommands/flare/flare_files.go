@@ -27,3 +27,11 @@ var defaultFlareFiles = []string{
 	"version-history.json",
 	"workload-list.log",
 }
+
+var defaultLogFiles = []string{
+	"logs/agent.log",
+	"logs/process-agent.log",
+	"logs/trace-agent.log",
+}
+
+var defaultConfigFiles = []string{"etc/datadog.yaml"}
