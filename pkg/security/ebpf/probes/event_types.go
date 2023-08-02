@@ -210,7 +210,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlinkat", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("do_unlinkat", fentry),
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_unlinkat"}},
+				kretprobeOrFexit("do_unlinkat", fentry),
 			}},
 
 			// Rmdir probes

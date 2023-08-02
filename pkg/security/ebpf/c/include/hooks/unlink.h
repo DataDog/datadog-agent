@@ -176,9 +176,9 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     return 0;
 }
 
-SEC("kretprobe/do_unlinkat")
-int kretprobe_do_unlinkat(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_EXIT("do_unlinkat")
+int rethook_do_unlinkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 2);
     return sys_unlink_ret(ctx, retval);
 }
 

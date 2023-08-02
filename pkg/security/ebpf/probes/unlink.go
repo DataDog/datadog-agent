@@ -26,7 +26,7 @@ var unlinkProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_unlinkat",
+			EBPFFuncName: "rethook_do_unlinkat",
 		},
 	},
 }
