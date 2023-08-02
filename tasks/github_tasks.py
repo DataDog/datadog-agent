@@ -92,10 +92,10 @@ def lint_codeowner(_):
     root_folder = os.path.join(base, "..")
     os.chdir(root_folder)
 
-    owners = get_code_owners(root_folder)
+    owners = _get_code_owners(root_folder)
 
     # make sure each root package has an owner
-    pkgs_without_owner = find_packages_without_owner(owners, "pkg")
+    pkgs_without_owner = _find_packages_without_owner(owners, "pkg")
     if len(pkgs_without_owner) > 0:
         raise Exit(
             f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
@@ -103,7 +103,7 @@ def lint_codeowner(_):
         )
 
 
-def find_packages_without_owner(owners, folder):
+def _find_packages_without_owner(owners, folder):
     pkg_without_owners = []
     for x in os.listdir(folder):
         path = os.path.join("/" + folder, x)
@@ -112,7 +112,7 @@ def find_packages_without_owner(owners, folder):
     return pkg_without_owners
 
 
-def get_code_owners(root_folder):
+def _get_code_owners(root_folder):
     code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
     owners = {}
     with open(code_owner_path) as f:
