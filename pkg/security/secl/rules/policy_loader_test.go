@@ -35,7 +35,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myLocal.policy",
-								Source: PolicySourceDir,
+								Source: PolicyProviderTypeDir,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -48,7 +48,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								},
 							}, {
 								Name:   DefaultPolicyName,
-								Source: PolicySourceDir,
+								Source: PolicyProviderTypeDir,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -66,7 +66,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -79,7 +79,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								},
 							}, {
 								Name:   DefaultPolicyName,
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -99,7 +99,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:   DefaultPolicyName,
-						Source: PolicySourceRC,
+						Source: PolicyProviderTypeRC,
 						Rules: []*RuleDefinition{
 							{
 								ID:         "foo",
@@ -113,7 +113,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 					{
 						Name:   "myRC.policy",
-						Source: PolicySourceRC,
+						Source: PolicyProviderTypeRC,
 						Rules: []*RuleDefinition{
 							{
 								ID:         "foo",
@@ -127,7 +127,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 					{
 						Name:    "myLocal.policy",
-						Source:  PolicySourceDir,
+						Source:  PolicyProviderTypeDir,
 						Version: "",
 						Rules: []*RuleDefinition{
 							{
@@ -146,7 +146,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				defaultPolicyCount, lastSeenDefaultPolicyIdx := numAndLastIdxOfDefaultPolicies(expectedLoadedPolicies)
 
 				assert.Equalf(t, 1, defaultPolicyCount, "There are more than 1 default policies")
-				assert.Equalf(t, PolicySourceRC, got[lastSeenDefaultPolicyIdx].Source, "The default policy is not from RC")
+				assert.Equalf(t, PolicyProviderTypeRC, got[lastSeenDefaultPolicyIdx].Source, "The default policy is not from RC")
 
 				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
@@ -162,7 +162,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myLocal.policy",
-								Source: PolicySourceDir,
+								Source: PolicyProviderTypeDir,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -180,7 +180,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -200,7 +200,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:   "myRC.policy",
-						Source: PolicySourceRC,
+						Source: PolicyProviderTypeRC,
 						Rules: []*RuleDefinition{
 							{
 								ID:         "foo",
@@ -214,7 +214,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 					{
 						Name:   "myLocal.policy",
-						Source: PolicySourceDir,
+						Source: PolicyProviderTypeDir,
 						Rules: []*RuleDefinition{
 							{
 								ID:         "foo",
@@ -245,7 +245,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "myLocal.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -275,7 +275,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:    "myLocal.policy",
-						Source:  PolicySourceDir,
+						Source:  PolicyProviderTypeDir,
 						Version: "",
 						Rules: []*RuleDefinition{
 							{
@@ -310,7 +310,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "myLocal.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -340,7 +340,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:    "myLocal.policy",
-						Source:  PolicySourceDir,
+						Source:  PolicyProviderTypeDir,
 						Version: "",
 						Rules: []*RuleDefinition{
 							{
@@ -373,7 +373,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "myLocal.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -393,7 +393,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules:  nil,
 							}}, nil
 						},
@@ -404,12 +404,12 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:   "myRC.policy",
-						Source: PolicySourceRC,
+						Source: PolicyProviderTypeRC,
 						Rules:  nil, // TODO: Ensure this doesn't cause a problem with loading rules
 					},
 					{
 						Name:    "myLocal.policy",
-						Source:  PolicySourceDir,
+						Source:  PolicyProviderTypeDir,
 						Version: "",
 						Rules: []*RuleDefinition{
 							{

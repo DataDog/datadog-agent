@@ -91,7 +91,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "default.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -111,7 +111,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -167,7 +167,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "default.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -187,7 +187,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:       "foo",
@@ -238,7 +238,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "default.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -258,7 +258,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -320,7 +320,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "default.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -341,7 +341,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -402,7 +402,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:    "default.policy",
-								Source:  PolicySourceDir,
+								Source:  PolicyProviderTypeDir,
 								Version: "",
 								Rules: []*RuleDefinition{
 									{
@@ -422,7 +422,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -525,7 +525,7 @@ func TestEvaluationSet_LoadPolicies_PolicyPrecedence(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myLocal.policy",
-								Source: PolicySourceDir,
+								Source: PolicyProviderTypeDir,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -546,7 +546,7 @@ func TestEvaluationSet_LoadPolicies_PolicyPrecedence(t *testing.T) {
 								},
 							}, {
 								Name:   DefaultPolicyName,
-								Source: PolicySourceDir,
+								Source: PolicyProviderTypeDir,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -572,7 +572,7 @@ func TestEvaluationSet_LoadPolicies_PolicyPrecedence(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							return []*Policy{{
 								Name:   "myRC.policy",
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",
@@ -589,7 +589,7 @@ func TestEvaluationSet_LoadPolicies_PolicyPrecedence(t *testing.T) {
 								},
 							}, {
 								Name:   DefaultPolicyName,
-								Source: PolicySourceRC,
+								Source: PolicyProviderTypeRC,
 								Rules: []*RuleDefinition{
 									{
 										ID:         "foo",

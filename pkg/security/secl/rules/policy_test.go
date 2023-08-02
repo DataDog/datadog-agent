@@ -715,7 +715,7 @@ func TestLoadPolicy(t *testing.T) {
 			name: "empty yaml file",
 			args: args{
 				name:         "myLocal.policy",
-				source:       PolicySourceRC,
+				source:       PolicyProviderTypeRC,
 				fileContent:  ``,
 				macroFilters: nil,
 				ruleFilters:  nil,
@@ -729,7 +729,7 @@ func TestLoadPolicy(t *testing.T) {
 			name: "empty yaml file with new line char",
 			args: args{
 				name:   "myLocal.policy",
-				source: PolicySourceRC,
+				source: PolicyProviderTypeRC,
 				fileContent: `
 `,
 				macroFilters: nil,
@@ -744,7 +744,7 @@ func TestLoadPolicy(t *testing.T) {
 			name: "no rules in yaml file",
 			args: args{
 				name:   "myLocal.policy",
-				source: PolicySourceRC,
+				source: PolicyProviderTypeRC,
 				fileContent: `
 rules:
 `,
@@ -753,7 +753,7 @@ rules:
 			},
 			want: &Policy{
 				Name:   "myLocal.policy",
-				Source: PolicySourceRC,
+				Source: PolicyProviderTypeRC,
 				Rules:  nil,
 			},
 			wantErr: assert.NoError,
@@ -762,7 +762,7 @@ rules:
 			name: "broken yaml file",
 			args: args{
 				name:   "myLocal.policy",
-				source: PolicySourceRC,
+				source: PolicyProviderTypeRC,
 				fileContent: `
 broken
 `,
@@ -778,7 +778,7 @@ broken
 			name: "disabled tag",
 			args: args{
 				name:   "myLocal.policy",
-				source: PolicySourceRC,
+				source: PolicyProviderTypeRC,
 				fileContent: `rules:
  - id: rule_test
    disabled: true
@@ -788,7 +788,7 @@ broken
 			},
 			want: &Policy{
 				Name:   "myLocal.policy",
-				Source: PolicySourceRC,
+				Source: PolicyProviderTypeRC,
 				Rules: []*RuleDefinition{
 					{
 						ID:         "rule_test",
@@ -796,7 +796,7 @@ broken
 						Disabled:   true,
 						Policy: &Policy{
 							Name:   "myLocal.policy",
-							Source: PolicySourceRC,
+							Source: PolicyProviderTypeRC,
 						},
 					},
 				},
@@ -807,7 +807,7 @@ broken
 			name: "combine:override tag",
 			args: args{
 				name:   "myLocal.policy",
-				source: PolicySourceRC,
+				source: PolicyProviderTypeRC,
 				fileContent: `rules:
  - id: rule_test
    expression: open.file.path == "/etc/gshadow"
@@ -818,7 +818,7 @@ broken
 			},
 			want: &Policy{
 				Name:   "myLocal.policy",
-				Source: PolicySourceRC,
+				Source: PolicyProviderTypeRC,
 				Rules: []*RuleDefinition{
 					{
 						ID:         "rule_test",
@@ -826,7 +826,7 @@ broken
 						Combine:    OverridePolicy,
 						Policy: &Policy{
 							Name:   "myLocal.policy",
-							Source: PolicySourceRC,
+							Source: PolicyProviderTypeRC,
 						},
 					},
 				},

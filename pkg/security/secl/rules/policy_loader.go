@@ -14,10 +14,8 @@ import (
 )
 
 const (
-	PolicyProviderTypeDir = "directoryPolicyProvider"
-	PolicySourceDir       = "file"
-	PolicyProviderTypeRC  = "remoteConfigPolicyProvider"
-	PolicySourceRC        = "remote-config"
+	PolicyProviderTypeDir = "file"
+	PolicyProviderTypeRC  = "remote-config"
 )
 
 var (
