@@ -23,7 +23,6 @@ packages:
   github.com/DataDog/datadog-agent/pkg/process/checks:
     interfaces:
       Check:
-      CheckWithRealTime:
   github.com/DataDog/datadog-agent/pkg/process/net:
     interfaces:
       SysProbeUtil:
