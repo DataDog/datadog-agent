@@ -43,6 +43,15 @@ func (flare *Flare) GetHostname() string {
 	return flare.hostname
 }
 
+// GetFilenames returns all the filenames in the flare archive
+func (flare *Flare) GetFilenames() []string {
+    filenames := make([]string, 0, len(flare.zipFiles))
+    for name := range flare.zipFiles {
+        filenames = append(filenames, name)
+    }
+    return filenames
+}
+
 // GetFile returns a *zip.File whose name is 'path' or 'path/'. Returns an error if the file does not exist
 func (flare *Flare) GetFile(path string) (*zip.File, error) {
 	cleanPath := filepath.Clean(path)
