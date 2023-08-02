@@ -18,7 +18,6 @@ import (
 
 func main() {
 	portPtr := flag.Int("port", 80, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
-	retentionPtr := flag.Int("retention", 15, "fakeintake metrics retention time in minutes, default to 15 minutes")
 	flag.Parse()
 
 	sigs := make(chan os.Signal, 1)
@@ -26,7 +25,7 @@ func main() {
 
 	log.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
-	fi := fakeintake.NewServer(fakeintake.WithPort(*portPtr), fakeintake.WithReadyChannel(ready), fakeintake.WithRetention(time.Duration(*retentionPtr)*time.Minute))
+	fi := fakeintake.NewServer(fakeintake.WithPort(*portPtr), fakeintake.WithReadyChannel(ready))
 	fi.Start()
 	timeout := time.NewTimer(5 * time.Second)
 
