@@ -117,16 +117,18 @@ int fentry_dr_selinux_callback(ctx_t *ctx) {
 #endif // USE_FENTRY
 
 #define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
-    SEC("kprobe/" #func_name)                                               \
-    int kprobe_##func_name(struct pt_regs *ctx) {                           \
-        struct file *file = (struct file *)PT_REGS_PARM1(ctx);              \
-        const char *buf = (const char *)PT_REGS_PARM2(ctx);                 \
-        size_t count = (size_t)PT_REGS_PARM3(ctx);                          \
+    HOOK_ENTRY(#func_name)                                                  \
+    int hook_##func_name(ctx_t *ctx) {                                      \
+        struct file *file = (struct file *)CTX_PARM1(ctx);                  \
+        const char *buf = (const char *)CTX_PARM2(ctx);                     \
+        size_t count = (size_t)CTX_PARM3(ctx);                              \
         /* selinux only supports ppos = 0 */                                \
         return handle_selinux_event(ctx, file, buf, count, (source_event)); \
     }
 
+#ifndef USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_DISABLE_CHANGE_SOURCE_EVENT)
+#endif // USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_ENFORCE_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_SOURCE_EVENT)

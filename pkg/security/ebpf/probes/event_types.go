@@ -247,18 +247,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 
 			// selinux
-			// This needs to be best effort, as sel_write_disable is in the process to be removed
+			// This needs to be best effort, as sel_write_disable is in the process of being removed
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_write_disable"}},
-			}},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_write_enforce"}},
-			}},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_write_bool"}},
-			}},
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_sel_commit_bools_write"}},
+				kprobeOrFentry("sel_write_disable", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("sel_write_enforce", fentry),
+				kprobeOrFentry("sel_write_bool", fentry),
+				kprobeOrFentry("sel_commit_bools_write", fentry),
 			}},
 
 			// pipes
