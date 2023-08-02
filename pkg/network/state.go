@@ -1022,8 +1022,10 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledU
 	}
 
 	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
-	ephemeralSport := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
+	ephemeralSport := c.IntraHost && IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
+	ephemeralSport = ephemeralSport || c.Direction == OUTGOING
 	ephemeralDport := c.IntraHost && IsPortInEphemeralRange(c.Family, c.Type, c.DPort) == EphemeralTrue
+	ephemeralDport = ephemeralDport || c.Direction == INCOMING
 
 	if c.Type != UDP ||
 		!isShortLived ||
