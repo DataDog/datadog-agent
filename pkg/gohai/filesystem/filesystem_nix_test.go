@@ -20,8 +20,6 @@ import (
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 func TestNixFSTypeFiltering(t *testing.T) {
-	mockFSInfo := newMockFSInfo()
-
 	testCases := []struct {
 		FSType   string
 		FSName   string
@@ -116,7 +114,7 @@ func TestNixFSTypeFiltering(t *testing.T) {
 				expectedMounts = append(expectedMounts, expectedMount)
 			}
 
-			mounts, err := getFileSystemInfoWithMounts(inputMounts, mockFSInfo)
+			mounts, err := getFileSystemInfoWithMounts(inputMounts, mockFSSizeKB, getMockFSDev())
 			require.NoError(t, err)
 
 			require.Equal(t, len(expectedMounts), len(mounts))
@@ -126,8 +124,6 @@ func TestNixFSTypeFiltering(t *testing.T) {
 }
 
 func TestNixMissingMountValues(t *testing.T) {
-	mockFSInfo := newMockFSInfo()
-
 	testCases := []struct {
 		Desc           string
 		InputMounts    []*mountinfo.Info
@@ -183,7 +179,7 @@ func TestNixMissingMountValues(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Desc, func(t *testing.T) {
-			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSInfo)
+			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSSizeKB, getMockFSDev())
 			require.NoError(t, err)
 
 			require.Equal(t, len(tc.ExpectedMounts), len(mounts))
@@ -197,12 +193,11 @@ func TestFilterEmptySize(t *testing.T) {
 	mockSize := func(mount *mountinfo.Info) (uint64, error) {
 		return 0, nil
 	}
-	mockFSInfo := newMockFSInfo().withSizeKB(mockSize)
 
 	initialMounts := []*mountinfo.Info{
 		newTestInputMountinfo("Normal"),
 	}
-	mounts, err := getFileSystemInfoWithMounts(initialMounts, mockFSInfo)
+	mounts, err := getFileSystemInfoWithMounts(initialMounts, mockSize, getMockFSDev())
 	require.NoError(t, err)
 	require.Empty(t, mounts)
 }
@@ -212,7 +207,6 @@ func TestFilterDev(t *testing.T) {
 	mockDev := func(mount *mountinfo.Info) (uint64, error) {
 		return 1, nil
 	}
-	mockFSInfo := newMockFSInfo().withDev(mockDev)
 
 	testCases := []struct {
 		Desc           string
@@ -253,7 +247,7 @@ func TestFilterDev(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Desc, func(t *testing.T) {
-			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSInfo)
+			mounts, err := getFileSystemInfoWithMounts(tc.InputMounts, mockFSSizeKB, mockDev)
 			require.NoError(t, err)
 
 			require.Equal(t, len(tc.ExpectedMounts), len(mounts))
@@ -289,40 +283,16 @@ func randString() string {
 	return string(bytes)
 }
 
-// mock filesystem info helpers
+// mock filesystem syscalls
 
-type mockFSInfo struct {
-	sizeKb func(*mountinfo.Info) (uint64, error)
-	dev    func(*mountinfo.Info) (uint64, error)
+func mockFSSizeKB(*mountinfo.Info) (uint64, error) {
+	return 1, nil
 }
 
-func newMockFSInfo() *mockFSInfo {
+func getMockFSDev() func(*mountinfo.Info) (uint64, error) {
 	counter := uint64(0)
-	return &mockFSInfo{
-		sizeKb: func(*mountinfo.Info) (uint64, error) {
-			return 1, nil
-		},
-		dev: func(*mountinfo.Info) (uint64, error) {
-			counter++
-			return counter, nil
-		},
+	return func(*mountinfo.Info) (uint64, error) {
+		counter++
+		return counter, nil
 	}
-}
-
-func (mock *mockFSInfo) withSizeKB(sizeKb func(*mountinfo.Info) (uint64, error)) *mockFSInfo {
-	mock.sizeKb = sizeKb
-	return mock
-}
-
-func (mock *mockFSInfo) withDev(dev func(*mountinfo.Info) (uint64, error)) *mockFSInfo {
-	mock.dev = dev
-	return mock
-}
-
-func (mock *mockFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
-	return mock.sizeKb(mount)
-}
-
-func (mock *mockFSInfo) Dev(mount *mountinfo.Info) (uint64, error) {
-	return mock.dev(mount)
 }

@@ -16,18 +16,10 @@ import (
 	"github.com/moby/sys/mountinfo"
 )
 
-// fsInfoGetter provides function to get information about a given filesystem: its size and its dev id
-type fsInfoGetter interface {
-	// SizeKB returns the size of the given filesystem in KB
-	SizeKB(mount *mountinfo.Info) (uint64, error)
+type fsInfoGetter func(*mountinfo.Info) (uint64, error)
 
-	// Dev returns the dev id of the given filesystem
-	Dev(mount *mountinfo.Info) (uint64, error)
-}
-
-type unixFSInfo struct{}
-
-func (unixFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
+// sizeKB returns the size of the given filesystem in KB
+func sizeKB(mount *mountinfo.Info) (uint64, error) {
 	var statfs unix.Statfs_t
 	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
 		return 0, fmt.Errorf("statfs %s: %v", mount.Source, err)
@@ -37,12 +29,15 @@ func (unixFSInfo) SizeKB(mount *mountinfo.Info) (uint64, error) {
 	return sizeKB, nil
 }
 
-func (unixFSInfo) Dev(mount *mountinfo.Info) (uint64, error) {
+// dev returns the dev id of the given filesystem
+func dev(mount *mountinfo.Info) (uint64, error) {
 	var stat unix.Stat_t
 	if err := unix.Stat(mount.Mountpoint, &stat); err != nil {
 		return 0, fmt.Errorf("stat %s: %w", mount.Source, err)
 	}
 
+	// note: we need to cast because the type of stat.Dev is different depending on the platform
+	// in particular int32 on Darwin
 	return uint64(stat.Dev), nil
 }
 
@@ -52,7 +47,7 @@ func getFileSystemInfo() ([]MountInfo, error) {
 		return nil, err
 	}
 
-	return getFileSystemInfoWithMounts(mounts, unixFSInfo{})
+	return getFileSystemInfoWithMounts(mounts, sizeKB, dev)
 }
 
 // replaceDev returns whether to use the new mountInfo instead of the old one.
@@ -78,8 +73,8 @@ func replaceDev(old, new MountInfo) bool {
 	return old.Name != new.Name && old.MountedOn == new.MountedOn
 }
 
-// getFileSystemInfoWithMounts is an internal method to help testing with test mounts
-func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoGetter) ([]MountInfo, error) {
+// getFileSystemInfoWithMounts is an internal method to help testing with test mounts and mocking syscalls
+func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, sizeKB, dev fsInfoGetter) ([]MountInfo, error) {
 	mounts := initialMounts
 
 	devMountInfos := map[uint64]MountInfo{}
@@ -97,7 +92,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoG
 			continue
 		}
 
-		sizeKB, err := fsInfo.SizeKB(mount)
+		sizeKB, err := sizeKB(mount)
 		if err != nil {
 			log.Info(err)
 			continue
@@ -114,7 +109,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, fsInfo fsInfoG
 			MountedOn: mount.Mountpoint,
 		}
 
-		dev, err := fsInfo.Dev(mount)
+		dev, err := dev(mount)
 		if err != nil {
 			log.Info(err)
 			continue
