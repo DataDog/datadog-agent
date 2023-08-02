@@ -9,3 +9,8 @@ packages:
     interfaces:
       SecurityModuleServer:
       SecurityModuleClient:
+  github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api:
+    interfaces:
+      EventMonitoringModuleServer:
+      EventMonitoringModuleClient:
+      EventMonitoringModule_GetProcessEventsClient:
