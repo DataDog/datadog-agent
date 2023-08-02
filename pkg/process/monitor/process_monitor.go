@@ -57,19 +57,21 @@ type processMonitorTelemetry struct {
 	callbackExecuted  *telemetry.Counter
 }
 
-func (pmt *processMonitorTelemetry) initialize() {
+func newProcessMonitorTelemetry() processMonitorTelemetry {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.process.monitor",
 		telemetry.OptPrometheus,
 	)
-	pmt.events = metricGroup.NewCounter("events")
-	pmt.exec = metricGroup.NewCounter("exec")
-	pmt.exit = metricGroup.NewCounter("exit")
-	pmt.restart = metricGroup.NewCounter("restart")
+	return processMonitorTelemetry{
+		events:  metricGroup.NewCounter("events"),
+		exec:    metricGroup.NewCounter("exec"),
+		exit:    metricGroup.NewCounter("exit"),
+		restart: metricGroup.NewCounter("restart"),
 
-	pmt.reinitFailed = metricGroup.NewCounter("reinit_failed")
-	pmt.processScanFailed = metricGroup.NewCounter("process_scan_failed")
-	pmt.callbackExecuted = metricGroup.NewCounter("callback_executed")
+		reinitFailed:      metricGroup.NewCounter("reinit_failed"),
+		processScanFailed: metricGroup.NewCounter("process_scan_failed"),
+		callbackExecuted:  metricGroup.NewCounter("callback_executed"),
+	}
 }
 
 // ProcessMonitor uses netlink process events like Exec and Exit and activate the registered callbacks for the relevant
@@ -283,7 +285,7 @@ func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			pm.tel.initialize()
+			pm.tel = newProcessMonitorTelemetry()
 			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
 
