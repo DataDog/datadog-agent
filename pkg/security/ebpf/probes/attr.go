@@ -14,7 +14,7 @@ var attrProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_inode_setattr",
+			EBPFFuncName: "hook_security_inode_setattr",
 		},
 	},
 }
@@ -52,7 +52,7 @@ func getAttrProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "chown16",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
@@ -64,7 +64,7 @@ func getAttrProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "fchown16",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
@@ -82,7 +82,7 @@ func getAttrProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "lchown16",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 
 	// utime
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{

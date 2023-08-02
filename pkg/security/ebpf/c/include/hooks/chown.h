@@ -38,15 +38,15 @@ HOOK_SYSCALL_ENTRY3(chown, const char*, filename, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
-SYSCALL_KPROBE3(lchown16, const char*, filename, uid_t, user, gid_t, group) {
+HOOK_SYSCALL_ENTRY3(lchown16, const char*, filename, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
-SYSCALL_KPROBE3(fchown16, int, fd, uid_t, user, gid_t, group) {
+HOOK_SYSCALL_ENTRY3(fchown16, int, fd, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
-SYSCALL_KPROBE3(chown16, const char*, filename, uid_t, user, gid_t, group) {
+HOOK_SYSCALL_ENTRY3(chown16, const char*, filename, uid_t, user, gid_t, group) {
     return trace__sys_chown(user, group);
 }
 
@@ -86,11 +86,6 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
     return 0;
 }
 
-int __attribute__((always_inline)) kprobe_sys_chown_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_chown_ret(ctx, retval);
-}
-
 HOOK_SYSCALL_EXIT(lchown) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_chown_ret(ctx, retval);
@@ -106,16 +101,19 @@ HOOK_SYSCALL_EXIT(chown) {
     return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(lchown16) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(lchown16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(fchown16) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(fchown16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(chown16) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(chown16) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chown_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_EXIT(fchownat) {

@@ -44,7 +44,7 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
+int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
@@ -67,7 +67,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_current_or_impersonated_exec_syscall();
@@ -509,7 +509,7 @@ int tail_call_target_parse_args_envs(void *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
+int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -538,9 +538,9 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
     return handle_interpreted_exec_event(ctx, syscall, interpreter);
 }
 
-SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
-    struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
+HOOK_ENTRY("setup_new_exec")
+int hook_setup_new_exec_interp(ctx_t *ctx) {
+    struct linux_binprm *bprm = (struct linux_binprm *) CTX_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 
