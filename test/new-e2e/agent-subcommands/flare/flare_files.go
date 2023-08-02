@@ -17,6 +17,7 @@ var defaultFlareFiles = []string{
 	"install_info",
 	"metadata_inventories.json",
 	"metadata_v5.json",
+	"permissions.log",
 	"process_agent_runtime_config_dump.yaml",
 	"process-agent_tagger-list.json",
 	"runtime_config_dump.yaml",
@@ -54,4 +55,17 @@ var defaultFlareFolders = []string{
 	"etc/confd/",
 	"expvar",
 	"logs",
+}
+
+var untestedFiles = []string{
+	"/etc/confd/checksd/*",
+	"/etc/confd/dist/*",
+	"docker_inspect.log", // only within a docker container
+	"local",              // when creating flare locally
+	"logs/dogstatsd_info/dogstatsd-stats.log", // need to enable DSD
+	"logs/jmxfetch.log",                       // need to enable JMX Fetch
+	"profiles/*",                              // when creating profiles
+	"remote-config-state.log",                 // if remote_configuration.enabled + correctly setup
+	// TODO: all windows files
+	// TODO: verify permissions.log content + files permissions
 }
