@@ -25,7 +25,8 @@ type AgentConfig struct {
 
 // ConfigContent contains the configurations set by remote-config
 type ConfigContent struct {
-	LogLevel string `json:"log_level"`
+	LogLevel   string              `json:"log_level"`
+	CustomTags map[string][]string `json:"custom_tags"`
 }
 
 type agentConfigData struct {
@@ -135,12 +136,14 @@ func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (Con
 	for i := len(orderFile.Config.Order) - 1; i >= 0; i-- {
 		if layer, found := parsedLayers[orderFile.Config.Order[i]]; found {
 			mergedConfig.LogLevel = layer.Config.Config.LogLevel
+			mergedConfig.CustomTags = layer.Config.Config.CustomTags
 		}
 	}
 	// Same for internal config
 	for i := len(orderFile.Config.InternalOrder) - 1; i >= 0; i-- {
 		if layer, found := parsedLayers[orderFile.Config.InternalOrder[i]]; found {
 			mergedConfig.LogLevel = layer.Config.Config.LogLevel
+			mergedConfig.CustomTags = layer.Config.Config.CustomTags
 		}
 	}
 
