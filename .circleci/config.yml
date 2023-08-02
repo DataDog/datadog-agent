@@ -59,6 +59,10 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: pip
+          command: |
+            apt update && apt install python3-invoke -y
+      - run:
           name: check go version
           command: |
             inv -e check-go-version
