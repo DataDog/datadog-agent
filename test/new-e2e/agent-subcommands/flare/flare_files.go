@@ -34,7 +34,21 @@ var defaultLogFiles = []string{
 	"logs/trace-agent.log",
 }
 
+var allLogFiles = []string{
+	"logs/agent.log",
+	"logs/process-agent.log",
+	"logs/security-agent.log",
+	"logs/system-probe.log",
+	"logs/trace-agent.log",
+}
+
 var defaultConfigFiles = []string{"etc/datadog.yaml"}
+
+var allConfigFiles = []string{
+	"etc/datadog.yaml",
+	"etc/security-agent.yaml",
+	"etc/system-probe.yaml",
+}
 
 var defaultFlareFolders = []string{
 	"etc/confd/",
