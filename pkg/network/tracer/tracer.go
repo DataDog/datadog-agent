@@ -382,6 +382,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ips[conn.Dest] = struct{}{}
 	}
 	conns.Conns = delta.Conns
+	conns.HTTP = delta.HTTP
+	conns.HTTP2 = delta.HTTP2
+	conns.Kafka = delta.Kafka
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.DNSStats = delta.DNSStats
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
