@@ -20,13 +20,13 @@ import (
 
 const collectorId = "local-process"
 
-func NewProcessCollector(ddConfig config.ConfigReader) workloadmeta.Collector {
+func NewProcessCollector(ddConfig config.ConfigReader) Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
 
 	processData := checks.NewProcessData(ddConfig)
 	processData.Register(wlmExtractor)
 
-	return &collector{
+	return Collector{
 		ddConfig:        ddConfig,
 		wlmExtractor:    wlmExtractor,
 		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
@@ -36,7 +36,7 @@ func NewProcessCollector(ddConfig config.ConfigReader) workloadmeta.Collector {
 	}
 }
 
-type collector struct {
+type Collector struct {
 	ddConfig config.ConfigReader
 
 	processData *checks.ProcessData
@@ -49,7 +49,7 @@ type collector struct {
 	collectionClock clock.Clock
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
+func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	err := c.grpcServer.Start()
 	if err != nil {
 		return err
@@ -67,12 +67,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	return nil
 }
 
-func (c *collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
+func (c *Collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
 	defer c.grpcServer.Stop()
 	defer store.Unsubscribe(containerEvt)
 	defer collectionTicker.Stop()
 
-	log.Info("Starting local process collector")
+	log.Info("Starting local process collection server")
 
 	for {
 		select {
@@ -92,11 +92,8 @@ func (c *collector) run(ctx context.Context, store workloadmeta.Store, container
 
 // Pull is unused at the moment used due to the short frequency in which it is called.
 // In the future, we should use it to poll for processes that have been collected and store them in workload-meta.
-func (c *collector) Pull(_ context.Context) error {
-	return nil
-}
 
-func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
+func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	defer close(evt.Ch)
 
 	for _, evt := range evt.Events {

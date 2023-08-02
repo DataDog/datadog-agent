@@ -34,7 +34,7 @@ const testCid = "containersAreAwesome"
 type collectorTest struct {
 	probe     *mocks.Probe
 	clock     *clock.Mock
-	collector *collector
+	collector *Collector
 	store     *workloadmeta.MockStore
 	stream    pbgo.ProcessEntityStream_StreamEntitiesClient
 }
@@ -83,7 +83,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 
 	mockClock := clock.NewMock()
 
-	c := &collector{
+	c := &Collector{
 		ddConfig:        cfg,
 		processData:     mockProcessData,
 		wlmExtractor:    wlmExtractor,
