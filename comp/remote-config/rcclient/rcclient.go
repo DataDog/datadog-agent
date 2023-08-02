@@ -6,6 +6,7 @@
 package rcclient
 
 import (
+	"reflect"
 	"sync"
 	"time"
 
@@ -39,6 +40,7 @@ type rcClient struct {
 	taskProcessed    map[string]bool
 	fallbackLogLevel *string
 	latestLogLevel   *string
+	latestCustomTags *map[string][]string
 
 	listeners []RCAgentTaskListener
 }
@@ -49,6 +51,21 @@ type dependencies struct {
 	Log log.Component
 
 	Listeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
+}
+
+func mapsAreEqual(map1, map2 map[string][]string) bool {
+	if len(map1) != len(map2) {
+		return false
+	}
+
+	for key, value1 := range map1 {
+		value2, exists := map2[key]
+		if !exists || !reflect.DeepEqual(value1, value2) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
@@ -64,6 +81,7 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		// so we need to use pointers
 		fallbackLogLevel: new(string),
 		latestLogLevel:   new(string),
+		latestCustomTags: new(map[string][]string),
 		client:           nil,
 	}
 
@@ -119,6 +137,14 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		if err == nil && currentLogLevel.String() == *rc.latestLogLevel {
 			pkglog.Infof("Removing remote-config log level override, falling back to %s", *rc.fallbackLogLevel)
 			err = settings.SetRuntimeSetting("log_level", *rc.fallbackLogLevel)
+		}
+	}
+
+	if len(mergedConfig.CustomTags) > 0 && !(mapsAreEqual(mergedConfig.CustomTags, *rc.latestCustomTags)) {
+		for spanName, customTags := range mergedConfig.CustomTags {
+			pkglog.Infof("Adding custom tag(s) %s to span %s through remote config", customTags, spanName)
+			err = settings.SetRuntimeSetting("custom_tags", mergedConfig.CustomTags)
+			*rc.latestCustomTags = mergedConfig.CustomTags
 		}
 	}
 
