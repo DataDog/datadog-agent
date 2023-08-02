@@ -52,6 +52,7 @@ func NewServer(options ...func(*Server)) *Server {
 		mu:           sync.RWMutex{},
 		payloadStore: map[string][]api.Payload{},
 		clock:        clock.New(),
+		retention:    15 * time.Minute,
 	}
 
 	mux := http.NewServeMux()
@@ -192,7 +193,6 @@ func (fi *Server) cleanUpPayloadsRoutine() {
 		case <-fi.shutdown:
 			return
 		case <-ticker.C:
-			fmt.Println("coucou")
 			fi.cleanUpPayloads()
 		}
 	}
