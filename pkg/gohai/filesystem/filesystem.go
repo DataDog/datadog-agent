@@ -33,12 +33,12 @@ var (
 
 const name = "filesystem"
 
-// Name implements the Collector interface.
+// Name returns the name of the package
 func (fs *FileSystem) Name() string {
 	return name
 }
 
-// Collect implements the Collector interface.
+// Collect returns the list of mounted filesystems as an object which can be used to generate a JSON
 func (fs *FileSystem) Collect() (interface{}, error) {
 	mounts, err := Get()
 	if err != nil {
