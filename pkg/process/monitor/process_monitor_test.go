@@ -70,7 +70,7 @@ func TestProcessMonitorSanity(t *testing.T) {
 	pm := getProcessMonitor(t)
 	numberOfExecs := atomic.Int32{}
 	testBinaryPath := getTestBinaryPath(t)
-	callback := func(pid int) { numberOfExecs.Inc() }
+	callback := func(pid uint32) { numberOfExecs.Inc() }
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
 	initializePM(t, pm)
@@ -104,7 +104,7 @@ func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		counters[i] = &atomic.Int32{}
 		c := counters[i]
-		callback := func(pid int) { c.Inc() }
+		callback := func(pid uint32) { c.Inc() }
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 	}
 
@@ -130,7 +130,7 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 		counters[i] = &atomic.Int32{}
 		c := counters[i]
 		// Sanity subscribing a callback.
-		callback := func(pid int) { c.Inc() }
+		callback := func(pid uint32) { c.Inc() }
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 	}
 
@@ -182,7 +182,7 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 
 	pm := getProcessMonitor(t)
 
-	callback := func(pid int) { execSet.Store(pid, struct{}{}) }
+	callback := func(pid uint32) { execSet.Store(pid, struct{}{}) }
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
 	monNs, err := netns.New()
