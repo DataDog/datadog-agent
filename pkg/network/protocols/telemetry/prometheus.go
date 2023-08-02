@@ -16,7 +16,7 @@ var prometheusDelta deltaCalculator
 var prometheusMux sync.Mutex
 var prometheusMetrics map[string]any
 
-func ReportPrometheus() map[string]any {
+func ReportPrometheus() {
 	prometheusMux.Lock()
 	defer prometheusMux.Unlock()
 
@@ -44,7 +44,6 @@ func ReportPrometheus() map[string]any {
 		default:
 		}
 	}
-	return prometheusMetrics
 }
 
 func metricToPrometheus(m metric) any {
