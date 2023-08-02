@@ -477,6 +477,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 		MapEditors:                make(map[string]*ebpf.Map),
 	}
+	opts.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
 		me := opts.MapSpecEditors[probes.ConntrackMap]

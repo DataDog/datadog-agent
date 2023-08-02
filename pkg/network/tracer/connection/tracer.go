@@ -183,6 +183,7 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
 		},
 	}
+	mgrOptions.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 
 	begin, end := network.EphemeralRange()
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
