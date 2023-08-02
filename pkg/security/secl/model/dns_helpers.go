@@ -94,7 +94,6 @@ func validateDNSName(dns string) error {
 			return ErrDNSNameMalformatted
 		} else if len(sub) > 63 {
 			return ErrDNSNameMalformatted
-
 		}
 	}
 	return nil

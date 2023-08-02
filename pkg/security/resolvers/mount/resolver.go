@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	deleteDelayTime                    = 5 * time.Second
-	numAllowedMountsToResolvePerPeriod = 50
-	fallbackLimiterPeriod              = 5 * time.Second
+	deleteDelayTime                      = 5 * time.Second
+	numAllowedMountIDsToResolvePerPeriod = 75
+	fallbackLimiterPeriod                = 5 * time.Second
 )
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
@@ -377,9 +377,6 @@ func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (s
 
 func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.procMissStats.Inc()
-
-	// add to fallback limiter to avoid storm of file access
-	mr.fallbackLimiter.Count(mountID)
 }
 
 func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uint32) (string, error) {
@@ -390,12 +387,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 	pids := []uint32{pid}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
-	if exists {
-		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 && pid != 1 {
-		pids = append(pids, 1)
-	}
+	workload, workloadExists := mr.cgroupsResolver.GetWorkload(containerID)
 
 	path, err := mr.getMountPath(mountID)
 	if err == nil {
@@ -414,6 +406,12 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 
 	if !mr.fallbackLimiter.Allow(mountID) {
 		return "", &ErrMountNotFound{MountID: mountID}
+	}
+
+	if workloadExists {
+		pids = append(pids, workload.GetPIDs()...)
+	} else if len(containerID) == 0 && pid != 1 {
+		pids = append(pids, 1)
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -445,12 +443,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
-	if exists {
-		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 {
-		pids = append(pids, 1)
-	}
+	workload, workloadExists := mr.cgroupsResolver.GetWorkload(containerID)
 
 	mount, exists := mr.mounts[mountID]
 	if exists {
@@ -469,6 +462,12 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 
 	if !mr.fallbackLimiter.Allow(mountID) {
 		return nil, &ErrMountNotFound{MountID: mountID}
+	}
+
+	if workloadExists {
+		pids = append(pids, workload.GetPIDs()...)
+	} else if len(containerID) == 0 {
+		pids = append(pids, 1)
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -608,7 +607,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	mr.redemption = redemption
 
 	// create a rate limiter that allows for 64 mount IDs
-	limiter, err := utils.NewLimiter[uint32](64, numAllowedMountsToResolvePerPeriod, fallbackLimiterPeriod)
+	limiter, err := utils.NewLimiter[uint32](64, numAllowedMountIDsToResolvePerPeriod, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}

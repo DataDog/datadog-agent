@@ -17,11 +17,13 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetGRPCStreamPort(t *testing.T) {
@@ -47,6 +49,7 @@ func TestGetGRPCStreamPort(t *testing.T) {
 
 func TestStartStop(t *testing.T) {
 	cfg := config.Mock(t)
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
 
 	extractor := NewWorkloadMetaExtractor(cfg)
 
@@ -80,6 +83,7 @@ func TestStreamServer(t *testing.T) {
 	)
 
 	cfg := config.Mock(t)
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
@@ -159,6 +163,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	)
 
 	cfg := config.Mock(t)
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
@@ -283,6 +288,27 @@ func TestProcessEntityToEventSet(t *testing.T) {
 	}
 }
 
+// TestSingleStream tests that there can only ever be a single stream at one time.
+func TestSingleStream(t *testing.T) {
+	ext, _, conn, originalStream := setupGRPCTest(t)
+	_, err := originalStream.Recv() // fast-forward through the sync message
+	require.NoError(t, err)
+
+	newStream, err := pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+
+	_, err = newStream.Recv() // fast-forward through the sync message
+	require.NoError(t, err)
+
+	_, err = originalStream.Recv()
+	assert.ErrorContains(t, err, DuplicateConnectionErr.Error())
+
+	ext.diffChan <- &ProcessCacheDiff{cacheVersion: 1}
+	_, err = newStream.Recv()
+	assert.NoError(t, err)
+
+}
+
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
 	t.Helper()
 
@@ -343,6 +369,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
 	cfg.Set("process_config.language_detection.grpc_port", port)
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	grpcServer := NewGRPCServer(cfg, extractor)

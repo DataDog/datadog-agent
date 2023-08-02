@@ -9,6 +9,9 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
+# When adding a new team to this file, don't forget to assign it
+# a slack channel in tasks/libs/pipeline_notifications.py
+
 # Config files for various CI systems / tasks
 /.*                                     @DataDog/agent-platform
 
@@ -48,6 +51,8 @@
 /.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-platform
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-platform @DataDog/windows-agent
+
+/.gitlab/benchmarks/                                 @DataDog/agent-platform @DataDog/apm-core-reliability-and-performance @DataDog/agent-apm
 
 /.gitlab/deploy_6/container.yml                      @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_6/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
@@ -184,7 +189,7 @@
 
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
-/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations @DataDog/software-integrity-and-trust
+/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
 /omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring
@@ -196,6 +201,7 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-shared-components
+/comp/metadata @DataDog/agent-shared-components
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
 /comp/systray @DataDog/windows-agent
@@ -243,11 +249,15 @@
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
-/pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/                       @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
+/pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/oracle-dbm        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
@@ -326,6 +336,9 @@
 /pkg/network/driver/                    @DataDog/windows-kernel-integrations
 /pkg/network/ebpf/c/prebuilt/usm*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/usm*       @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/prebuilt/shared-libraries*  @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/runtime/shared-libraries*   @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/shared-libraries/           @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
@@ -376,6 +389,7 @@
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/ebpf-platform
+/tasks/kmt.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security

@@ -110,7 +110,7 @@ remove_version_history()
     fi
 }
 
-remove_sysprobe_files()
+remove_sysprobe_secagent_files()
 {
     # removing sbom files and dirs
     find "$INSTALL_DIR/run" -name "sbom*" -type d -exec rm -r {} +
@@ -119,7 +119,7 @@ remove_sysprobe_files()
     find "$INSTALL_DIR/run/runtime-security/profiles" -delete || true
 
     # remove other runtime files
-    for file in run/runtime-security-registry.json run/sysprobe.sock run/event-monitor.sock run/runtime-security.sock run/system-probe.pid run/runtime-security
+    for file in run/runtime-security-registry.json run/compliance-registry.json run/sysprobe.sock run/event-monitor.sock run/runtime-security.sock run/system-probe.pid run/runtime-security
     do
         if [ -d "$INSTALL_DIR/$file" ]; then
             rmdir "$INSTALL_DIR/$file" 2>/dev/null || true
@@ -133,6 +133,18 @@ remove_sysprobe_files()
     fi
 }
 
+remove_remote_config_db()
+{
+    # Remote config stores a cache of the current repository state in
+    # /opt/datadog-agent/run. This is a best-effort solution, as users can
+    # decide to put this file in another place by changing the top-level
+    # run_path config value.
+    if [ -f "$INSTALL_DIR/run/remote-config.db" ]; then
+        echo "Removing remote configuration config database"
+        rm "$INSTALL_DIR/run/remote-config.db" || true
+    fi
+}
+
 stop_agent
 deregister_agent
 remove_custom_integrations
@@ -142,7 +154,8 @@ case "$1" in
     remove)
         # We're uninstalling.
         remove_version_history
-        remove_sysprobe_files
+        remove_sysprobe_secagent_files
+        remove_remote_config_db
     ;;
     upgrade)
         # We're upgrading.

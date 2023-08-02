@@ -22,6 +22,7 @@ type mockLifecycleProcessor struct {
 	OnInvokeStartCalled bool
 	OnInvokeEndCalled   bool
 	isError             bool
+	lastEndDetails      *invocationlifecycle.InvocationEndDetails
 }
 
 func (m *mockLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
@@ -35,6 +36,7 @@ func (m *mockLifecycleProcessor) OnInvokeStart(*invocationlifecycle.InvocationSt
 func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails) {
 	m.OnInvokeEndCalled = true
 	m.isError = endDetails.IsError
+	m.lastEndDetails = endDetails
 }
 
 func TestStartInvocation(t *testing.T) {
@@ -82,6 +84,8 @@ func TestEndInvocation(t *testing.T) {
 	}
 	assert.False(m.isError)
 	assert.True(m.OnInvokeEndCalled)
+	assert.Equal(m.lastEndDetails.Coldstart, d.ExecutionContext.GetCurrentState().Coldstart)
+	assert.Equal(m.lastEndDetails.ProactiveInit, d.ExecutionContext.GetCurrentState().ProactiveInit)
 }
 
 func TestEndInvocationWithError(t *testing.T) {

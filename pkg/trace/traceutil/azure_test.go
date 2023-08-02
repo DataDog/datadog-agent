@@ -35,12 +35,54 @@ func TestGetEnvOrUnknown(t *testing.T) {
 	assert.Equal(t, "unknown", unknownEnvVar)
 }
 
-func TestGetRuntime(t *testing.T) {
-	dotnet := getRuntime(func(s string) string { return "dotnet" })
-	node := getRuntime(func(s string) string { return "node" })
-	unknown := getRuntime(func(s string) string { return "hahaha" })
+func TestGetWindowsRuntime(t *testing.T) {
+	java := getRuntime("windows", func(s string) string {
+		if s == "WEBSITE_STACK" {
+			return "JAVA"
+		}
+		return ""
+	})
+	node := getRuntime("windows", func(s string) string {
+		if s == "WEBSITE_NODE_DEFAULT_VERSION" {
+			return "~18"
+		}
+		return ""
+	})
+	dotnet := getRuntime("windows", func(s string) string { return "" })
+
 	assert.Equal(t, ".NET", dotnet)
+	assert.Equal(t, "Java", java)
 	assert.Equal(t, "Node.js", node)
+	assert.Equal(t, ".NET", dotnet)
+}
+
+func TestGetLinuxRuntime(t *testing.T) {
+	docker := getRuntime("linux", func(s string) string { return "DOCKER" })
+	compose := getRuntime("linux", func(s string) string {
+		if s == "WEBSITE_STACK" {
+			return ""
+		}
+		if s == "DOCKER_SERVER_VERSION" {
+			return "19.03.15+azure"
+		}
+		return ""
+	})
+	java := getRuntime("linux", func(s string) string { return "JAVA" })
+	tomcat := getRuntime("linux", func(s string) string { return "TOMCAT" })
+	node := getRuntime("linux", func(s string) string { return "NODE" })
+	python := getRuntime("linux", func(s string) string { return "PYTHON" })
+	dotnet := getRuntime("linux", func(s string) string { return "DOTNETCORE" })
+	php := getRuntime("linux", func(s string) string { return "PHP" })
+	unknown := getRuntime("linux", func(s string) string { return "" })
+
+	assert.Equal(t, "Container", docker)
+	assert.Equal(t, "Container", compose)
+	assert.Equal(t, "Java", java)
+	assert.Equal(t, "Java", tomcat)
+	assert.Equal(t, "Node.js", node)
+	assert.Equal(t, "Python", python)
+	assert.Equal(t, ".NET", dotnet)
+	assert.Equal(t, "PHP", php)
 	assert.Equal(t, "unknown", unknown)
 }
 
@@ -66,7 +108,8 @@ func mockAzureAppServiceMetadata() map[string]string {
 	aasMetadata["WEBSITE_RESOURCE_GROUP"] = "test-resource-group"
 	aasMetadata["WEBSITE_INSTANCE_ID"] = "1234abcd"
 	aasMetadata["COMPUTERNAME"] = "test-instance"
-	aasMetadata["DD_RUNTIME"] = "node"
+	aasMetadata["WEBSITE_STACK"] = "NODE"
+	aasMetadata["WEBSITE_NODE_DEFAULT_VERSION"] = "~18"
 
 	return aasMetadata
 }

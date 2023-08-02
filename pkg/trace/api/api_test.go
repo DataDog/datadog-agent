@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -46,7 +46,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -626,12 +626,12 @@ func TestDecodeV05(t *testing.T) {
 
 type mockStatsProcessor struct {
 	mu                sync.RWMutex
-	lastP             pb.ClientStatsPayload
+	lastP             *pb.ClientStatsPayload
 	lastLang          string
 	lastTracerVersion string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
@@ -639,7 +639,7 @@ func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerV
 	m.lastTracerVersion = tracerVersion
 }
 
-func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.lastP, m.lastLang, m.lastTracerVersion
@@ -656,7 +656,7 @@ func TestHandleStats(t *testing.T) {
 		server := httptest.NewServer(mux)
 
 		var buf bytes.Buffer
-		if err := msgp.Encode(&buf, &p); err != nil {
+		if err := msgp.Encode(&buf, p); err != nil {
 			t.Fatal(err)
 		}
 		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
@@ -771,7 +771,7 @@ func TestHandleTraces(t *testing.T) {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived.Load())
-		assert.Equal(int64(61822), ts.TracesBytes.Load())
+		assert.Equal(int64(59222), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
@@ -1021,6 +1021,7 @@ func TestExpvar(t *testing.T) {
 
 	c := config.New()
 	c.DebugServerPort = 5012
+	info.InitInfo(c)
 	s := NewDebugServer(c)
 	s.Start()
 	defer s.Stop()
@@ -1028,13 +1029,18 @@ func TestExpvar(t *testing.T) {
 	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
 
-	if resp.StatusCode == http.StatusOK {
-		var out map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&out)
-		assert.NoError(t, err, "/debug/vars must return valid json")
-	}
+	t.Run("read-expvars", func(t *testing.T) {
+		assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
+	})
+	t.Run("valid-response", func(t *testing.T) {
+		if resp.StatusCode == http.StatusOK {
+			var out map[string]interface{}
+			err = json.NewDecoder(resp.Body).Decode(&out)
+			assert.NoError(t, err, "/debug/vars must return valid json")
+			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
+		}
+	})
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {

@@ -51,6 +51,9 @@ const messageAgentDisabled = `trace-agent not enabled. Set the environment varia
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
 to your datadog.yaml. Exiting...`
 
+// Stack depth of 3 since the `corelogger` struct adds a layer above the logger
+const stackDepth = 3
+
 // Run is the entrypoint of our code, which starts the agent.
 func Run(ctx context.Context) {
 	if flags.Version {
@@ -295,45 +298,51 @@ func Run(ctx context.Context) {
 type corelogger struct{}
 
 // Trace implements Logger.
-func (corelogger) Trace(v ...interface{}) { log.Trace(v...) }
+func (corelogger) Trace(v ...interface{}) { log.TraceStackDepth(stackDepth, v...) }
 
 // Tracef implements Logger.
-func (corelogger) Tracef(format string, params ...interface{}) { log.Tracef(format, params...) }
+func (corelogger) Tracef(format string, params ...interface{}) {
+	log.TracefStackDepth(stackDepth, format, params...)
+}
 
 // Debug implements Logger.
-func (corelogger) Debug(v ...interface{}) { log.Debug(v...) }
+func (corelogger) Debug(v ...interface{}) { log.DebugStackDepth(stackDepth, v...) }
 
 // Debugf implements Logger.
-func (corelogger) Debugf(format string, params ...interface{}) { log.Debugf(format, params...) }
+func (corelogger) Debugf(format string, params ...interface{}) {
+	log.DebugfStackDepth(stackDepth, format, params...)
+}
 
 // Info implements Logger.
-func (corelogger) Info(v ...interface{}) { log.Info(v...) }
+func (corelogger) Info(v ...interface{}) { log.InfoStackDepth(stackDepth, v...) }
 
 // Infof implements Logger.
-func (corelogger) Infof(format string, params ...interface{}) { log.Infof(format, params...) }
+func (corelogger) Infof(format string, params ...interface{}) {
+	log.InfofStackDepth(stackDepth, format, params...)
+}
 
 // Warn implements Logger.
-func (corelogger) Warn(v ...interface{}) error { return log.Warn(v...) }
+func (corelogger) Warn(v ...interface{}) error { return log.WarnStackDepth(stackDepth, v...) }
 
 // Warnf implements Logger.
 func (corelogger) Warnf(format string, params ...interface{}) error {
-	return log.Warnf(format, params...)
+	return log.WarnfStackDepth(stackDepth, format, params...)
 }
 
 // Error implements Logger.
-func (corelogger) Error(v ...interface{}) error { return log.Error(v...) }
+func (corelogger) Error(v ...interface{}) error { return log.ErrorStackDepth(stackDepth, v...) }
 
 // Errorf implements Logger.
 func (corelogger) Errorf(format string, params ...interface{}) error {
-	return log.Errorf(format, params...)
+	return log.ErrorfStackDepth(stackDepth, format, params...)
 }
 
 // Critical implements Logger.
-func (corelogger) Critical(v ...interface{}) error { return log.Critical(v...) }
+func (corelogger) Critical(v ...interface{}) error { return log.CriticalStackDepth(stackDepth, v...) }
 
 // Criticalf implements Logger.
 func (corelogger) Criticalf(format string, params ...interface{}) error {
-	return log.Criticalf(format, params...)
+	return log.CriticalfStackDepth(stackDepth, format, params...)
 }
 
 // Flush implements Logger.
