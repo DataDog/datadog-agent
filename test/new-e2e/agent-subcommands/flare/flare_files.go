@@ -35,3 +35,9 @@ var defaultLogFiles = []string{
 }
 
 var defaultConfigFiles = []string{"etc/datadog.yaml"}
+
+var defaultFlareFolders = []string{
+	"etc/confd/",
+	"expvar",
+	"logs",
+}
