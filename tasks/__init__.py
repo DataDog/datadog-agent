@@ -15,7 +15,7 @@ from . import (
     docker_tasks,
     dogstatsd,
     epforwarder,
-    github,
+    github_tasks,
     kmt,
     msi,
     new_e2e_tests,
@@ -121,7 +121,7 @@ ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
-ns.add_collection(github)
+ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(pylauncher)
