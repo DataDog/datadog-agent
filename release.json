@@ -5,8 +5,8 @@
         "7": "7.46.0"
     },
     "nightly": {
-        "INTEGRATIONS_CORE_VERSION": "e72c545b8c49426a6ef28f53532fc77361730ed3",
-        "OMNIBUS_SOFTWARE_VERSION": "slavek.kabrda/unixodbc-depend-postgresql",
+        "INTEGRATIONS_CORE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.9",
         "JMXFETCH_HASH": "fb5c3fc2fb42db1ee5c3a7c6187b316d79d69c50b967db0b7ffde590622d0395",
@@ -17,8 +17,8 @@
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "e72c545b8c49426a6ef28f53532fc77361730ed3",
-        "OMNIBUS_SOFTWARE_VERSION": "slavek.kabrda/unixodbc-depend-postgresql",
+        "INTEGRATIONS_CORE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "master",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.9",
         "JMXFETCH_HASH": "fb5c3fc2fb42db1ee5c3a7c6187b316d79d69c50b967db0b7ffde590622d0395",
