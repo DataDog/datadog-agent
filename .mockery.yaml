@@ -1,0 +1,11 @@
+with-expecter: false
+dir: "{{.InterfaceDir}}/mocks"
+outpkg: "mocks"
+mockname: "{{.InterfaceName}}"
+filename: "{{.InterfaceNameSnake}}.go"
+
+packages:
+  github.com/DataDog/datadog-agent/pkg/security/proto/api:
+    interfaces:
+      SecurityModuleServer:
+      SecurityModuleClient:
