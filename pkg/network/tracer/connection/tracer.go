@@ -182,8 +182,12 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
 		},
+		VerifierOptions: ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				LogSize: 10 * 1024 * 1024,
+			},
+		},
 	}
-	mgrOptions.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 
 	begin, end := network.EphemeralRange()
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
