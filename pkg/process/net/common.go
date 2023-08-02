@@ -57,7 +57,6 @@ type RemoteSysProbeUtil struct {
 
 	path       string
 	httpClient http.Client
-	connsData  []byte
 }
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
@@ -181,6 +180,7 @@ func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*mod
 		return nil, err
 	}
 
+	var fullStream []byte
 	for {
 		res, err := response.Recv()
 		if err == io.EOF {
@@ -189,10 +189,10 @@ func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*mod
 		if err != nil {
 			return nil, err
 		}
-		r.connsData = append(r.connsData, res.GetData()...)
+		fullStream = append(fullStream, res.GetData()...)
 	}
 
-	conns, err = netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(r.connsData)
+	conns, err = netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(fullStream)
 	if err != nil {
 		return nil, err
 	}
