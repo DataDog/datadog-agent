@@ -168,6 +168,8 @@ func (fi *Server) IsRunning() bool {
 
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
+	defer close(fi.shutdown)
+
 	if !fi.IsRunning() {
 		return fmt.Errorf("server not running")
 	}
@@ -176,7 +178,6 @@ func (fi *Server) Stop() error {
 		return err
 	}
 
-	close(fi.shutdown)
 	fi.url = ""
 	return nil
 }
