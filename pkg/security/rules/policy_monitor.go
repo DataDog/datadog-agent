@@ -116,11 +116,12 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 }
 
 // NewPolicyMonitor returns a new Policy monitor
-func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetric bool) *PolicyMonitor {
+func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled bool) *PolicyMonitor {
 	return &PolicyMonitor{
-		statsdClient: statsdClient,
-		policies:     make(map[string]Policy),
-		rules:        make(map[string]string),
+		statsdClient:         statsdClient,
+		policies:             make(map[string]Policy),
+		rules:                make(map[string]string),
+		perRuleMetricEnabled: perRuleMetricEnabled,
 	}
 }
 
