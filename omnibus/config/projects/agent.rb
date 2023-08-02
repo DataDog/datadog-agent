@@ -3,7 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-
 flavor = ENV['AGENT_FLAVOR']
 
 if flavor.nil? || flavor == 'base'

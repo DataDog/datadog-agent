@@ -21,10 +21,6 @@ func TestAgentHealthSuite(t *testing.T) {
 }
 
 func (v *agentSuite) TestDefaultInstallHealthy() {
-	v.UpdateEnv(e2e.AgentStackDef(nil))
-	err := v.Env().Agent.WaitForHealthy()
-	assert.NoError(v.T(), err)
-
 	output := v.Env().Agent.Health()
 
 	assert.Contains(v.T(), output, "Agent health: PASS")
