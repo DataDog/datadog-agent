@@ -43,6 +43,10 @@ func (v *commandFlareSuite) TestFlareDefaultFiles() {
 	assertFilesExist(v.T(), flare, defaultConfigFiles)
 	assertFoldersExist(v.T(), flare, defaultFlareFolders)
 
+	assertProcessCheckShouldBeEnabled(v.T(), flare, "process", "process_config.process_collection.enabled", false)
+	assertProcessCheckShouldBeEnabled(v.T(), flare, "container", "process_config.container_collection.enabled", true)
+	assertProcessCheckShouldBeEnabled(v.T(), flare, "process_discovery", "process_config.process_discovery.enabled", true)
+
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
 }

@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -94,4 +95,33 @@ func isDir(flare flare.Flare, filename string) bool {
 		return false
 	}
 	return fileInfo.IsDir()
+}
+
+func assertProcessCheckShouldBeEnabled(t *testing.T, flare flare.Flare, checkName string, setting string, shouldBeEnabled bool) {
+	filename := fmt.Sprintf("%s_check_output.json", checkName)
+	expectedContentIfDisabled := fmt.Sprintf("'%s' is disabled", setting)
+
+	if shouldBeEnabled {
+		assertFileNotContains(t, flare, filename, expectedContentIfDisabled)
+	} else {
+		assertFileContains(t, flare, filename, expectedContentIfDisabled)
+	}
+}
+
+func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContent string) {
+	fileContent, err := flare.GetFileContent(filename)
+	assert.NoError(t, err)
+
+	if err == nil {
+		assert.Contains(t, fileContent, expectedContent)
+	}
+}
+
+func assertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContent string) {
+	fileContent, err := flare.GetFileContent(filename)
+	assert.NoError(t, err)
+
+	if err == nil {
+		assert.NotContains(t, fileContent, expectedContent)
+	}
 }
