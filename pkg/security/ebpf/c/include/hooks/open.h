@@ -207,31 +207,29 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
-
-int __attribute__((always_inline)) kprobe_sys_open_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_open_ret(ctx, retval, DR_KPROBE);
-}
-
 HOOK_SYSCALL_EXIT(creat) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(open_by_handle_at) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(open_by_handle_at) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(truncate) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(truncate) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(open) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(open) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_COMPAT_KRETPROBE(openat) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_COMPAT_EXIT(openat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 HOOK_SYSCALL_EXIT(openat2) {
