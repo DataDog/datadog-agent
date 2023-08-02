@@ -14,7 +14,10 @@ import (
 
 // Settings contains the settings for internal profiling, to be passed to Start().
 type Settings struct {
-	// ProfilingURL specifies the URL to which profiles will be sent.  This can be constructed
+	// Socket specifies the UDS to which profiles will be sent. This takes
+	// precedence over ProfilingURL if set.
+	Socket string
+	// ProfilingURL specifies the URL to which profiles will be sent. This can be constructed
 	// from a site value with ProfilingURLTemplate.
 	ProfilingURL string
 	// Env specifies the environment to which profiles should be registered.
@@ -40,7 +43,8 @@ type Settings struct {
 }
 
 func (settings *Settings) String() string {
-	return fmt.Sprintf("[Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v][DeltaProfiles:%v]",
+	return fmt.Sprintf("[Socket:%q][Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v][DeltaProfiles:%v]",
+		settings.Socket,
 		settings.ProfilingURL,
 		settings.Env,
 		settings.Period,
