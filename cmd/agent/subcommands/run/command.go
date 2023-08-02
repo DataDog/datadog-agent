@@ -229,10 +229,16 @@ func run(log log.Component,
 }
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
-func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
+func StartAgentWithDefaults(ctx context.Context) error {
+	if err := common.CheckAndUpgradeConfig(); err != nil {
+		// continue running with what we have.
+	}
+
 	var dsdServer dogstatsdServer.Component
+
 	// run startAgent in an app, so that the log and config components get initialized
-	err := fxutil.OneShot(func(log log.Component,
+	err := fxutil.OneShot(func(
+		log log.Component,
 		config config.Component,
 		flare flare.Component,
 		telemetry telemetry.Component,
@@ -260,9 +266,21 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return dsdServer, nil
+
+	defer func() {
+		stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, dsdServer)
+	}()
+
+	// Wait for stop signal
+	select {
+	case <-signals.Stopper:
+	case <-signals.ErrorStopper:
+	case <-ctx.Done():
+	}
+
+	return nil
 }
 
 func getSharedFxOption() fx.Option {
@@ -586,11 +604,6 @@ func startAgent(
 	go startDependentServices()
 
 	return nil
-}
-
-// StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server)
 }
 
 // stopAgent Tears down the agent process
