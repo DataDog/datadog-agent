@@ -7,7 +7,6 @@ package filesystem
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"runtime"
 	"strconv"
 	"testing"
@@ -18,8 +17,7 @@ import (
 )
 
 func TestGetTimeout(t *testing.T) {
-	mountInfo, err := getWithTimeout(time.Nanosecond)
-	fmt.Println(mountInfo, err)
+	_, err := getWithTimeout(time.Nanosecond)
 	require.ErrorIs(t, err, ErrTimeoutExceeded)
 }
 
