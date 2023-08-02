@@ -8,7 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE0(splice) {
+HOOK_SYSCALL_ENTRY0(splice) {
     struct policy_t policy = fetch_policy(EVENT_SPLICE);
     if (is_discarded_by_process(policy.mode, EVENT_SPLICE)) {
         return 0;
@@ -40,15 +40,14 @@ int hook_get_pipe_info(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kretprobe/get_pipe_info")
-int kretprobe_get_pipe_info(struct pt_regs *ctx) {
+HOOK_EXIT("get_pipe_info")
+int rethook_get_pipe_info(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SPLICE);
     if (!syscall) {
         return 0;
     }
 
-    struct pipe_inode_info *info = (struct pipe_inode_info *)PT_REGS_RC(ctx);
+    struct pipe_inode_info *info = (struct pipe_inode_info *)CTX_PARMRET(ctx, 2);
     if (info == NULL) {
         // this is not a pipe, so most likely a file, resolve its path now
         syscall->splice.file_found = 1;
@@ -58,7 +57,7 @@ int kretprobe_get_pipe_info(struct pt_regs *ctx) {
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, DR_KPROBE);
+        resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
         // if the tail call fails, we need to pop the syscall cache entry
         pop_syscall(EVENT_SPLICE);
@@ -112,8 +111,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(splice) {
-    return sys_splice_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(splice) {
+    return sys_splice_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_splice_exit")

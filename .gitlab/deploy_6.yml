@@ -1,8 +1,0 @@
----
-# deploy_6 stage
-# Contains jobs which deploy Agent 6 to staging repositories and to Dockerhub / GCR.
-
-include:
-  - /.gitlab/deploy_6/container.yml
-  - /.gitlab/deploy_6/nix.yml
-  - /.gitlab/deploy_6/windows.yml

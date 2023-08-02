@@ -476,6 +476,11 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		ConstantEditors:           append(telemetryMapKeys, constants...),
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 		MapEditors:                make(map[string]*ebpf.Map),
+		VerifierOptions: ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				LogSize: 10 * 1024 * 1024,
+			},
+		},
 	}
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {

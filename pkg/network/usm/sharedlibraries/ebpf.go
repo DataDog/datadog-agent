@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,10 +39,10 @@ var traceTypes = []string{"enter", "exit"}
 type ebpfProgram struct {
 	cfg         *config.Config
 	perfHandler *ddebpf.PerfHandler
-	*manager.Manager
+	*errtelemetry.Manager
 }
 
-func newEBPFProgram(c *config.Config) *ebpfProgram {
+func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	mgr := &manager.Manager{
 		PerfMaps: []*manager.PerfMap{
@@ -72,13 +73,17 @@ func newEBPFProgram(c *config.Config) *ebpfProgram {
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     mgr,
+		Manager:     errtelemetry.NewManager(mgr, bpfTelemetry),
 		perfHandler: perfHandler,
 	}
 }
 
 func (e *ebpfProgram) Init() error {
 	var err error
+
+	e.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, true, getAllUndefinedProbes())
+	}
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
 		if err == nil {
@@ -129,7 +134,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		)
 	}
 
-	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
+	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 	return e.InitWithOptions(buf, options)
 }
 
@@ -159,10 +164,13 @@ func (e *ebpfProgram) initPrebuilt() error {
 
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
+
 	if err == nil && len(missing) == 0 {
 		return true
 	}
+
 	kversion, err := kernel.HostVersion()
+
 	if err != nil {
 		log.Error("could not determine the current kernel version. fallback to do_sys_open")
 		return false
@@ -197,4 +205,21 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+func getAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	undefined := []manager.ProbeIdentificationPair{}
+
+	if !sysOpenAt2Supported() {
+		undefined = append(undefined,
+			manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__syscalls__sys_enter_openat2",
+			},
+			manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__syscalls__sys_exit_openat2",
+			},
+		)
+	}
+
+	return undefined
 }

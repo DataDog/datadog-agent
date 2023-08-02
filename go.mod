@@ -42,8 +42,8 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.90-0.20230717070528-bfb5d051f2ab
-	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
+	github.com/DataDog/agent-payload/v5 v5.0.90
+	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
 	github.com/DataDog/datadog-agent/pkg/gohai v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.47.0-rc.3
@@ -55,14 +55,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v1.0.3
-	github.com/DataDog/ebpf-manager v0.2.11
+	github.com/DataDog/ebpf-manager v0.2.12
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v1.0.1-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.3-0.20230720121352-2db90e0b9570
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.5.2
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.5.4
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
@@ -127,7 +127,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.3
-	github.com/hashicorp/consul/api v1.20.0
+	github.com/hashicorp/consul/api v1.21.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
@@ -152,7 +152,7 @@ require (
 	github.com/open-policy-agent/opa v0.54.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.75.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/image-spec v1.1.0-rc3
+	github.com/opencontainers/image-spec v1.1.0-rc4
 	github.com/opencontainers/runtime-spec v1.1.0-rc.3
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
@@ -160,7 +160,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
-	github.com/prometheus/procfs v0.11.0
+	github.com/prometheus/procfs v0.11.1
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.38.1
@@ -216,7 +216,7 @@ require (
 	golang.org/x/sys v0.10.0
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.11.0
+	golang.org/x/tools v0.11.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.56.1
@@ -567,8 +567,8 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/agent-payload v4.89.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230717151521-271965684571
+	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230720220350-143f7b52181b
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.5.4
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
@@ -581,6 +581,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
@@ -605,7 +606,7 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gotest.tools/v3 v3.3.0 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
-	inet.af/netaddr v0.0.0-20220617031823-097006376321 // indirect
+	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe

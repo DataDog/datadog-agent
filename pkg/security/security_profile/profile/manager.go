@@ -816,7 +816,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	p := m.GetProfile(selector)
 	if p == nil {
 		return &api.SecurityProfileSaveMessage{
-			Error: fmt.Sprintf("security profile not found"),
+			Error: "security profile not found",
 		}, nil
 	}
 
@@ -824,7 +824,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	psp := SecurityProfileToProto(p)
 	if psp == nil {
 		return &api.SecurityProfileSaveMessage{
-			Error: fmt.Sprintf("security profile not found"),
+			Error: "security profile not found",
 		}, nil
 	}
 
