@@ -83,13 +83,13 @@ single-machine-performance-regression_detector:
             --submission-metadata submission_metadata
     # Wait for job to complete.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-            job status --use-curta --use-consignor
+            job status --use-curta
             --wait
             --wait-delay-seconds 60
             --submission-metadata submission_metadata
     # Now that the job is completed pull the analysis report, output it to stdout.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-            job sync --use-curta --use-consignor
+            job sync --use-curta
             --submission-metadata submission_metadata
             --output-path outputs
     # Replace empty lines in the output with lines containing various unicode
@@ -120,5 +120,5 @@ single-machine-performance-regression_detector:
     - cat outputs/report.html | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-            job result --use-curta --use-consignor
+            job result --use-curta
             --submission-metadata submission_metadata
