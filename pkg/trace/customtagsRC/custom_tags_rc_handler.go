@@ -15,10 +15,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
-type customTags interface {
-	UpdateCustomTags(tag string)
-}
-
 type CustomTagsConfig struct {
 	// array of fields - "span name: tag name"
 	CustomTagsArr *[]string `json:"custom_tags"`
@@ -27,11 +23,11 @@ type CustomTagsConfig struct {
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
 	remoteClient config.RemoteClient
-	customTags   customTags
+	customTags   map[string][]string
 	agentConfig  *config.AgentConfig
 }
 
-func New(conf *config.AgentConfig, customTags customTags) *RemoteConfigHandler {
+func New(conf *config.AgentConfig, customTags map[string][]string) *RemoteConfigHandler {
 	if conf.RemoteCustomTagsClient == nil {
 		return nil
 	}
