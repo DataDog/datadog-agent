@@ -8,8 +8,6 @@
 package probes
 
 import (
-	"strings"
-
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -66,7 +64,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_new_exec_interp",
+				EBPFFuncName: "hook_setup_new_exec_interp",
 			},
 		},
 		{
@@ -198,10 +196,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setresgid16",
 		"capset",
 	} {
-		flags := EntryAndExit
-		if !strings.HasSuffix(name, "16") {
-			flags |= SupportFentry | SupportFexit
-		}
+		flags := EntryAndExit | SupportFentry | SupportFexit
 
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

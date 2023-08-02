@@ -34,7 +34,7 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	// logicalcount will be the total number of logical processors on the system
 	// i.e. physCount * coreCount * 1 if not HT CPU
 	//      physCount * coreCount * 2 if an HT CPU.
-	logicalCount, _ := cpuInfo.CPULogicalProcessors.Value()
+	logicalCount := cpuInfo.CPULogicalProcessors.ValueOrDefault()
 
 	// shouldn't be possible, as `cpuInfo.CPUPkgs.Value()` should return an error in this case
 	// but double check before risking a divide by zero
@@ -42,12 +42,12 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 		return nil, fmt.Errorf("Returned zero physical processors")
 	}
 	logicalCountPerPhys := logicalCount / physCount
-	clockSpeed, _ := cpuInfo.Mhz.Value()
-	l2Cache, _ := cpuInfo.CacheSizeL2Bytes.Value()
+	clockSpeed := cpuInfo.Mhz.ValueOrDefault()
+	l2Cache := cpuInfo.CacheSizeL2Bytes.ValueOrDefault()
 	cpus := make([]*model.CPUInfo, 0)
-	vendor, _ := cpuInfo.VendorID.Value()
-	family, _ := cpuInfo.Family.Value()
-	modelName, _ := cpuInfo.Model.Value()
+	vendor := cpuInfo.VendorID.ValueOrDefault()
+	family := cpuInfo.Family.ValueOrDefault()
+	modelName := cpuInfo.Model.ValueOrDefault()
 	for i := uint64(0); i < physCount; i++ {
 		cpus = append(cpus, &model.CPUInfo{
 			Number:     int32(i),
@@ -62,10 +62,10 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 		})
 	}
 
-	kernelName, _ := hi.KernelName.Value()
-	osName, _ := hi.OS.Value()
-	platformFamily, _ := hi.Family.Value()
-	kernelRelease, _ := hi.KernelRelease.Value()
+	kernelName := hi.KernelName.ValueOrDefault()
+	osName := hi.OS.ValueOrDefault()
+	platformFamily := hi.Family.ValueOrDefault()
+	kernelRelease := hi.KernelRelease.ValueOrDefault()
 	m := &model.SystemInfo{
 		Uuid: "",
 		Os: &model.OSInfo{
