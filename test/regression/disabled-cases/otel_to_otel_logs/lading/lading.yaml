@@ -9,7 +9,7 @@ generator:
       parallel_connections: 5
       method:
         post:
-          maximum_prebuild_cache_size_bytes: "8 Mb"
+          maximum_prebuild_cache_size_bytes: "512 Mb"
           variant: "opentelemetry_traces"
 
 blackhole:
