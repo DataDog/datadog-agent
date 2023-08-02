@@ -290,7 +290,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 }
 
 func initRuntimeSettings() error {
-	return settings.RegisterRuntimeSetting(&settings.LogLevelRuntimeSetting{})
+	return settings.RegisterRuntimeSetting(settings.NewLogLevelRuntimeSetting())
 }
 
 // StopAgent stops the API server and clean up resources

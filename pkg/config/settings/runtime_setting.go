@@ -33,9 +33,11 @@ func (e *SettingNotFoundError) Error() string {
 type Source string
 
 const (
-	SourceCLI     Source = "cli"
-	SourceRC      Source = "remote-config"
+	// The default source is set as an empty string so that if the source isn't properly initialized, it is considered SourceDefault
 	SourceDefault Source = ""
+	SourceCLI     Source = "CLI"
+	SourceRC      Source = "remote-config"
+	SourceConfig  Source = "config"
 )
 
 func (s Source) String() string {

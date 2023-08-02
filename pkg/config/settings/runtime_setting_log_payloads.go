@@ -16,6 +16,10 @@ type LogPayloadsRuntimeSetting struct {
 	source Source
 }
 
+func NewLogPayloadsRuntimeSetting() *LogPayloadsRuntimeSetting {
+	return &LogPayloadsRuntimeSetting{source: SourceDefault}
+}
+
 // Description returns the runtime setting's description
 func (l *LogPayloadsRuntimeSetting) Description() string {
 	return "Enable logging payloads at runtime."
