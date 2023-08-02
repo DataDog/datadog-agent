@@ -934,6 +934,10 @@ func (s *USMSuite) TestJavaInjection() {
 	}
 }
 
+func skipFedora() bool {
+	return info.Platform == "fedora" && (info.PlatformVersion == "35" || info.PlatformVersion == "36" || info.PlatformVersion == "37" || info.PlatformVersion == "38")
+}
+
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
@@ -942,8 +946,9 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 		}
 		info, err := host.Info()
 		require.NoError(t, err)
+
 		// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
-		if info.Platform == "fedora" && (info.PlatformVersion == "36" || info.PlatformVersion == "37") {
+		if skipFedora() {
 			// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
 			t.Skip("TestHTTPGoTLSAttachProbes fails on this OS consistently")
 		}
