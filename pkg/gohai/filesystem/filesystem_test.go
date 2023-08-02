@@ -7,6 +7,7 @@ package filesystem
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"runtime"
 	"strconv"
 	"testing"
@@ -17,7 +18,11 @@ import (
 )
 
 func TestGetTimeout(t *testing.T) {
-	_, err := getWithTimeout(time.Nanosecond)
+	_, err := getWithTimeout(time.Nanosecond, func() ([]MountInfo, error) {
+		time.Sleep(5 * time.Second)
+		return nil, errors.New("fail")
+
+	})
 	require.ErrorIs(t, err, ErrTimeoutExceeded)
 }
 

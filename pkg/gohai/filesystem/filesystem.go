@@ -60,10 +60,11 @@ func (fs *FileSystem) Collect() (interface{}, error) {
 
 // Get returns the list of mounted filesystems
 func Get() ([]MountInfo, error) {
-	return getWithTimeout(timeout)
+	return getWithTimeout(timeout, getFileSystemInfo)
 }
 
-func getWithTimeout(timeout time.Duration) ([]MountInfo, error) {
+// getWithTimeout is an internal helper for test purpose
+func getWithTimeout(timeout time.Duration, getFileSystemInfo func() ([]MountInfo, error)) ([]MountInfo, error) {
 	type infoRes struct {
 		data []MountInfo
 		err  error
