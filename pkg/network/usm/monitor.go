@@ -152,10 +152,7 @@ func (m *Monitor) Start() error {
 				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
 			}
 
-			// Cleanup every remaining protocols
-			for _, protocol := range m.enabledProtocols {
-				protocol.Stop(m.ebpfProgram.Manager.Manager)
-			}
+			m.Stop()
 
 			if err != nil {
 				err = fmt.Errorf("could not enable USM: %s", err)

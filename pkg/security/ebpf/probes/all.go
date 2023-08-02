@@ -72,7 +72,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getUnlinkProbes(fentry)...)
 	allProbes = append(allProbes, getXattrProbes(fentry)...)
 	allProbes = append(allProbes, getIoctlProbes()...)
-	allProbes = append(allProbes, getSELinuxProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes(fentry)...)
 	allProbes = append(allProbes, getBPFProbes(fentry)...)
 	allProbes = append(allProbes, getPTraceProbes(fentry)...)
 	allProbes = append(allProbes, getMMapProbes(fentry)...)

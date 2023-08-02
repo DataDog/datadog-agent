@@ -30,7 +30,7 @@ HOOK_SYSCALL_ENTRY0(finit_module) {
     return trace_init_module(0);
 }
 
-int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct file *f) {
+int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, int dr_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -47,7 +47,7 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, dr_type);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_INIT_MODULE);
@@ -75,18 +75,18 @@ int kprobe_parse_args(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/security_kernel_module_from_file")
-int kprobe_security_kernel_module_from_file(struct pt_regs *ctx) {
-    struct file *f = (struct file *)PT_REGS_PARM1(ctx);
-    return trace_kernel_file(ctx, f);
+#ifndef USE_FENTRY
+HOOK_ENTRY("security_kernel_module_from_file")
+int hook_security_kernel_module_from_file(ctx_t *ctx) {
+    struct file *f = (struct file *)CTX_PARM1(ctx);
+    return trace_kernel_file(ctx, f, DR_KPROBE_OR_FENTRY);
 }
+#endif
 
-// fentry blocked by: tail call
-SEC("kprobe/security_kernel_read_file")
-int kprobe_security_kernel_read_file(struct pt_regs *ctx) {
-    struct file *f = (struct file *)PT_REGS_PARM1(ctx);
-    return trace_kernel_file(ctx, f);
+HOOK_ENTRY("security_kernel_read_file")
+int hook_security_kernel_read_file(ctx_t *ctx) {
+    struct file *f = (struct file *)CTX_PARM1(ctx);
+    return trace_kernel_file(ctx, f, DR_KPROBE_OR_FENTRY);
 }
 
 int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {

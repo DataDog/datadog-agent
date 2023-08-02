@@ -335,7 +335,7 @@ kernel_matrix_testing_run_tests_x64:
     ARCH: "x86_64"
   parallel:
     matrix:
-      - TAG: ["bionic", "focal", "jammy"]
+      - TAG: ["bionic", "focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10"]
 
 kernel_matrix_testing_run_tests_arm64:
   extends:
@@ -346,7 +346,7 @@ kernel_matrix_testing_run_tests_arm64:
     ARCH: "arm64"
   parallel:
     matrix:
-      - TAG: ["focal", "jammy"]
+      - TAG: ["focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10"]
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing

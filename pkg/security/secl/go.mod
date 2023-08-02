@@ -9,6 +9,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fatih/structtag v1.2.0
 	github.com/fsnotify/fsnotify v1.6.0
+	github.com/google/go-cmp v0.5.9
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.4
 	github.com/skydive-project/go-debouncer v1.0.0
