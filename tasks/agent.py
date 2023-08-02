@@ -525,6 +525,11 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
 
+    # We need to override the workers variable in omnibus build when running on Kubernetes runners,
+    # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
+    if os.environ.get('KUBERNETES_CPU_REQUEST'):
+        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+
     return env
 
 

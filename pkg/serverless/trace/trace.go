@@ -10,8 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
-	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
+	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -68,13 +67,7 @@ const invocationSpanResource = "dd-tracer-serverless-span"
 
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
-	c, err := compcorecfg.NewServerlessConfig(l.Path)
-	if err != nil {
-		return nil, err
-	} else if c == nil {
-		return nil, fmt.Errorf("No error, but no configuration component was produced - bailing out")
-	}
-	return comptracecfg.LoadConfigFile(l.Path, c)
+	return tracecmdconfig.LoadConfigFile(l.Path)
 }
 
 // Start starts the agent
