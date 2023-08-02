@@ -144,23 +144,15 @@ func NewPolicyLoader(providers ...PolicyProvider) *PolicyLoader {
 // Rules from RC override local rules if they share the same ID, so the RC policy provider has to be first
 func (p *PolicyLoader) remoteConfigProvidersFirst() {
 	var remoteConfigProviders []PolicyProvider
-	var dirProviders []PolicyProvider
-	var unknownProviders []PolicyProvider
+	var otherProviders []PolicyProvider
 
 	for _, provider := range p.Providers {
 		if provider.Type() == PolicyProviderTypeRC {
 			remoteConfigProviders = append(remoteConfigProviders, provider)
-		} else if provider.Type() == PolicyProviderTypeDir {
-			dirProviders = append(dirProviders, provider)
 		} else {
-			unknownProviders = append(unknownProviders, provider)
+			otherProviders = append(otherProviders, provider)
 		}
 	}
 
-	var allProviders []PolicyProvider
-	allProviders = append(allProviders, remoteConfigProviders...)
-	allProviders = append(allProviders, dirProviders...)
-	allProviders = append(allProviders, unknownProviders...)
-
-	p.Providers = allProviders
+	p.Providers = append(remoteConfigProviders, otherProviders...)
 }
