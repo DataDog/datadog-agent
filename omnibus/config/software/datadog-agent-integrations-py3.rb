@@ -28,8 +28,13 @@ if osx?
 end
 
 if linux?
-  # psycopg2 & psycopg3 don't come with pre-built wheel on linux.
-  # to compile from source, it requires the `pg_config` executable present on the $PATH
+  # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
+  #   to compile from source, it requires the `pg_config` executable present on the $PATH
+  # * We also need it to build psycopg[c] Python dependency
+  # * Note: because having unixodbc already built breaks postgresql build,
+  #   we made unixodbc depend on postgresql to ensure proper build order.
+  #   If we're ever removing/changing one of these dependencies, we need to
+  #   take this into account.
   dependency 'postgresql'
   # add nfsiostat script
   dependency 'unixodbc'
