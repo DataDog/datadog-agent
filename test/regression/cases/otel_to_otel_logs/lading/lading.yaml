@@ -13,7 +13,7 @@ generator:
           variant: "opentelemetry_traces"
 
 blackhole:
-  # AMP ingest listener
+  # API ingest listener
   - http:
       binding_addr: "127.0.0.1:9091"
       body_variant: "nothing"
