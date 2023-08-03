@@ -40,24 +40,26 @@ type serverDeps struct {
 	Log    log.Component
 }
 
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (int, error) {
+// createUDPConnRandomPort starts listening on an random UDP port.
+// If the "close" boolean is set to false, the connection is returned and the
+// caller should taker care of closing it properly if no error is returned.
+func createUDPConnRandomPort(close bool) (*net.PacketConn, int, error) {
 	conn, err := net.ListenPacket("udp", ":0")
 	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+		return nil, -1, fmt.Errorf("can't find an available udp port: %s", err)
 	}
-	defer conn.Close()
-
+	if close {
+		defer conn.Close()
+	}
 	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+		return nil, -1, fmt.Errorf("can't find an available udp port: %s", err)
 	}
 	portInt, err := strconv.Atoi(portString)
 	if err != nil {
-		return -1, fmt.Errorf("can't convert udp port: %s", err)
+		return nil, -1, fmt.Errorf("can't convert udp port: %s", err)
 	}
-
-	return portInt, nil
+	return &conn, portInt, nil
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -89,7 +91,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 func TestNewServer(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 	cfg["dogstatsd_port"] = port
 
@@ -106,7 +108,7 @@ func TestNewServer(t *testing.T) {
 func TestStopServer(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 	cfg["dogstatsd_port"] = port
 
@@ -160,7 +162,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 func TestUDPReceive(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
@@ -440,28 +442,25 @@ func TestUDPReceive(t *testing.T) {
 func TestUDPForward(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	fport, err := getAvailableUDPPort()
+	fconn, fport, err := createUDPConnRandomPort(false)
 	require.NoError(t, err)
+	pc := *fconn
+	defer pc.Close()
 
 	// Setup UDP server to forward to
 	cfg["statsd_forward_port"] = fport
 	cfg["statsd_forward_host"] = "127.0.0.1"
 
 	// Setup dogstatsd server
-	port, err := getAvailableUDPPort()
+	tmpconn, port, err := createUDPConnRandomPort(false)
 	require.NoError(t, err)
 	cfg["dogstatsd_port"] = port
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	addr := fmt.Sprintf("127.0.0.1:%d", fport)
-	pc, err := net.ListenPacket("udp", addr)
-	require.NoError(t, err)
-
-	defer pc.Close()
-
 	demux := mockDemultiplexer(deps.Config, deps.Log)
 	defer demux.Stop(false)
+	(*tmpconn).Close()
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -487,7 +486,7 @@ func TestUDPForward(t *testing.T) {
 func TestHistToDist(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 	cfg["dogstatsd_port"] = port
 	cfg["histogram_copy_to_distribution"] = true
@@ -581,7 +580,7 @@ func TestEOLParsing(t *testing.T) {
 func TestE2EParsing(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 	cfg["dogstatsd_port"] = port
 
@@ -629,7 +628,7 @@ func TestE2EParsing(t *testing.T) {
 func TestExtraTags(t *testing.T) {
 	config.SetFeatures(t, config.EKSFargate)
 
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 
 	cfg := make(map[string]interface{})
@@ -663,7 +662,7 @@ func TestExtraTags(t *testing.T) {
 
 func TestStaticTags(t *testing.T) {
 	cfg := make(map[string]interface{})
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
@@ -704,7 +703,7 @@ func TestStaticTags(t *testing.T) {
 func TestNoMappingsConfig(t *testing.T) {
 	datadogYaml := ``
 
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(t, err)
 
 	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
@@ -819,7 +818,7 @@ dogstatsd_mapper_profiles:
 	samples := []metrics.MetricSample{}
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			port, err := getAvailableUDPPort()
+			_, port, err := createUDPConnRandomPort(true)
 			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
 
 			deps := fulfillDepsWithConfigYaml(t, scenario.config)
@@ -860,7 +859,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg := make(map[string]interface{})
 
 	require := require.New(t)
-	port, err := getAvailableUDPPort()
+	_, port, err := createUDPConnRandomPort(true)
 	require.NoError(err)
 	cfg["dogstatsd_port"] = port
 
