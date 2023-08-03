@@ -23,7 +23,6 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -141,7 +140,7 @@ func (w *Watcher) Start() {
 		log.Warnf("Watcher Start can't get root namespace pid %s", err)
 	}
 
-	_ = util.WithAllProcs(w.procRoot, func(pid int) error {
+	_ = kernel.WithAllProcs(w.procRoot, func(pid int) error {
 		if pid == thisPID { // don't scan ourself
 			return nil
 		}

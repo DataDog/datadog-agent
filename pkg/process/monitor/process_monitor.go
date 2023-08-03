@@ -17,7 +17,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -318,7 +317,7 @@ func (pm *ProcessMonitor) Initialize() error {
 					return nil
 				}
 				// Scanning already running processes
-				if err := util.WithAllProcs(util.GetProcRoot(), handleProcessExecWrapper); err != nil {
+				if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
 					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
 					pm.tel.processScanFailed.Add(1)
 					return
@@ -405,7 +404,7 @@ func FindDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
 		return nil
 	}
 	// Scanning already running processes
-	if err := util.WithAllProcs(util.GetProcRoot(), procIter); err != nil {
+	if err := kernel.WithAllProcs(kernel.ProcFSRoot(), procIter); err != nil {
 		return nil
 	}
 
