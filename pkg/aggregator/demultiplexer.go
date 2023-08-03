@@ -9,11 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,11 +71,7 @@ type Demultiplexer interface {
 
 	// Senders API, mainly used by collectors/checks
 	// --
-
-	GetSender(id checkid.ID) (sender.Sender, error)
-	SetSender(sender.Sender, checkid.ID) error
-	DestroySender(id checkid.ID)
-	GetDefaultSender() (sender.Sender, error)
+	sender.SenderManager
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.
