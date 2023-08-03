@@ -347,17 +347,16 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 }
 
 func getDefaultHeaderDirs() []string {
-	// KernelVersion == uname -r
-	kernelVersion := hostMetadataUtils.GetKernelVersion()
-	if kernelVersion == "" {
+	hi, err := Release()
+	if err != nil {
 		return []string{}
 	}
 
 	return []string{
-		fmt.Sprintf(kernelModulesPath, kernelVersion),
-		fmt.Sprintf(debKernelModulesPath, kernelVersion),
-		fmt.Sprintf(cosKernelModulesPath, kernelVersion),
-		fmt.Sprintf(centosKernelModulesPath, kernelVersion),
+		fmt.Sprintf(kernelModulesPath, hi),
+		fmt.Sprintf(debKernelModulesPath, hi),
+		fmt.Sprintf(cosKernelModulesPath, hi),
+		fmt.Sprintf(centosKernelModulesPath, hi),
 	}
 }
 
