@@ -10,67 +10,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"regexp"
 )
 
-//Implementation
-//Traverse AST. Check if each node is an "always true node".
-//Evaluate each node against each node at the same level of precedence
-//If at anytime, the total truth value is false, return false
-//If at the end the total truth value is true, return true
-
-func evalTruthValue(ast *ast.Rule) bool {
-	var totalTruthValue bool
-	//if nodeAlwaysTrue() {
-	//	totalTruthValue = totalTruthValue && nodeAlwaysTrue()
-	//}
-
-	leftEvaluated := evalExpression(ast.BooleanExpression.Expression)
-	rightEvaluated := evalExpression(ast.BooleanExpression.Expression.Next.Expression)
-
-	if *ast.BooleanExpression.Expression.Op == "&&" {
-		totalTruthValue = leftEvaluated && rightEvaluated
-	} else if *ast.BooleanExpression.Expression.Op == "||" {
-		totalTruthValue = leftEvaluated || rightEvaluated
-	}
-
-	return totalTruthValue
-}
-
-func evalExpression(expression *ast.Expression) bool {
-	var totalTruthValue bool
-
-	if expression.Comparison.ArrayComparison != nil {
-
-	} else if expression.Comparison.ScalarComparison != nil {
-
-	} else if expression.Comparison.ArithmeticOperation != nil {
-
-	}
-
-	leftEvaluated := evalExpression(expression)
-	rightEvaluated := evalExpression(expression.Next.Expression)
-
-	//if *expression.Op == "&&" {
-	//	totalTruthValue = leftEvaluated && rightEvaluated
-	//} else if *expression.Op == "||" {
-	//	totalTruthValue = leftEvaluated || rightEvaluated
-	//}
-
-	return totalTruthValue
-}
-
-func nodeAlwaysTrue() bool {
-
-	return false
-}
-
-func IsAlwaysTrueSimple(rule *eval.Rule) (bool, error) {
-	matched1, _ := regexp.MatchString(rule.GetAst().Expr, " \"/**\"")
-	matched2, _ := regexp.MatchString(rule.GetAst().Expr, " \"/*\"")
-
-	return matched1 || matched2, nil
-}
+// IsAlwaysTrue checks whether a rule always returns true
+func IsAlwaysTrue(rule *eval.Rule) (bool, error) {
 	parsingContext := ast.NewParsingContext()
 	localModel := &model.Model{}
 	if err := rule.GenEvaluator(localModel, parsingContext); err != nil {
