@@ -94,8 +94,8 @@ func NewTestEnv() (*TestEnv, error) {
 		envVars := map[string]string{"DATA_DIR": dataPath, "CONFIG_DIR": configPath}
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}
 		composeDependencies = append(composeDependencies, fileCommands...)
-		_, err = docker.NewDaemon(
-			ctx,
+		_, err = docker.NewAgentDockerInstaller(
+			vm,
 			dockerparams.WithComposeContent(snmpCompose, envVars),
 			dockerparams.WithPulumiResources(pulumi.DependsOn(composeDependencies)),
 		)
