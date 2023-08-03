@@ -63,16 +63,6 @@ Package forwarder implements the "forwarder" bundle
 
 Package defaultForwarder implements a component to send payloads to the backend
 
-## [comp/logs](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/logs) (Component Bundle)
-
-*Datadog Team*: agent-metrics-logs
-
-
-
-### [comp/logs/agent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/logs/agent)
-
-Package agent contains logs agent component.
-
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
