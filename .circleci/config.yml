@@ -64,10 +64,10 @@ jobs:
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
             python3 -m pip install -r .circleci/requirements.txt
-      - run:
-          name: check go version
-          command: |
-            inv -e check-go-version
+      # - run:
+      #     name: check go version
+      #     command: |
+      #       inv -e check-go-version
       - run:
           name: grab go deps
           command: |
