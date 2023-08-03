@@ -218,11 +218,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     outfiles.append(offset_guesser_outfile)
 
     runtime_security_archive = os.path.join(build_dir, "runtime-security.tar.gz")
-    nw.build(
-        inputs=outfiles,
-        outputs=[runtime_security_archive],
-        rule="targz"
-    )
+    nw.build(inputs=outfiles, outputs=[runtime_security_archive], rule="targz")
 
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
