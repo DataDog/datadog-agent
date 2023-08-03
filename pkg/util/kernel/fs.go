@@ -66,12 +66,6 @@ func HostProc(combineWith ...string) string {
 	return filepath.Join(ProcFSRoot(), filepath.Join(combineWith...))
 }
 
-// HostSys returns the location of a host's /sys. This can and will be overridden
-// when running inside a container.
-func HostSys(combineWith ...string) string {
-	return filepath.Join(SysFSRoot(), filepath.Join(combineWith...))
-}
-
 // RootNSPID returns the current PID from the root namespace
 var RootNSPID = funcs.Memoize(func() (int, error) {
 	pidPath := filepath.Join(ProcFSRoot(), "self")

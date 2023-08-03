@@ -25,14 +25,14 @@ import (
 )
 
 // Getpid returns the current process ID in the host namespace
-func Getpid() int32 {
+func Getpid() uint32 {
 	p, err := os.Readlink(kernel.HostProc("/self"))
 	if err == nil {
 		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
-			return int32(pid)
+			return uint32(pid)
 		}
 	}
-	return int32(os.Getpid())
+	return uint32(os.Getpid())
 }
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
@@ -64,7 +64,7 @@ func (path *NetNSPath) GetPath() string {
 	defer path.mu.Unlock()
 
 	if path.cachedPath == "" {
-		path.cachedPath = kernel.HostProc(fmt.Sprintf("%d/ns/net", path.pid))
+		path.cachedPath = procPidPath(path.pid, "ns/net")
 	}
 	return path.cachedPath
 }
@@ -101,23 +101,27 @@ func CgroupTaskPath(tgid, pid uint32) string {
 }
 
 // ProcExePath returns the path to the exe file of a pid in /proc
-func ProcExePath(pid int32) string {
-	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "exe")
+func ProcExePath(pid uint32) string {
+	return procPidPath(pid, "exe")
 }
 
 // StatusPath returns the path to the status file of a pid in /proc
-func StatusPath(pid int32) string {
-	return kernel.HostProc(strconv.FormatInt(int64(pid), 10), "status")
+func StatusPath(pid uint32) string {
+	return procPidPath(pid, "status")
 }
 
 // ProcRootPath returns the path to the root directory of a pid in /proc
-func ProcRootPath(pid int32) string {
-	return filepath.Join(kernel.HostProc(), fmt.Sprintf("%d/root", pid))
+func ProcRootPath(pid uint32) string {
+	return procPidPath(pid, "root")
 }
 
 // ProcRootFilePath returns the path to the input file after prepending the proc root path of the given pid
-func ProcRootFilePath(pid int32, file string) string {
+func ProcRootFilePath(pid uint32, file string) string {
 	return filepath.Join(ProcRootPath(pid), file)
+}
+
+func procPidPath(pid uint32, path string) string {
+	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path)
 }
 
 // ModulesPath returns the path to the modules file in /proc
@@ -125,15 +129,10 @@ func ModulesPath() string {
 	return kernel.HostProc("modules")
 }
 
-// RootPath returns the path to the root folder of a pid in /proc
-func RootPath(pid int32) string {
-	return kernel.HostProc(strconv.FormatInt(int64(pid), 10), "root")
-}
-
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process
-func CapEffCapEprm(pid int32) (uint64, uint64, error) {
+func CapEffCapEprm(pid uint32) (uint64, uint64, error) {
 	var capEff, capPrm uint64
-	contents, err := os.ReadFile(StatusPath(pid))
+	contents, err := os.ReadFile(StatusPath(uint32(pid)))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -161,8 +160,8 @@ func CapEffCapEprm(pid int32) (uint64, uint64, error) {
 }
 
 // PidTTY returns the TTY of the given pid
-func PidTTY(pid int32) string {
-	fdPath := kernel.HostProc(fmt.Sprintf("%d/fd/0", pid))
+func PidTTY(pid uint32) string {
+	fdPath := procPidPath(pid, "fd/0")
 
 	ttyPath, err := os.Readlink(fdPath)
 	if err != nil {
@@ -301,8 +300,8 @@ func matchesOnePrefix(text string, prefixes []string) bool {
 }
 
 // EnvVars returns a array with the environment variables of the given pid
-func EnvVars(priorityEnvsPrefixes []string, pid int32) ([]string, bool, error) {
-	filename := kernel.HostProc(fmt.Sprintf("/%d/environ", pid))
+func EnvVars(priorityEnvsPrefixes []string, pid uint32) ([]string, bool, error) {
+	filename := procPidPath(pid, "environ")
 
 	f, err := os.Open(filename)
 	if err != nil {

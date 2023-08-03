@@ -1755,7 +1755,7 @@ func init() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	testSuitePid = uint32(utils.Getpid())
+	testSuitePid = utils.Getpid()
 }
 
 //nolint:deadcode,unused

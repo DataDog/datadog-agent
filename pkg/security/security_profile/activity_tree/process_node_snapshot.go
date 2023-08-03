@@ -92,7 +92,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		}
 
 		// fetch the file user, group and mode
-		fullPath := filepath.Join(utils.RootPath(int32(pn.Process.Pid)), f)
+		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
 		fileinfo, err = os.Stat(fullPath)
 		if err != nil {
 			continue
