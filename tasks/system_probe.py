@@ -107,6 +107,13 @@ def ninja_define_exe_compiler(nw):
     )
 
 
+def ninja_define_tar_gz(nw):
+    nw.rule(
+        name="targz",
+        command="tar -czvf $out $in",
+    )
+
+
 def ninja_ebpf_program(nw, infile, outfile, variables=None):
     outdir, basefile = os.path.split(outfile)
     basename = os.path.basename(os.path.splitext(basefile)[0])
@@ -209,6 +216,13 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         },
     )
     outfiles.append(offset_guesser_outfile)
+
+    runtime_security_archive = os.path.join(build_dir, "runtime-security.tar.gz")
+    nw.build(
+        inputs=outfiles,
+        outputs=[runtime_security_archive],
+        rule="targz"
+    )
 
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
@@ -449,6 +463,7 @@ def ninja_generate(
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
+            ninja_define_tar_gz(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)

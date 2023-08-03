@@ -33,6 +33,10 @@ func GetReader(dir, name string) (AssetReader, error) {
 	return nopCloser{bytes.NewReader(content)}, nil
 }
 
+func GetCompressedReader(dir, name, archiveName string) (AssetReader, error) {
+	return GetReader(dir, name)
+}
+
 type readerAt interface {
 	io.Reader
 	io.ReaderAt

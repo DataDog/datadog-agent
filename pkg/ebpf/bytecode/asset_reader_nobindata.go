@@ -8,7 +8,10 @@
 package bytecode
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"path"
 )
@@ -27,4 +30,65 @@ func GetReader(dir, name string) (AssetReader, error) {
 	}
 
 	return asset, nil
+}
+
+func GetCompressedReader(dir, name, archiveName string) (AssetReader, error) {
+	archivePath := path.Join(dir, path.Base(archiveName))
+	err := VerifyAssetPermissions(archivePath)
+	if err != nil {
+		return nil, err
+	}
+
+	assetPath := path.Join(dir, path.Base(name))
+
+	if err := extractFile(archivePath, name, assetPath); err != nil {
+		return nil, err
+	}
+
+	return GetReader(dir, name)
+}
+
+func extractFile(archivePath, filename, destPath string) error {
+	archive, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer archive.Close()
+
+	archiveReader, err := gzip.NewReader(archive)
+	if err != nil {
+		return err
+	}
+	defer archiveReader.Close()
+
+	dest, err := os.OpenFile(destPath, os.O_CREATE, os.FileMode(0022))
+	if err != nil {
+		return err
+	}
+	defer dest.Close()
+
+	tarReader := tar.NewReader(archiveReader)
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			return fmt.Errorf("%s not found in %s", filename, archivePath)
+		}
+		if err != nil {
+			return err
+		}
+
+		if hdr.Name == filename {
+			// we found the searched file
+			if _, err := io.Copy(dest, tarReader); err != nil {
+				return err
+			}
+
+			// we ensure the write succeeded
+			if err := dest.Close(); err != nil {
+				return err
+			}
+
+			return nil
+		}
+	}
 }
