@@ -17,6 +17,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+const CWS_OBJECTS_ARCHIVE_NAME = "runtime-security.tar.gz"
+
 // ProbeLoader defines an eBPF ProbeLoader
 type ProbeLoader struct {
 	config            *config.Config
@@ -69,7 +71,7 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 			asset += "-syscall-wrapper"
 		}
 
-		l.bytecodeReader, err = bytecode.GetReader(l.config.BPFDir, asset+".o")
+		l.bytecodeReader, err = bytecode.GetCompressedReader(l.config.BPFDir, asset+".o", CWS_OBJECTS_ARCHIVE_NAME)
 		if err != nil {
 			return nil, false, err
 		}
@@ -101,7 +103,7 @@ func (l *OffsetGuesserLoader) Close() error {
 
 // Load eBPF programs
 func (l *OffsetGuesserLoader) Load() (bytecode.AssetReader, error) {
-	return bytecode.GetReader(l.config.BPFDir, "runtime-security-offset-guesser.o")
+	return bytecode.GetCompressedReader(l.config.BPFDir, "runtime-security-offset-guesser.o", CWS_OBJECTS_ARCHIVE_NAME)
 }
 
 // IsSyscallWrapperRequired checks whether the wrapper is required

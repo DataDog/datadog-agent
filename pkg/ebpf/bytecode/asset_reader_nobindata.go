@@ -45,10 +45,16 @@ func GetCompressedReader(dir, name, archiveName string) (AssetReader, error) {
 		return nil, err
 	}
 
+	if err := os.Chown(assetPath, 0, 0); err != nil {
+		return nil, err
+	}
+
 	return GetReader(dir, name)
 }
 
 func extractFile(archivePath, filename, destPath string) error {
+	needleFilename := "pkg/ebpf/bytecode/build/" + filename
+
 	archive, err := os.Open(archivePath)
 	if err != nil {
 		return err
@@ -61,7 +67,7 @@ func extractFile(archivePath, filename, destPath string) error {
 	}
 	defer archiveReader.Close()
 
-	dest, err := os.OpenFile(destPath, os.O_CREATE, os.FileMode(0022))
+	dest, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(0022))
 	if err != nil {
 		return err
 	}
@@ -77,13 +83,17 @@ func extractFile(archivePath, filename, destPath string) error {
 			return err
 		}
 
-		if hdr.Name == filename {
+		if hdr.Name == needleFilename {
 			// we found the searched file
 			if _, err := io.Copy(dest, tarReader); err != nil {
 				return err
 			}
 
 			// we ensure the write succeeded
+			if err := dest.Sync(); err != nil {
+				return err
+			}
+
 			if err := dest.Close(); err != nil {
 				return err
 			}
