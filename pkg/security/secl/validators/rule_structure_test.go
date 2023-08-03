@@ -10,12 +10,9 @@ import (
 	"testing"
 )
 
-// Other test cases: array too long
-// Too many fields
-
-func TestIsAlwaysTrue(t *testing.T) {
-	// TODO: Handle macros and variables and parentheses in chained boolean expressions
-
+// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/validators --run=TestHasBareWildcard
+// These test cases were originally written for an AlwaysTrue rule check. A more complex AlwaysTrue rule check is currently tabled in favor of a more naive bare wildcard check.
+func TestHasBareWildcard(t *testing.T) {
 	type args struct {
 		ruleExpression string
 	}
@@ -79,7 +76,7 @@ func TestIsAlwaysTrue(t *testing.T) {
 			args: args{
 				ruleExpression: "exec.file.path =~ \"/**\" && exec.file.name != \"ls\" || open.file.name == \"myfile.txt\"",
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name: "always true chained",
@@ -88,19 +85,26 @@ func TestIsAlwaysTrue(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name: "parentheses",
+			args: args{
+				ruleExpression: "exec.file.path =~ \"/**\" && (exec.file.name != \"ls\" || exec.file.name == \"*\")",
+			},
+			want: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ruleToEval := eval.NewRule(tt.name, tt.args.ruleExpression, &eval.Opts{})
 
-			got, err := IsAlwaysTrue(ruleToEval)
+			got, err := HasBareWildcardInField(ruleToEval)
 
 			if err != nil {
 				t.Errorf("Error message is `%s`, wanted it to contain `%s`", err.Error(), tt.errMessage)
 			}
 
 			if got != tt.want {
-				t.Errorf("IsAlwaysTrue() = %v, want %v", got, tt.want)
+				t.Errorf("HasBareWildcardInField() = %v, want %v", got, tt.want)
 			}
 		})
 	}
