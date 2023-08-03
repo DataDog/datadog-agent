@@ -692,23 +692,24 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
+    create_branch = branch_name is None
     branch_name = verify_workspace(ctx, branch_name=branch_name)
     update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
     update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    commit_and_push(ctx, branch_name=branch_name)
+    commit_and_push(ctx, branch_name=branch_name, create_branch=create_branch)
     # Trigger a build on the pipeline
     run(ctx, here=True)
 
 
-def verify_workspace(ctx, branch_name):
+def verify_workspace(ctx, branch_name=None):
     """
     Assess we can modify files and commit without risk of local or upstream conflicts
     """
     if branch_name is None:
         user_name = ctx.run("whoami", hide="out")
         branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
-    github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
-    check_clean_branch_state(ctx, github, branch_name)
+        github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
+        check_clean_branch_state(ctx, github, branch_name)
     return branch_name
 
 
@@ -752,8 +753,9 @@ def update_circleci_config(file_path, image_tag, test_version):
         circle.write(circle_ci.replace(f"{image_name}:{match.group(1)}", f"{image}:{image_tag}"))
 
 
-def commit_and_push(ctx, branch_name=None):
-    ctx.run(f"git checkout -b {branch_name}")
+def commit_and_push(ctx, branch_name=None, create_branch=False):
+    if create_branch:
+        ctx.run(f"git checkout -b {branch_name}")
     ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
     ctx.run("git commit -m 'Update buildimages version'")
     ctx.run(f"git push origin {branch_name}")
