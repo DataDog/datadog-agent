@@ -37,12 +37,6 @@ func (s *senders) SetSender(sender sender.Sender, id checkid.ID) error {
 	return s.senderPool.setSender(sender, id)
 }
 
-// cleanSenders cleans the senders list, used in unit tests.
-func (s *senders) cleanSenders() {
-	s.senderPool.senders = make(map[checkid.ID]sender.Sender)
-	s.senderInit = sync.Once{}
-}
-
 // GetSender returns a sender.Sender with passed ID, properly registered with the aggregator
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore

@@ -77,7 +77,6 @@ type Demultiplexer interface {
 	SetSender(sender.Sender, checkid.ID) error
 	DestroySender(id checkid.ID)
 	GetDefaultSender() (sender.Sender, error)
-	cleanSenders()
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.
