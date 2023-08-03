@@ -105,6 +105,10 @@ jobs:
       # - restore_cache: *restore_source
       # - restore_cache: *restore_deps
       - run:
+          name: pip
+          command: |
+            apt update && apt install python3-invoke -y 
+      - run:
           name: run unit tests
           no_output_timeout: 20m
           command: inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
