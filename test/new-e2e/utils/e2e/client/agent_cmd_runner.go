@@ -8,6 +8,7 @@ package client
 import (
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,11 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 
 func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("version", commandArgs...)
+}
+
+func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string {
+	output := agent.executeCommand("hostname", commandArgs...)
+	return strings.Trim(output, "\n")
 }
 
 func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
