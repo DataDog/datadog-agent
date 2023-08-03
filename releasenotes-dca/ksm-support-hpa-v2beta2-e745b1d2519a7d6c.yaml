@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes the KSM check to support HPA v2beta2 again. This stopped working in agent v7.44.0.
+    Fixes the KSM check to support HPA v2beta2 again. This stopped working in Agent v7.44.0.
