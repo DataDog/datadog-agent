@@ -32,7 +32,7 @@ from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
-PROFILE_COV = "profile.cov"
+PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
