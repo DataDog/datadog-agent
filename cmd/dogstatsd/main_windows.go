@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -121,7 +120,7 @@ loop:
 				break loop
 			case svc.PreShutdown:
 				pkglog.Info("Received pre-shutdown message from service control manager")
-				elog.Info(0x4000000d, pkgconfig.ServiceName)
+				elog.Info(0x4000000d, ServiceName)
 				break loop
 			case svc.Shutdown:
 				pkglog.Info("Received shutdown message from service control manager")

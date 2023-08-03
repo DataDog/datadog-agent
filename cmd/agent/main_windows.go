@@ -6,7 +6,6 @@
 package main
 
 import (
-	"context"
 	_ "expvar"
 	_ "net/http/pprof"
 	"os"
@@ -26,7 +25,7 @@ func main() {
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 && servicemain.RunningAsWindowsService() {
-		servicemain.RunAsWindowsService("DatadogAgent", run.StartAgentWithDefaults)
+		servicemain.RunAsWindowsService(common.ServiceName, run.StartAgentWithDefaults)
 		return
 	}
 	defer log.Flush()
