@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -174,7 +175,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 	}
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !anyChecksEnabled(appInitDeps.Checks) {
+	if !shouldEnableProcessAgent(appInitDeps.Checks, appInitDeps.Config) {
 		log.Infof(agent6DisabledMessage)
 		return nil
 	}
@@ -206,6 +207,10 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 	return false
 }
 
+func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
+	return anyChecksEnabled(checks) || collector.Enabled(cfg)
+}
+
 // cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
 func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
 	return func(status int) {
@@ -231,6 +236,7 @@ type miscDeps struct {
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
 // Todo: (Components) WorkloadMeta, remoteTagger, statsd
+// Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), false); err != nil {
 		_ = log.Criticalf("Error configuring statsd: %s", err)
@@ -264,19 +270,30 @@ func initMisc(deps miscDeps) error {
 	}
 	tagger.SetDefaultTagger(t)
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			store.Start(ctx)
+	processCollectionServer := collector.NewProcessCollector(deps.Config)
 
-			err := tagger.Init(ctx)
+	// appCtx is a context that cancels when the OnStop hook is called
+	appCtx, stopApp := context.WithCancel(context.Background())
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(startCtx context.Context) error {
+			store.Start(appCtx)
+
+			err := tagger.Init(startCtx)
 			if err != nil {
 				_ = log.Errorf("failed to start the tagger: %s", err)
 			}
 
-			err = manager.ConfigureAutoExit(ctx, deps.Config)
+			err = manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
 				_ = log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
+			}
+
+			if collector.Enabled(deps.Config) {
+				err := processCollectionServer.Start(appCtx, store)
+				if err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -287,6 +304,8 @@ func initMisc(deps miscDeps) error {
 			if err != nil {
 				return err
 			}
+
+			stopApp()
 
 			return nil
 		},

@@ -16,7 +16,9 @@ venv3[78]/
 **/debug.test
 # files
 .DS_Store
+# *.cov could be removed in OCT 2023, replaced by **/coverage.out
 *.cov
+**/coverage.out
 *.pyc
 *.swp
 *.exe

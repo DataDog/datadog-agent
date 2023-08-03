@@ -8,6 +8,7 @@ package client
 import (
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +54,11 @@ func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string 
 	return agent.executeCommand("version", commandArgs...)
 }
 
+func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string {
+	output := agent.executeCommand("hostname", commandArgs...)
+	return strings.Trim(output, "\n")
+}
+
 func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
@@ -61,6 +67,10 @@ func (agent *AgentCommandRunner) Health() (string, error) {
 	arguments := []string{"health"}
 	output, err := agent.executeAgentCmdWithError(arguments)
 	return output, err
+}
+
+func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("configcheck", commandArgs...)
 }
 
 // IsReady runs status command and returns true if the agent is ready.
