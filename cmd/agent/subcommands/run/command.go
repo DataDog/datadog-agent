@@ -289,8 +289,8 @@ func getSharedFxOption() fx.Option {
 		dogstatsd.Bundle,
 		rcclient.Module,
 
-		// TODO: (components) - some parts of the agent implicitly depend on the global state set up by LoadComponents
-		// (the logs agent). In order for components to use lifecycle hooks that also depend on this global state, we
+		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
+		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
 		fx.Invoke(func(lc fx.Lifecycle) {
 			lc.Append(fx.Hook{
