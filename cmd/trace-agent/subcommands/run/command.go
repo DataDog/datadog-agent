@@ -11,12 +11,8 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +26,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return runTraceAgentFct(cliParams, cliParams.ConfPath, Start)
+			return runTraceAgent(cliParams, cliParams.ConfPath)
 		},
 	}
 
@@ -51,18 +47,6 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 
 type Params struct {
 	DefaultLogFile string
-}
-
-func runTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interface{}) error {
-	if cliParams.ConfPath == "" {
-		cliParams.ConfPath = defaultConfPath
-	}
-	return fxutil.OneShot(fct,
-		fx.Supply(cliParams),
-		config.Module,
-		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
-		coreconfig.Module,
-	)
 }
 
 // handleSignal closes a channel to exit cleanly from routines

@@ -13,7 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 type RunParams struct {
@@ -29,8 +31,24 @@ type RunParams struct {
 
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
 
-func Start(cliParams *RunParams, config config.Component) error {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
+	if cliParams.ConfPath == "" {
+		cliParams.ConfPath = defaultConfPath
+	}
+	return fxutil.OneShot(func(cliParams *RunParams, config config.Component) error {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		return Run(ctx, cliParams, config)
+	},
+		fx.Supply(cliParams),
+		config.Module,
+		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
+		coreconfig.Module,
+	)
+}
+
+func Run(ctx context.Context, cliParams *RunParams, config config.Component) error {
+	ctx, cancelFunc := context.WithCancel(ctx)
 
 	// Handle stops properly
 	go func() {
