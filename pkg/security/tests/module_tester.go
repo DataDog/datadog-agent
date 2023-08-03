@@ -1443,6 +1443,7 @@ type tracePipeLogger struct {
 	*TracePipe
 	stop       chan struct{}
 	executable string
+	tb         testing.TB
 }
 
 //nolint:unused
@@ -1453,7 +1454,7 @@ func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	_, err := os.Stat(taskPath)
 
 	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
-		log.Debug(event.Raw)
+		l.tb.Log(strings.TrimSuffix(event.Raw, "\n"))
 	}
 }
 
@@ -1502,6 +1503,7 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		TracePipe:  tracePipe,
 		stop:       make(chan struct{}),
 		executable: filepath.Base(executable),
+		tb:         tm.t,
 	}
 	logger.Start()
 
