@@ -14,6 +14,7 @@ const (
 	Dotnet  LanguageName = "dotnet"
 	Python  LanguageName = "python"
 	Java    LanguageName = "java"
+	Ruby    LanguageName = "ruby"
 	Unknown LanguageName = ""
 )
 
