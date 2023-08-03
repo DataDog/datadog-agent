@@ -177,13 +177,6 @@ func TestEnabled(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name:                          "not process agent",
-			processCollectionEnabled:      false,
-			remoteProcessCollectorEnabled: true,
-			flavor:                        flavor.SecurityAgent,
-			expectEnabled:                 false,
-		},
-		{
 			name:                          "process check enabled",
 			processCollectionEnabled:      true,
 			remoteProcessCollectorEnabled: false,

@@ -36,9 +36,6 @@ type GRPCServer struct {
 
 	streamMutex         *sync.Mutex
 	closeExistingStream context.CancelFunc
-
-	invalidVersionError telemetry.SimpleCounter
-	streamServerError   telemetry.SimpleCounter
 }
 
 var (
@@ -125,7 +122,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	}
 	err := out.Send(syncMessage)
 	if err != nil {
-		l.streamServerError.Inc()
+		streamServerError.Inc()
 		log.Warnf("error sending process entity event: %s", err)
 		return err
 	}
