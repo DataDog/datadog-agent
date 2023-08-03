@@ -18,6 +18,19 @@
 #define GRPC_ENCODED_CONTENT_TYPE "\x1d\x75\xd0\x62\x0d\x26\x3d\x4c\x4d\x65\x64"
 #define GRPC_CONTENT_TYPE_LEN (sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1)
 
+static __always_inline void check_and_skip_magic(const struct __sk_buff *skb, skb_info_t *info) {
+    char buf[HTTP2_MARKER_SIZE];
+
+    if (info->data_off + HTTP2_MARKER_SIZE >= skb->len) {
+        return;
+    }
+
+    bpf_skb_load_bytes(skb, info->data_off, buf, sizeof(buf));
+    if (is_http2_preface(buf, sizeof(buf))) {
+        info->data_off += HTTP2_MARKER_SIZE;
+    }
+}
+
 static __always_inline bool is_encoded_grpc_content_type(const char *content_type_buf) {
     return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN);
 }
@@ -112,6 +125,10 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
 
     // Make a mutable copy of skb_info
     skb_info_t info = *skb_info;
+
+    // Check if the skb starts with the HTTP2 magic, advance the info->data_off
+    // to the first byte after it if the magic is present.
+    check_and_skip_magic(skb, &info);
 
     // Loop through the HTTP2 frames in the packet
 #pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
