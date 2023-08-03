@@ -372,6 +372,12 @@ type AgentConfig struct {
 	StatsWriter             *WriterConfig
 	TraceWriter             *WriterConfig
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
+	// MaxSenderRetries is the maximum number of retries that a sender will perform
+	// before giving up. Note that the sender may not perform all MaxSenderRetries if
+	// the agent is under load and the outgoing payload queue is full. In that
+	// case, the sender will drop failed payloads when it is unable to enqueue
+	// them for another retry.
+	MaxSenderRetries int
 
 	// internal telemetry
 	StatsdEnabled  bool

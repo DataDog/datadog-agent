@@ -94,6 +94,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")
 	config.BindEnv("apm_config.connection_limit", "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
 	config.BindEnv("apm_config.connection_reset_interval", "DD_APM_CONNECTION_RESET_INTERVAL")
+	config.BindEnv("apm_config.max_sender_retries", "DD_APM_MAX_SENDER_RETRIES")
 	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")
 	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")

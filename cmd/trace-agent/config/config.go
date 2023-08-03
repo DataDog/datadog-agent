@@ -426,6 +426,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(coreconfig.Datadog.GetInt("apm_config.connection_reset_interval"))
 	}
+	if coreconfig.Datadog.IsSet("apm_config.max_sender_retries") {
+		c.MaxSenderRetries = coreconfig.Datadog.GetInt("apm_config.max_sender_retries")
+	} else {
+		// Default of 4 was chosen through experimentation, but may not be the optimal value.
+		c.MaxSenderRetries = 4
+	}
 	if coreconfig.Datadog.IsSet("apm_config.sync_flushing") {
 		c.SynchronousFlushing = coreconfig.Datadog.GetBool("apm_config.sync_flushing")
 	}

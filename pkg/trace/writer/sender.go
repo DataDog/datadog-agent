@@ -44,13 +44,14 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:    cfg.NewHTTPClient(),
-			maxConns:  int(maxConns),
-			maxQueued: qsize,
-			url:       url,
-			apiKey:    endpoint.APIKey,
-			recorder:  r,
-			userAgent: fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			client:     cfg.NewHTTPClient(),
+			maxConns:   int(maxConns),
+			maxQueued:  qsize,
+			maxRetries: cfg.MaxSenderRetries,
+			url:        url,
+			apiKey:     endpoint.APIKey,
+			recorder:   r,
+			userAgent:  fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 		})
 	}
 	return senders
@@ -125,6 +126,9 @@ type senderConfig struct {
 	// maxQueued specifies the maximum number of payloads allowed in the queue.
 	// When it is surpassed, oldest items get dropped to make room for new ones.
 	maxQueued int
+	// maxRetries specifies the maximum number of times a payload submission to
+	// intake will be retried before being dropped.
+	maxRetries int
 	// recorder specifies the eventRecorder to use when reporting events occurring
 	// in the sender.
 	recorder eventRecorder
@@ -137,9 +141,10 @@ type senderConfig struct {
 type sender struct {
 	cfg *senderConfig
 
-	queue    chan *payload // payload queue
-	inflight *atomic.Int32 // inflight payloads
-	attempt  *atomic.Int32 // active retry attempt
+	queue      chan *payload // payload queue
+	inflight   *atomic.Int32 // inflight payloads
+	attempt    *atomic.Int32 // active retry attempt
+	maxRetries int32
 
 	mu     sync.RWMutex // guards closed
 	closed bool         // closed reports if the loop is stopped
@@ -148,10 +153,11 @@ type sender struct {
 // newSender returns a new sender based on the given config cfg.
 func newSender(cfg *senderConfig) *sender {
 	s := sender{
-		cfg:      cfg,
-		queue:    make(chan *payload, cfg.maxQueued),
-		inflight: atomic.NewInt32(0),
-		attempt:  atomic.NewInt32(0),
+		cfg:        cfg,
+		queue:      make(chan *payload, cfg.maxQueued),
+		inflight:   atomic.NewInt32(0),
+		attempt:    atomic.NewInt32(0),
+		maxRetries: int32(cfg.maxRetries),
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -222,13 +228,6 @@ func (s *sender) Push(p *payload) {
 	s.inflight.Inc()
 }
 
-// maxRetries is the maximum number of retries that the sender will perform
-// before giving up. Note that the sender may not perform all maxRetries if
-// the agent is under load and the outgoing payload queue is full. In that
-// case, the sender will drop failed payloads when it is unable to enqueue
-// them for another retry.
-const maxRetries = 4
-
 // sendPayload sends the payload p to the destination URL.
 func (s *sender) sendPayload(p *payload) {
 	req, err := p.httpRequest(s.cfg.url)
@@ -265,7 +264,7 @@ func (s *sender) sendPayload(p *payload) {
 			// e.g. attempts 4, 8, 16, etc.
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
-		if p.retries.Load() >= maxRetries {
+		if p.retries.Load() >= s.maxRetries {
 			log.Warnf("Dropping Payload after %d retries.\n", p.retries.Load())
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
