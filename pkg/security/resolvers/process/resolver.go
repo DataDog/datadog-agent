@@ -48,9 +48,10 @@ const (
 )
 
 const (
-	procResolveMaxDepth       = 16
-	maxParallelArgsEnvs       = 512              // == number of parallel starting processes
-	procFallbackLimiterPeriod = 30 * time.Second // proc fallback period by pid
+	procResolveMaxDepth              = 16
+	maxParallelArgsEnvs              = 512 // == number of parallel starting processes
+	numAllowedPIDsToResolvePerPeriod = 1
+	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
 )
 
 // ResolverOpts options of resolver
@@ -598,9 +599,7 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model
 		return nil
 	}
 
-	if p.procFallbackLimiter.IsAllowed(pid) {
-		p.procFallbackLimiter.Count(pid)
-
+	if p.procFallbackLimiter.Allow(pid) {
 		// fallback to /proc, the in-kernel LRU may have deleted the entry
 		if entry := p.resolveFromProcfs(pid, procResolveMaxDepth); entry != nil {
 			p.hitsStats[metrics.ProcFSTag].Inc()
@@ -1144,6 +1143,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 	}
 
 	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
+	entry.IsThread = true
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {
@@ -1272,14 +1272,6 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	}
 }
 
-// HasCompleteLineage returns whether the lineage is complete
-func (p *Resolver) HasCompleteLineage(entry *model.ProcessCacheEntry) bool {
-	p.RLock()
-	defer p.RUnlock()
-
-	return entry.HasCompleteLineage()
-}
-
 // NewResolver returns a new process resolver
 func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
@@ -1325,7 +1317,8 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	}
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 
-	limiter, err := utils.NewLimiter[uint32](128, procFallbackLimiterPeriod)
+	// Create rate limiter that allows for 128 pids
+	limiter, err := utils.NewLimiter[uint32](128, numAllowedPIDsToResolvePerPeriod, procFallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}

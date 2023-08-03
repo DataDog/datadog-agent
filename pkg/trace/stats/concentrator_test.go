@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
@@ -27,7 +27,7 @@ var (
 )
 
 func NewTestConcentrator(now time.Time) *Concentrator {
-	statsChan := make(chan pb.StatsPayload)
+	statsChan := make(chan *pb.StatsPayload)
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
 		AgentVersion:   "0.99.0",
@@ -44,9 +44,8 @@ func getTsInBucket(alignedNow int64, bsize int64, offset int64) int64 {
 
 // testSpan avoids typo and inconsistency in test spans (typical pitfall: duration, start time,
 // and end time are aligned, and end time is the one that needs to be aligned
-func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, resource string, err int32) *pb.Span {
-	now := time.Now().UnixNano()
-	alignedNow := now - now%testBucketInterval
+func testSpan(now time.Time, spanID uint64, parentID uint64, duration, offset int64, service, resource string, err int32, meta map[string]string) *pb.Span {
+	alignedNow := now.UnixNano() - now.UnixNano()%testBucketInterval
 
 	return &pb.Span{
 		SpanID:   spanID,
@@ -58,6 +57,7 @@ func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, r
 		Resource: resource,
 		Error:    err,
 		Type:     "db",
+		Meta:     meta,
 	}
 }
 
@@ -79,19 +79,19 @@ func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
 }
 
 // assertCountsEqual is a test utility function to assert expected == actual for count aggregations.
-func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []pb.ClientGroupedStats) {
-	expectedM := make(map[string]pb.ClientGroupedStats)
-	actualM := make(map[string]pb.ClientGroupedStats)
+func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual []*pb.ClientGroupedStats) {
+	expectedM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
+	actualM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
 		e.CustomTags = []string{""}
-		expectedM[e.Service+e.Resource] = e
+		expectedM[NewAggregationFromGroup(e).BucketsAggregationKey] = e
 	}
 	for _, a := range actual {
 		a.ErrorSummary = nil
 		a.OkSummary = nil
-		actualM[a.Service+a.Resource] = a
+		actualM[NewAggregationFromGroup(a).BucketsAggregationKey] = a
 	}
 	assert.Equal(t, expectedM, actualM)
 }
@@ -102,7 +102,7 @@ func TestTracerHostname(t *testing.T) {
 	now := time.Now()
 
 	spans := []*pb.Span{
-		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
 	}
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
@@ -121,12 +121,12 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 	// Build that simply have spans spread over time windows.
 	spans := []*pb.Span{
-		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
-		testSpan(1, 0, 40, 4, "A1", "resource1", 0),
-		testSpan(1, 0, 30, 3, "A1", "resource1", 0),
-		testSpan(1, 0, 20, 2, "A1", "resource1", 0),
-		testSpan(1, 0, 10, 1, "A1", "resource1", 0),
-		testSpan(1, 0, 1, 0, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 40, 4, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 30, 3, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 20, 2, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 10, 1, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 1, 0, "A1", "resource1", 0, nil),
 	}
 
 	traceutil.ComputeTopLevel(spans)
@@ -154,7 +154,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates old past time buckets, so each count
 		// should be an aggregated total across the spans.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -191,7 +191,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates, it should have it all except the
 		// last four spans that have offset of 0.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -211,7 +211,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		}
 
 		// Stats of the last four spans.
-		expected = []pb.ClientGroupedStats{
+		expected = []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -241,12 +241,12 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 	// Build that simply have spans spread over time windows.
 	spans := []*pb.Span{
-		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
-		testSpan(1, 0, 40, 4, "A1", "resource1", 0),
-		testSpan(1, 0, 30, 3, "A1", "resource1", 0),
-		testSpan(1, 0, 20, 2, "A1", "resource1", 0),
-		testSpan(1, 0, 10, 1, "A1", "resource1", 0),
-		testSpan(1, 0, 1, 0, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 40, 4, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 30, 3, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 20, 2, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 10, 1, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 1, 0, "A1", "resource1", 0, nil),
 	}
 
 	traceutil.ComputeTopLevel(spans)
@@ -286,7 +286,6 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 // TestConcentratorStatsCounts tests exhaustively each stats bucket, over multiple time buckets.
 func TestConcentratorStatsCounts(t *testing.T) {
-	assert := assert.New(t)
 	now := time.Now()
 	c := NewTestConcentrator(now)
 
@@ -299,27 +298,29 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	// Build a trace with stats which should cover 3 time buckets.
 	spans := []*pb.Span{
 		// more than 2 buckets old, should be added to the 2 bucket-old, first flush.
-		testSpan(1, 0, 111, 10, "A1", "resource1", 0),
-		testSpan(1, 0, 222, 3, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 111, 10, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 222, 3, "A1", "resource1", 0, nil),
+		testSpan(now, 11, 0, 333, 3, "A1", "resource3", 0, map[string]string{"span.kind": "client"}),
+		testSpan(now, 12, 0, 444, 3, "A1", "resource3", 0, map[string]string{"span.kind": "server"}),
 		// 2 buckets old, part of the first flush
-		testSpan(1, 0, 24, 2, "A1", "resource1", 0),
-		testSpan(2, 0, 12, 2, "A1", "resource1", 2),
-		testSpan(3, 0, 40, 2, "A2", "resource2", 2),
-		testSpan(4, 0, 300000000000, 2, "A2", "resource2", 2), // 5 minutes trace
-		testSpan(5, 0, 30, 2, "A2", "resourcefoo", 0),
+		testSpan(now, 1, 0, 24, 2, "A1", "resource1", 0, nil),
+		testSpan(now, 2, 0, 12, 2, "A1", "resource1", 2, nil),
+		testSpan(now, 3, 0, 40, 2, "A2", "resource2", 2, nil),
+		testSpan(now, 4, 0, 300000000000, 2, "A2", "resource2", 2, nil), // 5 minutes trace
+		testSpan(now, 5, 0, 30, 2, "A2", "resourcefoo", 0, nil),
 		// 1 bucket old, part of the second flush
-		testSpan(6, 0, 24, 1, "A1", "resource2", 0),
-		testSpan(7, 0, 12, 1, "A1", "resource1", 2),
-		testSpan(8, 0, 40, 1, "A2", "resource1", 2),
-		testSpan(9, 0, 30, 1, "A2", "resource2", 2),
-		testSpan(10, 0, 3600000000000, 1, "A2", "resourcefoo", 0), // 1 hour trace
+		testSpan(now, 6, 0, 24, 1, "A1", "resource2", 0, nil),
+		testSpan(now, 7, 0, 12, 1, "A1", "resource1", 2, nil),
+		testSpan(now, 8, 0, 40, 1, "A2", "resource1", 2, nil),
+		testSpan(now, 9, 0, 30, 1, "A2", "resource2", 2, nil),
+		testSpan(now, 10, 0, 3600000000000, 1, "A2", "resourcefoo", 0, nil), // 1 hour trace
 		// present data, part of the third flush
-		testSpan(6, 0, 24, 0, "A1", "resource2", 0),
+		testSpan(now, 6, 0, 24, 0, "A1", "resource2", 0, nil),
 	}
 
-	expectedCountValByKeyByTime := make(map[int64][]pb.ClientGroupedStats)
+	expectedCountValByKeyByTime := make(map[int64][]*pb.ClientGroupedStats)
 	// 2-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -350,9 +351,31 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			TopLevelHits: 1,
 			Errors:       0,
 		},
+		{
+			Service:      "A1",
+			Resource:     "resource3",
+			Type:         "db",
+			Name:         "query",
+			SpanKind:     "client",
+			Duration:     333,
+			Hits:         1,
+			TopLevelHits: 1,
+			Errors:       0,
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource3",
+			Type:         "db",
+			Name:         "query",
+			SpanKind:     "server",
+			Duration:     444,
+			Hits:         1,
+			TopLevelHits: 1,
+			Errors:       0,
+		},
 	}
 	// 1-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -405,7 +428,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// last bucket to be flushed
-	expectedCountValByKeyByTime[alignedNow] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource2",
@@ -417,7 +440,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Errors:       0,
 		},
 	}
-	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
+	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "")
@@ -428,6 +451,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	flushTime := now.UnixNano()
 	for i := 0; i <= c.bufferLen+2; i++ {
 		t.Run(fmt.Sprintf("flush-%d", i), func(t *testing.T) {
+			assert := assert.New(t)
 			stats := c.flushNow(flushTime, false)
 
 			expectedFlushedTs := alignTs(flushTime, c.bsize) - int64(c.bufferLen)*testBucketInterval
@@ -457,9 +481,8 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	}
 }
 
-func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.DDSketch {
+func generateDistribution(t *testing.T, now time.Time, generator func(i int) int64) *ddsketch.DDSketch {
 	assert := assert.New(t)
-	now := time.Now()
 	c := NewTestConcentrator(now)
 	alignedNow := alignTs(now.UnixNano(), c.bsize)
 	// update oldestTs as it running for quite some time, to avoid the fact that at startup
@@ -468,7 +491,7 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 	// Build a trace with stats representing the distribution given by the generator
 	spans := []*pb.Span{}
 	for i := 0; i < 100; i++ {
-		spans = append(spans, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
+		spans = append(spans, testSpan(now, uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0, nil))
 	}
 	traceutil.ComputeTopLevel(spans)
 	c.addNow(toProcessedTrace(spans, "none", ""), "")
@@ -489,9 +512,10 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 
 func TestDistributions(t *testing.T) {
 	assert := assert.New(t)
+	now := time.Now()
 	testQuantiles := []float64{0.1, 0.5, 0.95, 0.99, 1}
 	t.Run("constant", func(t *testing.T) {
-		constantDistribution := generateDistribution(t, func(i int) int64 { return 42 })
+		constantDistribution := generateDistribution(t, now, func(i int) int64 { return 42 })
 		expectedConstant := []float64{42, 42, 42, 42, 42}
 		for i, q := range testQuantiles {
 			actual, err := constantDistribution.GetValueAtQuantile(q)
@@ -500,7 +524,7 @@ func TestDistributions(t *testing.T) {
 		}
 	})
 	t.Run("uniform", func(t *testing.T) {
-		uniformDistribution := generateDistribution(t, func(i int) int64 { return int64(i) + 1 })
+		uniformDistribution := generateDistribution(t, now, func(i int) int64 { return int64(i) + 1 })
 		expectedUniform := []float64{10, 50, 95, 99, 100}
 		for i, q := range testQuantiles {
 			actual, err := uniformDistribution.GetValueAtQuantile(q)
@@ -513,7 +537,7 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
 
-	span := testSpan(1, 0, 50, 5, "A1", "resource1", 0)
+	span := testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)
 	span.Metrics = map[string]float64{"_dd.partial_version": 830604}
 	spans := []*pb.Span{span}
 	traceutil.ComputeTopLevel(spans)
@@ -532,7 +556,7 @@ func TestForceFlush(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
 
-	spans := []*pb.Span{testSpan(1, 0, 50, 5, "A1", "resource1", 0)}
+	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "")
 	c := NewTestConcentrator(now)

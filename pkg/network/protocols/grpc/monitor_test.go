@@ -14,16 +14,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -45,8 +46,8 @@ func testGRPCScenarios(t *testing.T) {
 		t.Skipf("USM can not run on kernel before %v", http.MinimumKernelVersion)
 	}
 
-	if currKernelVersion < http.HTTP2MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http.HTTP2MinimumKernelVersion)
+	if currKernelVersion < http2.MinimumKernelVersion {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
 	}
 
 	s, err := grpc.NewServer(srvAddr)
@@ -600,8 +601,13 @@ func testGRPCScenarios(t *testing.T) {
 
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
-					stats := monitor.GetHTTP2Stats()
-					for key, stat := range stats {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := stat.Data[200].Count
 							newKey := http.Key{

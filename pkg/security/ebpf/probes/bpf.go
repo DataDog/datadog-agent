@@ -14,30 +14,30 @@ var bpfProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_bpf_map",
+			EBPFFuncName: "hook_security_bpf_map",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_bpf_prog",
+			EBPFFuncName: "hook_security_bpf_prog",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_check_helper_call",
+			EBPFFuncName: "hook_check_helper_call",
 		},
 		MatchFuncName: "check_helper_call",
 	},
 }
 
-func getBPFProbes() []*manager.Probe {
+func getBPFProbes(fentry bool) []*manager.Probe {
 	bpfProbes = append(bpfProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "bpf",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return bpfProbes
 }

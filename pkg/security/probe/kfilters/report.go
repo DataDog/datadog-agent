@@ -27,7 +27,7 @@ type ApplyRuleSetReport struct {
 	Policies map[string]*PolicyReport
 }
 
-// GetFilterReport returns filtering policy applied per event type
+// NewApplyRuleSetReport returns filtering policy applied per event type
 func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 	policies := make(map[eval.EventType]*PolicyReport)
 

@@ -27,18 +27,18 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE2(mkdir, const char*, filename, umode_t, mode)
+HOOK_SYSCALL_ENTRY2(mkdir, const char*, filename, umode_t, mode)
 {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
+HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-SEC("kprobe/vfs_mkdir")
-int kprobe_vfs_mkdir(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_mkdir")
+int hook_vfs_mkdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
@@ -48,12 +48,12 @@ int kprobe_vfs_mkdir(struct pt_regs *ctx) {
         return 0;
     }
 
-    syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    syscall->mkdir.dentry = (struct dentry *) CTX_PARM2(ctx);
     // change the register based on the value of vfs_mkdir_dentry_position
     if (get_vfs_mkdir_dentry_position() == VFS_ARG_POSITION3) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->mkdir.dentry, sizeof(syscall->mkdir.dentry), &syscall->mkdir.dentry);
-        syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+        syscall->mkdir.dentry = (struct dentry *) CTX_PARM3(ctx);
     }
 
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
@@ -84,6 +84,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MKDIR_CALLBACK_KPROBE_KEY : DR_MKDIR_CALLBACK_TRACEPOINT_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
+    syscall->resolver.sysretval = retval;
 
     resolve_dentry(ctx, dr_type);
 
@@ -92,34 +93,30 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     return 0;
 }
 
-SEC("kprobe/do_mkdirat")
-int kprobe_do_mkdirat(struct pt_regs *ctx) {
+HOOK_ENTRY("do_mkdirat")
+int hook_do_mkdirat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
-        umode_t mode = (umode_t)PT_REGS_PARM3(ctx);
+        umode_t mode = (umode_t)CTX_PARM3(ctx);
         return trace__sys_mkdir(ASYNC_SYSCALL, mode);
     }
     return 0;
 }
 
-SEC("kretprobe/do_mkdirat")
-int kretprobe_do_mkdirat(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_mkdir_ret(ctx, retval, DR_KPROBE);
+HOOK_EXIT("do_mkdirat")
+int rethook_do_mkdirat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 3);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-int __attribute__((always_inline)) kprobe_sys_mkdir_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_mkdir_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_EXIT(mkdir) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
-SYSCALL_KRETPROBE(mkdir)
-{
-    return kprobe_sys_mkdir_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(mkdirat) {
-    return kprobe_sys_mkdir_ret(ctx);
+HOOK_SYSCALL_EXIT(mkdirat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_mkdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_mkdir_exit")
@@ -127,11 +124,13 @@ int tracepoint_handle_sys_mkdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *
     return sys_mkdir_ret(args, args->ret, DR_TRACEPOINT);
 }
 
-int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
+int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
     }
+
+    s64 retval = syscall->resolver.sysretval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
@@ -159,14 +158,22 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
 }
 
 SEC("kprobe/dr_mkdir_callback")
-int __attribute__((always_inline)) kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return dr_mkdir_callback(ctx, retval);
+int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
+    return dr_mkdir_callback(ctx);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_mkdir_callback")
+int fentry_dr_mkdir_callback(ctx_t *ctx) {
+    return dr_mkdir_callback(ctx);
+}
+
+#endif // USE_FENTRY
+
 SEC("tracepoint/dr_mkdir_callback")
-int __attribute__((always_inline)) tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_mkdir_callback(args, args->ret);
+int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_mkdir_callback(args);
 }
 
 #endif

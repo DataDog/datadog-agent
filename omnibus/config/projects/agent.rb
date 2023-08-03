@@ -3,7 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-
 flavor = ENV['AGENT_FLAVOR']
 
 if flavor.nil? || flavor == 'base'
@@ -64,7 +63,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
 
   if osx?
@@ -166,6 +165,10 @@ package :zip do
     if ENV['SIGN_PFX']
       signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
     end
+    if ENV['SIGN_WINDOWS_DD_WCS']
+      dd_wcssign true
+    end
+  
   end
 end
 
@@ -210,6 +213,10 @@ package :msi do
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    dd_wcssign true
+  end
+
   include_sysprobe = "false"
   if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     include_sysprobe = "true"

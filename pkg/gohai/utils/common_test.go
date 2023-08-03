@@ -64,8 +64,8 @@ func TestAsJSONTypes(t *testing.T) {
 		"my_uint16": "8",
 		"my_uint32": "9",
 		"my_uint64": "10",
-		"my_float32": "%f",
-		"my_float64": "%f",
+		"my_float32": "%v",
+		"my_float64": "%v",
 		"my_string": "mystr"
 	}`, float32(32.), 64.)
 	require.JSONEq(t, expected, string(marshalled))

@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -35,8 +37,8 @@ import (
 )
 
 var (
-	checkID1 check.ID = "1"
-	checkID2 check.ID = "2"
+	checkID1 checkid.ID = "1"
+	checkID2 checkid.ID = "2"
 )
 
 const defaultHostname = "hostname"
@@ -86,7 +88,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 	// -
 
 	agg := getAggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
 
 	lenSenders := func(n int) bool {
 		agg.mu.Lock()
@@ -115,7 +117,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	defer demux.Stop(false)
 
 	agg := demux.Aggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
 
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
@@ -152,16 +154,16 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
 		CheckName: "my_service.can_connect",
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Tags:      []string{"bar", "foo", "bar"},
 		Message:   "message",
 	})
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		CheckName: "my_service.can_connect",
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Host:      "my-hostname",
 		Tags:      []string{"foo", "foo", "bar"},
 		Ts:        12345,
@@ -184,20 +186,20 @@ func TestAddEventDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
-	agg.addEvent(metrics.Event{
+	agg.addEvent(event.Event{
 		// only populate required fields
 		Title: "An event occurred",
 		Text:  "Event description",
 	})
-	agg.addEvent(metrics.Event{
+	agg.addEvent(event.Event{
 		// populate all fields
 		Title:          "Another event occurred",
 		Text:           "Other event description",
 		Ts:             12345,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar", "foo"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      event.EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	})
@@ -219,9 +221,9 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "Another event occurred", event2.Title)
 	assert.Equal(t, "my-hostname", event2.Host)
 	assert.Equal(t, int64(12345), event2.Ts)
-	assert.Equal(t, metrics.EventPriorityNormal, event2.Priority)
+	assert.Equal(t, event.EventPriorityNormal, event2.Priority)
 	assert.ElementsMatch(t, []string{"foo", "bar"}, event2.Tags)
-	assert.Equal(t, metrics.EventAlertTypeError, event2.AlertType)
+	assert.Equal(t, event.EventAlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }
@@ -235,10 +237,10 @@ func TestDefaultData(t *testing.T) {
 	start := time.Now()
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, agg.hostname, m[0].Host)
 
@@ -466,10 +468,10 @@ func TestRecurrentSeries(t *testing.T) {
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, demux.Aggregator().hostname, m[0].Host)
 

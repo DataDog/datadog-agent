@@ -94,6 +94,10 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
+
+	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
+	// in the core agent if the process check is disabled.
+	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 )
 
 // Datadog is the global configuration object
@@ -129,12 +133,6 @@ func PrometheusScrapeChecksTransformer(in string) interface{} {
 		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
 	}
 	return promChecks
-}
-
-// MetadataProviders helps unmarshalling `metadata_providers` config param
-type MetadataProviders struct {
-	Name     string        `mapstructure:"name"`
-	Interval time.Duration `mapstructure:"interval"`
 }
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
@@ -265,6 +263,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
 	config.BindEnvAndSetDefault("integration_profiling", false)
+	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
@@ -286,7 +285,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
 
 	// Remote config
-	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")
 	config.BindEnv("remote_configuration.rc_dd_url")
@@ -715,6 +714,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
+	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
@@ -823,6 +823,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_use_container_support", false)
+	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
 	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
@@ -1003,6 +1004,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.config", map[string]string{})        // list of options that can be used to configure the external metrics server
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)        // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)                     // Maximum number of queries to batch when querying Datadog.
+	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
 	AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
@@ -1108,6 +1110,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
+	// Remote process collector
+	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
+	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
+
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
@@ -1145,7 +1151,7 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)            // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)             // controls the agent configurations
 	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
 	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
@@ -1169,10 +1175,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
-	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
+	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1187,6 +1195,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
+	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
@@ -1198,6 +1207,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
+	config.BindEnvAndSetDefault("serverless.constant_backoff_interval", 100*time.Millisecond)
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
@@ -1346,12 +1356,12 @@ func LoadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1450,6 +1460,8 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		"DD_VERSION":                   {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
+		// this variable is used by the Kubernetes leader election mechanism
+		"DD_POD_NAME": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
@@ -1498,12 +1510,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
-// LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
-func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(config, origin, loadSecret, nil)
-}
-
-func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1835,12 +1842,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-// FileUsedDir returns the absolute path to the folder containing the config
-// file used to populate the registry
-func FileUsedDir() string {
-	return filepath.Dir(Datadog.ConfigFileUsed())
-}
-
 func isLocalAddress(address string) (string, error) {
 	if address == "localhost" {
 		return address, nil
@@ -1997,34 +1998,6 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-// GetConfiguredTags returns list of tags from a configuration, based on
-// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
-// if includeDogdstatsd is true.
-func GetConfiguredTags(config Config, includeDogstatsd bool) []string {
-	tags := config.GetStringSlice("tags")
-	extraTags := config.GetStringSlice("extra_tags")
-
-	var dsdTags []string
-	if includeDogstatsd {
-		dsdTags = config.GetStringSlice("dogstatsd_tags")
-	}
-
-	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
-	combined = append(combined, tags...)
-	combined = append(combined, extraTags...)
-	combined = append(combined, dsdTags...)
-
-	return combined
-}
-
-// GetGlobalConfiguredTags returns complete list of user configured tags.
-//
-// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
-// if includeDogstatsd is true.
-func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
-	return GetConfiguredTags(Datadog, includeDogstatsd)
-}
-
 func bindVectorOptions(config Config, datatype DataType) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
@@ -2060,24 +2033,11 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 	return "", nil
 }
 
-// GetTraceAgentDefaultEnv returns the default env for the trace agent
-func GetTraceAgentDefaultEnv() string {
-	defaultEnv := ""
-	if Datadog.IsSet("apm_config.env") {
-		defaultEnv = Datadog.GetString("apm_config.env")
-		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
-	} else if Datadog.IsSet("env") {
-		defaultEnv = Datadog.GetString("env")
-		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
-	} else {
-		for _, tag := range GetConfiguredTags(Datadog, false) {
-			if strings.HasPrefix(tag, "env:") {
-				defaultEnv = strings.TrimPrefix(tag, "env:")
-				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
-				return defaultEnv
-			}
-		}
+// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
+func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+	// Disable Remote Config for GovCloud
+	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+		return false
 	}
-
-	return defaultEnv
+	return cfg.GetBool("remote_configuration.enabled")
 }

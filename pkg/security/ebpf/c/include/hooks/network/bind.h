@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
+HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
     if (!addr) {
         return 0;
     }
@@ -59,15 +59,15 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(bind) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(bind) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_bind_ret(ctx, retval);
 }
 
-SEC("kprobe/security_socket_bind")
-int kprobe_security_socket_bind(struct pt_regs *ctx) {
-    struct socket *sk = (struct socket *)PT_REGS_PARM1(ctx);
-    struct sockaddr *address = (struct sockaddr *)PT_REGS_PARM2(ctx);
+HOOK_ENTRY("security_socket_bind")
+int hook_security_socket_bind(ctx_t *ctx) {
+    struct socket *sk = (struct socket *)CTX_PARM1(ctx);
+    struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
     u16 family = 0;
 

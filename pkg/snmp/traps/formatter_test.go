@@ -1102,6 +1102,125 @@ func TestIsValidOID_Unit(t *testing.T) {
 	}
 }
 
+func TestVariableTypeFormat(t *testing.T) {
+	data := []struct {
+		description string
+		variable    gosnmp.SnmpPDU
+		expected    interface{}
+	}{
+
+		{
+			description: "type gosnmp.Integer is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.Integer, Value: 10},
+			expected:    "integer",
+		},
+		{
+			description: "type gosnmp.Boolean is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.Boolean, Value: 1},
+			expected:    "boolean",
+		},
+		{
+			description: "type gosnmp.Uinteger32 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.Uinteger32, Value: 15},
+			expected:    "integer",
+		},
+		{
+			description: "type gosnmp.Opaque is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.6574.4.2.12.1.0", Type: gosnmp.Opaque, Value: 0.65},
+			expected:    "opaque",
+		},
+		{
+			description: "type gosnmp.OpaqueFloat is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.6574.4.2.12.1.0", Type: gosnmp.OpaqueFloat, Value: 0.657685},
+			expected:    "opaque",
+		},
+		{
+			description: "type gosnmp.OpaqueDouble is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.6574.4.2.12.1.0", Type: gosnmp.OpaqueDouble, Value: 0.685},
+			expected:    "opaque",
+		},
+		{
+			description: "type gosnmp.ObjectIdentifier is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: "1.3.6.7.8"},
+			expected:    "oid",
+		},
+		{
+			description: "type gosnmp.OctetString is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.193.183.4.1.4.5.1.8", Type: gosnmp.OctetString, Value: "teststring"},
+			expected:    "string",
+		},
+		{
+			description: "type gosnmp.BitString is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.193.183.4.1.4.5.1.8", Type: gosnmp.BitString, Value: []byte{0x74, 0x65, 0x73, 0x74}},
+			expected:    "string",
+		},
+		{
+			description: "type gosnmp.IPAddress is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.4.20.1.1", Type: gosnmp.IPAddress, Value: "127.0.0.1"},
+			expected:    "ip-address",
+		},
+		{
+			description: "type gosnmp.TimeTicks is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.232.18.2.2.1.1.17", Type: gosnmp.TimeTicks, Value: 156},
+			expected:    "time-ticks",
+		},
+		{
+			description: "type gosnmp.Gauge32 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.232.18.2.2.1.1.17", Type: gosnmp.Gauge32, Value: 6},
+			expected:    "gauge32",
+		},
+		{
+			description: "type gosnmp.Counter32 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.Counter32, Value: 34},
+			expected:    "counter32",
+		},
+		{
+			description: "type gosnmp.Counter64 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.Counter64, Value: 34},
+			expected:    "counter64",
+		},
+		{
+			description: "type gosnmp.Null is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.Null, Value: "whatever"},
+			expected:    "null",
+		},
+		{
+			description: "type gosnmp.UnknownType is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.19", Type: gosnmp.UnknownType, Value: "whatever"},
+			expected:    "unknown-type",
+		},
+		{
+			description: "type gosnmp.ObjectDescription is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.ObjectDescription, Value: "whatever"},
+			expected:    "object-description",
+		},
+		{
+			description: "type gosnmp.NsapAddress is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.NsapAddress, Value: []byte{0x74, 0x65, 0x73, 0x74}},
+			expected:    "nsap-address",
+		},
+		{
+			description: "type gosnmp.NoSuchObject is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.NoSuchObject, Value: "whatever"},
+			expected:    "no-such-object",
+		},
+		{
+			description: "type gosnmp.NoSuchInstance is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.NoSuchInstance, Value: "whatever"},
+			expected:    "no-such-instance",
+		},
+		{
+			description: "type gosnmp.EndOfMibView is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.EndOfMibView, Value: "whatever"},
+			expected:    "end-of-mib-view",
+		},
+	}
+
+	for _, d := range data {
+		require.Equal(t, d.expected, formatType(d.variable), d.description)
+	}
+}
+
 func TestVariableValueFormat(t *testing.T) {
 	data := []struct {
 		description string

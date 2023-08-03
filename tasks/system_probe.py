@@ -183,6 +183,20 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     outfiles.append(syscall_wrapper_outfile)
 
+    # fentry + syscall wrapper
+    root, ext = os.path.splitext(outfile)
+    syscall_wrapper_outfile = f"{root}-fentry{ext}"
+    ninja_ebpf_program(
+        nw,
+        infile=infile,
+        outfile=syscall_wrapper_outfile,
+        variables={
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "kheaders": kheaders,
+        },
+    )
+    outfiles.append(syscall_wrapper_outfile)
+
     # offset guesser
     offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
     ninja_ebpf_program(
@@ -222,9 +236,10 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         "tracer",
         "prebuilt/usm",
         "prebuilt/usm_events_test",
+        "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
-    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm"]
+    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm", "runtime/shared-libraries"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
@@ -244,12 +259,16 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length"]
+    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
+        )
 
 
 def ninja_runtime_compilation_files(nw, gobin):
@@ -276,6 +295,7 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
         "pkg/network/usm/compile.go": "usm",
+        "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
@@ -336,18 +356,17 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
-            "pkg/network/protocols/http/http_types.go": [
+            "pkg/network/protocols/http/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
-                "pkg/network/ebpf/c/protocols/tls/sowatcher-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
-            "pkg/network/protocols/http/http2_types.go": [
+            "pkg/network/protocols/http2/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
-            "pkg/network/protocols/kafka/kafka_types.go": [
+            "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
@@ -359,6 +378,15 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
+            ],
+            "pkg/network/usm/sharedlibraries/types.go": [
+                "pkg/network/ebpf/c/shared-libraries/types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
         }
         nw.rule(
@@ -709,7 +737,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
+        for gobin in ["gotls_client", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
@@ -1470,6 +1498,7 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+        test_results = {}
 
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
@@ -1484,9 +1513,23 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            if action == "fail":
-                                print(f"FAIL: [{test_platform}] {package} {name}")
-                                fail_count += 1
+                            if action == "pass" or action == "fail":
+                                test_key = f"{package}.{name}"
+                                res = test_results.get(test_key)
+                                if res is None:
+                                    test_results[test_key] = action
+                                    continue
+
+                                if res == "fail":
+                                    print(f"re-ran [{test_platform}] {package} {name}: {action}")
+                                if action == "pass" and res == "fail":
+                                    test_results[test_key] = action
+
+        for key, res in test_results.items():
+            if res == "fail":
+                package, name = key.split(".")
+                print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
+                fail_count += 1
 
     if fail_count > 0:
         raise Exit(code=1)
@@ -1499,7 +1542,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
     if windows:
         return
 
-    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -1516,6 +1559,8 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
     )
 
+    # Special use-case in javatls
+    images.remove("${IMAGE_VERSION}")
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
@@ -1523,7 +1568,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 
 @task
-def test_microvms(
+def start_microvms(
     ctx,
     infra_env,
     instance_type_x86=None,
@@ -1531,11 +1576,13 @@ def test_microvms(
     x86_ami_id=None,
     arm_ami_id=None,
     destroy=False,
-    upload_dependencies=False,
     ssh_key_name=None,
     ssh_key_path=None,
     dependencies_dir=None,
     shutdown_period=320,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None,
+    local=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1543,13 +1590,14 @@ def test_microvms(
         f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
         f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
         "--destroy" if destroy else "",
-        "--upload-dependencies" if upload_dependencies else "",
         f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
         f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
         f"--infra-env {infra_env}",
         f"--shutdown-period {shutdown_period}",
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
-        "--name kernel-matrix-testing-system",
+        f"--name {stack_name}",
+        f"--vmconfig {vmconfig}" if vmconfig else "",
+        "--local" if local else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

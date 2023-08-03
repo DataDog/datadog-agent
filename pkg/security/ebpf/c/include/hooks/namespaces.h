@@ -4,9 +4,9 @@
 #include "constants/offsets/netns.h"
 #include "maps.h"
 
-SEC("kprobe/switch_task_namespaces")
-int kprobe_switch_task_namespaces(struct pt_regs *ctx) {
-    struct nsproxy *new_ns = (struct nsproxy *)PT_REGS_PARM2(ctx);
+HOOK_ENTRY("switch_task_namespaces")
+int hook_switch_task_namespaces(ctx_t *ctx) {
+    struct nsproxy *new_ns = (struct nsproxy *)CTX_PARM2(ctx);
     if (new_ns == NULL) {
         return 0;
     }

@@ -196,51 +196,6 @@
   },
   {
     "message": {
-      "message": "[dd.trace TIMESTAMP +0000] [main] ERROR datadog.trace.lambda.LambdaHandler - could not notify the extension as the lambda span is null or no sampling priority has been found\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
-    "service": "integration-tests-service",
-    "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java,functionname:integration-tests-extension-XXXXXX-log-java,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-java,runtime:java8.al2,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
-  },
-  {
-    "message": {
-      "message": "[dd.trace TIMESTAMP +0000] [main] ERROR datadog.trace.lambda.LambdaHandler - could not notify the extension as the lambda span is null or no sampling priority has been found\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
-    "service": "integration-tests-service",
-    "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java,functionname:integration-tests-extension-XXXXXX-log-java,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-java,runtime:java8.al2,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
-  },
-  {
-    "message": {
-      "message": "[dd.trace TIMESTAMP +0000] [main] INFO com.datadog.appsec.AppSecSystem - AppSec is ENABLED_INACTIVE with powerwaf(libddwaf: 1.10.0) no rules loaded\n",
-      "lambda": {
-        "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
-        "request_id": "XXX"
-      }
-    },
-    "status": "info",
-    "timestamp": "XXX",
-    "hostname": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",
-    "service": "integration-tests-service",
-    "ddsource": "lambda",
-    "ddtags": "account_id:425362996713,architecture:XXX,aws_account:425362996713,dd_extension_version:123,env:integration-tests-env,function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java,functionname:integration-tests-extension-XXXXXX-log-java,memorysize:1024,region:eu-west-1,resource:integration-tests-extension-XXXXXX-log-java,runtime:java8.al2,service:integration-tests-service,taga:valuea,tagb:valueb,tagc:valuec,tagd:valued,version:integration-tests-version"
-  },
-  {
-    "message": {
       "message": "[dd.trace TIMESTAMP +0000] [main] INFO datadog.trace.agent.common.writer.WriterFactory - Detected serverless environment. Serverless extension has been detected, using DDAgentWriter\n",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-log-java",

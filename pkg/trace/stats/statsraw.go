@@ -9,8 +9,8 @@ import (
 	"math/rand"
 	"strings"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/golang/protobuf/proto"
@@ -49,21 +49,21 @@ func round(f float64) uint64 {
 	return i
 }
 
-func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
+func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	msg := s.okDistribution.ToProto()
 	okSummary, err := proto.Marshal(msg)
 	if err != nil {
-		return pb.ClientGroupedStats{}, err
+		return &pb.ClientGroupedStats{}, err
 	}
 	msg = s.errDistribution.ToProto()
 	errSummary, err := proto.Marshal(msg)
 	if err != nil {
-		return pb.ClientGroupedStats{}, err
+		return &pb.ClientGroupedStats{}, err
 	}
 
 	splitCustomTags := strings.Split(string(a.CustomTagKey), ",")
 
-	return pb.ClientGroupedStats{
+	return &pb.ClientGroupedStats{
 		Service:        a.Service,
 		Name:           a.Name,
 		Resource:       a.Resource,
@@ -78,6 +78,7 @@ func (s *groupedStats) export(a Aggregation) (pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		PeerService:    a.PeerService,
 		CustomTags:     splitCustomTags,
+		SpanKind:       a.SpanKind,
 	}, nil
 }
 
@@ -122,8 +123,8 @@ func NewRawBucket(ts, d uint64) *RawBucket {
 // Export transforms a RawBucket into a ClientStatsBucket, typically used
 // before communicating data to the API, as RawBucket is the internal
 // type while ClientStatsBucket is the public, shared one.
-func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
-	m := make(map[PayloadAggregationKey]pb.ClientStatsBucket)
+func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
+	m := make(map[PayloadAggregationKey]*pb.ClientStatsBucket)
 	for k, v := range sb.data {
 		b, err := v.export(k)
 		if err != nil {
@@ -138,7 +139,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 		}
 		s, ok := m[key]
 		if !ok {
-			s = pb.ClientStatsBucket{
+			s = &pb.ClientStatsBucket{
 				Start:    sb.start,
 				Duration: sb.duration,
 			}

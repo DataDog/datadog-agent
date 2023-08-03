@@ -68,6 +68,8 @@ var bpfMapNames = []string{
 	"syscall_monitor",
 	"syscall_table",
 	"syscalls",
+	"syscalls_stats",
+	"tasks_in_coredu",
 	"tgid_fd_map_id",
 	"tgid_fd_prog_id",
 	"traced_cgroups",

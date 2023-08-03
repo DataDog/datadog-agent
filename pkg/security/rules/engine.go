@@ -74,7 +74,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient),
+		policyMonitor:             NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
@@ -282,7 +282,6 @@ func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
 	// add remote config as config provider if enabled.
-	// rules from RC override local rules if they share the same ID, so the RC policy provider is added first
 	if e.config.RemoteConfigurationEnabled {
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
 		if err != nil {
@@ -340,12 +339,12 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
-
+	containerID := ev.ContainerContext.ID
 	extTagsCb := func() []string {
-		return e.probe.GetEventTags(ev)
+		return e.probe.GetEventTags(containerID)
 	}
 
-	e.eventSender.SendEvent(rule, event, extTagsCb, service)
+	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
 
 	return true
 }

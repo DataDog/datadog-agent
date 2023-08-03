@@ -40,8 +40,8 @@ shared_examples_for 'an Agent with process disabled' do
 end
 
 describe 'win-no-subservices' do
-  it_behaves_like 'an installed Agent'
-  it_behaves_like 'a running Agent with no errors'
+  include_examples 'Agent install'
+  include_examples 'Basic Agent behavior'
   it_behaves_like 'an Agent with APM disabled'
   it_behaves_like 'an Agent with logs disabled'
   it_behaves_like 'an Agent with process disabled'

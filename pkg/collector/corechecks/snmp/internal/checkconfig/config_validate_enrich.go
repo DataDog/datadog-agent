@@ -75,7 +75,7 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j], ColumnSymbol)...)
 			}
 			if len(metricConfig.MetricTags) == 0 {
-				errors = append(errors, fmt.Sprintf("column symbols %v doesn't have a 'metric_tags' section, all its metrics will use the same tags; "+
+				errors = append(errors, fmt.Sprintf("column symbols doesn't have a 'metric_tags' section (%+v), all its metrics will use the same tags; "+
 					"if the table has multiple rows, only one row will be submitted; "+
 					"please add at least one discriminating metric tag (such as a row index) "+
 					"to ensure metrics of all rows are submitted", metricConfig.Symbols))
@@ -85,6 +85,11 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 				errors = append(errors, validateEnrichMetricTag(metricTag)...)
 			}
 		}
+		// Setting forced_type value to metric_type value for backward compatibility
+		if metricConfig.MetricType == "" && metricConfig.ForcedType != "" {
+			metricConfig.MetricType = metricConfig.ForcedType
+		}
+		metricConfig.ForcedType = ""
 	}
 	return errors
 }
@@ -155,7 +160,10 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 		}
 	}
 	if symbolContext != ColumnSymbol && symbol.ConstantValueOne {
-		errors = append(errors, fmt.Sprintf("`constant_value_one` cannot be used outside of tables"))
+		errors = append(errors, "`constant_value_one` cannot be used outside of tables")
+	}
+	if (symbolContext != ColumnSymbol && symbolContext != ScalarSymbol) && symbol.MetricType != "" {
+		errors = append(errors, "`metric_type` cannot be used outside scalar/table metric symbols and metrics root")
 	}
 	return errors
 }

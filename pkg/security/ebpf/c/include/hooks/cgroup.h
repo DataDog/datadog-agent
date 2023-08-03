@@ -7,18 +7,18 @@
 #include "helpers/utils.h"
 #include "maps.h"
 
-static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ctx) {
+static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
     u32 pid;
 
     switch (cgroup_write_type) {
         case CGROUP_DEFAULT: {
-            char *pid_buff = (char *) PT_REGS_PARM2(ctx);
+            char *pid_buff = (char *) CTX_PARM2(ctx);
             pid = atoi(pid_buff);
             break;
         }
         case CGROUP_CENTOS_7: {
-            pid = (u32) PT_REGS_PARM3(ctx);
+            pid = (u32) CTX_PARM3(ctx);
             break;
         }
         default:
@@ -53,7 +53,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
     switch (cgroup_write_type) {
         case CGROUP_DEFAULT: {
             // Retrieve the container ID from the cgroup path.
-            struct kernfs_open_file *kern_f = (struct kernfs_open_file *) PT_REGS_PARM1(ctx);
+            struct kernfs_open_file *kern_f = (struct kernfs_open_file *) CTX_PARM1(ctx);
             struct file *f;
             bpf_probe_read(&f, sizeof(f), &kern_f->file);
             struct dentry *dentry = get_file_dentry(f);
@@ -65,7 +65,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
             break;
         }
         case CGROUP_CENTOS_7: {
-            void *cgroup = (void *) PT_REGS_PARM1(ctx);
+            void *cgroup = (void *) CTX_PARM1(ctx);
             bpf_probe_read(&container_d, sizeof(container_d), cgroup + 72); // offsetof(struct cgroup, dentry)
             bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
             container_id = (void*) container_qstr.name;
@@ -111,24 +111,26 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
     return 0;
 }
 
-SEC("kprobe/cgroup_procs_write")
-int kprobe_cgroup_procs_write(struct pt_regs *ctx) {
+HOOK_ENTRY("cgroup_procs_write")
+int hook_cgroup_procs_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
 
-SEC("kprobe/cgroup1_procs_write")
-int kprobe_cgroup1_procs_write(struct pt_regs *ctx) {
+HOOK_ENTRY("cgroup1_procs_write")
+int hook_cgroup1_procs_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
 
-SEC("kprobe/cgroup_tasks_write")
-int kprobe_cgroup_tasks_write(struct pt_regs *ctx) {
+#ifndef USE_FENTRY
+HOOK_ENTRY("cgroup_tasks_write")
+int hook_cgroup_tasks_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
 
-SEC("kprobe/cgroup1_tasks_write")
-int kprobe_cgroup1_tasks_write(struct pt_regs *ctx) {
+HOOK_ENTRY("cgroup1_tasks_write")
+int hook_cgroup1_tasks_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
+#endif
 
 #endif
