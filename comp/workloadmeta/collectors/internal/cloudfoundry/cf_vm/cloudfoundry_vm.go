@@ -11,13 +11,14 @@ import (
 
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	ddjson "github.com/DataDog/datadog-agent/pkg/util/json"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -26,7 +27,8 @@ const (
 )
 
 type collector struct {
-	store workloadmeta.Store
+	id    string
+	store workloadmeta.Component
 	seen  map[workloadmeta.EntityID]struct{}
 
 	gardenUtil cloudfoundry.GardenUtilInterface
@@ -36,15 +38,16 @@ type collector struct {
 	dcaEnabled bool
 }
 
-func init() {
-	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{
+func NewCollector() collectors.CollectorProvider {
+	return collectors.CollectorProvider{
+		Collector: &collector{
+			id:   collectorID,
 			seen: make(map[workloadmeta.EntityID]struct{}),
-		}
-	})
+		},
+	}
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.CloudFoundry) {
 		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry")
 	}
@@ -217,4 +220,8 @@ func (c *collector) getDCAClient() clusteragent.DCAClientInterface {
 	}
 
 	return c.dcaClient
+}
+
+func (c *collector) GetID() string {
+	return c.id
 }

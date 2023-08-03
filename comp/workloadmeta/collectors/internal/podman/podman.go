@@ -14,12 +14,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -33,19 +33,20 @@ type podmanClient interface {
 
 type collector struct {
 	client podmanClient
-	store  workloadmeta.Store
+	store  workloadmeta.Component
 	seen   map[workloadmeta.EntityID]struct{}
 }
 
-func init() {
-	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{
+func NewCollector() collectors.CollectorProvider {
+	return collectors.CollectorProvider{
+		Collector: &collector{
+			id:   collectorID,
 			seen: make(map[workloadmeta.EntityID]struct{}),
-		}
-	})
+		},
+	}
 }
 
-func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.Podman) {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
@@ -90,6 +91,10 @@ func (c *collector) Pull(_ context.Context) error {
 	c.store.Notify(events)
 
 	return nil
+}
+
+func (c *collector) GetID() string {
+	return c.id
 }
 
 func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {

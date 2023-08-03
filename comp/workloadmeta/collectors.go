@@ -12,49 +12,30 @@ type Collector interface {
 	// Start starts a collector. The collector should run until the context
 	// is done. It also gets a reference to the store that started it so it
 	// can use Notify, or get access to other entities in the store.
-	Start(context.Context, Store) error
+	Start(context.Context, Component) error
 
 	// Pull triggers an entity collection. To be used by collectors that
 	// don't have streaming functionality, and called periodically by the
 	// store.
 	Pull(context.Context) error
+
+	// Returns the identifier for the respective component.
+	GetID() string
 }
 
-// CollectorCatalog is a collection of collectors
-type CollectorCatalog map[string]collectorFactory
+type CollectorList []Collector
 
-type collectorFactory func() Collector
-
-var (
-	// NodeAgentCatalog is a catalog of collectors that runs in the node
-	// agents
-	NodeAgentCatalog = make(CollectorCatalog)
-
-	// ClusterAgentCatalog is a catalog of collectors that runs in the
-	// cluster agent, and the cluster checks runner agents
-	ClusterAgentCatalog = make(CollectorCatalog)
-
-	// RemoteCatalog collectors to run when workloadmeta is configured as remote
-	RemoteCatalog = make(CollectorCatalog)
-)
-
-// RegisterCollector registers a new collector in the NodeAgentCatalog,
-// identified by an id for logging and telemetry purposes, to be used by the
-// store.
-func RegisterCollector(id string, c collectorFactory) {
-	NodeAgentCatalog[id] = c
-}
-
-// RegisterClusterCollector registers a new collector in the
-// ClusterAgentCatalog, identified by an id for logging and telemetry purposes,
-// to be used by the store.
-func RegisterClusterCollector(id string, c collectorFactory) {
-	ClusterAgentCatalog[id] = c
-}
-
-// RegisterRemoteCollector registers a new collector in the RemoteCatalog,
-// identified by an id for logging and telemetry purposes, to be used by the
-// store.
-func RegisterRemoteCollector(id string, c collectorFactory) {
-	RemoteCatalog[id] = c
-}
+// TODO: Factory Catalogs will be removed in the component implementation.
+//
+// var (
+// 	// NodeAgentCatalog is a catalog of collectors that runs in the node
+// 	// agents
+// 	NodeAgentCatalog = make(CollectorCatalog)
+//
+// 	// ClusterAgentCatalog is a catalog of collectors that runs in the
+// 	// cluster agent, and the cluster checks runner agents
+// 	ClusterAgentCatalog = make(CollectorCatalog)
+//
+// 	// RemoteCatalog collectors to run when workloadmeta is configured as remote
+// 	RemoteCatalog = make(CollectorCatalog)
+// )

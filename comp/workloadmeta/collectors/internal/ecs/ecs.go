@@ -12,6 +12,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -19,7 +20,6 @@ import (
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -28,7 +28,8 @@ const (
 )
 
 type collector struct {
-	store               workloadmeta.Store
+	id                  string
+	store               workloadmeta.Component
 	metaV1              v1.Client
 	metaV3or4           func(metaURI, metaVersion string) v3or4.Client
 	clusterName         string
@@ -43,16 +44,17 @@ type resourceTags struct {
 	containerInstanceTags map[string]string
 }
 
-func init() {
-	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{
+func NewCollector() collectors.CollectorProvider {
+	return collectors.CollectorProvider{
+		Collector: &collector{
+			id:           collectorID,
 			resourceTags: make(map[string]resourceTags),
 			seen:         make(map[workloadmeta.EntityID]struct{}),
-		}
-	})
+		},
+	}
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.ECSEC2) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS EC2")
 	}
@@ -96,6 +98,10 @@ func (c *collector) Pull(ctx context.Context) error {
 	c.store.Notify(c.parseTasks(ctx, tasks))
 
 	return nil
+}
+
+func (c *collector) GetID() string {
+	return c.id
 }
 
 func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadmeta.CollectorEvent {

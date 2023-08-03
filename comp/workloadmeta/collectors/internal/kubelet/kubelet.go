@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -33,19 +33,22 @@ const (
 )
 
 type collector struct {
+	id         string
 	watcher    *kubelet.PodWatcher
-	store      workloadmeta.Store
+	store      workloadmeta.Component
 	lastExpire time.Time
 	expireFreq time.Duration
 }
 
-func init() {
-	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
-	})
+func NewCollector() collectors.CollectorProvider {
+	return collectors.CollectorProvider{
+		Collector: &collector{
+			id: collectorID,
+		},
+	}
 }
 
-func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
@@ -83,6 +86,10 @@ func (c *collector) Pull(ctx context.Context) error {
 	c.store.Notify(events)
 
 	return err
+}
+
+func (c *collector) GetID() string {
+	return c.id
 }
 
 func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {

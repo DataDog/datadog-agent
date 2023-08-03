@@ -6,32 +6,45 @@
 package workloadmeta
 
 import (
+	"sync"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"go.uber.org/fx"
 )
 
 type workloadmeta struct {
 	log    log.Component
 	config config.Component
+
+	// Store related
+	storeMut sync.RWMutex
+	store    map[Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
+
+	subscribersMut sync.RWMutex
+	subscribers    []subscriber
+
+	collectorMut sync.RWMutex
+	candidates   map[string]Collector
+	collectors   map[string]Collector
+
+	eventCh chan []CollectorEvent
+
+	ongoingPullsMut sync.Mutex
+	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
 
 type dependencies struct {
 	fx.In
 
-	Log    log.Component
-	Config config.Component
+	Log     log.Component
+	Config  config.Component
+	Catalog CollectorList
 }
 
 func newWorkloadMeta(lc fx.Lifecycle, deps dependencies) Component {
-	var catalog CollectorCatalog
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		catalog = ClusterAgentCatalog
-	} else {
-		catalog = NodeAgentCatalog
-	}
 
-	store := CreateGlobalStore(catalog)
+	store := CreateGlobalStore(deps.Catalog)
 	store.Start(ctx)
 }

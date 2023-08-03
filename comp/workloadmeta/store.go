@@ -10,20 +10,19 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 var (
-	globalStore Store
+	globalStore workloademeta
 )
 
 const (
@@ -46,35 +45,21 @@ type subscriber struct {
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
 type store struct {
-	storeMut sync.RWMutex
-	store    map[Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
-
-	subscribersMut sync.RWMutex
-	subscribers    []subscriber
-
-	collectorMut sync.RWMutex
-	candidates   map[string]Collector
-	collectors   map[string]Collector
-
-	eventCh chan []CollectorEvent
-
-	ongoingPullsMut sync.Mutex
-	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
 
-var _ Store = &store{}
+var _ workloademeta = &store{}
 
 // NewStore creates a new workload metadata store, building a new instance of
 // each collector in the catalog. Call Start to start the store and its
 // collectors.
-func NewStore(catalog CollectorCatalog) Store {
+func NewStore(catalog CollectorList) Component {
 	return newStore(catalog)
 }
 
-func newStore(catalog CollectorCatalog) *store {
+func newStore(catalog CollectorList) *store {
 	candidates := make(map[string]Collector)
-	for id, c := range catalog {
-		candidates[id] = c()
+	for _, c := range catalog {
+		candidates[c.GetID()] = c
 	}
 
 	return &store{
@@ -817,7 +802,7 @@ func classifyByKindAndID(entities []Entity) map[Kind]map[string]Entity {
 // CreateGlobalStore creates a workloadmeta store, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalStore(catalog CollectorCatalog) Store {
+func CreateGlobalStore(catalog CollectorList) Store {
 	if globalStore != nil {
 		panic("global workloadmeta store already set, should only happen once")
 	}

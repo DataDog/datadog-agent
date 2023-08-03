@@ -21,11 +21,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 const (
@@ -58,7 +58,7 @@ type StreamHandler interface {
 	// HandleResponse handles a response from the remote gRPC server.
 	HandleResponse(response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
-	HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent)
+	HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent)
 }
 
 // GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
@@ -66,7 +66,7 @@ type GenericCollector struct {
 	CollectorID   string
 	StreamHandler StreamHandler
 
-	store        workloadmeta.Store
+	store        workloadmeta.Component
 	resyncNeeded bool
 
 	client GrpcClient
@@ -82,7 +82,7 @@ type GenericCollector struct {
 }
 
 // Start starts the collector.
-func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) error {
+func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !c.StreamHandler.IsEnabled() {
 		return fmt.Errorf("collector %s is not enabled", c.CollectorID)
 	}

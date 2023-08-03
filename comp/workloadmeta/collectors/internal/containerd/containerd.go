@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -26,7 +27,6 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -80,7 +80,8 @@ type exitInfo struct {
 }
 
 type collector struct {
-	store                  workloadmeta.Store
+	id                     string
+	store                  workloadmeta.Component
 	containerdClient       cutil.ContainerdItf
 	filterPausedContainers *containers.Filter
 	eventsChan             <-chan *containerdevents.Envelope
@@ -104,16 +105,17 @@ type collector struct {
 	scanOptions sbom.ScanOptions //nolint: unused
 }
 
-func init() {
-	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{
+func NewCollector() collectors.CollectorProvider {
+	return collectors.CollectorProvider{
+		Collector: &collector{
+			id:             collectorID,
 			contToExitInfo: make(map[string]*exitInfo),
 			knownImages:    newKnownImages(),
-		}
-	})
+		},
+	}
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.Containerd) {
 		return agentErrors.NewDisabled(componentName, "Agent is not running on containerd")
 	}
@@ -160,6 +162,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 
 func (c *collector) Pull(ctx context.Context) error {
 	return nil
+}
+
+func (c *collector) GetID() string {
+	return c.id
 }
 
 func (c *collector) stream(ctx context.Context) {
