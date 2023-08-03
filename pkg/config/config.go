@@ -94,6 +94,10 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
+
+	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
+	// in the core agent if the process check is disabled.
+	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 )
 
 // Datadog is the global configuration object
@@ -1108,6 +1112,7 @@ func InitConfig(config Config) {
 
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
+	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
