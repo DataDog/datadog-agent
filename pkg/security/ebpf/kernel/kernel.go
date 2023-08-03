@@ -17,7 +17,6 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -170,11 +169,10 @@ func newKernelVersion() (*Version, error) {
 		return nil, fmt.Errorf("failed to detect kernel version: %w", err)
 	}
 
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return nil, fmt.Errorf("error calling uname: %w", err)
+	unameRelease, err := kernel.Release()
+	if err != nil {
+		return nil, err
 	}
-	unameRelease := unix.ByteSliceToString(uname.Release[:])
 
 	var release map[string]string
 	for _, osReleasePath := range osReleasePaths {

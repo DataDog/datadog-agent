@@ -17,9 +17,35 @@ import (
 
 // Release is the equivalent of uname -r
 var Release = funcs.Memoize(func() (string, error) {
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return "", fmt.Errorf("uname: %w", err)
+	u, err := uname()
+	if err != nil {
+		return "", err
 	}
-	return unix.ByteSliceToString(uname.Release[:]), nil
+	return unix.ByteSliceToString(u.Release[:]), nil
+})
+
+// Machine is the equivalent of uname -m
+var Machine = funcs.Memoize(func() (string, error) {
+	u, err := uname()
+	if err != nil {
+		return "", err
+	}
+	return unix.ByteSliceToString(u.Machine[:]), nil
+})
+
+// UnameVersion is the equivalent of uname -v
+var UnameVersion = funcs.Memoize(func() (string, error) {
+	u, err := uname()
+	if err != nil {
+		return "", err
+	}
+	return unix.ByteSliceToString(u.Version[:]), nil
+})
+
+var uname = funcs.Memoize(func() (unix.Utsname, error) {
+	var u unix.Utsname
+	if err := unix.Uname(&u); err != nil {
+		return unix.Utsname{}, fmt.Errorf("uname: %w", err)
+	}
+	return u, nil
 })
