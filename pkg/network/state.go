@@ -271,7 +271,7 @@ func (ns *networkState) GetDelta(
 	removed := 0
 	for a := 0; a < len(active)-removed; {
 		if _, ok := connsByKey[active[a].Cookie]; !ok {
-			active[a], active[len(active)-1] = active[len(active)-1], active[a]
+			active[a], active[len(active)-removed-1] = active[len(active)-removed-1], active[a]
 			removed++
 			continue
 		}
@@ -299,7 +299,7 @@ func (ns *networkState) GetDelta(
 	removed = 0
 	for i := 0; i < len(conns)-removed; {
 		if aggr.Aggregate(&conns[i]) {
-			conns[i], conns[len(conns)-1] = conns[len(conns)-1], conns[i]
+			conns[i], conns[len(conns)-removed-1] = conns[len(conns)-removed-1], conns[i]
 			removed++
 			continue
 		}
@@ -1027,9 +1027,13 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledU
 	ephemeralDport := c.IntraHost && IsPortInEphemeralRange(c.Family, c.Type, c.DPort) == EphemeralTrue
 	ephemeralDport = ephemeralDport || c.Direction == INCOMING
 
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("type=%s isShortLived=%+v ephemeralSport=%+v ephemeralDport=%+v", c.Type, isShortLived, ephemeralSport, ephemeralDport)
+	})
 	if c.Type != UDP ||
 		!isShortLived ||
 		(!ephemeralSport && !ephemeralDport) {
+		log.TraceFunc(func() string { return fmt.Sprintf("not rolling up connection %+v ", c) })
 		return string(c.ByteKey(a.buf)), false, false
 	}
 

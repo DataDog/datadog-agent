@@ -40,7 +40,7 @@ func NewLocalResolver(cfg *config.Config) LocalResolver {
 // Only connections that are local are resolved, i.e., for
 // which conn.IntrHost is set to true.
 func (r LocalResolver) Resolve(conns []ConnectionStats) bool {
-	if r.processEventsEnabled {
+	if !r.processEventsEnabled {
 		return false
 	}
 
