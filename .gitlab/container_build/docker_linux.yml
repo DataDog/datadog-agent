@@ -198,6 +198,29 @@ docker_build_cluster_agent_arm64:
   before_script:
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
 
+# build the cws-injector image
+docker_build_cws_injector_amd64:
+  extends: .docker_build_job_definition_amd64
+  rules:
+    !reference [.on_tag_or_a7]
+  needs:
+    - job: cws_injector-build_amd64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cws-injector
+    BUILD_CONTEXT: Dockerfiles/cws-injector
+
+docker_build_cws_injector_arm64:
+  extends: .docker_build_job_definition_arm64
+  rules:
+    !reference [.on_tag_or_a7_all_builds]
+  needs:
+    - job: cws_injector-build_arm64
+      artifacts: false
+  variables:
+    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cws-injector
+    BUILD_CONTEXT: Dockerfiles/cws-injector
+
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
   extends: .docker_build_job_definition_amd64
