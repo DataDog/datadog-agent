@@ -17,8 +17,8 @@ import (
 const (
 	rpcCmd = 0xdeadc001
 
-	// ERPCMaxDataSize maximum size of data of a request
-	ERPCMaxDataSize = 256
+	// ERPCDefaultDataSize default size of data of a request
+	ERPCDefaultDataSize = 256
 )
 
 const (
@@ -42,6 +42,8 @@ const (
 	BumpDiscardersRevision
 	// GetRingbufUsage is used to retrieve the ring buffer usage
 	GetRingbufUsage
+	// UserSessionContextOp is used to inject the Kubernetes User context
+	UserSessionContextOp
 )
 
 // ERPC defines a krpc object
@@ -52,7 +54,17 @@ type ERPC struct {
 // Request defines a EPRC request
 type Request struct {
 	OP   uint8
-	Data [ERPCMaxDataSize]byte
+	Data []byte
+}
+
+// NewERPCRequest returns a new eRPC request with a data section of the provided size
+func NewERPCRequest(size int) *Request {
+	if size <= 0 {
+		size = ERPCDefaultDataSize
+	}
+	return &Request{
+		Data: make([]byte, size),
+	}
 }
 
 // Request generates an ioctl syscall with the required request

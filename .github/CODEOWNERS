@@ -147,6 +147,7 @@
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/platform-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/platform-integrations
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/platform-integrations
+/cmd/cws-injector/                      @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
