@@ -6,7 +6,7 @@
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "chouquette/dont_package_pgsql_tests",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.9",
         "JMXFETCH_HASH": "fb5c3fc2fb42db1ee5c3a7c6187b316d79d69c50b967db0b7ffde590622d0395",
@@ -18,7 +18,7 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "chouquette/dont_package_pgsql_tests",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.47.9",
         "JMXFETCH_HASH": "fb5c3fc2fb42db1ee5c3a7c6187b316d79d69c50b967db0b7ffde590622d0395",
