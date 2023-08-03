@@ -1250,9 +1250,9 @@ func (p *Probe) FlushSyscalls() {
 		shouldRemoveSyscallEntry(value[:])
 
 		// ignore error
-		if err := m.Delete(key); err == nil {
-			cleaned++
-		}
+		// if err := m.Delete(key); err == nil {
+		cleaned++
+		// }
 	}
 
 	if err := iter.Err(); err != nil {
