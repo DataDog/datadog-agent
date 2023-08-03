@@ -378,7 +378,7 @@
 
 /releasenotes/                          @DataDog/documentation
 /releasenotes-installscript/            @DataDog/documentation
-/releasenotes-dca/                      @DataDog/documentation @DataDog/container-integrations @Datadog/container-app
+/releasenotes-dca/                      @DataDog/documentation @DataDog/container-integrations
 
 /rtloader/                              @DataDog/agent-metrics-logs
 
