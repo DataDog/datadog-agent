@@ -288,6 +288,22 @@ func getSharedFxOption() fx.Option {
 		}),
 		dogstatsd.Bundle,
 		rcclient.Module,
+
+		// TODO: (components) - some parts of the agent implicitly depend on the global state set up by LoadComponents
+		// (the logs agent). In order for components to use lifecycle hooks that also depend on this global state, we
+		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
+		fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// Main context passed to components
+					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
+
+					// create and setup the Autoconfig instance
+					common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
+					return nil
+				},
+			})
+		}),
 		logs.Bundle,
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
@@ -330,9 +346,6 @@ func startAgent(
 ) error {
 
 	var err error
-
-	// Main context passed to components
-	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Setup logger
 	syslogURI := pkgconfig.GetSyslogURI()
@@ -448,8 +461,6 @@ func startAgent(
 		}
 	}
 
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
 		logsAgent.AddScheduler(adScheduler.New(common.AC))
