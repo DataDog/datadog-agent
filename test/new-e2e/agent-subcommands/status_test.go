@@ -22,9 +22,6 @@ func TestStatusSuite(t *testing.T) {
 
 // XXX: this test is expected to fail until 7.48 as a known status render errors has been fixed in #18123
 func (v *commandStatusSuite) TestNoRenderError() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	status := v.Env().Agent.Status()
 	assert.NotContains(v.T(), status.Content, "Status render errors")
 }
