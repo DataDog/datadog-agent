@@ -136,7 +136,7 @@ func (w *Watcher) Start() {
 		return
 	}
 
-	thisPID, err := util.GetRootNSPID()
+	thisPID, err := kernel.RootNSPID()
 	if err != nil {
 		log.Warnf("Watcher Start can't get root namespace pid %s", err)
 	}
