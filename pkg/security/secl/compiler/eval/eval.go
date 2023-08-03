@@ -754,6 +754,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			}
 		} else if obj.ScalarComparison != nil {
 			next, pos, err = nodeToEvaluator(obj.ScalarComparison, opts, state)
+
 			if err != nil {
 				return nil, pos, err
 			}
@@ -764,6 +765,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				if !ok {
 					return nil, pos, NewTypeError(pos, reflect.Bool)
 				}
+
+				//if isAnAlwaysTrueString(nextBool.Value) {
+				//	fmt.Println("Always true target", next.Value)
+				//}
 
 				switch *obj.ScalarComparison.Op {
 				case "!=":
@@ -786,6 +791,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					return nil, pos, NewTypeError(pos, reflect.Bool)
 				}
 
+				//if isAnAlwaysTrueString(nextBool.Value) {
+				//	fmt.Println("Always true target", next.Value)
+				//}
+
 				switch *obj.ScalarComparison.Op {
 				case "!=":
 					boolEvaluator, err = BoolArrayEquals(nextBool, unary, state)
@@ -805,6 +814,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				nextString, ok := next.(*StringEvaluator)
 				if !ok {
 					return nil, pos, NewTypeError(pos, reflect.String)
+				}
+
+				if isAnAlwaysTrueString(nextString.Value) {
+					fmt.Println("Always true target", nextString.Value)
 				}
 
 				switch *obj.ScalarComparison.Op {
@@ -1233,6 +1246,10 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return stringEvaluatorFromVariable(str, obj.Pos, opts)
 			}
 
+			if isAnAlwaysTrueString(str) {
+				fmt.Println("Always true target", str)
+			}
+
 			return &StringEvaluator{
 				Value:     str,
 				ValueType: ScalarValueType,
@@ -1281,4 +1298,16 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 	}
 
 	return nil, lexer.Position{}, NewError(lexer.Position{}, "unknown entity '%s'", reflect.TypeOf(obj))
+}
+
+var alwaysTrueStrings = []string{"/**", "*"}
+
+func isAnAlwaysTrueString(target string) bool {
+	for _, alwaysTrueString := range alwaysTrueStrings {
+		if target == alwaysTrueString {
+			return true
+		}
+	}
+
+	return false
 }
