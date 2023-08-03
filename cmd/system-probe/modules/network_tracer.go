@@ -110,7 +110,7 @@ func min(a, b int) int {
 
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
 	start := time.Now()
-	//MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message"))
+	//MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")).
 	maxConnsPerMessage := 600
 	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
@@ -119,22 +119,33 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		return err
 	}
 
+	//jsonData, err := json.MarshalIndent(cs.Conns, "", "  ")
+	//if err != nil {
+	//	fmt.Println("Error marshaling nasty object to JSON:", err)
+	//}
+	//fileName := "connections-sp.json"
+	//err = ioutil.WriteFile(fileName, jsonData, 0644)
+	//if err != nil {
+	//	fmt.Println("Error writing nasty object to file:", err)
+	//}
+
+	if nt.restartTimer != nil {
+		nt.restartTimer.Reset(inactivityRestartDuration)
+	}
+
+	count := runCounter.Inc()
+	logRequests(id, count, len(cs.Conns), start)
+
 	for len(cs.Conns) > 0 {
 		finalBatchSize := min(maxConnsPerMessage, len(cs.Conns))
 		rest := cs.Conns[finalBatchSize:]
 		cs.Conns = cs.Conns[:finalBatchSize]
+
 		marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
 		conns, err := getConnectionsFromMarshaler(marshaler, cs)
 		if err != nil {
 			return err
 		}
-
-		if nt.restartTimer != nil {
-			nt.restartTimer.Reset(inactivityRestartDuration)
-		}
-
-		count := runCounter.Inc()
-		logRequests(id, count, len(cs.Conns), start)
 
 		err = s2.Send(&connectionserver.Connection{Data: conns})
 		if err != nil {
