@@ -176,6 +176,9 @@ build do
             delete "#{install_dir}/embedded/man"
             delete "#{install_dir}/embedded/share/man"
 
+            # Exclude files that are part of postgresql's test suite
+            delete "#{install_dir}/embedded/lib/postgresql/pgxs/src/test/"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119
