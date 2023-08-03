@@ -108,7 +108,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return errors.New("collection of container images is disabled")
 	}
 
-	if err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager,integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
 

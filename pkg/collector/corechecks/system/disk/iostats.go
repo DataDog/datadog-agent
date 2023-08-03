@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,8 +25,8 @@ const (
 )
 
 // Configure the IOstats check
-func (c *IOCheck) commonConfigure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source); err != nil {
+func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
 	}
 

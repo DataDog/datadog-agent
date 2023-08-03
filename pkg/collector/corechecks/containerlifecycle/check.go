@@ -59,7 +59,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	var err error
 
-	err = c.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

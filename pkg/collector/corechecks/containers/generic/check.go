@@ -52,7 +52,7 @@ func ContainerCheckFactory() check.Check {
 
 // Configure parses the check configuration and init the check
 func (c *ContainerCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

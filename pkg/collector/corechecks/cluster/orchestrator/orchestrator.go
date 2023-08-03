@@ -109,7 +109,7 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := o.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := o.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

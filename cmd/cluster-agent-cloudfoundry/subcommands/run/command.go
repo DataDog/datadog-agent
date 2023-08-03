@@ -120,7 +120,7 @@ func run(log log.Component, config config.Component, forwarder defaultforwarder.
 	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetMemultiplexerInstance()), true)
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check

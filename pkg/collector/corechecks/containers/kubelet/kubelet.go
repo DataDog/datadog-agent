@@ -72,7 +72,7 @@ func KubeletFactory() check.Check {
 }
 
 func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
