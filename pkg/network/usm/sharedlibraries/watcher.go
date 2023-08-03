@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,7 +74,7 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 	return &Watcher{
 		wg:             sync.WaitGroup{},
 		done:           make(chan struct{}),
-		procRoot:       util.GetProcRoot(),
+		procRoot:       kernel.ProcFSRoot(),
 		rules:          rules,
 		loadEvents:     ebpfProgram.GetPerfHandler(),
 		processMonitor: monitor.GetProcessMonitor(),

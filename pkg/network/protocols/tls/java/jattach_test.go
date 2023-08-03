@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func findJustWait(t *testing.T) (retpid int) {
@@ -39,7 +39,7 @@ func findJustWait(t *testing.T) (retpid int) {
 		return nil
 	}
 
-	err := util.WithAllProcs(util.HostProc(), fn)
+	err := kernel.WithAllProcs(kernel.ProcFSRoot(), fn)
 	if err != nil {
 		t.Fatalf("%v\n", err)
 	}

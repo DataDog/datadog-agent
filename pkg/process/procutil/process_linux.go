@@ -23,8 +23,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -109,7 +109,7 @@ type probe struct {
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe(options ...Option) Probe {
-	hostProc := util.HostProc()
+	hostProc := kernel.ProcFSRoot()
 	bootTime, err := bootTime(hostProc)
 	if err != nil {
 		log.Errorf("could not parse boot time: %s", err)
