@@ -20,6 +20,7 @@ from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
+from .windows_resources import arch_to_windres_target, MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -58,13 +59,13 @@ CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 
-def ninja_define_windows_resources(ctx, nw, major_version):
+def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
-    nw.variable("windrestarget", "pe-x86-64")
-    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir $in")
+    nw.variable("windrestarget", arch_to_windres_target(arch))
+    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
     nw.rule(
         name="windres",
         command="windres --define MAJ_VER=$maj_ver --define MIN_VER=$min_ver --define PATCH_VER=$patch_ver "
@@ -439,12 +440,19 @@ def ninja_generate(
             if arch == "x86":
                 raise Exit(message="system probe not supported on x86")
 
-            ninja_define_windows_resources(ctx, nw, major_version)
-            rcout = "cmd/system-probe/windows_resources/system-probe.rc"
-            in_path = "cmd/system-probe/windows_resources/system-probe-msg.mc"
-            in_dir, _ = os.path.split(in_path)
-            nw.build(inputs=[in_path], outputs=[rcout], rule="windmc", variables={"rcdir": in_dir})
-            nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
+            ninja_define_windows_resources(ctx, nw, major_version, arch=arch)
+            # messagestrings
+            in_path = MESSAGESTRINGS_MC_PATH
+            in_name = os.path.splitext(os.path.basename(in_path))[0]
+            in_dir = os.path.dirname(in_path)
+            rcout = os.path.join(in_dir, f"{in_name}.rc")
+            hout = os.path.join(in_dir, f'{in_name}.h')
+            msgout = os.path.join(in_dir, 'MSG00409.bin')
+            nw.build(inputs=[in_path], outputs=[rcout], implicit_outputs=[hout, msgout], rule="windmc", variables={"rcdir": in_dir})
+            nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
+            # system-probe
+            rcin = "cmd/system-probe/windows_resources/system-probe.rc"
+            nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)

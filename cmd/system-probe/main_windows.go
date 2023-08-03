@@ -8,16 +8,15 @@
 package main
 
 import (
-	"fmt"
 	"os"
-
-	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/windows/service"
+	runsubcmd "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
 func main() {
@@ -25,13 +24,8 @@ func main() {
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 {
-		isIntSess, err := svc.IsAnInteractiveSession()
-		if err != nil {
-			fmt.Printf("Failed to determine if we are running in an interactive session: %v\n", err)
-		}
-		if !isIntSess {
-			service.RunService(false)
-			return
+		if servicemain.RunningAsWindowsService() {
+			servicemain.RunAsWindowsService(config.ServiceName, runsubcmd.StartSystemProbeWithDefaults)
 		}
 	}
 	defer log.Flush()

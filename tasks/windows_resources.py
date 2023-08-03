@@ -2,6 +2,7 @@ import os
 
 from .utils import get_version_numeric_only, get_win_py_runtime_var
 
+MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
 
 def arch_to_windres_target(
     arch='x64',
@@ -21,9 +22,9 @@ def build_messagetable(
 ):
     windres_target = arch_to_windres_target(arch)
 
-    root = "pkg/util/winutil/messagestrings"
+    messagefile = MESSAGESTRINGS_MC_PATH
 
-    messagefile = f'{root}/messagestrings.mc'
+    root = os.path.dirname(messagefile)
 
     # Generate the message header and resource file
     command = f"windmc --target {windres_target} -r {root} -h {root} {messagefile}"
