@@ -57,8 +57,10 @@ func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
-func (agent *AgentCommandRunner) Health(commandArgs ...AgentArgsOption) string {
-	return agent.executeCommand("health", commandArgs...)
+func (agent *AgentCommandRunner) Health() (string, error) {
+	arguments := []string{"health"}
+	output, err := agent.executeAgentCmdWithError(arguments)
+	return output, err
 }
 
 // IsReady runs status command and returns true if the agent is ready.
