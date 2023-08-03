@@ -58,12 +58,13 @@ func TestSender(t *testing.T) {
 		cfg := config.New()
 		cfg.ConnectionResetInterval = 0
 		return &senderConfig{
-			client:    cfg.NewHTTPClient(),
-			url:       url,
-			maxConns:  climit,
-			maxQueued: 40,
-			apiKey:    testAPIKey,
-			userAgent: "testUserAgent",
+			client:     cfg.NewHTTPClient(),
+			url:        url,
+			maxConns:   climit,
+			maxQueued:  40,
+			maxRetries: 4,
+			apiKey:     testAPIKey,
+			userAgent:  "testUserAgent",
 		}
 	}
 
