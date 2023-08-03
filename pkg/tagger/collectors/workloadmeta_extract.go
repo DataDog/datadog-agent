@@ -311,6 +311,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	tags.AddLow("pod_phase", strings.ToLower(pod.Phase))
 	tags.AddLow("kube_priority_class", pod.PriorityClass)
 	tags.AddLow("kube_qos", pod.QOSClass)
+	tags.AddLow("pod_ip_address", pod.IP)
 
 	c.extractTagsFromPodLabels(pod, tags)
 
