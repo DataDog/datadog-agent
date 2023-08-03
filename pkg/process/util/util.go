@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
@@ -95,7 +96,7 @@ func StringInSlice(slice []string, searchString string) bool {
 func GetDockerSocketPath() (string, error) {
 	// If we don't have a docker.sock then return a known error.
 	sockPath := GetEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
-	if !PathExists(sockPath) {
+	if !filesystem.FileExists(sockPath) {
 		return "", docker.ErrDockerNotAvailable
 	}
 	return sockPath, nil

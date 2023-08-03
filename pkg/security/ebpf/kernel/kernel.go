@@ -20,7 +20,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -147,7 +147,7 @@ func newKernelVersion() (*Version, error) {
 
 	// Then look if `/host` is mounted in the container
 	// since this can be done without the env variable being set
-	if config.IsContainerized() && util.PathExists("/host") {
+	if config.IsContainerized() && filesystem.FileExists("/host") {
 		osReleasePaths = append(
 			osReleasePaths,
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
