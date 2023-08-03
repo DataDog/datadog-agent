@@ -119,16 +119,6 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		return err
 	}
 
-	//jsonData, err := json.MarshalIndent(cs.Conns, "", "  ")
-	//if err != nil {
-	//	fmt.Println("Error marshaling nasty object to JSON:", err)
-	//}
-	//fileName := "connections-sp.json"
-	//err = ioutil.WriteFile(fileName, jsonData, 0644)
-	//if err != nil {
-	//	fmt.Println("Error writing nasty object to file:", err)
-	//}
-
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
