@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"sync"
 	"time"
+	_ "unsafe"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 	cebpf "github.com/cilium/ebpf"
@@ -1205,21 +1206,9 @@ func (p *Probe) FlushDiscarders() error {
 	return bumpDiscardersRevision(p.Erpc)
 }
 
-func shouldRemoveSyscallEntry(value []byte) bool {
-	if len(value) < 24 {
-		return false
-	}
-
-	bytes := model.ByteOrder.Uint32(value[20:24])
-	if bytes == 0 {
-		return false
-	}
-
-	timeNs := int64(bytes) << 32
-	fmt.Println(timeNs)
-
-	return false
-}
+//go:noescape
+//go:linkname nanotime runtime.nanotime
+func nanotime() int64
 
 // FlushSyscalls does a best effort flush of the in-flight syscalls map
 func (p *Probe) FlushSyscalls() {
@@ -1234,25 +1223,29 @@ func (p *Probe) FlushSyscalls() {
 
 	var (
 		key   uint64
-		value [352]byte
-		iter  = m.Iterate()
+		value struct {
+			Time      int64
+			EventType uint64
+		}
+		iter = m.Iterate()
 	)
+
+	startFlushTime := nanotime()
+	seclog.Errorf("begin flushing: time = %d", startFlushTime)
 
 	// iteration in eBPF is a difficult subject since the map can be edited by the kernel side
 	// at the same time
 	// to resolve this issue we ignore errors
 	cleaned := 0
 	for iter.Next(&key, &value) {
+		seclog.Errorf("syscall flushing: %v %d", value.EventType, value.Time)
 
-		eventType := model.ByteOrder.Uint64(value[8:16])
-		seclog.Errorf("syscall flushing: %v", eventType)
-
-		shouldRemoveSyscallEntry(value[:])
-
-		// ignore error
-		// if err := m.Delete(key); err == nil {
-		cleaned++
-		// }
+		if value.Time != 0 && value.Time <= startFlushTime-int64(10*time.Second) {
+			// ignore error
+			if err := m.Delete(key); err == nil {
+				cleaned++
+			}
+		}
 	}
 
 	if err := iter.Err(); err != nil {

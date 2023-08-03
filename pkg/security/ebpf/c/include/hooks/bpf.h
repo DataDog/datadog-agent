@@ -55,6 +55,7 @@ HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int,
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_BPF,
         .bpf = {
             .cmd = cmd,

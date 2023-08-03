@@ -18,6 +18,7 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr*, addr, unsigned int, add
 
     /* cache the bind and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_BIND,
     };
     cache_syscall(&syscall);

@@ -12,6 +12,7 @@ HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_PTRACE,
         .ptrace = {
             .request = request,

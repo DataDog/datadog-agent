@@ -20,12 +20,11 @@ struct syscall_table_key_t {
 };
 
 struct syscall_cache_t {
-    struct policy_t policy;
+    u64 time_ns;
     u64 type;
+    struct policy_t policy;
     u8 discarded;
     u8 async;
-
-    u32 time_ns;
 
     struct dentry_resolver_input_t resolver;
 

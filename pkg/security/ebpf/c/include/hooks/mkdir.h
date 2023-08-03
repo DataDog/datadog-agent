@@ -14,6 +14,7 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_MKDIR,
         .policy = policy,
         .async = async,

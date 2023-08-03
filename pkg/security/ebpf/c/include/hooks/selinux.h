@@ -8,6 +8,7 @@
 
 int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_source_event_t source_event) {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_SELINUX,
         .policy = fetch_policy(EVENT_SELINUX),
         .selinux = {

@@ -18,6 +18,7 @@ HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
 
     /* cache the signal and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_SIGNAL,
         .signal = {
             .pid = 0, // 0 in case the root ns pid resolution failed

@@ -9,6 +9,7 @@
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_EXEC,
         .exec = {
             .args = {
@@ -77,6 +78,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
 
 int __attribute__((always_inline)) handle_sys_fork() {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_FORK,
     };
 

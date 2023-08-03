@@ -8,6 +8,7 @@
 
 int __attribute__((always_inline)) trace__sys_rename(u8 async) {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
         .type = EVENT_RENAME,

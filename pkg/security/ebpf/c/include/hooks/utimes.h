@@ -12,6 +12,7 @@ int __attribute__((always_inline)) trace__sys_utimes() {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_UTIME,
         .policy = policy,
     };

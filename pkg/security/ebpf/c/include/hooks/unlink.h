@@ -10,6 +10,7 @@
 
 int __attribute__((always_inline)) trace__sys_unlink(u8 async, int flags) {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
         .async = async,

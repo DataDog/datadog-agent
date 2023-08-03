@@ -9,6 +9,7 @@
 HOOK_ENTRY("security_sb_umount")
 int hook_security_sb_umount(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_UMOUNT,
         .umount = {
             .vfs = (struct vfsmount *)CTX_PARM1(ctx),

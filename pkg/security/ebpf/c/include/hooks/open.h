@@ -17,6 +17,7 @@ int __attribute__((always_inline)) trace__sys_openat2(u8 async, int flags, umode
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_OPEN,
         .policy = policy,
         .async = async,

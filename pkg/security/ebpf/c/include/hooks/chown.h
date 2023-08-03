@@ -13,6 +13,7 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_CHOWN,
         .policy = policy,
         .setattr = {

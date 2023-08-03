@@ -13,6 +13,7 @@ HOOK_SYSCALL_ENTRY0(mprotect) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_MPROTECT,
     };
 

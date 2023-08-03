@@ -12,6 +12,7 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_INIT_MODULE,
         .init_module = {
             .loaded_from_memory = loaded_from_memory,
@@ -158,6 +159,7 @@ HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_DELETE_MODULE,
         .delete_module = {
             .name = name_user,

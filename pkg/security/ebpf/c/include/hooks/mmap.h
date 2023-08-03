@@ -15,6 +15,7 @@ int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_MMAP,
         .mmap = {
             .offset = args->offset,

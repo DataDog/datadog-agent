@@ -13,6 +13,7 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_CHMOD,
         .policy = policy,
         .setattr = {

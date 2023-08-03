@@ -7,6 +7,7 @@
 
 int __attribute__((always_inline)) credentials_update(u64 type) {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = type,
     };
 

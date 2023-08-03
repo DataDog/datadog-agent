@@ -13,6 +13,7 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_SETXATTR,
         .policy = policy,
         .xattr = {
@@ -44,6 +45,7 @@ int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_REMOVEXATTR,
         .policy = policy,
         .xattr = {

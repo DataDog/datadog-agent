@@ -9,6 +9,7 @@
 
 int __attribute__((always_inline)) trace__sys_rmdir(u8 async, int flags) {
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),
         .async = async,

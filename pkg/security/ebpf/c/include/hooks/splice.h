@@ -15,6 +15,7 @@ HOOK_SYSCALL_ENTRY0(splice) {
     }
 
     struct syscall_cache_t syscall = {
+        .time_ns = bpf_ktime_get_ns(),
         .type = EVENT_SPLICE,
     };
 
