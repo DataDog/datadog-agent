@@ -63,6 +63,10 @@ func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("configcheck", commandArgs...)
+}
+
 // IsReady runs status command and returns true if the agent is ready.
 // This function should rarely be used.
 func (a *Agent) IsReady() (bool, error) {
