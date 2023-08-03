@@ -41,15 +41,18 @@ type GRPCServer struct {
 	streamServerError   telemetry.SimpleCounter
 }
 
+var (
+	invalidVersionError = telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version.")
+	streamServerError   = telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent.")
+)
+
 // NewGRPCServer creates a new instance of a GRPCServer
 func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
 	l := &GRPCServer{
-		config:              config,
-		extractor:           extractor,
-		server:              grpc.NewServer(),
-		streamMutex:         &sync.Mutex{},
-		invalidVersionError: telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version."),
-		streamServerError:   telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent."),
+		config:      config,
+		extractor:   extractor,
+		server:      grpc.NewServer(),
+		streamMutex: &sync.Mutex{},
 	}
 
 	pbgo.RegisterProcessEntityStreamServer(l.server, l)
@@ -148,7 +151,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			// and we should signal the client to resync by closing the stream.
 			log.Trace("[WorkloadMeta GRPCServer] expected diff version %d, actual %d", expectedVersion, diff.cacheVersion)
 			if diff.cacheVersion != expectedVersion {
-				l.invalidVersionError.Inc()
+				invalidVersionError.Inc()
 				log.Debug("[WorkloadMeta GRPCServer] missing cache diff - dropping stream")
 				return fmt.Errorf("missing cache diff: received version = %d; expected = %d", diff.cacheVersion, expectedVersion)
 			}
@@ -162,7 +165,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			}
 			err := out.Send(msg)
 			if err != nil {
-				l.streamServerError.Inc()
+				streamServerError.Inc()
 				log.Warnf("error sending process entity event: %s", err)
 				return err
 			}

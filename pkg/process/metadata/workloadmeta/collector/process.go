@@ -13,20 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const collectorId = "local-process"
 
-func NewProcessCollector(ddConfig config.ConfigReader) Collector {
+func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
 
 	processData := checks.NewProcessData(ddConfig)
 	processData.Register(wlmExtractor)
 
-	return Collector{
+	return &Collector{
 		ddConfig:        ddConfig,
 		wlmExtractor:    wlmExtractor,
 		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
@@ -117,10 +116,6 @@ func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 // Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `workloadmeta.remote_process_collector.enabled`
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
 func Enabled(cfg config.ConfigReader) bool {
-	if flavor.GetFlavor() != flavor.ProcessAgent {
-		return false
-	}
-
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false
 	}

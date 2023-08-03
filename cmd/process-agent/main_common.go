@@ -270,7 +270,7 @@ func initMisc(deps miscDeps) error {
 	}
 	tagger.SetDefaultTagger(t)
 
-	localProcessCollector := collector.NewProcessCollector(deps.Config)
+	processCollectionServer := collector.NewProcessCollector(deps.Config)
 
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
@@ -290,7 +290,7 @@ func initMisc(deps miscDeps) error {
 			}
 
 			if collector.Enabled(deps.Config) {
-				err := localProcessCollector.Start(appCtx, store)
+				err := processCollectionServer.Start(appCtx, store)
 				if err != nil {
 					return err
 				}
