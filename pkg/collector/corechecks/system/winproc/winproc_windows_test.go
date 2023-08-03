@@ -9,6 +9,7 @@ package winproc
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
@@ -20,7 +21,7 @@ func TestWinprocCheckWindows(t *testing.T) {
 	pdhtest.SetQueryReturnValue("\\\\.\\System\\Processes", 32.0)
 
 	winprocCheck := new(processChk)
-	winprocCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	winprocCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(winprocCheck.ID())
 

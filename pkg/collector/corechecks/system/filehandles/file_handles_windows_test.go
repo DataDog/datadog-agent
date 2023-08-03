@@ -9,6 +9,7 @@ package filehandles
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
@@ -19,7 +20,7 @@ func TestFhCheckWindows(t *testing.T) {
 	pdhtest.SetQueryReturnValue("\\\\.\\Process(_Total)\\Handle Count", 0.006848775103963421)
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	fileHandleCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 

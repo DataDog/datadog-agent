@@ -11,6 +11,7 @@ import (
 
 	"github.com/shirou/gopsutil/v3/load"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
@@ -29,7 +30,7 @@ func TestLoadCheckLinux(t *testing.T) {
 	loadAvg = Avg
 	cpuInfo = CPUInfo
 	loadCheck := new(LoadCheck)
-	loadCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	loadCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(loadCheck.ID())
 

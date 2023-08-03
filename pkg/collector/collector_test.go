@@ -17,13 +17,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 )
 
 // FIXTURE
 type TestCheck struct {
-	stats.StubCheck
+	stub.StubCheck
 	mock.Mock
 	uniqueID checkid.ID
 	name     string

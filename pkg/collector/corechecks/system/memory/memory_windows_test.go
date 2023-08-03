@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -61,7 +62,7 @@ func TestMemoryCheckWindows(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	memCheck := new(Check)
-	memCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	memCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 

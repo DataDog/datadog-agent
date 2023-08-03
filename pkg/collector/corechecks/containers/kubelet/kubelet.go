@@ -71,7 +71,7 @@ func KubeletFactory() check.Check {
 	return NewKubeletCheck(core.NewCheckBase(KubeletCheckName), &common.KubeletConfig{})
 }
 
-func (k *KubeletCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err

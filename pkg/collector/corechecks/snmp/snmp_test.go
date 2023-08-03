@@ -105,7 +105,7 @@ tags:
   - "mytag:foo"
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -383,7 +383,7 @@ metrics:
     tag: interface
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -497,7 +497,7 @@ metrics:
     name: SomeCounter64Metric
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -579,7 +579,7 @@ profiles:
     definition_file: f5-big-ip.yaml
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -945,7 +945,7 @@ ip_address: 1.2.3.4
 community_string: public
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -994,13 +994,13 @@ community_string: abc
 namespace: nsSubnet
 `)
 
-	err := check1.Configure(integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")
+	err := check1.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")
 	assert.Nil(t, err)
-	err = check2.Configure(integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
+	err = check2.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
 	assert.Nil(t, err)
-	err = check3.Configure(integration.FakeConfigHash, rawInstanceConfig3, []byte(``), "test")
+	err = check3.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig3, []byte(``), "test")
 	assert.Nil(t, err)
-	err = checkSubnet.Configure(integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
+	err = checkSubnet.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
 	assert.Nil(t, err)
 
 	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
@@ -1194,7 +1194,7 @@ community_string: public
 namespace: '%s'
 `, tt.name))
 
-			err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+			err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
 
 			sender := new(mocksender.MockSender)
@@ -1252,7 +1252,7 @@ metrics:
     name: myMetric
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -1303,7 +1303,7 @@ tags:
 	// language=yaml
 	rawInitConfig := []byte(``)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -1594,7 +1594,7 @@ tags:
 	// language=yaml
 	rawInitConfig := []byte(``)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -1704,7 +1704,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -2035,7 +2035,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -2096,7 +2096,7 @@ metrics:
 use_device_id_as_hostname: true
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -2301,7 +2301,7 @@ metrics:
 	}
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -2481,7 +2481,7 @@ ip_address: 1.2.3.4
 community_string: public
 `)
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	// check Cancel does not panic when called with single check

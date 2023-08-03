@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -174,7 +174,7 @@ func TestCollectorDemuxSuite(t *testing.T) {
 }
 
 type cancelledCheck struct {
-	stats.StubCheck
+	stub.StubCheck
 	flip chan struct{}
 	flop chan struct{}
 }

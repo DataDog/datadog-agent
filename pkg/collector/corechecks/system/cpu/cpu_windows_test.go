@@ -10,6 +10,7 @@ package cpu
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -38,7 +39,7 @@ func TestCPUCheckWindows(t *testing.T) {
 	}
 
 	cpuCheck := new(Check)
-	cpuCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
 
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)

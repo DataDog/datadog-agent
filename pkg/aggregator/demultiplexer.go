@@ -25,6 +25,11 @@ import (
 // The plan is to deprecated this global instance at some point.
 var demultiplexerInstance Demultiplexer
 
+// This is a temporary function removed later in this PR.
+func GetMemultiplexerInstance() Demultiplexer {
+	return demultiplexerInstance
+}
+
 var demultiplexerInstanceMu sync.Mutex
 
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)

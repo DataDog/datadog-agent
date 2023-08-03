@@ -115,7 +115,7 @@ func CheckFactory() check.Check {
 }
 
 // Configure parses the check configuration and initializes the sbom check
-func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	if !ddConfig.Datadog.GetBool("sbom.enabled") {
 		return errors.New("collection of SBOM is disabled")
 	}

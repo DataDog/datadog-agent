@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -70,8 +71,8 @@ func (c *CheckWrapper) String() string {
 }
 
 // Configure implements Check#Configure
-func (c *CheckWrapper) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	return c.inner.Configure(integrationConfigDigest, config, initConfig, source)
+func (c *CheckWrapper) Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	return c.inner.Configure(senderManger, integrationConfigDigest, config, initConfig, source)
 }
 
 // Interval implements Check#Interval

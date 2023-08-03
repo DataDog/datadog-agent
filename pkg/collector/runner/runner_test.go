@@ -16,7 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -28,7 +28,7 @@ type testCheck struct {
 	runCount *atomic.Uint64
 	stopped  *atomic.Bool
 
-	stats.StubCheck
+	stub.StubCheck
 	RunLock   sync.Mutex
 	StartLock sync.Mutex
 	StopLock  sync.Mutex

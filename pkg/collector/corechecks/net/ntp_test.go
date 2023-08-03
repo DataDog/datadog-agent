@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -60,8 +61,7 @@ func TestNTPOK(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
-
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
 	mockSender.On("Gauge", "ntp.offset", float64(21), "", []string(nil)).Return().Times(1)
@@ -90,7 +90,7 @@ func TestNTPCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -119,7 +119,7 @@ func TestNTPError(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 	mockSender.On("ServiceCheck",
@@ -147,7 +147,7 @@ func TestNTPInvalid(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 	mockSender.On("ServiceCheck",
@@ -176,7 +176,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -217,7 +217,7 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -258,7 +258,7 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
@@ -289,7 +289,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -305,7 +305,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -317,7 +317,7 @@ host: time.dogo
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -331,7 +331,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -346,7 +346,7 @@ func TestDefaultHostConfig(t *testing.T) {
 	config.Datadog.Set("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -366,7 +366,7 @@ func TestNTPPortConfig(t *testing.T) {
 offset_threshold: 60
 port: %d
 `, expectedPort))
-	err := ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	err := ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
@@ -385,7 +385,7 @@ func TestNTPPortNotInt(t *testing.T) {
 offset_threshold: 60
 port: ntp`)
 
-	err := ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	err := ntpCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
 	assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `ntp` into int")
 }
 
