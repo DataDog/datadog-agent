@@ -1068,6 +1068,15 @@ func InitConfig(config Config) {
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.target.namespaces", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.target.all_namespaces", true)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.cws_injector_container_registry", "")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.cws_injector_image_name", "datadog/cws-injector")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.cws_injector_image_tag", "master")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
