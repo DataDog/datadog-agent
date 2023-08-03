@@ -8,16 +8,20 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"go.uber.org/zap"
-	"strings"
-	"time"
 
 	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
 	"go.opentelemetry.io/collector/pdata/plog"
 )
+
+// otelTag specifies a tag to be added to all logs sent from the Datadog Agent
+const otelTag = "otel_source:datadog_agent"
 
 // createConsumeLogsFunc returns an implementation of consumer.ConsumeLogsFunc
 func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, logsAgentChannel chan *message.Message) func(context.Context, plog.Logs) error {
@@ -48,12 +52,14 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					log := lsl.At(k)
 					ddLog := logsmapping.Transform(log, res, logger)
 
-					content, err := ddLog.MarshalJSON()
-					if err != nil {
-						logger.Error("Error parsing log: " + err.Error())
+					var tags []string
+					if ddTags := ddLog.GetDdtags(); ddTags == "" {
+						tags = []string{otelTag}
+					} else {
+						tags = append(strings.Split(ddTags, ","), otelTag)
 					}
-
-					tags := ddLog.GetDdtags()
+					// Tags are set in the message origin instead
+					ddLog.Ddtags = nil
 					service := ""
 					if ddLog.Service != nil {
 						service = *ddLog.Service
@@ -67,8 +73,14 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 						logger.Error("Error parsing timestamp: " + err.Error())
 					}
 					origin := message.NewOrigin(logSource)
-					origin.SetTags(strings.Split(tags, ","))
+					origin.SetTags(tags)
 					origin.SetService(service)
+					origin.SetSource(logSourceName)
+
+					content, err := ddLog.MarshalJSON()
+					if err != nil {
+						logger.Error("Error parsing log: " + err.Error())
+					}
 
 					message := message.NewMessage(content, origin, status, timestamp.Unix())
 

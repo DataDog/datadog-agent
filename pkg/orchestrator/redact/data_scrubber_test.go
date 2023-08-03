@@ -6,7 +6,6 @@
 package redact
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,7 +44,7 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 	}
 	b.ResetTimer()
 
-	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
+	b.Run("simplified", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
 				ScrubContainer(&c, scrubber)
@@ -152,7 +151,7 @@ func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
 
 	b.ResetTimer()
 
-	b.Run(fmt.Sprintf("simplified"), func(b *testing.B) {
+	b.Run("simplified", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningEnvs {
 				c = scrubber.ContainsSensitiveWord(p)
@@ -160,7 +159,7 @@ func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
 		}
 	})
 
-	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
+	b.Run("default", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningEnvs {
 				if scrubbedVal, _ := scrubberpkg.ScrubBytes([]byte(p)); scrubbedVal != nil {

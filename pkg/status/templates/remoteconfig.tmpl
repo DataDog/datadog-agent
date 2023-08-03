@@ -6,9 +6,13 @@ NOTE: Changes made to this template should be reflected on the following templat
 Remote Configuration
 ====================
     {{ with .remoteConfiguration }}
-    API Key: {{ if .apiKeyScoped }}Authorized{{ else }}Not authorized{{ end }}
-    Feature: {{ if .orgEnabled }}Enabled{{ else }}Disabled{{ end }}
+    {{ if not .disabledReason }}
+    Organization enabled: {{ if and .orgEnabled (eq .orgEnabled "true") }}True{{ else }}False{{ end }}
+    API Key: {{ if and .apiKeyScoped (eq .apiKeyScoped "true") }}Authorized{{ else }}Not authorized, add the Remote Configuration Read permission to enable it for this agent.{{ end }}
     Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}
+    {{ else }}
+    Remote Configuration is disabled because {{ .disabledReason }}
+    {{ end }}
     {{ else }}
     Remote Configuration is disabled
     {{ end }}
