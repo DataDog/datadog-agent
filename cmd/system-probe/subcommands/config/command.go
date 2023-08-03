@@ -93,7 +93,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func getClient(sysprobeconfig sysprobeconfig.Component) (settings.Client, error) {
-	cfg := sysprobeconfig.SysProbeObject()
+	cfg := sysprobeconfig.Object()
 	hc := api.GetClient(cfg.SocketAddress)
 	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe"), nil
 }

@@ -11,13 +11,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -31,9 +32,10 @@ func TestLogsExporter(t *testing.T) {
 		ld plog.Logs
 	}
 	tests := []struct {
-		name string
-		args args
-		want testutil.JSONLogs
+		name         string
+		args         args
+		want         testutil.JSONLogs
+		expectedTags [][]string
 	}{
 		{
 			name: "message",
@@ -50,7 +52,6 @@ func TestLogsExporter(t *testing.T) {
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
-					"ddtags":               "otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
@@ -58,6 +59,7 @@ func TestLogsExporter(t *testing.T) {
 					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
+			expectedTags: [][]string{{"otel_source:datadog_agent"}},
 		},
 		{
 			name: "message-attribute",
@@ -79,7 +81,6 @@ func TestLogsExporter(t *testing.T) {
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
-					"ddtags":               "otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
@@ -87,6 +88,7 @@ func TestLogsExporter(t *testing.T) {
 					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
+			expectedTags: [][]string{{"otel_source:datadog_agent"}},
 		},
 		{
 			name: "ddtags",
@@ -108,7 +110,6 @@ func TestLogsExporter(t *testing.T) {
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
-					"ddtags":               "tag1:true,otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
@@ -116,6 +117,7 @@ func TestLogsExporter(t *testing.T) {
 					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
+			expectedTags: [][]string{{"tag1:true", "otel_source:datadog_agent"}},
 		},
 		{
 			name: "ddtags submits same tags",
@@ -139,7 +141,6 @@ func TestLogsExporter(t *testing.T) {
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
-					"ddtags":               "tag1:true,otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
@@ -152,12 +153,12 @@ func TestLogsExporter(t *testing.T) {
 					"customer":             "acme",
 					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
-					"ddtags":               "tag1:true,otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
 					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
+			expectedTags: [][]string{{"tag1:true", "otel_source:datadog_agent"}, {"tag1:true", "otel_source:datadog_agent"}},
 		},
 		{
 			name: "ddtags submits different tags",
@@ -181,7 +182,6 @@ func TestLogsExporter(t *testing.T) {
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
-					"ddtags":               "tag1:true,otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
@@ -194,12 +194,12 @@ func TestLogsExporter(t *testing.T) {
 					"customer":             "acme",
 					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
-					"ddtags":               "tag2:true,otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
 					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
+			expectedTags: [][]string{{"tag1:true", "otel_source:datadog_agent"}, {"tag2:true", "otel_source:datadog_agent"}},
 		},
 	}
 	for _, tt := range tests {
@@ -221,6 +221,8 @@ func TestLogsExporter(t *testing.T) {
 				output := <-testChannel
 				outputJSON := make(map[string]interface{})
 				json.Unmarshal(output.Content, &outputJSON)
+				assert.Equal(t, logSourceName, output.Origin.Source())
+				assert.Equal(t, tt.expectedTags[i], output.Origin.Tags())
 				ans = append(ans, outputJSON)
 			}
 			assert.Equal(t, tt.want, ans)

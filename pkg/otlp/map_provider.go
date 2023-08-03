@@ -58,6 +58,13 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	}
 	return baseMap, err
 }
+func buildLogsMap() (*confmap.Conf, error) {
+	baseMap, err := configutils.NewMapFromYAMLString(defaultLogsConfig)
+	if err != nil {
+		return nil, err
+	}
+	return baseMap, err
+}
 
 func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 	rcvs := map[string]interface{}{
@@ -86,6 +93,13 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
+	if cfg.LogsEnabled {
+		logsMap, err := buildLogsMap()
+		errs = append(errs, err)
+
+		err = retMap.Merge(logsMap)
+		errs = append(errs, err)
+	}
 	if cfg.shouldSetLoggingSection() {
 		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
@@ -102,6 +116,14 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		}
 		if cfg.TracesEnabled {
 			key := buildKey("service", "pipelines", "traces", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		if cfg.LogsEnabled {
+			key := buildKey("service", "pipelines", "logs", "exporters")
 			if v, ok := retMap.Get(key).([]interface{}); ok {
 				m[key] = append(v, "logging")
 			} else {

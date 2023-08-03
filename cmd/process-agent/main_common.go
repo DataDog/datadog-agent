@@ -29,7 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
 	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -129,6 +131,9 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		// Provide process agent bundle so fx knows where to find components.
 		process.Bundle,
 
+		// Provide remote config client module
+		rcclient.Module,
+
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
@@ -145,6 +150,15 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 			expvars.Component,
 			apiserver.Component,
 		) {
+		}),
+
+		// Initialize the remote-config client to update the runtime settings
+		fx.Invoke(func(rc rcclient.Component) {
+			if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
+				if err := rc.Listen("process-agent", []data.Product{data.ProductAgentConfig}); err != nil {
+					log.Errorf("Couldn't start the remote-config client of the process agent: %s", err)
+				}
+			}
 		}),
 	)
 

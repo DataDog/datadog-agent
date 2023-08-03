@@ -68,19 +68,18 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     return 0;
 }
 
-SYSCALL_KRETPROBE(mmap) {
-    return sys_mmap_ret(ctx, (int)PT_REGS_RC(ctx), (u64)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(mmap) {
+    return sys_mmap_ret(ctx, (int)SYSCALL_PARMRET(ctx), (u64)SYSCALL_PARMRET(ctx));
 }
 
-// fentry blocked by: tail call
-SEC("kretprobe/fget")
-int kretprobe_fget(struct pt_regs *ctx) {
+HOOK_EXIT("fget")
+int rethook_fget(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
     }
 
-    struct file *f = (struct file*) PT_REGS_RC(ctx);
+    struct file *f = (struct file*) CTX_PARMRET(ctx, 1);
     syscall->mmap.dentry = get_file_dentry(f);
     set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);
     syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);
@@ -91,7 +90,7 @@ int kretprobe_fget(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MMAP);

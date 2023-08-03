@@ -43,13 +43,15 @@ var (
 	state        = Disabled
 	startupError error
 
-	// knownProtocols maps individual protocol names, to their specification,
-	// for the Monitor to use during its initialisation.
-	knownProtocols = map[string]protocols.ProtocolSpec{
-		protocols.HTTP.String():  http.Spec,
-		protocols.HTTP2.String(): http2.Spec,
-		protocols.Kafka.String(): kafka.Spec,
-		javaTLSProgramName:       javaTLSSpec,
+	// knownProtocols holds all known protocols supported by USM to initialize.
+	knownProtocols = []*protocols.ProtocolSpec{
+		http.Spec,
+		http2.Spec,
+		kafka.Spec,
+		javaTLSSpec,
+		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
+		// factory.
+		opensslSpec,
 	}
 )
 
@@ -60,7 +62,7 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	enabledProtocols map[string]protocols.Protocol
+	enabledProtocols []protocols.Protocol
 
 	ebpfProgram *ebpfProgram
 
@@ -84,10 +86,12 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
+
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr.Manager.Manager, sockFD, bpfTelemetry)
 
 	enabledProtocols, disabledProtocols, err := initProtocols(c, mgr)
 	if err != nil {
@@ -148,10 +152,7 @@ func (m *Monitor) Start() error {
 				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
 			}
 
-			// Cleanup every remaining protocols
-			for _, protocol := range m.enabledProtocols {
-				protocol.Stop(m.ebpfProgram.Manager.Manager)
-			}
+			m.Stop()
 
 			if err != nil {
 				err = fmt.Errorf("could not enable USM: %s", err)
@@ -160,14 +161,19 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
-	for protocolType, protocol := range m.enabledProtocols {
+	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
+	// we'll keep it in a temporary copy, and in case of a mismatch (a.k.a., we have a failed protocols) between
+	// enabledProtocolsTmp to m.enabledProtocols, we'll use the enabledProtocolsTmp.
+	enabledProtocolsTmp := m.enabledProtocols[:0]
+	for _, protocol := range m.enabledProtocols {
 		startErr := protocol.PreStart(m.ebpfProgram.Manager.Manager)
 		if startErr != nil {
-			delete(m.enabledProtocols, protocolType)
-			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocolType, startErr)
+			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocol.Name(), startErr)
 			continue
 		}
+		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
 	}
+	m.enabledProtocols = enabledProtocolsTmp
 
 	// No protocols could be enabled, abort.
 	if len(m.enabledProtocols) == 0 {
@@ -179,19 +185,22 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
-	for protocolType, protocol := range m.enabledProtocols {
+	enabledProtocolsTmp = m.enabledProtocols[:0]
+	for _, protocol := range m.enabledProtocols {
 		startErr := protocol.PostStart(m.ebpfProgram.Manager.Manager)
 		if startErr != nil {
 			// Cleanup the protocol. Note that at this point we can't unload the
 			// ebpf programs of a specific protocol without shutting down the
 			// entire manager.
 			protocol.Stop(m.ebpfProgram.Manager.Manager)
-			delete(m.enabledProtocols, protocolType)
 
 			// Log and reset the error value
-			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocolType, startErr)
+			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocol.Name(), startErr)
+			continue
 		}
+		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
 	}
+	m.enabledProtocols = enabledProtocolsTmp
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
@@ -209,8 +218,8 @@ func (m *Monitor) Start() error {
 		err = m.processMonitor.Initialize()
 	}
 
-	for protocolName := range m.enabledProtocols {
-		log.Infof("enabled USM protocol: %s", protocolName)
+	for _, protocolName := range m.enabledProtocols {
+		log.Infof("enabled USM protocol: %s", protocolName.Name())
 	}
 
 	return err
@@ -292,11 +301,11 @@ func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 // - a slice containing instances of the Protocol interface for each enabled protocol support
 // - a slice containing pointers to the protocol specs of disabled protocols.
 // - an error value, which is non-nil if an error occurred while initialising a protocol
-func initProtocols(c *config.Config, mgr *ebpfProgram) (map[string]protocols.Protocol, []*protocols.ProtocolSpec, error) {
-	enabledProtocols := make(map[string]protocols.Protocol)
+func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []*protocols.ProtocolSpec, error) {
+	enabledProtocols := make([]protocols.Protocol, 0)
 	disabledProtocols := make([]*protocols.ProtocolSpec, 0)
 
-	for proto, spec := range knownProtocols {
+	for _, spec := range knownProtocols {
 		protocol, err := spec.Factory(c)
 		if err != nil {
 			return nil, nil, &errNotSupported{err}
@@ -308,15 +317,11 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) (map[string]protocols.Pro
 			mgr.Probes = append(mgr.Probes, spec.Probes...)
 			mgr.tailCallRouter = append(mgr.tailCallRouter, spec.TailCalls...)
 
-			enabledProtocols[proto] = protocol
+			enabledProtocols = append(enabledProtocols, protocol)
 
-			log.Infof("%v monitoring enabled", proto)
+			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {
-			// As we're keeping pointers to the disables specs, we're suffering from a common golang-gotcha
-			// Assuming we have http and kafka, http is disabled, kafka is not. Without the following line we'll end up
-			// with enabledProtocols = [kafka] and disabledProtocols = [kafka].
-			spec := spec
-			disabledProtocols = append(disabledProtocols, &spec)
+			disabledProtocols = append(disabledProtocols, spec)
 		}
 	}
 
