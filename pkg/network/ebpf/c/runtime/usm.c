@@ -24,7 +24,6 @@
 #include "protocols/tls/go-tls-location.h"
 #include "protocols/tls/go-tls-conn.h"
 #include "protocols/tls/https.h"
-#include "protocols/tls/sowatcher.h"
 #include "protocols/tls/tags-types.h"
 
 // The entrypoint for all packets classification & decoding in universal service monitoring.

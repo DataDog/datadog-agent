@@ -10,7 +10,6 @@ package usm
 import (
 	"debug/elf"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -18,15 +17,47 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	sslReadExProbe              = "uprobe__SSL_read_ex"
+	sslReadExRetprobe           = "uretprobe__SSL_read_ex"
+	sslWriteExProbe             = "uprobe__SSL_write_ex"
+	sslWriteExRetprobe          = "uretprobe__SSL_write_ex"
+	ssDoHandshakeProbe          = "uprobe__SSL_do_handshake"
+	ssDoHandshakeRetprobe       = "uretprobe__SSL_do_handshake"
+	sslConnectProbe             = "uprobe__SSL_connect"
+	sslConnectRetprobe          = "uretprobe__SSL_connect"
+	sslSetBioProbe              = "uprobe__SSL_set_bio"
+	sslSetFDProbe               = "uprobe__SSL_set_fd"
+	sslReadProbe                = "uprobe__SSL_read"
+	sslReadRetprobe             = "uretprobe__SSL_read"
+	sslWriteProbe               = "uprobe__SSL_write"
+	sslWriteRetprobe            = "uretprobe__SSL_write"
+	sslShutdownProbe            = "uprobe__SSL_shutdown"
+	bioNewSocketProbe           = "uprobe__BIO_new_socket"
+	bioNewSocketRetprobe        = "uretprobe__BIO_new_socket"
+	gnutlsHandshakeProbe        = "uprobe__gnutls_handshake"
+	gnutlsHandshakeRetprobe     = "uretprobe__gnutls_handshake"
+	gnutlsTransportSetInt2Probe = "uprobe__gnutls_transport_set_int2"
+	gnutlsTransportSetPtrProbe  = "uprobe__gnutls_transport_set_ptr"
+	gnutlsTransportSetPtr2Probe = "uprobe__gnutls_transport_set_ptr2"
+	gnutlsRecordRecvProbe       = "uprobe__gnutls_record_recv"
+	gnutlsRecordRecvRetprobe    = "uretprobe__gnutls_record_recv"
+	gnutlsRecordSendProbe       = "uprobe__gnutls_record_send"
+	gnutlsRecordSendRetprobe    = "uretprobe__gnutls_record_send"
+	gnutlsByeProbe              = "uprobe__gnutls_bye"
+	gnutlsDeinitProbe           = "uprobe__gnutls_deinit"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -34,22 +65,22 @@ var openSSLProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_read_ex",
+					EBPFFuncName: sslReadExProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__SSL_read_ex",
+					EBPFFuncName: sslReadExRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_write_ex",
+					EBPFFuncName: sslWriteExProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__SSL_write_ex",
+					EBPFFuncName: sslWriteExRetprobe,
 				},
 			},
 		},
@@ -58,57 +89,57 @@ var openSSLProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_do_handshake",
+					EBPFFuncName: ssDoHandshakeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__SSL_do_handshake",
+					EBPFFuncName: ssDoHandshakeRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_connect",
+					EBPFFuncName: sslConnectProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__SSL_connect",
+					EBPFFuncName: sslConnectRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_set_bio",
+					EBPFFuncName: sslSetBioProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_set_fd",
+					EBPFFuncName: sslSetFDProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_read",
+					EBPFFuncName: sslReadProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__SSL_read",
+					EBPFFuncName: sslReadRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_write",
+					EBPFFuncName: sslWriteProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__SSL_write",
+					EBPFFuncName: sslWriteRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__SSL_shutdown",
+					EBPFFuncName: sslShutdownProbe,
 				},
 			},
 		},
@@ -120,12 +151,12 @@ var cryptoProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__BIO_new_socket",
+					EBPFFuncName: bioNewSocketProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__BIO_new_socket",
+					EBPFFuncName: bioNewSocketRetprobe,
 				},
 			},
 		},
@@ -137,57 +168,57 @@ var gnuTLSProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_handshake",
+					EBPFFuncName: gnutlsHandshakeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__gnutls_handshake",
+					EBPFFuncName: gnutlsHandshakeRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_transport_set_int2",
+					EBPFFuncName: gnutlsTransportSetInt2Probe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_transport_set_ptr",
+					EBPFFuncName: gnutlsTransportSetPtrProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_transport_set_ptr2",
+					EBPFFuncName: gnutlsTransportSetPtr2Probe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_record_recv",
+					EBPFFuncName: gnutlsRecordRecvProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__gnutls_record_recv",
+					EBPFFuncName: gnutlsRecordRecvRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_record_send",
+					EBPFFuncName: gnutlsRecordSendProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uretprobe__gnutls_record_send",
+					EBPFFuncName: gnutlsRecordSendRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_bye",
+					EBPFFuncName: gnutlsByeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "uprobe__gnutls_deinit",
+					EBPFFuncName: gnutlsDeinitProbe,
 				},
 			},
 		},
@@ -195,40 +226,195 @@ var gnuTLSProbes = []manager.ProbesSelector{
 }
 
 const (
-	sslSockByCtxMap        = "ssl_sock_by_ctx"
-	sharedLibrariesPerfMap = "shared_libraries"
-
-	// probe used for streaming shared library events
-	openatSysCall  = "openat"
-	openat2SysCall = "openat2"
+	sslSockByCtxMap = "ssl_sock_by_ctx"
 )
 
-var (
-	traceTypes = []string{"enter", "exit"}
-)
-
-type sslProgram struct {
-	cfg                     *config.Config
-	sockFDMap               *ebpf.Map
-	perfHandler             *ddebpf.PerfHandler
-	perfMap                 *manager.PerfMap
-	watcher                 *soWatcher
-	manager                 *errtelemetry.Manager
-	sysOpenHooksIdentifiers []manager.ProbeIdentificationPair
+// Template, will be modified during runtime.
+// The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
+// a dynamic initialization.
+var opensslSpec = &protocols.ProtocolSpec{
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslReadExProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslReadExRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslWriteExProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslWriteExRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: ssDoHandshakeProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: ssDoHandshakeRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslConnectProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslConnectRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslSetBioProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslSetFDProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslReadProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslReadRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslWriteProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslWriteRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslShutdownProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioNewSocketProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioNewSocketRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsHandshakeProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsHandshakeRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsTransportSetInt2Probe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsTransportSetPtrProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsTransportSetPtr2Probe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsRecordRecvProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsRecordRecvRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsRecordSendProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsRecordSendRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsByeProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: gnutlsDeinitProbe,
+			},
+		},
+	},
 }
 
-var _ subprogram = &sslProgram{}
+type sslProgram struct {
+	cfg       *config.Config
+	sockFDMap *ebpf.Map
+	watcher   *sharedlibraries.Watcher
+}
 
-func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
-	if !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
-		return nil
-	}
+func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
+	return func(c *config.Config) (protocols.Protocol, error) {
+		if !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+			return nil, nil
+		}
 
-	return &sslProgram{
-		cfg:                     c,
-		sockFDMap:               sockFDMap,
-		perfHandler:             ddebpf.NewPerfHandler(100),
-		sysOpenHooksIdentifiers: getSysOpenHooksIdentifiers(),
+		watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libssl.so`),
+				RegisterCB:   addHooks(m, openSSLProbes),
+				UnregisterCB: removeHooks(m, openSSLProbes),
+			},
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libcrypto.so`),
+				RegisterCB:   addHooks(m, cryptoProbes),
+				UnregisterCB: removeHooks(m, cryptoProbes),
+			},
+			sharedlibraries.Rule{
+				Re:           regexp.MustCompile(`libgnutls.so`),
+				RegisterCB:   addHooks(m, gnuTLSProbes),
+				UnregisterCB: removeHooks(m, gnuTLSProbes),
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+		}
+
+		return &sslProgram{
+			cfg:       c,
+			watcher:   watcher,
+			sockFDMap: sockFDMap,
+		}, nil
 	}
 }
 
@@ -236,49 +422,11 @@ func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
-func (o *sslProgram) IsBuildModeSupported(_ buildMode) bool {
-	return true
-}
-
-func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
-	o.manager = m
-
-	o.perfMap = &manager.PerfMap{
-		Map: manager.Map{Name: sharedLibrariesPerfMap},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 8 * os.Getpagesize(),
-			Watermark:          1,
-			RecordHandler:      o.perfHandler.RecordHandler,
-			LostHandler:        o.perfHandler.LostHandler,
-			RecordGetter:       o.perfHandler.RecordGetter,
-		},
-	}
-
-	m.PerfMaps = append(m.PerfMaps, o.perfMap)
-
-	for _, identifier := range o.sysOpenHooksIdentifiers {
-		m.Probes = append(m.Probes,
-			&manager.Probe{
-				ProbeIdentificationPair: identifier,
-				KProbeMaxActive:         maxActive,
-			},
-		)
-	}
-}
-
-func (o *sslProgram) ConfigureOptions(options *manager.Options) {
+func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
-	}
-
-	for _, identifier := range o.sysOpenHooksIdentifiers {
-		options.ActivatedProbes = append(options.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: identifier,
-			},
-		)
 	}
 
 	if options.MapEditors == nil {
@@ -288,58 +436,30 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
-func (o *sslProgram) Start() {
-	// Setup shared library watcher and configure the appropriate callbacks
-	o.watcher = newSOWatcher(o.perfHandler,
-		soRule{
-			re:           regexp.MustCompile(`libssl.so`),
-			registerCB:   addHooks(o.manager, openSSLProbes),
-			unregisterCB: removeHooks(o.manager, openSSLProbes),
-		},
-		soRule{
-			re:           regexp.MustCompile(`libcrypto.so`),
-			registerCB:   addHooks(o.manager, cryptoProbes),
-			unregisterCB: removeHooks(o.manager, cryptoProbes),
-		},
-		soRule{
-			re:           regexp.MustCompile(`libgnutls.so`),
-			registerCB:   addHooks(o.manager, gnuTLSProbes),
-			unregisterCB: removeHooks(o.manager, gnuTLSProbes),
-		},
-	)
-
+func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
+	return nil
 }
 
-func (o *sslProgram) Stop() {
-	// Detaching the sys-open hooks, as they are feeding the perf map we're going to close next.
-	for _, identifier := range o.sysOpenHooksIdentifiers {
-		probe, found := o.manager.GetProbe(identifier)
-		if !found {
-			continue
-		}
-		if err := probe.Stop(); err != nil {
-			log.Errorf("Failed to stop hook %q. Error: %s", identifier.EBPFFuncName, err)
-		}
-	}
+func (o *sslProgram) PostStart(*manager.Manager) error {
+	return nil
+}
 
-	if o.perfMap != nil {
-		if err := o.perfMap.Stop(manager.CleanAll); err != nil {
-			log.Errorf("Failed to stop perf map. Error: %s", err)
-		}
-	}
-
-	// We must stop the watcher first, as we can read from the perfHandler, before terminating the perfHandler, otherwise
-	// we might try to send events over the perfHandler.
+func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
-	o.perfHandler.Stop()
 }
 
-func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier, string, string) error {
-	return func(id pathIdentifier, root string, path string) error {
-		uid := getUID(id)
+func (o *sslProgram) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
 
-		elfFile, err := elf.Open(root + path)
+func (o *sslProgram) GetStats() *protocols.ProtocolStats {
+	return nil
+}
+
+func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
+	return func(fpath utils.FilePath) error {
+		uid := getUID(fpath.ID)
+
+		elfFile, err := elf.Open(fpath.HostPath)
 		if err != nil {
 			return err
 		}
@@ -408,7 +528,7 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 
 				newProbe := &manager.Probe{
 					ProbeIdentificationPair: identifier,
-					BinaryPath:              root + path,
+					BinaryPath:              fpath.HostPath,
 					UprobeOffset:            uint64(offset),
 					HookFuncName:            symbol,
 				}
@@ -416,7 +536,7 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 					ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, identifier.UID), "usm_tls")
 				}
 			}
-			if err := singleProbe.RunValidator(m.Manager); err != nil {
+			if err := singleProbe.RunValidator(m); err != nil {
 				return err
 			}
 		}
@@ -425,9 +545,9 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 	}
 }
 
-func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier) error {
-	return func(lib pathIdentifier) error {
-		uid := getUID(lib)
+func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
+	return func(fpath utils.FilePath) error {
+		uid := getUID(fpath.ID)
 		for _, singleProbe := range probes {
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
@@ -463,7 +583,7 @@ func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(
 //	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
 //
 // functionName is variable but with a minimum guarantee of 10 chars
-func getUID(lib pathIdentifier) string {
+func getUID(lib utils.PathIdentifier) string {
 	return lib.Key()[:5]
 }
 
@@ -480,47 +600,5 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 		}
 	}
 
-	for _, hook := range []string{openatSysCall, openat2SysCall} {
-		for _, traceType := range traceTypes {
-			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, hook),
-			})
-		}
-	}
-
 	return probeList
-}
-
-func sysOpenAt2Supported() bool {
-	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
-}
-
-// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for openat and openat2 (if supported).
-func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
-	openatProbes := []string{openatSysCall}
-	if sysOpenAt2Supported() {
-		openatProbes = append(openatProbes, openat2SysCall)
-	}
-
-	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
-	for _, probe := range openatProbes {
-		for _, traceType := range traceTypes {
-			res = append(res, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
-				UID:          probeUID,
-			})
-		}
-	}
-
-	return res
 }

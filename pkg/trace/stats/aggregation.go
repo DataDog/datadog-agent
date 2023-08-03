@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -87,7 +87,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
-func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
+func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:    g.Resource,
