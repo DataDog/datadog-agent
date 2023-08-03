@@ -286,9 +286,7 @@ func (ns *networkState) GetDelta(
 		buffer = NewConnectionBuffer(defaultConnectionsBufferSize, 256)
 	}
 
-	for _, c := range closed {
-		*buffer.Next() = *c
-	}
+	buffer.Append(closed)
 
 	conns := buffer.Connections()
 	ns.determineConnectionIntraHost(conns)
@@ -689,16 +687,17 @@ func (ns *networkState) getClient(clientID string) *client {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[StatCookie]*ConnectionStats) (closed []*ConnectionStats) {
+func (ns *networkState) mergeConnections(id string, active map[StatCookie]*ConnectionStats) (closed []ConnectionStats) {
 	now := time.Now()
 
 	client := ns.clients[id]
 	client.lastFetch = now
 
 	// connections aggregated by tuple
-	closed = make([]*ConnectionStats, 0, len(client.closedConnections)/2)
-	for i := range client.closedConnections {
-		closedConn := &client.closedConnections[i]
+	closed = client.closedConnections
+	removed := 0
+	for i := 0; i < len(closed)-removed; {
+		closedConn := &closed[i]
 		cookie := closedConn.Cookie
 		if activeConn := active[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
@@ -708,6 +707,8 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 				delete(client.stats, cookie)
 				if activeConn.LastUpdateEpoch > closedConn.LastUpdateEpoch {
 					// keep active connection
+					closed[i], closed[len(closed)-removed-1] = closed[len(closed)-removed-1], closed[i]
+					removed++
 					continue
 				}
 
@@ -721,10 +722,12 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 
 		if closedConn.Last.IsZero() {
 			// not reporting an "empty" connection
+			closed[i], closed[len(closed)-removed-1] = closed[len(closed)-removed-1], closed[i]
+			removed++
 			continue
 		}
 
-		closed = append(closed, closedConn)
+		i++
 	}
 
 	// Active connections
@@ -739,6 +742,7 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 		}
 	}
 
+	client.closedConnections = closed
 	return closed
 }
 
