@@ -47,10 +47,10 @@ var (
 
 // StartServerless starts a Serverless instance of the Logs Agent.
 func StartServerless() (*Agent, error) {
-	return CreateAgent()
+	return start()
 }
 
-func CreateAgent() (*Agent, error) {
+func start() (*Agent, error) {
 	if IsAgentRunning() {
 		return agent, nil
 	}
