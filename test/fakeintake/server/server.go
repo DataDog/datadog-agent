@@ -25,24 +25,20 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
 )
 
 type Server struct {
-	mu                 sync.RWMutex
-	server             http.Server
-	ready              chan bool
-	clock              clock.Clock
-	logAggregator      aggregator.LogAggregator
-	metricAggregator   aggregator.MetricAggregator
-	checkRunAggregator aggregator.CheckRunAggregator
+	mu            sync.RWMutex
+	server        http.Server
+	ready         chan bool
+	clock         clock.Clock
+	payloadParser PayloadParser
 
 	url string
 
-	payloadStore     map[string][]api.Payload
-	payloadJsonStore map[string][]api.ParsedPayload
+	payloadStore map[string][]api.Payload
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -51,13 +47,10 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		mu:                 sync.RWMutex{},
-		payloadStore:       map[string][]api.Payload{},
-		payloadJsonStore:   map[string][]api.ParsedPayload{},
-		clock:              clock.New(),
-		logAggregator:      aggregator.NewLogAggregator(),
-		metricAggregator:   aggregator.NewMetricAggregator(),
-		checkRunAggregator: aggregator.NewCheckRunAggregator(),
+		mu:            sync.RWMutex{},
+		payloadStore:  map[string][]api.Payload{},
+		clock:         clock.New(),
+		payloadParser: NewPayloadParser(),
 	}
 
 	mux := http.NewServeMux()
@@ -256,17 +249,13 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		})
 		return
 	}
-	format := req.URL.Query().Get("format") // raw or json
-	if format == "" {
-		format = "raw"
-	}
 
 	// we could support multiple endpoints in the future
 	route := routes[0]
-	log.Printf("Handling GetPayload request for %s payloads in %s format.", route, format)
+	log.Printf("Handling GetPayload request for %s payloads.", route)
 	var jsonResp []byte
 	var err error
-	if format == "raw" {
+	if req.URL.Query().Get("format") == "" {
 		payloads := fi.safeGetRawPayloads(route)
 
 		// build response
@@ -274,7 +263,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
-	} else {
+	} else if _, ok := fi.payloadParser.payloadJsonStore[route]; ok {
 		payloads := fi.safeGetJsonPayloads(route)
 
 		// build response
@@ -282,6 +271,13 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
+	} else {
+		writeHttpResponse(w, httpResponse{
+			contentType: "text/plain",
+			statusCode:  http.StatusBadRequest,
+			body:        []byte("invalid route parameter"),
+		})
+		return
 	}
 
 	if err != nil {
@@ -317,60 +313,8 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 		Data:      data,
 		Encoding:  encoding,
 	}
-	parsedPayload := api.ParsedPayload{
-		Timestamp: rawPayload.Timestamp,
-		Data:      "",
-		Encoding:  encoding,
-	}
 	fi.payloadStore[route] = append(fi.payloadStore[route], rawPayload)
-
-	if route == "/api/v2/logs" {
-		parsedPayload.Data = fi.getLogPayLoadData(rawPayload)
-	} else if route == "/api/v2/series" {
-		parsedPayload.Data = fi.getMetricPayLoadData(rawPayload)
-	} else if route == "/api/v1/check_run" {
-		parsedPayload.Data = fi.getCheckRunPayLoadData(rawPayload)
-	}
-	fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], parsedPayload)
-}
-
-func (fi *Server) getLogPayLoadData(payload api.Payload) string {
-	logs, err := aggregator.ParseLogPayload(payload)
-	if err != nil {
-		return err.Error()
-	}
-
-	output, er := json.Marshal(logs)
-	if er != nil {
-		return er.Error()
-	}
-	return string(output)
-}
-
-func (fi *Server) getMetricPayLoadData(payload api.Payload) string {
-	MetricOutput, err := aggregator.ParseMetricSeries(payload)
-	if err != nil {
-		return err.Error()
-	}
-
-	output, er := json.Marshal(MetricOutput)
-	if er != nil {
-		return er.Error()
-	}
-	return string(output)
-}
-
-func (fi *Server) getCheckRunPayLoadData(payload api.Payload) string {
-	MetricOutput, err := aggregator.ParseCheckRunPayload(payload)
-	if err != nil {
-		return err.Error()
-	}
-
-	output, er := json.Marshal(MetricOutput)
-	if er != nil {
-		return er.Error()
-	}
-	return string(output)
+	fi.payloadParser.parse(rawPayload, route)
 }
 
 func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
@@ -384,8 +328,8 @@ func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
 func (fi *Server) safeGetJsonPayloads(route string) []api.ParsedPayload {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-	payloads := make([]api.ParsedPayload, 0, len(fi.payloadJsonStore[route]))
-	payloads = append(payloads, fi.payloadJsonStore[route]...)
+	payloads := make([]api.ParsedPayload, 0, len(fi.payloadParser.payloadJsonStore[route]))
+	payloads = append(payloads, fi.payloadParser.payloadJsonStore[route]...)
 	return payloads
 }
 
