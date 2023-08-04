@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    During the process check, collect command name from `/proc/[pid]/comm`. This
+    During the process check, collect the command name from `/proc/[pid]/comm`. This
     allows more accurate language detection of processes.
