@@ -95,6 +95,9 @@ type Config struct {
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
+	// UseSyscallsHashMap specifies if the syscalls cache should use an hash map instead of an LRU
+	UseSyscallsHashMap bool
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -157,6 +160,7 @@ func NewConfig() (*Config, error) {
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		UseSyscallsHashMap:           coreconfig.SystemProbe.GetBool(join(evNS, "use_hash_map_syscalls")),
 
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),

@@ -1437,7 +1437,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
-	if !p.Config.RuntimeSecurity.ActivityDumpEnabled {
+	if p.Config.Probe.UseSyscallsHashMap {
 		p.FlushSyscalls()
 	}
 
@@ -1516,6 +1516,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		RingBufferSize:          uint32(p.Config.Probe.EventStreamBufferSize),
 		PathResolutionEnabled:   p.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount: p.Config.RuntimeSecurity.SecurityProfileMaxCount,
+		UseSyscallsHashMap:      p.Config.Probe.UseSyscallsHashMap,
 	})
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {

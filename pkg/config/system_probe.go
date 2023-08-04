@@ -300,6 +300,7 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
+	cfg.BindEnvAndSetDefault(join(evNS, "use_hash_map_syscalls"), false)
 
 	// process event monitoring data limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))

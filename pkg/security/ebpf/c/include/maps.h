@@ -34,7 +34,6 @@ BPF_HASH_MAP(basename_approvers, struct basename_t, struct basename_filter_t, 25
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
-BPF_HASH_MAP(syscalls, u64, struct syscall_cache_t, 1) // max entries will be overridden at runtime
 
 BPF_LRU_MAP(activity_dump_rate_limiters, u32, struct activity_dump_rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
@@ -64,6 +63,7 @@ BPF_LRU_MAP(security_profiles, struct container_context_t, struct security_profi
 BPF_LRU_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
+BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 8192, BPF_F_NO_COMMON_LRU)
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, u32, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(syscalls_stats, u32, u32, EVENT_MAX)

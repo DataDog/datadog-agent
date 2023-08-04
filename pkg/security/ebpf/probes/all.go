@@ -152,15 +152,12 @@ type MapSpecEditorOpts struct {
 	RingBufferSize          uint32
 	PathResolutionEnabled   bool
 	SecurityProfileMaxCount int
+	UseSyscallsHashMap      bool
 }
 
 // AllMapSpecEditors returns the list of map editors
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
-		"syscalls": {
-			MaxEntries: 8192,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
@@ -190,6 +187,14 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
+	}
+
+	if opts.UseSyscallsHashMap {
+		editors["syscalls"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			Flags:      0,
+			EditorFlag: manager.EditType | manager.EditFlags,
+		}
 	}
 
 	if opts.PathResolutionEnabled {
