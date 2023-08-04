@@ -45,16 +45,11 @@ func wrapPayloads(p []*proto.ClientStatsPayload) *proto.StatsPayload {
 	}
 }
 
-<<<<<<< HEAD
-func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64, customKey CustomTagKey) pb.ClientStatsPayload {
+func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64, customKey CustomTagKey) *proto.ClientStatsPayload {
 
 	splitCustomTags := strings.Split(string(customKey), ",")
 
-	return pb.ClientStatsPayload{
-=======
-func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64) *proto.ClientStatsPayload {
 	return &proto.ClientStatsPayload{
->>>>>>> main
 		Env:     "test-env",
 		Version: "test-version",
 		Stats: []*proto.ClientStatsBucket{
@@ -133,21 +128,6 @@ func agg2Counts(insertionTime time.Time, p *proto.ClientStatsPayload) *proto.Cli
 	p.AgentAggregation = "counts"
 	p.Service = ""
 	p.ContainerID = ""
-<<<<<<< HEAD
-	for i, s := range p.Stats {
-		p.Stats[i].Start = uint64(alignAggTs(insertionTime).UnixNano())
-		p.Stats[i].Duration = uint64(clientBucketDuration.Nanoseconds())
-		p.Stats[i].AgentTimeShift = 0
-		for j := range s.Stats {
-			s.Stats[j].DBType = ""
-			s.Stats[j].Hits *= 2
-			s.Stats[j].Errors *= 2
-			s.Stats[j].Duration *= 2
-			s.Stats[j].TopLevelHits = 0
-			s.Stats[j].OkSummary = nil
-			s.Stats[j].ErrorSummary = nil
-			s.Stats[j].CustomTags = nil
-=======
 	for _, s := range p.Stats {
 		s.Start = uint64(alignAggTs(insertionTime).UnixNano())
 		s.Duration = uint64(clientBucketDuration.Nanoseconds())
@@ -163,7 +143,7 @@ func agg2Counts(insertionTime time.Time, p *proto.ClientStatsPayload) *proto.Cli
 			stat.TopLevelHits = 0
 			stat.OkSummary = nil
 			stat.ErrorSummary = nil
->>>>>>> main
+			stat.CustomTags = nil
 		}
 	}
 	return p
@@ -515,7 +495,6 @@ func TestNewBucketAggregationKeyPeerService(t *testing.T) {
 	})
 }
 
-<<<<<<< HEAD
 func TestNewCustomTagKeyAggregation(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		assert := assert.New(t)
@@ -525,9 +504,6 @@ func TestNewCustomTagKeyAggregation(t *testing.T) {
 	})
 }
 
-func deepCopy(p pb.ClientStatsPayload) pb.ClientStatsPayload {
-	new := p
-=======
 func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
 	new := &proto.ClientStatsPayload{
 		Hostname:         p.GetHostname(),
@@ -542,7 +518,6 @@ func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
 		ContainerID:      p.GetContainerID(),
 		Tags:             p.GetTags(),
 	}
->>>>>>> main
 	new.Stats = deepCopyStatsBucket(p.Stats)
 	return new
 }
