@@ -58,6 +58,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -539,9 +540,14 @@ func startAgent(
 	// Start OTLP intake
 	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
 	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
-	if logsAgent, ok := logsAgent.Get(); otlpEnabled && ok {
+
+	var pipelineChan chan *message.Message
+	if logsAgent, ok := logsAgent.Get(); ok {
+		pipelineChan = logsAgent.GetPipelineProvider().NextPipelineChan()
+	}
+	if otlpEnabled {
 		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, logsAgent.GetPipelineProvider().NextPipelineChan())
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, pipelineChan)
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		} else {
