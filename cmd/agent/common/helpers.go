@@ -92,13 +92,13 @@ func SetupInternalProfiling(cfg config.ConfigReader, configPrefix string) {
 	}
 
 	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SourceDefault); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SourceConfig); err != nil {
 			log.Errorf("Error mutex profile fraction: %v", err)
 		}
 	}
 
 	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SourceDefault)
+		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SourceConfig)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}

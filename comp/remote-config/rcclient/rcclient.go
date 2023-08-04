@@ -111,7 +111,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 	}
 
 	switch source {
-	case settings.SourceDefault:
+	case settings.SourceDefault, settings.SourceConfig:
 		// If the log level had been set by default
 		// and if we receive an empty value for log level in the config
 		// then there is nothing to do
@@ -140,7 +140,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		var newSource settings.Source
 		if len(mergedConfig.LogLevel) == 0 {
 			newLevel = rc.configState.FallbackLogLevel
-			newSource = settings.SourceDefault
+			// Regardless what the source was before RC override, we fallback to SourceConfig as it has now been changed by code
+			newSource = settings.SourceConfig
 			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", newLevel)
 		} else {
 			newLevel = mergedConfig.LogLevel
