@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	reflect "reflect"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cihub/seelog"
@@ -43,6 +45,22 @@ type RemoteConfigHandler struct {
 	agentConfig                   *config.AgentConfig
 	configState                   *state.AgentConfigState
 	configSetEndpointFormatString string
+	concentrator                  *stats.Concentrator
+}
+
+func mapsAreEqual(map1, map2 map[string][]string) bool {
+	if len(map1) != len(map2) {
+		return false
+	}
+
+	for key, value1 := range map1 {
+		value2, exists := map2[key]
+		if !exists || !reflect.DeepEqual(value1, value2) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
@@ -112,6 +130,14 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			if err == nil {
 				resp.Body.Close()
 			}
+		}
+	}
+
+	if len(mergedConfig.CustomTags) > 0 && !(mapsAreEqual(mergedConfig.CustomTags, h.configState.LatestCustomTags)) {
+		for spanName, customTags := range mergedConfig.CustomTags {
+			pkglog.Infof("Adding custom tag(s) %s to span %s through remote config", customTags, spanName)
+			h.concentrator.SetCustomTags(mergedConfig.CustomTags)
+			h.configState.LatestCustomTags = mergedConfig.CustomTags
 		}
 	}
 

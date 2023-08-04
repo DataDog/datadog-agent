@@ -77,6 +77,12 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 	return &c
 }
 
+func (c *Concentrator) SetCustomTags(tags map[string][]string) {
+	for spanName, newCustomTags := range tags {
+		c.customTags[spanName] = newCustomTags
+	}
+}
+
 // Start starts the concentrator.
 func (c *Concentrator) Start() {
 	c.exitWG.Add(1)
