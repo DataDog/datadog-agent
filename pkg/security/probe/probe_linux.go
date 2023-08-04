@@ -1206,54 +1206,6 @@ func (p *Probe) FlushDiscarders() error {
 	return bumpDiscardersRevision(p.Erpc)
 }
 
-//go:noescape
-//go:linkname nanotime runtime.nanotime
-func nanotime() int64
-
-// FlushSyscalls does a best effort flush of the in-flight syscalls map
-func (p *Probe) FlushSyscalls() {
-	seclog.Debugf("Flushing in-flight syscalls")
-
-	m := p.syscallsMap
-
-	if m == nil {
-		seclog.Errorf("flushing syscalls: nil-map")
-		return
-	}
-
-	var (
-		key   uint64
-		value struct {
-			Time      int64
-			EventType uint64
-		}
-		iter = m.Iterate()
-	)
-
-	startFlushTime := nanotime()
-	seclog.Errorf("begin flushing: time = %d", startFlushTime)
-
-	// iteration in eBPF is a difficult subject since the map can be edited by the kernel side
-	// at the same time
-	// to resolve this issue we ignore errors
-	cleaned := 0
-	for iter.Next(&key, &value) {
-		seclog.Errorf("syscall flushing: %v %d", value.EventType, value.Time)
-
-		if value.Time != 0 && value.Time <= startFlushTime-int64(10*time.Second) {
-			// ignore error
-			if err := m.Delete(key); err == nil {
-				cleaned++
-			}
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		seclog.Errorf("syscall flushing encoutered an error: %v", err)
-	}
-	seclog.Errorf("syscall flushing: cleaned %d", cleaned)
-}
-
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
@@ -1438,7 +1390,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 	}
 
 	if p.Config.Probe.UseSyscallsHashMap {
-		p.FlushSyscalls()
+		FlushSyscalls(p.syscallsMap)
 	}
 
 	if err := p.updateProbes(rs.GetEventTypes()); err != nil {
