@@ -17,7 +17,6 @@ import (
 	"runtime"
 	"sync"
 	"time"
-	_ "unsafe"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 	cebpf "github.com/cilium/ebpf"
