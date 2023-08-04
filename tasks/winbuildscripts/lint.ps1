@@ -20,6 +20,15 @@ if ($Env:TARGET_ARCH -eq "x86") {
 & inv -e deps
 & .\tasks\winbuildscripts\pre-go-build.ps1 -Architecure "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
+# FIXME: clang-format is not found/installed
+# & inv -e rtloader.format --raise-if-changed
+# $err = $LASTEXITCODE
+# Write-Host Format result is $err
+# if($err -ne 0){
+#   Write-Host -ForegroundColor Red "rtloader format failed $err"
+#   [Environment]::Exit($err)
+# }
+
 & inv -e install-tools
 & inv -e lint-go --arch $archflag
 
