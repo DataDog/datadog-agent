@@ -6,6 +6,7 @@ from .utils import get_version_numeric_only, get_win_py_runtime_var
 
 MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
 
+
 def arch_to_windres_target(
     arch='x64',
 ):

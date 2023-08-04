@@ -20,7 +20,7 @@ from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
-from .windows_resources import arch_to_windres_target, MESSAGESTRINGS_MC_PATH
+from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -448,7 +448,13 @@ def ninja_generate(
             rcout = os.path.join(in_dir, f"{in_name}.rc")
             hout = os.path.join(in_dir, f'{in_name}.h')
             msgout = os.path.join(in_dir, 'MSG00409.bin')
-            nw.build(inputs=[in_path], outputs=[rcout], implicit_outputs=[hout, msgout], rule="windmc", variables={"rcdir": in_dir})
+            nw.build(
+                inputs=[in_path],
+                outputs=[rcout],
+                implicit_outputs=[hout, msgout],
+                rule="windmc",
+                variables={"rcdir": in_dir},
+            )
             nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
             # system-probe
             rcin = "cmd/system-probe/windows_resources/system-probe.rc"

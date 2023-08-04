@@ -34,7 +34,7 @@ func runService(ctx context.Context, globalParams *command.GlobalParams) error {
 
 	err := runAgent(ctx, globalParams)
 	if err != nil {
-		// For compatability with the previous cleanupAndExitHandler implementation, os.Exit() on error.
+		// For compatibility with the previous cleanupAndExitHandler implementation, os.Exit() on error.
 		// Since we won't be returning, SCM will put the service into failure/recovery
 		// and automatically restart the service.
 		// If this behavior is no longer desired then simply return the error and let
@@ -97,7 +97,7 @@ func rootCmdRun(globalParams *command.GlobalParams) {
 	// Invoke the Agent
 	err = runAgent(context.Background(), globalParams)
 	if err != nil {
-		// For compatability with the previous cleanupAndExitHandler implementation, os.Exit() on error.
+		// For compatibility with the previous cleanupAndExitHandler implementation, os.Exit() on error.
 		// This prevents runcmd.Run() from displaying the error.
 		os.Exit(1)
 	}

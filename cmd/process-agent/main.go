@@ -20,7 +20,7 @@ func rootCmdRun(globalParams *command.GlobalParams) {
 	// Invoke the Agent
 	err := runAgent(context.Background(), globalParams)
 	if err != nil {
-		// For compatability with the previous cleanupAndExitHandler implementation, os.Exit() on error.
+		// For compatibility with the previous cleanupAndExitHandler implementation, os.Exit() on error.
 		// This prevents runcmd.Run() from displaying the error.
 		os.Exit(1)
 	}

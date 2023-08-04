@@ -44,7 +44,7 @@ func RunningAsWindowsService() bool {
 // SCM only gives services 30 seconds (by default) to respond after the process is created.
 // Specifically, this timeout refers to calling StartServiceCtrlDispatcher, which is called by
 // golang's svc.Run.
-// This timeout is adjustible at the host level with the ServicesPipeTimeout registry value.
+// This timeout is adjustable at the host level with the ServicesPipeTimeout registry value.
 // https://learn.microsoft.com/en-us/troubleshoot/windows-server/system-management-components/service-not-start-events-7000-7011-time-out-error
 //
 // Golang initializes all packages before giving control to main(). This means that if the package
@@ -113,7 +113,7 @@ func (s *controlHandler) eventlog(msgnum uint32, arg string) {
 	winutil.LogEventViewer(s.serviceName, msgnum, arg)
 }
 
-// Execute is called by golang svc.Run and is responisble for handling the control requests and state transitions for the service
+// Execute is called by golang svc.Run and is responsible for handling the control requests and state transitions for the service
 // https://learn.microsoft.com/en-us/windows/win32/services/service-status-transitions
 func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	// first thing we must do is inform SCM that we are SERVICE_START_PENDING.
