@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cihub/seelog"
@@ -36,6 +35,14 @@ type rareSampler interface {
 	SetEnabled(enabled bool)
 }
 
+type concentrator interface {
+	SetCustomTags(map[string][]string)
+}
+
+// func (c *stats.Concentrator) SetCustomTags(tags map[string][]string) {
+// 	c.SetCustomTags(tags)
+// }
+
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
 	remoteClient                  config.RemoteClient
@@ -45,7 +52,7 @@ type RemoteConfigHandler struct {
 	agentConfig                   *config.AgentConfig
 	configState                   *state.AgentConfigState
 	configSetEndpointFormatString string
-	concentrator                  *stats.Concentrator
+	concentrator                  concentrator
 }
 
 func mapsAreEqual(map1, map2 map[string][]string) bool {
@@ -63,7 +70,7 @@ func mapsAreEqual(map1, map2 map[string][]string) bool {
 	return true
 }
 
-func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
+func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler, concentrator concentrator) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
 		return nil
 	}
@@ -79,6 +86,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		prioritySampler: prioritySampler,
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
+		concentrator:    concentrator,
 		agentConfig:     conf,
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),

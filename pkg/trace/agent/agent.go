@@ -11,7 +11,6 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/customtagsRC"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
@@ -44,23 +43,22 @@ const (
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
-	Receiver                *api.HTTPReceiver
-	OTLPReceiver            *api.OTLPReceiver
-	Concentrator            *stats.Concentrator
-	ClientStatsAggregator   *stats.ClientStatsAggregator
-	Blacklister             *filters.Blacklister
-	Replacer                *filters.Replacer
-	PrioritySampler         *sampler.PrioritySampler
-	ErrorsSampler           *sampler.ErrorsSampler
-	RareSampler             *sampler.RareSampler
-	NoPrioritySampler       *sampler.NoPrioritySampler
-	EventProcessor          *event.Processor
-	TraceWriter             *writer.TraceWriter
-	StatsWriter             *writer.StatsWriter
-	RemoteConfigHandler     *remoteconfighandler.RemoteConfigHandler
-	CustomTagsRemoteHandler *customtagsRC.RemoteConfigHandler
-	TelemetryCollector      telemetry.TelemetryCollector
-	DebugServer             *api.DebugServer
+	Receiver              *api.HTTPReceiver
+	OTLPReceiver          *api.OTLPReceiver
+	Concentrator          *stats.Concentrator
+	ClientStatsAggregator *stats.ClientStatsAggregator
+	Blacklister           *filters.Blacklister
+	Replacer              *filters.Replacer
+	PrioritySampler       *sampler.PrioritySampler
+	ErrorsSampler         *sampler.ErrorsSampler
+	RareSampler           *sampler.RareSampler
+	NoPrioritySampler     *sampler.NoPrioritySampler
+	EventProcessor        *event.Processor
+	TraceWriter           *writer.TraceWriter
+	StatsWriter           *writer.StatsWriter
+	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
+	TelemetryCollector    telemetry.TelemetryCollector
+	DebugServer           *api.DebugServer
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -114,8 +112,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
-	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.CustomTagsRemoteHandler = customtagsRC.New(conf, agnt.conf.CustomTags)
+	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler, agnt.Concentrator)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector)
 	return agnt
 }
@@ -132,7 +129,6 @@ func (a *Agent) Run() {
 		a.EventProcessor,
 		a.OTLPReceiver,
 		a.RemoteConfigHandler,
-		a.CustomTagsRemoteHandler,
 		a.DebugServer,
 	} {
 		starter.Start()
