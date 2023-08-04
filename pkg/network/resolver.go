@@ -10,6 +10,7 @@ import (
 	"net/netip"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,7 +40,7 @@ func NewLocalResolver(cfg *config.Config) LocalResolver {
 //
 // Only connections that are local are resolved, i.e., for
 // which conn.IntrHost is set to true.
-func (r LocalResolver) Resolve(conns []ConnectionStats) bool {
+func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) bool {
 	if !r.processEventsEnabled {
 		return false
 	}
@@ -50,15 +51,14 @@ func (r LocalResolver) Resolve(conns []ConnectionStats) bool {
 		netns        uint32
 	}
 
-	ctrsByConn := make(map[connKey]*string, len(conns))
-	for i := range conns {
-		conn := &conns[i]
+	ctrsByConn := make(map[connKey]*string, conns.Len()/2)
+	conns.Iterate(func(_ int, conn *ConnectionStats) {
 		if conn.ContainerID.Source == nil || len(*conn.ContainerID.Source) == 0 {
-			continue
+			return
 		}
 
 		if !conn.IntraHost {
-			continue
+			return
 		}
 
 		source, dest := translatedAddrs(conn)
@@ -79,15 +79,14 @@ func (r LocalResolver) Resolve(conns []ConnectionStats) bool {
 			k.netns = 0
 			ctrsByConn[k] = conn.ContainerID.Source
 		}
-	}
+	})
 
 	log.TraceFunc(func() string { return fmt.Sprintf("ctrsByConn = %v", ctrsByConn) })
 
 	// go over connections again using hashtable computed earlier to resolver dest
-	for i := range conns {
-		conn := &conns[i]
+	conns.Iterate(func(_ int, conn *ConnectionStats) {
 		if !conn.IntraHost {
-			continue
+			return
 		}
 
 		source, dest := translatedAddrs(conn)
@@ -113,7 +112,7 @@ func (r LocalResolver) Resolve(conns []ConnectionStats) bool {
 		if cid != nil {
 			conn.ContainerID.Dest = cid
 		}
-	}
+	})
 
 	return true
 }

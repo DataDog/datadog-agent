@@ -119,6 +119,12 @@ func (e EphemeralPortType) String() string {
 	}
 }
 
+// BufferedData encapsulates data whose underlying memory can be recycled
+type BufferedData struct {
+	Conns  []ConnectionStats
+	buffer *ConnectionBuffer
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	Conns                       []ConnectionStats
@@ -133,49 +139,21 @@ type Connections struct {
 	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
 
-	buffer *ConnectionBuffer
+	buffer *PooledConnectionBuffer
 }
 
-const defaultConnectionsBufferSize = 1024
-
-var connectionsBufferPool = sync.Pool{
-	New: func() any {
-		c := &Connections{
-			buffer: NewConnectionBuffer(defaultConnectionsBufferSize, 256),
-		}
-		c.Conns = c.buffer.Connections()
-		return c
-	},
+type PooledConnectionBuffer struct {
+	*ConnectionBuffer
+	Pool *sync.Pool
 }
 
-func NewConnections() *Connections {
-	c := connectionsBufferPool.Get().(*Connections)
-	c.reset()
-	c.Conns = c.buffer.Connections()
-	return c
-}
-
-func (c *Connections) reset() {
-	c.Conns = nil
-	c.DNS = nil
-	c.ConnTelemetry = nil
-	c.CompilationTelemetryByAsset = nil
-	c.CORETelemetryByAsset = nil
-	c.PrebuiltAssets = nil
-	c.HTTP = nil
-	c.HTTP2 = nil
-	c.Kafka = nil
-	c.DNSStats = nil
-}
-
-func (c *Connections) Buffer() *ConnectionBuffer {
-	return c.buffer
+func NewConnections(p *PooledConnectionBuffer) *Connections {
+	return &Connections{buffer: p, Conns: p.Connections()}
 }
 
 func (c *Connections) Reclaim() {
-	c.reset()
-	c.buffer.Reset()
-	connectionsBufferPool.Put(c)
+	c.Conns = nil
+	c.buffer.Pool.Put(c.buffer.ConnectionBuffer)
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe

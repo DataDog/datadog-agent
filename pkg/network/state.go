@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -78,7 +79,7 @@ type State interface {
 	GetDelta(
 		clientID string,
 		latestTime uint64,
-		buffer *ConnectionBuffer,
+		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
 		usmStats map[protocols.ProtocolType]interface{},
 		resolver LocalResolver,
@@ -248,7 +249,7 @@ func (ns *networkState) GetTelemetryDelta(
 func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
-	buffer *ConnectionBuffer,
+	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	usmStats map[protocols.ProtocolType]interface{},
 	resolver LocalResolver,
@@ -258,7 +259,6 @@ func (ns *networkState) GetDelta(
 
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
-	active := buffer.Connections()
 	connsByKey := ns.getConnsByCookie(active)
 
 	client := ns.getClient(id)
@@ -267,46 +267,42 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	closed := ns.mergeConnections(id, connsByKey)
 
+	trimConns := func(conns []ConnectionStats, f func(c *ConnectionStats) bool) []ConnectionStats {
+		removed := 0
+		for i := 0; i < len(conns)-removed; {
+			if f(&conns[i]) {
+				conns[i], conns[len(conns)-removed-1] = conns[len(conns)-removed-1], conns[i]
+				removed++
+				continue
+			}
+
+			i++
+		}
+
+		return conns[:len(conns)-removed]
+	}
+
 	// remove connections that are not active anymore
-	removed := 0
-	for a := 0; a < len(active)-removed; {
-		if _, ok := connsByKey[active[a].Cookie]; !ok {
-			active[a], active[len(active)-removed-1] = active[len(active)-removed-1], active[a]
-			removed++
-			continue
-		}
+	active = trimConns(active, func(conn *ConnectionStats) bool {
+		_, ok := connsByKey[conn.Cookie]
+		return !ok
+	})
 
-		a++
-	}
-	if removed > 0 {
-		buffer.Reclaim(removed)
-	}
+	cs := slice.NewChain(active, closed)
+	ns.determineConnectionIntraHost(cs)
 
-	if buffer == nil {
-		buffer = NewConnectionBuffer(defaultConnectionsBufferSize, 256)
-	}
+	// do local resolution if available
+	resolved := resolver.Resolve(cs)
 
-	buffer.Append(closed)
+	// aggregate/roll up connections
+	aggr := newConnectionAggregator(cs.Len(), resolved)
+	active = trimConns(active, func(c *ConnectionStats) bool {
+		return aggr.Aggregate(c)
+	})
 
-	conns := buffer.Connections()
-	ns.determineConnectionIntraHost(conns)
-
-	// do local resolution and aggregation if available
-	resolved := resolver.Resolve(conns)
-	aggr := newConnectionAggregator(len(conns), resolved)
-	removed = 0
-	for i := 0; i < len(conns)-removed; {
-		if aggr.Aggregate(&conns[i]) {
-			conns[i], conns[len(conns)-removed-1] = conns[len(conns)-removed-1], conns[i]
-			removed++
-			continue
-		}
-		i++
-	}
-
-	if removed > 0 {
-		buffer.Reclaim(removed)
-	}
+	closed = trimConns(closed, func(c *ConnectionStats) bool {
+		return aggr.Aggregate(c)
+	})
 
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -327,7 +323,7 @@ func (ns *networkState) GetDelta(
 	}
 
 	return Delta{
-		Conns:    buffer.Connections(),
+		Conns:    append(active, closed...),
 		HTTP:     client.httpStatsDelta,
 		HTTP2:    client.http2StatsDelta,
 		DNSStats: client.dnsStats,
@@ -862,7 +858,7 @@ func isDNAT(c *ConnectionStats) bool {
 			c.IPTranslation.ReplSrcPort != c.DPort)
 }
 
-func (ns *networkState) determineConnectionIntraHost(connections []ConnectionStats) {
+func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[ConnectionStats]) {
 	type connKey struct {
 		Address util.Address
 		Port    uint16
@@ -892,10 +888,9 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 		_type        ConnectionType
 	}
 
-	dnats := make(map[dnatKey]struct{}, len(connections)/2)
-	lAddrs := make(map[connKey]struct{}, len(connections))
-	for i := range connections {
-		conn := &connections[i]
+	dnats := make(map[dnatKey]struct{}, connections.Len()/2)
+	lAddrs := make(map[connKey]struct{}, connections.Len())
+	connections.Iterate(func(_ int, conn *ConnectionStats) {
 		k := newConnKey(conn, false)
 		lAddrs[k] = struct{}{}
 
@@ -908,11 +903,10 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 				_type: conn.Type,
 			}] = struct{}{}
 		}
-	}
+	})
 
 	// do not use range value here since it will create a copy of the ConnectionStats object
-	for i := range connections {
-		conn := &connections[i]
+	connections.Iterate(func(_ int, conn *ConnectionStats) {
 		if conn.Source == conn.Dest ||
 			(conn.Source.IsLoopback() && conn.Dest.IsLoopback()) ||
 			(conn.IPTranslation != nil && conn.IPTranslation.ReplSrcIP.IsLoopback()) {
@@ -953,7 +947,7 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 				conn.IPTranslation = nil
 			}
 		}
-	}
+	})
 }
 
 // fixConnectionDirection fixes connection direction

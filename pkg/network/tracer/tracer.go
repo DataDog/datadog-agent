@@ -366,13 +366,14 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	t.ebpfTracer.FlushPending()
 
-	conns := network.NewConnections()
-	latestTime, active, err := t.getConnections(conns.Buffer())
+	buffer := connectionBufferPool.Get().(*network.ConnectionBuffer)
+	latestTime, active, err := t.getConnections(buffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, conns.Buffer(), t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), network.NewLocalResolver(t.config))
+	delta := t.state.GetDelta(clientID, latestTime, buffer.Connections(), t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), network.NewLocalResolver(t.config))
+	buffer = network.NewConnectionBufferFromSlice(delta.Conns)
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
 
@@ -381,7 +382,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
 	}
-	conns.Conns = delta.Conns
+	conns := network.NewConnections(&network.PooledConnectionBuffer{
+		ConnectionBuffer: buffer,
+		Pool:             &connectionBufferPool,
+	})
+
 	conns.HTTP = delta.HTTP
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka

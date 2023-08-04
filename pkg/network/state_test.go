@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -96,7 +97,7 @@ func BenchmarkConnectionsGet(b *testing.B) {
 			b.ReportAllocs()
 
 			for n := 0; n < b.N; n++ {
-				ns.GetDelta(DEBUGCLIENT, latestTime.Load(), NewConnectionBufferFromSlice(conns[:bench.connCount]), nil, nil, LocalResolver{})
+				ns.GetDelta(DEBUGCLIENT, latestTime.Load(), conns[:bench.connCount], nil, nil, LocalResolver{})
 			}
 		})
 	}
@@ -130,7 +131,7 @@ func TestRemoveConnections(t *testing.T) {
 	conns := state.GetDelta(clientID, latestEpochTime(), nil, nil, nil, LocalResolver{}).Conns
 	assert.Equal(t, 0, len(conns))
 
-	conns = state.GetDelta(clientID, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(clientID, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	require.Equal(t, 1, len(conns))
 	assert.Equal(t, conn, conns[0])
 
@@ -278,7 +279,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 		Cookie: 0,
 	}
 
-	delta := state.GetDelta(clientID, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{})
+	delta := state.GetDelta(clientID, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{})
 	require.NotEmpty(t, delta.Conns)
 	require.Equal(t, 1, len(delta.Conns))
 }
@@ -355,7 +356,7 @@ func TestLastStats(t *testing.T) {
 	assert.Equal(t, 0, len(conns))
 
 	// We should have only one connection but with last stats equal to monotonic
-	conns = state.GetDelta(client1, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(client1, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	assert.Equal(t, 1, len(conns))
 	assert.Equal(t, conn.Monotonic.SentBytes, conns[0].Last.SentBytes)
 	assert.Equal(t, conn.Monotonic.RecvBytes, conns[0].Last.RecvBytes)
@@ -365,7 +366,7 @@ func TestLastStats(t *testing.T) {
 	assert.Equal(t, conn.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 
 	// This client didn't collect the first connection so last stats = monotonic
-	conns = state.GetDelta(client2, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn2}), nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{conn2}, nil, nil, LocalResolver{}).Conns
 	assert.Equal(t, 1, len(conns))
 	assert.Equal(t, conn2.Monotonic.SentBytes, conns[0].Last.SentBytes)
 	assert.Equal(t, conn2.Monotonic.RecvBytes, conns[0].Last.RecvBytes)
@@ -375,7 +376,7 @@ func TestLastStats(t *testing.T) {
 	assert.Equal(t, conn2.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 
 	// client 1 should have conn3 - conn1 since it did not collected conn2
-	conns = state.GetDelta(client1, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn3}), nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(client1, latestEpochTime(), []ConnectionStats{conn3}, nil, nil, LocalResolver{}).Conns
 	assert.Equal(t, 1, len(conns))
 	assert.Equal(t, 2*dSent, conns[0].Last.SentBytes)
 	assert.Equal(t, 2*dRecv, conns[0].Last.RecvBytes)
@@ -385,7 +386,7 @@ func TestLastStats(t *testing.T) {
 	assert.Equal(t, conn3.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 
 	// client 2 should have conn3 - conn2
-	conns = state.GetDelta(client2, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn3}), nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{conn3}, nil, nil, LocalResolver{}).Conns
 	assert.Equal(t, 1, len(conns))
 	assert.Equal(t, dSent, conns[0].Last.SentBytes)
 	assert.Equal(t, dRecv, conns[0].Last.RecvBytes)
@@ -432,7 +433,7 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 	assert.Equal(t, 0, len(conns))
 
 	// We should have one connection with last stats equal to monotonic stats
-	conns = state.GetDelta(clientID, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(clientID, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	assert.Equal(t, 1, len(conns))
 	assert.Equal(t, conn.Monotonic.SentBytes, conns[0].Last.SentBytes)
 	assert.Equal(t, conn.Monotonic.RecvBytes, conns[0].Last.RecvBytes)
@@ -497,7 +498,7 @@ func TestRaceConditions(t *testing.T) {
 				case <-timer.C:
 					return
 				default:
-					state.GetDelta(c, latestEpochTime(), NewConnectionBufferFromSlice(genConns(nConns)), nil, nil, LocalResolver{})
+					state.GetDelta(c, latestEpochTime(), genConns(nConns), nil, nil, LocalResolver{})
 				}
 			}
 		}(fmt.Sprintf("%d", i))
@@ -635,7 +636,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		}
 
 		// Simulate this connection starting
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 		require.Len(t, conns, 1)
 		assert.EqualValues(t, 1, conns[0].Last.SentBytes)
 		assert.EqualValues(t, 1, conns[0].Monotonic.SentBytes)
@@ -653,7 +654,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn2.Cookie = 2
 		conn2.LastUpdateEpoch = latestEpochTime()
 		// Retrieve the connections
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn2}), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn2}, nil, nil, LocalResolver{}).Conns
 		require.Len(t, conns, 1)
 		assert.EqualValues(t, uint64(2), conns[0].Last.SentBytes)
 		assert.EqualValues(t, uint64(3), conns[0].Monotonic.SentBytes)
@@ -709,7 +710,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs := []ConnectionStats{conn2}
 
 		// Second get, we should have monotonic and last stats = 5
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		require.Equal(t, 1, len(conns))
 		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
@@ -730,7 +731,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs = []ConnectionStats{conn3}
 
 		// Third get, we should have monotonic = 6 and last stats = 4
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		require.Equal(t, 1, len(conns))
 		assert.Equal(t, 6, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
@@ -777,7 +778,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs := []ConnectionStats{conn}
 
 		// First get, we should have monotonic = 3 and last seen = 3
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
@@ -859,7 +860,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs := []ConnectionStats{conn2}
 
 		// Second get, for client c we should have monotonic and last stats = 5
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		require.Equal(t, 1, len(conns))
 		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
@@ -872,7 +873,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs = []ConnectionStats{conn2}
 
 		// Third get, for client d we should have monotonic = 3 and last stats = 3
-		conns = state.GetDelta(clientD, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(clientD, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
@@ -892,7 +893,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs = []ConnectionStats{conn3}
 
 		// Third get, for client c, we should have monotonic = 6 and last stats = 4
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		require.Equal(t, 1, len(conns))
 		assert.Equal(t, 6, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
@@ -905,7 +906,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs = []ConnectionStats{conn3}
 
 		// 4th get, for client d, we should have monotonic = 7 and last stats = 4
-		conns = state.GetDelta(clientD, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(clientD, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		require.Equal(t, 1, len(conns))
 		assert.Equal(t, 7, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
@@ -996,7 +997,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs := []ConnectionStats{conn}
 
 		// Second get for client e we should have monotonic and last stats = 2
-		conns = state.GetDelta(clientE, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(clientE, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 2, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 2, int(conns[0].Last.SentBytes))
@@ -1030,7 +1031,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs = []ConnectionStats{conn2}
 
 		// Second get, for client c we should have monotonic and last stats = 5
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		require.Equal(t, 1, len(conns))
 		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
@@ -1043,7 +1044,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		cs = []ConnectionStats{conn2}
 
 		// Third get, for client d we should have monotonic = 3 and last stats = 3
-		conns = state.GetDelta(clientD, latestEpochTime(), NewConnectionBufferFromSlice(cs), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(clientD, latestEpochTime(), cs, nil, nil, LocalResolver{}).Conns
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
@@ -1097,7 +1098,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 0, len(conns))
 
 		// Second get for client c we should have monotonic and last stats = 3
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
@@ -1109,7 +1110,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn2.LastUpdateEpoch++
 
 		// First get for client d we should have monotonic = 4 and last bytes = 4
-		conns = state.GetDelta(clientD, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn2}), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(clientD, latestEpochTime(), []ConnectionStats{conn2}, nil, nil, LocalResolver{}).Conns
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 4, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
@@ -1121,7 +1122,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn3.LastUpdateEpoch++
 
 		// Third get for client c we should have monotonic = 7 and last bytes = 4
-		conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn3}), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn3}, nil, nil, LocalResolver{}).Conns
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 7, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
@@ -1133,7 +1134,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn4.LastUpdateEpoch++
 
 		// Second get for client d we should have monotonic = 9 and last bytes = 5
-		conns = state.GetDelta(clientD, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn4}), nil, nil, LocalResolver{}).Conns
+		conns = state.GetDelta(clientD, latestEpochTime(), []ConnectionStats{conn4}, nil, nil, LocalResolver{}).Conns
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 9, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
@@ -1161,7 +1162,7 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 	state.RegisterClient(client)
 
 	// Get the connections once to register stats
-	conns := state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+	conns := state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	require.Len(t, conns, 1)
 
 	// Expect LastStats to be 3
@@ -1171,7 +1172,7 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 	// Get the connections again but by simulating an underflow
 	conn.Monotonic.SentBytes--
 
-	conns = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	require.Len(t, conns, 0) // dropped because last stats are zero
 }
 
@@ -1239,7 +1240,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	conn.LastUpdateEpoch--
 	conn.Monotonic.SentBytes--
 	conn.Monotonic.RecvBytes = 0
-	conns := state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{conn}), nil, nil, LocalResolver{}).Conns
+	conns := state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	require.Len(t, conns, 1)
 	assert.EqualValues(t, 4, conns[0].Last.SentBytes)
 	assert.EqualValues(t, 1, conns[0].Last.RecvBytes)
@@ -1351,21 +1352,21 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	c.Cookie = 1
 	c.LastUpdateEpoch = latestEpochTime()
 
-	delta := state.GetDelta(client1, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), getStats(), nil, LocalResolver{})
+	delta := state.GetDelta(client1, latestEpochTime(), []ConnectionStats{c}, getStats(), nil, LocalResolver{})
 	require.Len(t, delta.Conns, 1)
 
 	rcode := getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
 	// Register the third client but also pass in dns stats
-	delta = state.GetDelta(client3, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), getStats(), nil, LocalResolver{})
+	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, getStats(), nil, LocalResolver{})
 	require.Len(t, delta.Conns, 1)
 
 	// DNS stats should be available for the new client
 	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
-	delta = state.GetDelta(client2, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), getStats(), nil, LocalResolver{})
+	delta = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, getStats(), nil, LocalResolver{})
 	require.Len(t, delta.Conns, 1)
 
 	// 2nd client should get accumulated stats
@@ -1400,13 +1401,13 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	// Register client & pass in HTTP stats
 	state := newDefaultState()
-	delta := state.GetDelta("client", latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, usmStats, LocalResolver{})
+	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats, LocalResolver{})
 
 	// Verify connection has HTTP data embedded in it
 	assert.Len(t, delta.HTTP, 1)
 
 	// Verify HTTP data has been flushed
-	delta = state.GetDelta("client", latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, nil, LocalResolver{})
+	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil, LocalResolver{})
 	assert.Len(t, delta.HTTP, 0)
 }
 
@@ -1441,13 +1442,13 @@ func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 
 	// Register client & pass in HTTP2 stats
 	state := newDefaultState()
-	delta := state.GetDelta("client", latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, getStats("/testpath"), LocalResolver{})
+	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, getStats("/testpath"), LocalResolver{})
 
 	// Verify connection has HTTP2 data embedded in it
 	assert.Len(t, delta.HTTP2, 1)
 
 	// Verify HTTP2 data has been flushed
-	delta = state.GetDelta("client", latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, nil, LocalResolver{})
+	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil, LocalResolver{})
 	assert.Len(t, delta.HTTP2, 0)
 }
 
@@ -1504,7 +1505,7 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 	assert.Len(t, delta.HTTP, 1)
 
 	// Register a third client & verify that it does not have the HTTP stats
-	delta = state.GetDelta(client3, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, nil, LocalResolver{})
+	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil, LocalResolver{})
 	assert.Len(t, delta.HTTP, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
@@ -1576,7 +1577,7 @@ func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool)
 	assert.Len(t, delta.HTTP2, 1)
 
 	// Register a third client & verify that it does not have the HTTP2 stats
-	delta = state.GetDelta(client3, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, nil, LocalResolver{})
+	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil, LocalResolver{})
 	assert.Len(t, delta.HTTP2, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()
@@ -1758,7 +1759,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 		conns = append(conns, te.conn)
 	}
 	state := newDefaultState()
-	state.determineConnectionIntraHost(conns)
+	state.determineConnectionIntraHost(slice.NewChain(conns))
 	for i, te := range tests {
 		if i >= len(conns) {
 			assert.Failf(t, "missing connection for %s", te.name)
@@ -1856,7 +1857,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		// these two connections will be treated as distinct and won't be aggregated.
 		// also pass in an active connection with the same (non-nat) tuple; this
 		// should aggregated into the first closed connection c1 only
-		delta := state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{active}), nil, nil, LocalResolver{})
+		delta := state.GetDelta(client, latestEpochTime(), []ConnectionStats{active}, nil, nil, LocalResolver{})
 		connections := delta.Conns
 
 		assert.Len(t, delta.Conns, 2)
@@ -1892,7 +1893,7 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		// *limitation* in our connection tracking code and should be revisited
 		// once we find a way to reliably get the NAT translation the *first*
 		// time a connection is seen
-		_ = state.GetDelta(client, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c1}), nil, nil, LocalResolver{})
+		_ = state.GetDelta(client, latestEpochTime(), []ConnectionStats{c1}, nil, nil, LocalResolver{})
 		c2.Cookie = c1.Cookie
 		state.StoreClosedConnections([]ConnectionStats{c2})
 
@@ -1921,13 +1922,13 @@ func TestKafkaStats(t *testing.T) {
 
 	// Register client & pass in Kafka stats
 	state := newDefaultState()
-	delta := state.GetDelta("client", latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, usmStats, LocalResolver{})
+	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats, LocalResolver{})
 
 	// Verify connection has Kafka data embedded in it
 	assert.Len(t, delta.Kafka, 1)
 
 	// Verify Kafka data has been flushed
-	delta = state.GetDelta("client", latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, nil, LocalResolver{})
+	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil, LocalResolver{})
 	assert.Len(t, delta.Kafka, 0)
 }
 
@@ -1975,7 +1976,7 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, delta.Kafka, 1)
 
 	// Register a third client & verify that it does not have the Kafka stats
-	delta = state.GetDelta(client3, latestEpochTime(), NewConnectionBufferFromSlice([]ConnectionStats{c}), nil, nil, LocalResolver{})
+	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil, LocalResolver{})
 	assert.Len(t, delta.Kafka, 0)
 
 	c.LastUpdateEpoch = latestEpochTime()

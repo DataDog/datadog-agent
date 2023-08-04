@@ -36,9 +36,7 @@ func TestStatsOverflow(t *testing.T) {
 	state.RegisterClient(client)
 
 	// Get the connections once to register stats
-	cb := &ConnectionBuffer{}
-	*cb.Next() = conn
-	conns := state.GetDelta(client, latestEpochTime(), cb, nil, nil, LocalResolver{}).Conns
+	conns := state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	require.Len(t, conns, 1)
 
 	// Expect Last.SentPackets to be math.MaxUint32-1
@@ -51,9 +49,7 @@ func TestStatsOverflow(t *testing.T) {
 	conn.Monotonic.SentPackets = 10
 	conn.Monotonic.RecvPackets = 11
 
-	cb = &ConnectionBuffer{}
-	*cb.Next() = conn
-	conns = state.GetDelta(client, latestEpochTime(), cb, nil, nil, LocalResolver{}).Conns
+	conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil, LocalResolver{}).Conns
 	require.Len(t, conns, 1)
 	assert.Equal(t, uint64(12), conns[0].Last.SentPackets)
 	assert.Equal(t, uint64(14), conns[0].Last.RecvPackets)

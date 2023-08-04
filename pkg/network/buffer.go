@@ -22,8 +22,9 @@ func NewConnectionBuffer(initSize, minSize int) *ConnectionBuffer {
 
 func NewConnectionBufferFromSlice(conns []ConnectionStats) *ConnectionBuffer {
 	return &ConnectionBuffer{
-		buf: conns,
-		off: len(conns),
+		buf:           conns,
+		off:           len(conns),
+		minBufferSize: 256,
 	}
 }
 
