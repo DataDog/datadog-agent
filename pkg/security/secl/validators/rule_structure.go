@@ -30,8 +30,6 @@ func HasBareWildcardInField(rule *eval.Rule) (bool, error) {
 				return true, nil
 			} else if fieldValue.Type == eval.ScalarValueType && fieldValue.Value == "*" {
 				return true, nil
-			} else {
-				return true, nil
 			}
 		}
 	}

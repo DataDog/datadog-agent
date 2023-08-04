@@ -25,6 +25,20 @@ func TestHasBareWildcardInField(t *testing.T) {
 		errMessage string
 	}{
 		{
+			name: "valid wildcard",
+			args: args{
+				ruleExpression: "open.file.name in [~\"*.sh\", ~\"*.c\", ~\"*.so\", ~\"*.ko\"]",
+			},
+			want: false,
+		},
+		{
+			name: "valid wildcard",
+			args: args{
+				ruleExpression: "chmod.file.path in [ ~\"/var/spool/cron/**\", ~\"/etc/cron.*/**\", ~\"/etc/crontab\" ]",
+			},
+			want: false,
+		},
+		{
 			name: "root path with wildcard",
 			args: args{
 				ruleExpression: "open.file.path =~ \"/**\"",
