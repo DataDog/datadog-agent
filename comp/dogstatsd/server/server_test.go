@@ -43,7 +43,7 @@ type serverDeps struct {
 // createUDPConnRandomPort starts listening on an random UDP port.
 // If the "close" boolean is set to false, the connection is returned and the
 // caller should taker care of closing it properly if no error is returned.
-func createUDPConnRandomPort(close bool) (*net.PacketConn, int, error) {
+func createUDPConnRandomPort(close bool) (net.PacketConn, int, error) {
 	conn, err := net.ListenPacket("udp", ":0")
 	if err != nil {
 		return nil, -1, fmt.Errorf("can't find an available udp port: %s", err)
@@ -59,7 +59,7 @@ func createUDPConnRandomPort(close bool) (*net.PacketConn, int, error) {
 	if err != nil {
 		return nil, -1, fmt.Errorf("can't convert udp port: %s", err)
 	}
-	return &conn, portInt, nil
+	return conn, portInt, nil
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -440,46 +440,43 @@ func TestUDPReceive(t *testing.T) {
 }
 
 func TestUDPForward(t *testing.T) {
-	cfg := make(map[string]interface{})
-
+	// open the UDP connection to which the data will be forwarded
 	fconn, fport, err := createUDPConnRandomPort(false)
 	require.NoError(t, err)
-	pc := *fconn
+	pc := fconn
 	defer pc.Close()
 
-	// Setup UDP server to forward to
+	// configure dogstatsd to forward to the udp connection above
+	cfg := make(map[string]interface{})
 	cfg["statsd_forward_port"] = fport
 	cfg["statsd_forward_host"] = "127.0.0.1"
 
-	// Setup dogstatsd server
-	tmpconn, port, err := createUDPConnRandomPort(false)
+	// setup dogstatsd server with an unix socket
 	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_socket"] = "statsd.sock"
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-
 	demux := mockDemultiplexer(deps.Config, deps.Log)
 	defer demux.Stop(false)
-	(*tmpconn).Close()
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
+	// open the unix socket for writing
+	conn, err := net.Dial("unixgram", "statsd.sock")
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
-	// Check if message is forwarded
+	// write a message on the unix socket
 	message := []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
-
 	conn.Write(message)
-
 	pc.SetReadDeadline(time.Now().Add(2 * time.Second))
 
+	// read on the UDP socket and wait to receive the message
 	buffer := make([]byte, len(message))
 	_, _, err = pc.ReadFrom(buffer)
 	require.NoError(t, err)
 
+	// validte the message received is the same
 	assert.Equal(t, message, buffer)
 }
 
