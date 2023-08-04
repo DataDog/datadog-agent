@@ -30,8 +30,10 @@ func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg 
 	}
 
 	ts := time.Now().UTC()
-	if !m.Timestamp.IsZero() {
-		ts = m.Timestamp
+	// TODO(remy): should we consider renaming the "Timestamp: %s" to mention
+	// it's only concerning the logs agent?
+	if !m.ServerlessExtra.Timestamp.IsZero() {
+		ts = m.ServerlessExtra.Timestamp
 	}
 
 	return fmt.Sprintf("Integration Name: %s | Type: %s | Status: %s | Timestamp: %s | Hostname: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
