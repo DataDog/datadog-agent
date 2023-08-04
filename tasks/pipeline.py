@@ -209,7 +209,7 @@ def run(
     here=False,
     use_release_entries=False,
     major_versions='6,7',
-    repo_branch="nightly",
+    repo_branch="dev",
     deploy=False,
     all_builds=True,
     kitchen_tests=True,

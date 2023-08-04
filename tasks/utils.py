@@ -23,7 +23,7 @@ GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
 GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
 REPO_PATH = f"github.com/{GITHUB_REPO_NAME}"
-ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
+ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"dev", "stable", "beta", "none"}
 ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
 if sys.platform == "darwin":
