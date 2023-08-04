@@ -15,13 +15,18 @@ func deprecatedFlagWarning(deprecated, replaceWith string) string {
 	return fmt.Sprintf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `%s` instead.\n", deprecated, replaceWith)
 }
 
+// ReplaceFlag structure that will hold `Args` after replacing a flags and a `Hint` of
+// the flag that was replaced.
 type ReplaceFlag struct {
 	Hint string
 	Args []string
 }
 
+// ReplaceFlagFunc type for a function that will produce a ReplaceFlag for the provided
+// `arg` and `flag`.
 type ReplaceFlagFunc func(arg string, flag string) ReplaceFlag
 
+// ReplaceFlagPosix replaces a single-dash flag with a POSIX flag.
 func ReplaceFlagPosix(arg string, flag string) ReplaceFlag {
 	newFlag := "-" + flag
 	return ReplaceFlag{
@@ -32,6 +37,7 @@ func ReplaceFlagPosix(arg string, flag string) ReplaceFlag {
 	}
 }
 
+// ReplaceFlagExact will replace the matching flag with `replaceWith` exactly.
 func ReplaceFlagExact(replaceWith string) ReplaceFlagFunc {
 	return func(arg string, flag string) ReplaceFlag {
 		return ReplaceFlag{
@@ -41,6 +47,8 @@ func ReplaceFlagExact(replaceWith string) ReplaceFlagFunc {
 	}
 }
 
+// ReplaceFlagSubCommandPosArg replaces a subcomand sub-positional argument in the
+// for `--foo=bar` with `--foo bar`.
 func ReplaceFlagSubCommandPosArg(replaceWith string) ReplaceFlagFunc {
 	return func(arg string, _ string) ReplaceFlag {
 		parts := strings.SplitN(arg, "=", 2)
