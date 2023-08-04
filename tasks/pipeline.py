@@ -182,6 +182,7 @@ def auto_cancel_previous_pipelines(ctx):
 
     for pipeline in pipelines_without_current:
         # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
+        print("Running: ", f'git merge-base --is-ancestor ${pipeline["sha"]} ${git_sha}')
         if ctx.run(f'git merge-base --is-ancestor ${pipeline["sha"]} ${git_sha}'):
             print(f'Canceling pipeline ${pipeline["id"]} (${pipeline["web_url"]})')
             gitlab.cancel_pipeline(pipeline["id"])
