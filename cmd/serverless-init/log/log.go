@@ -6,6 +6,7 @@
 package log
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -38,8 +39,10 @@ type Config struct {
 
 // CustomWriter wraps the log config to allow stdout/stderr redirection
 type CustomWriter struct {
-	LogConfig *Config
-	IsError   bool
+	LogConfig 	*Config
+	LineBuffer 	bytes.Buffer
+	IsDotnet	bool
+	IsError   	bool
 }
 
 // CreateConfig builds and returns a log config
@@ -92,8 +95,25 @@ func SetupLog(conf *Config, tags map[string]string) {
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
-	fmt.Print(string(p))
-	Write(cw.LogConfig, p, cw.IsError)
+	if (!cw.IsDotnet) {
+		fmt.Println(string(p))
+		Write(cw.LogConfig, p, cw.IsError)
+		return len(p), nil
+	}
+
+	// In dotnet, only flush the log buffer if the chunk to be appended ends in a newline.
+	// Otherwise, the chunk only represents part of a log. Push it into the buffer and wait
+	// for the rest of the log before flushing.
+	cw.LineBuffer.Write(p)
+	if (string(p[len(p)-1]) != "\n") {
+		fmt.Print(string(p))
+		return len(p), nil
+	}
+
+	fmt.Println(string(p))
+	Write(cw.LogConfig, cw.LineBuffer.Bytes(), cw.IsError)
+	cw.LineBuffer.Reset()
+	
 	return len(p), nil
 }
 
