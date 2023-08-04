@@ -59,10 +59,6 @@ func TestPathValidation(t *testing.T) {
 			errMessage: ErrPathMustBeAbsolute,
 		},
 		{
-			val:        "",
-			errMessage: ErrPathCannotBeEmpty,
-		},
-		{
 			val:            "/run/..data",
 			fieldValueType: eval.PatternValueType,
 		},

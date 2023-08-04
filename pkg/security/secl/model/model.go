@@ -58,7 +58,6 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 
 const (
 	ErrPathMustBeAbsolute = "all the path have to be absolute"
-	ErrPathCannotBeEmpty  = "path cannot be empty"
 	ErrPathDepthLimit     = "path depths have to be shorter than"
 	ErrPathSegmentLimit   = "each segment of a path must be shorter than"
 )
@@ -76,10 +75,9 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 		errAbs := fmt.Errorf("invalid path `%s`, %s", value, ErrPathMustBeAbsolute)
 		errDepth := fmt.Errorf("invalid path `%s`, %s %d", value, ErrPathDepthLimit, MaxPathDepth)
 		errSegment := fmt.Errorf("invalid path `%s`, %s %d", value, ErrPathSegmentLimit, MaxSegmentLength)
-		errEmpty := fmt.Errorf("invalid path `%s`, %s", value, ErrPathCannotBeEmpty)
 
 		if value == "" {
-			return errEmpty
+			return nil
 		}
 
 		if value != path.Clean(value) {
