@@ -102,7 +102,7 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 
 func TestLoadModule(t *testing.T) {
 	if os.Getenv("CI") == "true" {
-		t.Skip("TestLoadModule is known to be flacky")
+		t.Skip("TestLoadModule is known to be flaky")
 	}
 
 	if testEnvironment == DockerEnvironment {
