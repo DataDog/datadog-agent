@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -13,18 +12,18 @@ import manager "github.com/DataDog/ebpf-manager"
 // bindProbes holds the list of probes used to track bind events
 var bindProbes []*manager.Probe
 
-func getBindProbes() []*manager.Probe {
+func getBindProbes(fentry bool) []*manager.Probe {
 	bindProbes = append(bindProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "bind",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 
 	bindProbes = append(bindProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_socket_bind",
+			EBPFFuncName: "hook_security_socket_bind",
 		},
 	})
 

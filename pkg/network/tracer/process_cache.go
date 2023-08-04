@@ -4,17 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/cihub/seelog"
+	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/prometheus/client_golang/prometheus"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -32,16 +32,17 @@ const (
 	// maxProcessListSize is the max size of a processList
 	maxProcessListSize     = 3
 	processCacheModuleName = "network_tracer__process_cache"
+	defaultExpiry          = 2 * time.Minute
 )
 
 var processCacheTelemetry = struct {
 	cacheEvicts   telemetry.Counter
-	cacheLength   telemetry.Gauge
+	cacheLength   *prometheus.Desc
 	eventsDropped telemetry.Counter
 	eventsSkipped telemetry.Counter
 }{
 	telemetry.NewCounter(processCacheModuleName, "cache_evicts", []string{}, "Counter measuring the number of evictions in the process cache"),
-	telemetry.NewGauge(processCacheModuleName, "cache_length", []string{}, "Gauge measuring the current size of the process cache"),
+	prometheus.NewDesc(processCacheModuleName+"__cache_length", "Gauge measuring the current size of the process cache", nil, nil),
 	telemetry.NewCounter(processCacheModuleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetry.NewCounter(processCacheModuleName, "events_skipped", []string{}, "Counter measuring the number of skipped process events"),
 }
@@ -51,6 +52,7 @@ type process struct {
 	Envs        map[string]string
 	ContainerID string
 	StartTime   int64
+	Expiry      int64
 }
 
 type processList []*process
@@ -64,7 +66,7 @@ type processCache struct {
 	// match to a connection's timestamp
 	cacheByPid map[uint32]processList
 	// lru cache; keyed by (pid, start time)
-	cache *lru.Cache
+	cache *lru.Cache[processCacheKey, *process]
 	// filteredEnvs contains environment variable names
 	// that a process in the cache must have; empty filteredEnvs
 	// means no filter, and any process can be inserted the cache
@@ -93,8 +95,9 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	}
 
 	var err error
-	pc.cache, err = lru.NewWithEvict(maxProcs, func(key, value interface{}) {
-		p := value.(*process)
+	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *process) {
+		processCacheTelemetry.cacheEvicts.Inc()
+
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -119,25 +122,10 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		}
 	}()
 
-	// Refreshes process cache telemetry on a loop
-	// TODO: Replace with prometheus collector interface
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-pc.stopped:
-				return
-			case <-ticker.C:
-				processCacheTelemetry.cacheLength.Set(float64(pc.cache.Len()))
-			}
-		}
-	}()
-
 	return pc, nil
 }
 
-func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
+func (pc *processCache) handleProcessEvent(entry *smodel.ProcessContext) {
 
 	select {
 	case <-pc.stopped:
@@ -159,7 +147,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	}
 }
 
-func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
+func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 	var envs map[string]string
 	if entry.EnvsEntry != nil {
 		for _, v := range entry.EnvsEntry.Values {
@@ -193,6 +181,30 @@ func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
 	}
 }
 
+func (pc *processCache) Trim() {
+	if pc == nil {
+		return
+	}
+
+	pc.Lock()
+	defer pc.Unlock()
+
+	now := time.Now().Unix()
+	trimmed := 0
+	for _, v := range pc.cache.Values() {
+		if now > v.Expiry {
+			// Remove will call the evict callback which will
+			// delete from the cacheByPid map
+			pc.cache.Remove(processCacheKey{pid: v.Pid, startTime: v.StartTime})
+			trimmed++
+		}
+	}
+
+	if trimmed > 0 {
+		log.Debugf("Trimmed %d process cache entries", trimmed)
+	}
+}
+
 func (pc *processCache) Stop() {
 	if pc == nil {
 		return
@@ -209,17 +221,14 @@ func (pc *processCache) add(p *process) {
 	pc.Lock()
 	defer pc.Unlock()
 
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("adding process %+v to process cache", p)
-	})
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("adding process %+v to process cache", p)
+	}
 
-	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
+	p.Expiry = time.Now().Add(defaultExpiry).Unix()
+	pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
-
-	if evicted {
-		processCacheTelemetry.cacheEvicts.Inc()
-	}
 }
 
 func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {
@@ -232,6 +241,7 @@ func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {
 
 	pl, _ := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {
+		closest.Expiry = time.Now().Add(defaultExpiry).Unix()
 		pc.cache.Get(processCacheKey{pid: closest.Pid, startTime: closest.StartTime})
 		return closest, true
 	}
@@ -253,6 +263,16 @@ func (pc *processCache) Dump() (interface{}, error) {
 	}
 
 	return res, nil
+}
+
+// Describe returns all descriptions of the collector.
+func (pc *processCache) Describe(ch chan<- *prometheus.Desc) {
+	ch <- processCacheTelemetry.cacheLength
+}
+
+// Collect returns the current state of all metrics of the collector.
+func (pc *processCache) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(processCacheTelemetry.cacheLength, prometheus.GaugeValue, float64(pc.cache.Len()))
 }
 
 func (pl processList) update(p *process) processList {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package webhook
 
@@ -185,7 +184,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			Name: name,
 			ClientConfig: admiv1.WebhookClientConfig{
 				Service: &admiv1.ServiceReference{
-					Namespace: "default",
+					Namespace: "nsfoo",
 					Name:      "datadog-admission-controller",
 					Port:      &port,
 					Path:      &path,
@@ -485,6 +484,9 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 		},
 	}
+
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
@@ -500,6 +502,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1(t *testing.T) {
+	mockConfig := config.Mock(t)
 	defaultReinvocationPolicy := admiv1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact
@@ -515,7 +518,7 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 			Name: "datadog.webhook.foo",
 			ClientConfig: admiv1.WebhookClientConfig{
 				Service: &admiv1.ServiceReference{
-					Namespace: "default",
+					Namespace: "nsfoo",
 					Name:      "datadog-admission-controller",
 					Port:      &port,
 					Path:      &path,
@@ -583,11 +586,14 @@ func TestGetWebhookSkeletonV1(t *testing.T) {
 			want:              webhook(&customTimeout, objectSelector, nil),
 		},
 	}
+
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.timeout != nil {
-				config.Datadog.Set("admission_controller.timeout_seconds", *tt.timeout)
-				defer config.Datadog.SetDefault("admission_controller.timeout_seconds", defaultTimeout)
+				mockConfig.Set("admission_controller.timeout_seconds", *tt.timeout)
+				defer mockConfig.SetDefault("admission_controller.timeout_seconds", defaultTimeout)
 			}
 
 			c := &ControllerV1{}

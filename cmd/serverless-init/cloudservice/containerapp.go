@@ -6,17 +6,25 @@
 package cloudservice
 
 import (
+	"fmt"
+	"log"
 	"os"
 	"strings"
 )
 
 // ContainerApp has helper functions for getting specific Azure Container App data
-type ContainerApp struct{}
+type ContainerApp struct {
+	SubscriptionId string
+	ResourceGroup  string
+}
 
 const (
 	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
 	ContainerAppDNSSuffix  = "CONTAINER_APP_ENV_DNS_SUFFIX"
 	ContainerAppRevision   = "CONTAINER_APP_REVISION"
+
+	AzureSubscriptionIdEnvVar = "DD_AZURE_SUBSCRIPTION_ID"
+	AzureResourceGroupEnvVar  = "DD_AZURE_RESOURCE_GROUP"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -29,13 +37,27 @@ func (c *ContainerApp) GetTags() map[string]string {
 
 	revision := os.Getenv(ContainerAppRevision)
 
-	return map[string]string{
+	tags := map[string]string{
 		"app_name":   appName,
 		"region":     region,
 		"revision":   revision,
 		"origin":     c.GetOrigin(),
 		"_dd.origin": c.GetOrigin(),
 	}
+
+	if c.SubscriptionId != "" {
+		tags["subscription_id"] = c.SubscriptionId
+	}
+
+	if c.ResourceGroup != "" {
+		tags["resource_group"] = c.ResourceGroup
+	}
+
+	if c.SubscriptionId != "" && c.ResourceGroup != "" {
+		tags["resource_id"] = fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+	}
+
+	return tags
 }
 
 // GetOrigin returns the `origin` attribute type for the given
@@ -48,6 +70,35 @@ func (c *ContainerApp) GetOrigin() string {
 // metrics with.
 func (c *ContainerApp) GetPrefix() string {
 	return "azure.containerapp"
+}
+
+// NewContainerApp returns a new ContainerApp instance
+func NewContainerApp() *ContainerApp {
+	return &ContainerApp{
+		SubscriptionId: "",
+		ResourceGroup:  "",
+	}
+}
+
+// Init initializes ContainerApp specific code
+func (c *ContainerApp) Init() error {
+	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
+	// and DD_AZURE_RESOURCE_GROUP.
+	// These environment variables are optional for now. Once we go GA,
+	// return an error if these are not set.
+	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
+		c.SubscriptionId = subscriptionId
+	} else {
+		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
+	}
+
+	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
+		c.ResourceGroup = resourceGroup
+	} else {
+		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
+	}
+
+	return nil
 }
 
 func isContainerAppService() bool {

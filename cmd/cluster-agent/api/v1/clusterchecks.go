@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package v1
 
@@ -60,12 +59,7 @@ func postCheckStatus(sc clusteragent.ServerContext) func(w http.ResponseWriter, 
 			return
 		}
 
-		response, err := sc.ClusterCheckHandler.PostStatus(identifier, clientIP, status)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
+		response := sc.ClusterCheckHandler.PostStatus(identifier, clientIP, status)
 		writeJSONResponse(w, response)
 	}
 }

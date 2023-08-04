@@ -4,19 +4,20 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && clusterchecks
-// +build !windows,clusterchecks
 
 // Package command implements the top-level `cluster-agent-cloudfoundry` binary, including its subcommands.
 package command
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	clustercheckscmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaconfigcheck"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaflare"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"os"
 )
 
 const (

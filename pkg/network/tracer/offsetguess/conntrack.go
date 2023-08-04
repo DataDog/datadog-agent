@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package offsetguess
 
@@ -22,6 +21,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -86,6 +86,7 @@ func (c *conntrackOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (c *conntrackOffsetGuesser) Close() {
+	ebpfcheck.RemoveNameMappings(c.m)
 	if err := c.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping conntrack offset guesser: %s", err)
 	}

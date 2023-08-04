@@ -3,6 +3,7 @@
 
 #include "constants/offsets/bpf.h"
 #include "constants/syscall_macro.h"
+#include "constants/fentry_macro.h"
 #include "helpers/bpf.h"
 #include "helpers/discarders.h"
 #include "helpers/process.h"
@@ -47,7 +48,7 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
     send_event(ctx, EVENT_BPF, event);
 }
 
-SYSCALL_KPROBE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
+HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
     struct policy_t policy = fetch_policy(EVENT_BPF);
     if (is_discarded_by_process(policy.mode, EVENT_BPF)) {
         return 0;
@@ -87,18 +88,18 @@ __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(bpf) {
-    return sys_bpf_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(bpf) {
+    return sys_bpf_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
-SEC("kprobe/security_bpf_map")
-int kprobe_security_bpf_map(struct pt_regs *ctx) {
+HOOK_ENTRY("security_bpf_map")
+int hook_security_bpf_map(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
     if (!syscall) {
         return 0;
     }
 
-    struct bpf_map *map = (struct bpf_map *)PT_REGS_PARM1(ctx);
+    struct bpf_map *map = (struct bpf_map *)CTX_PARM1(ctx);
 
     // collect relevant map metadata
     struct bpf_map_t m = {};
@@ -114,14 +115,14 @@ int kprobe_security_bpf_map(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/security_bpf_prog")
-int kprobe_security_bpf_prog(struct pt_regs *ctx) {
+HOOK_ENTRY("security_bpf_prog")
+int hook_security_bpf_prog(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
     if (!syscall) {
         return 0;
     }
 
-    struct bpf_prog *prog = (struct bpf_prog *)PT_REGS_PARM1(ctx);
+    struct bpf_prog *prog = (struct bpf_prog *)CTX_PARM1(ctx);
     struct bpf_prog_aux *prog_aux = 0;
     bpf_probe_read(&prog_aux, sizeof(prog_aux), (void *)prog + get_bpf_prog_aux_offset());
 
@@ -148,8 +149,8 @@ int kprobe_security_bpf_prog(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/check_helper_call")
-int kprobe_check_helper_call(struct pt_regs *ctx) {
+HOOK_ENTRY("check_helper_call")
+int hook_check_helper_call(ctx_t *ctx) {
     int func_id = 0;
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
     if (!syscall) {
@@ -158,9 +159,9 @@ int kprobe_check_helper_call(struct pt_regs *ctx) {
 
     u64 input = get_check_helper_call_input();
     if (input == CHECK_HELPER_CALL_FUNC_ID) {
-        func_id = (int)PT_REGS_PARM2(ctx);
+        func_id = (int)CTX_PARM2(ctx);
     } else if (input == CHECK_HELPER_CALL_INSN) {
-        struct bpf_insn *insn = (struct bpf_insn *)PT_REGS_PARM2(ctx);
+        struct bpf_insn *insn = (struct bpf_insn *)CTX_PARM2(ctx);
         bpf_probe_read(&func_id, sizeof(func_id), &insn->imm);
     }
 

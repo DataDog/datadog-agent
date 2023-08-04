@@ -4,11 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package patch
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -22,17 +22,19 @@ type ControllerContext struct {
 	K8sClient           kubernetes.Interface
 	RcClient            *remote.Client
 	ClusterName         string
+	ClusterId           string
 	StopCh              chan struct{}
 }
 
 // StartControllers starts the patch controllers
 func StartControllers(ctx ControllerContext) error {
 	log.Info("Starting patch controllers")
-	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), ctx.ClusterName)
+	telemetryCollector := telemetry.NewCollector(ctx.RcClient.ID, ctx.ClusterId)
+	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), telemetryCollector, ctx.ClusterName)
 	if err != nil {
 		return err
 	}
-	patcher := newPatcher(ctx.K8sClient, ctx.IsLeaderFunc, provider)
+	patcher := newPatcher(ctx.K8sClient, ctx.IsLeaderFunc, telemetryCollector, provider)
 	go provider.start(ctx.StopCh)
 	go patcher.start(ctx.StopCh)
 	return nil

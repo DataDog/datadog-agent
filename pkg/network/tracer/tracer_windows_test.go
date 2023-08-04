@@ -4,17 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package tracer
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
-
-func setKernelVersion() error {
-	return nil
-}
 
 func httpSupported() bool {
 	return false

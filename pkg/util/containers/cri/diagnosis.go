@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
 package cri
 
@@ -13,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("CRI availability", diagnose)
+	diagnosis.RegisterMetadataAvail("CRI availability", diagnose)
 }
 
 // diagnose the CRI socket connectivity

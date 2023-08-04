@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package utils
 
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -115,6 +115,11 @@ func ProcRootPath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
 }
 
+// ProcRootFilePath returns the path to the input file after prepending the proc root path of the given pid
+func ProcRootFilePath(pid int32, file string) string {
+	return filepath.Join(ProcRootPath(pid), file)
+}
+
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
 	return util.HostProc("modules")
@@ -212,40 +217,40 @@ type FilledProcess struct {
 }
 
 // GetFilledProcess returns a FilledProcess from a Process input
-func GetFilledProcess(p *process.Process) *FilledProcess {
+func GetFilledProcess(p *process.Process) (*FilledProcess, error) {
 	ppid, err := p.Ppid()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	createTime, err := p.CreateTime()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	uids, err := p.Uids()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	gids, err := p.Gids()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	name, err := p.Name()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	memInfo, err := p.MemoryInfo()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	cmdLine, err := p.CmdlineSlice()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	return &FilledProcess{
@@ -257,13 +262,46 @@ func GetFilledProcess(p *process.Process) *FilledProcess {
 		Gids:       gids,
 		MemInfo:    memInfo,
 		Cmdline:    cmdLine,
-	}
+	}, nil
 }
 
-const MAX_ENV_VARS_COLLECTED = 128
+const MAX_ENV_VARS_COLLECTED = 256
+
+func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\x00' {
+			return i + 1, data[:i], nil
+		}
+	}
+	if !atEOF {
+		return 0, nil, nil
+	}
+	return 0, data, bufio.ErrFinalToken
+}
+
+func newEnvScanner(f *os.File) (*bufio.Scanner, error) {
+	_, err := f.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(zeroSplitter)
+
+	return scanner, nil
+}
+
+func matchesOnePrefix(text string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(text, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 // EnvVars returns a array with the environment variables of the given pid
-func EnvVars(pid int32) ([]string, bool, error) {
+func EnvVars(priorityEnvsPrefixes []string, pid int32) ([]string, bool, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
 
 	f, err := os.Open(filename)
@@ -272,22 +310,36 @@ func EnvVars(pid int32) ([]string, bool, error) {
 	}
 	defer f.Close()
 
-	zero := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		for i := 0; i < len(data); i++ {
-			if data[i] == '\x00' {
-				return i + 1, data[:i], nil
+	// first pass collecting only priority variables
+	scanner, err := newEnvScanner(f)
+	if err != nil {
+		return nil, false, err
+	}
+	var priorityEnvs []string
+	envCounter := 0
+
+	for scanner.Scan() {
+		text := scanner.Text()
+		if len(text) > 0 {
+			envCounter++
+			if matchesOnePrefix(text, priorityEnvsPrefixes) {
+				priorityEnvs = append(priorityEnvs, text)
 			}
 		}
-		if !atEOF {
-			return 0, nil, nil
-		}
-		return 0, data, bufio.ErrFinalToken
 	}
 
-	scanner := bufio.NewScanner(f)
-	scanner.Split(zero)
+	if envCounter > MAX_ENV_VARS_COLLECTED {
+		envCounter = MAX_ENV_VARS_COLLECTED
+	}
 
-	var envs []string
+	// second pass collecting
+	scanner, err = newEnvScanner(f)
+	if err != nil {
+		return nil, false, err
+	}
+	envs := make([]string, 0, envCounter)
+	envs = append(envs, priorityEnvs...)
+
 	for scanner.Scan() {
 		if len(envs) >= MAX_ENV_VARS_COLLECTED {
 			return envs, true, nil
@@ -295,7 +347,10 @@ func EnvVars(pid int32) ([]string, bool, error) {
 
 		text := scanner.Text()
 		if len(text) > 0 {
-			envs = append(envs, text)
+			// if it matches one prefix, it's already in the envs through priority envs
+			if !matchesOnePrefix(text, priorityEnvsPrefixes) {
+				envs = append(envs, text)
+			}
 		}
 	}
 

@@ -4,11 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package runtime
 
 import (
+	"bytes"
+	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
 
@@ -41,5 +43,83 @@ func TestDownloadCommand(t *testing.T) {
 			downloadPolicy,
 			test.check,
 		)
+	}
+}
+
+// go test -v github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime --run="Test_checkPoliciesLoaded"
+func Test_checkPoliciesLoaded(t *testing.T) {
+	type args struct {
+		args   *checkPoliciesCliParams
+		client secagent.SecurityModuleClientWrapper
+	}
+	tests := []struct {
+		name               string
+		args               args
+		wantErr            bool
+		reportFromSysProbe string
+	}{
+		{
+			name:    "basic",
+			wantErr: false,
+			args: args{
+				args:   &checkPoliciesCliParams{evaluateAllPolicySources: true},
+				client: secagent.NewMockRuntimeSecurityClient(),
+			},
+			reportFromSysProbe: `{
+	"Policies": {
+		"exec": {
+			"Mode": "accept",
+			"Flags": [
+				"basename",
+				"flags",
+				"mode"
+			],
+			"Approvers": null
+		},
+		"open": {
+			"Mode": "deny",
+			"Flags": [
+				"basename",
+				"flags",
+				"mode"
+			],
+			"Approvers": {
+				"open.file.path": [
+					{
+						"Field": "open.file.path",
+						"Value": "/etc/gshadow",
+						"Type": "scalar"
+					},
+					{
+						"Field": "open.file.path",
+						"Value": "/etc/shadow",
+						"Type": "scalar"
+					}
+				],
+				"open.flags": [
+					{
+						"Field": "open.flags",
+						"Value": 64,
+						"Type": "scalar"
+					}
+				]
+			}
+		}
+	}
+}
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var output bytes.Buffer
+			err := checkPoliciesLoaded(tt.args.client, &output)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("checkPolicies() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			assert.Equal(t, tt.reportFromSysProbe, output.String())
+		})
 	}
 }

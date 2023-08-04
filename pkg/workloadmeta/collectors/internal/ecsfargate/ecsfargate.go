@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package ecsfargate
 
@@ -28,7 +27,7 @@ const (
 
 type collector struct {
 	store  workloadmeta.Store
-	metaV2 *v2.Client
+	metaV2 v2.Client
 	seen   map[workloadmeta.EntityID]struct{}
 }
 

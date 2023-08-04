@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package orchestrator
 
@@ -20,7 +19,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 var manifestToSend []*model.CollectorManifest
@@ -84,7 +83,7 @@ func TestOrchestratorManifestBuffer(t *testing.T) {
 // getSender returns a mock Sender
 // When calling OrchestratorManifest, it adds the messges to a global var manifestToSend
 func getSender(t *testing.T) *mocksender.MockSender {
-	sender := mocksender.NewMockSender(check.ID(rune(1)))
+	sender := mocksender.NewMockSender(checkid.ID(rune(1)))
 	sender.On("OrchestratorManifest", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
 		arg := args.Get(0).([]model.MessageBody)
 		require.Equal(t, 1, len(arg))

@@ -34,6 +34,10 @@ GITHUB_SLACK_MAP = {
     "@datadog/software-integrity-and-trust": "#sit",
     "@datadog/single-machine-performance": "#single-machine-performance",
     "@datadog/agent-integrations": "#agent-integrations",
+    "@datadog/debugger": "#debugger-ops-prod",
+    "@datadog/database-monitoring": "#database-monitoring",
+    "@datadog/agent-cspm": "#k9-cspm-ops",
+    "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
 }
 
 

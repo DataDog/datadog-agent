@@ -13,12 +13,11 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
@@ -89,15 +88,16 @@ func getSystemStats() *systemStats {
 	if x, found := cache.Cache.Get(key); found {
 		stats = x.(*systemStats)
 	} else {
-		cpuInfo, _ := cpu.GetCpuInfo()
+		cpuInfo := cpu.CollectInfo()
 		hostInfo := getHostInfo()
-		cores, _ := strconv.Atoi(cpuInfo["cpu_cores"])
+		cores := cpuInfo.CPUCores.ValueOrDefault()
 		c32 := int32(cores)
+		modelName := cpuInfo.ModelName.ValueOrDefault()
 
 		stats = &systemStats{
 			Machine:   runtime.GOARCH,
 			Platform:  runtime.GOOS,
-			Processor: cpuInfo["model_name"],
+			Processor: modelName,
 			CPUCores:  c32,
 			Pythonv:   strings.Split(GetPythonVersion(), " ")[0],
 		}
@@ -130,9 +130,9 @@ func getHostInfo() *InfoStat {
 
 	info.KernelArch = runtime.GOARCH
 
-	pi, _ := platform.GetArchInfo()
-	info.Platform = pi["os"]
-	info.PlatformFamily = pi["os"]
+	pi := platform.CollectInfo()
+	info.Platform, _ = pi.OS.Value()
+	info.PlatformFamily, _ = pi.OS.Value()
 
 	info.PlatformVersion, _ = winutil.GetWindowsBuildString()
 	info.HostID = common.GetUUID()

@@ -181,10 +181,10 @@ func (d *Daemon) GetFlushStrategy() string {
 }
 
 // SetupLogCollectionHandler configures the log collection route handler
-func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, initDurationChan chan<- float64) {
+func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, lambdaInitMetricChan chan<- *serverlessLog.LambdaInitMetric) {
 
 	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
-		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, initDurationChan)
+		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, lambdaInitMetricChan)
 	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
 
 	d.mux.Handle(route, &server)
@@ -240,7 +240,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 
 	timedOut := waitWithTimeout(&wg, FlushTimeout)
 	if timedOut {
-		log.Debug("Timed out while flushing, flush may be continued on next invocation")
+		log.Debug("Timed out while flushing")
 	} else {
 		log.Debug("Finished flushing")
 	}

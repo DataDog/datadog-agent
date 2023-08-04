@@ -4,12 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -89,26 +89,51 @@ func ShouldUseModuleLoadTracepoint() bool {
 	return err == nil && currentKernelVersion != nil && currentKernelVersion.IsRH7Kernel()
 }
 
-func expandKprobe(hookpoint string, flag int) []string {
+func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 	var sections []string
 	if flag&Entry == Entry {
-		sections = append(sections, "kprobe/"+hookpoint)
+		prefix := "kprobe"
+		if flag&SupportFentry == SupportFentry && fentry {
+			prefix = "fentry"
+		}
+
+		sections = append(sections, fmt.Sprintf("%s/%s", prefix, hookpoint))
 	}
 	if flag&Exit == Exit && !ShouldUseSyscallExitTracepoints() {
-		sections = append(sections, "kretprobe/"+hookpoint)
+		prefix := "kretprobe"
+		if flag&SupportFexit == SupportFexit && fentry {
+			prefix = "fexit"
+		}
+
+		sections = append(sections, fmt.Sprintf("%s/%s", prefix, hookpoint))
 	}
 
 	return sections
 }
 
-func expandSyscallSections(syscallName string, flag int, compat ...bool) []string {
-	sections := expandKprobe(getSyscallFnName(syscallName), flag)
+func expandSyscallSections(syscallName string, fentry bool, flag int, compat ...bool) []string {
+	sections := expandKprobeOrFentry(getSyscallFnName(syscallName), fentry, flag)
+
+	shouldUseCompat := len(compat) > 0 && compat[0]
+	isFentry := fentry && flag&SupportFentry == SupportFentry
+	isFexit := fentry && flag&SupportFexit == SupportFexit
 
 	if RuntimeArch == "x64" {
-		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
-			sections = append(sections, expandKprobe(getCompatSyscallFnName(syscallName), flag)...)
+		// HACK: split entry and exit because we currently do not support compat syscall ret hooks
+		// entry
+		entryFlag := flag & ^Exit
+		if shouldUseCompat && !isFentry && syscallPrefix != "sys_" {
+			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, entryFlag)...)
 		} else {
-			sections = append(sections, expandKprobe(getIA32SyscallFnName(syscallName), flag)...)
+			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, entryFlag)...)
+		}
+
+		// exit
+		exitFlag := flag & ^Entry
+		if shouldUseCompat && !isFexit && syscallPrefix != "sys_" {
+			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, exitFlag)...)
+		} else {
+			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, exitFlag)...)
 		}
 	}
 
@@ -122,6 +147,10 @@ const (
 	Exit = 1 << 1
 	// ExpandTime32 indicates that the _time32 suffix should be added to the provided probe if needed
 	ExpandTime32 = 1 << 2
+	// SupportFentry indicates that this probe supports fentry expansion (instead of kprobe)
+	SupportFentry = 1 << 3
+	// SupportFentryExit indicates that this probe support fexit expansion (instead of kretprobe)
+	SupportFexit = 1 << 4
 
 	// EntryAndExit indicates that both the entry kprobe and exit kretprobe should be expanded
 	EntryAndExit = Entry | Exit
@@ -148,7 +177,7 @@ func getFunctionNameFromSection(section string) string {
 }
 
 // ExpandSyscallProbes returns the list of available hook probes for the syscall func name of the provided probe
-func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*manager.Probe {
+func ExpandSyscallProbes(probe *manager.Probe, fentry bool, flag int, compat ...bool) []*manager.Probe {
 	var probes []*manager.Probe
 	syscallName := probe.SyscallFuncName
 	probe.SyscallFuncName = ""
@@ -165,7 +194,7 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 		syscallName += "_time32"
 	}
 
-	for _, section := range expandSyscallSections(syscallName, flag, compat...) {
+	for _, section := range expandSyscallSections(syscallName, fentry, flag, compat...) {
 		probeCopy := probe.Copy()
 		probeCopy.EBPFFuncName = getFunctionNameFromSection(section)
 		probes = append(probes, probeCopy)
@@ -175,7 +204,7 @@ func ExpandSyscallProbes(probe *manager.Probe, flag int, compat ...bool) []*mana
 }
 
 // ExpandSyscallProbesSelector returns the list of a ProbesSelector required to query all the probes available for a syscall
-func ExpandSyscallProbesSelector(UID string, section string, flag int, compat ...bool) []manager.ProbesSelector {
+func ExpandSyscallProbesSelector(UID string, section string, fentry bool, flag int, compat ...bool) []manager.ProbesSelector {
 	var selectors []manager.ProbesSelector
 
 	if len(RuntimeArch) == 0 {
@@ -190,7 +219,7 @@ func ExpandSyscallProbesSelector(UID string, section string, flag int, compat ..
 		section += "_time32"
 	}
 
-	for _, esection := range expandSyscallSections(section, flag, compat...) {
+	for _, esection := range expandSyscallSections(section, fentry, flag, compat...) {
 		selector := &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: UID, EBPFFuncName: getFunctionNameFromSection(esection)}}
 		selectors = append(selectors, selector)
 	}

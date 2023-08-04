@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package windowsevent
 
@@ -34,7 +33,6 @@ type evtEnumHandle uintptr
 
 // EnumerateChannels enumerates available log channels
 func EnumerateChannels() (chans []string, err error) {
-	err = nil
 
 	ret, _, err := procEvtOpenChannelEnum.Call(uintptr(0), // local computer
 		uintptr(0)) // must be zero

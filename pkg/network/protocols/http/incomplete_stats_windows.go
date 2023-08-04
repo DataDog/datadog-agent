@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package http
 
@@ -22,5 +21,5 @@ func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuff
 	return &incompleteBuffer{}
 }
 
-func (b *incompleteBuffer) Add(tx HttpTX)                {}
-func (b *incompleteBuffer) Flush(now time.Time) []HttpTX { return nil }
+func (b *incompleteBuffer) Add(tx Transaction)                {}
+func (b *incompleteBuffer) Flush(now time.Time) []Transaction { return nil }

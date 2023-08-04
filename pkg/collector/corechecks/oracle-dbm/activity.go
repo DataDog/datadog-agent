@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
@@ -100,6 +102,87 @@ WHERE
 		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
 	)
 	AND status = 'ACTIVE'`
+
+const ACTIVITY_QUERY_DIRECT = `SELECT /* DD_ACTIVITY_SAMPLING */
+s.sid,
+s.serial#,
+s.username,
+s.status,
+s.osuser,
+s.process,
+s.machine,
+s.port,
+s.program,
+s.type,
+s.sql_id,
+sq.force_matching_signature as force_matching_signature,
+sq.plan_hash_value sql_plan_hash_value,
+s.sql_exec_start,
+s.sql_address,
+s.prev_sql_id,
+sq_prev.plan_hash_value prev_sql_plan_hash_value,
+s.prev_exec_start as prev_sql_exec_start,
+sq_prev.force_matching_signature as prev_force_matching_signature,
+s.prev_sql_addr prev_sql_address,
+s.module,
+s.action,
+s.client_info,
+s.logon_time,
+s.client_identifier,
+CASE WHEN blocking_session_status = 'VALID' THEN
+blocking_instance
+ELSE
+null
+END blocking_instance,
+CASE WHEN blocking_session_status = 'VALID' THEN
+  blocking_session
+ELSE
+  null
+END blocking_session,
+CASE WHEN final_blocking_session_status = 'VALID' THEN
+  final_blocking_instance
+ELSE
+  null
+END final_blocking_instance,
+CASE WHEN final_blocking_session_status = 'VALID' THEN
+  final_blocking_session
+ELSE
+  null
+END final_blocking_session,
+CASE WHEN state = 'WAITING' THEN
+  event
+ELSE
+  'CPU'
+END event,
+CASE WHEN state = 'WAITING' THEN
+  wait_class
+ELSE
+  'CPU'
+END wait_class,
+s.wait_time_micro,
+c.name as pdb_name,
+sq.sql_fulltext as sql_fulltext,
+sq_prev.sql_fulltext as prev_sql_fulltext,
+comm.command_name
+FROM
+v$session s,
+v$sql sq,
+v$sql sq_prev,
+v$containers c,
+v$sqlcommand comm
+WHERE
+sq.sql_id(+)   = s.sql_id
+AND sq.child_number(+) = s.sql_child_number
+AND sq_prev.sql_id(+)   = s.prev_sql_id
+AND sq_prev.child_number(+) = s.prev_child_number
+AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL ) 
+AND (
+	NOT (state = 'WAITING' AND wait_class = 'Idle')
+	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
+)
+AND status = 'ACTIVE'
+AND s.con_id = c.con_id(+)
+AND s.command = comm.command_type(+)`
 
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
@@ -246,10 +329,17 @@ func (c *Check) SampleSession() error {
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
-	err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
+	var activityQuery string
+	if c.isRDS || c.isOracleCloud {
+		activityQuery = ACTIVITY_QUERY_DIRECT
+	} else {
+		activityQuery = ACTIVITY_QUERY
+	}
+
+	err := selectWrapper(c, &sessionSamples, activityQuery)
 
 	if err != nil {
-		return fmt.Errorf("failed to collect session sampling activity: %w", err)
+		return fmt.Errorf("failed to collect session sampling activity: %w \n%s", err, activityQuery)
 	}
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})

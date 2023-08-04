@@ -8,9 +8,9 @@
 DECLARE_EQUAL_TO(pipefs);
 
 /* hook here to grab and cache the pipefs mount id */
-SEC("kprobe/mntget")
-int kprobe_mntget(struct pt_regs* ctx) {
-    struct vfsmount* vfsm = (struct vfsmount*)PT_REGS_PARM1(ctx);
+HOOK_ENTRY("mntget")
+int hook_mntget(ctx_t *ctx) {
+    struct vfsmount* vfsm = (struct vfsmount*)CTX_PARM1(ctx);
 
     // check if we already have the pipefs mount id
     if (get_pipefs_mount_id()) {

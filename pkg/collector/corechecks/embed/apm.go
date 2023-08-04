@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build apm && !windows && !linux
-// +build apm,!windows,!linux
 
 package embed
 
@@ -21,9 +20,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -176,7 +178,7 @@ func (c *APMCheck) Configure(integrationConfigDigest uint64, data integration.Da
 	}
 
 	c.source = source
-	c.telemetry = telemetry_utils.IsCheckEnabled("apm")
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm")
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil
@@ -189,7 +191,7 @@ func (c *APMCheck) Interval() time.Duration {
 }
 
 // ID returns the name of the check since there should be only one instance running
-func (c *APMCheck) ID() check.ID {
+func (c *APMCheck) ID() checkid.ID {
 	return "APM_AGENT"
 }
 
@@ -218,8 +220,8 @@ func (c *APMCheck) GetWarnings() []error {
 }
 
 // GetSenderStats returns the stats from the last run of the check, but there aren't any
-func (c *APMCheck) GetSenderStats() (check.SenderStats, error) {
-	return check.NewSenderStats(), nil
+func (c *APMCheck) GetSenderStats() (stats.SenderStats, error) {
+	return stats.NewSenderStats(), nil
 }
 
 // InitConfig returns the initConfig for the APM check
@@ -230,6 +232,11 @@ func (c *APMCheck) InitConfig() string {
 // InstanceConfig returns the instance config for the APM check
 func (c *APMCheck) InstanceConfig() string {
 	return c.instanceConfig
+}
+
+// GetDiagnoses returns the diagnoses of the check
+func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }
 
 func init() {

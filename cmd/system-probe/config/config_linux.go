@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package config
 
@@ -23,7 +22,7 @@ const (
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
 func ValidateSocketAddress(sockPath string) error {
 	if !filepath.IsAbs(sockPath) {
-		return fmt.Errorf("socket path must be an absolute file path: %s", sockPath)
+		return fmt.Errorf("socket path must be an absolute file path: `%s`", sockPath)
 	}
 	return nil
 }

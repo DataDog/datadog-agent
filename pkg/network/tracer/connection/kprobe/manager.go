@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kprobe
 
@@ -12,11 +11,10 @@ import (
 	"os"
 	"strings"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -43,7 +41,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
-	probes.TCPSetState,
 	probes.IPMakeSkb,
 	probes.IPMakeSkbReturn,
 	probes.IP6MakeSkb,
@@ -134,6 +131,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRetransmitPre470, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre470, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre5180, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre5190, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgPre5190, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre470, UID: probeUID}},

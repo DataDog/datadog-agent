@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -25,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -413,9 +412,9 @@ func TestComputeEvents(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			computeEvents(test.events, mocked, containerdCheck.containerFilter)
-			mocked.On("Event", mock.AnythingOfType("metrics.Event"))
+			mocked.On("Event", mock.AnythingOfType("event.Event"))
 			if len(mocked.Calls) > 0 {
-				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
+				res := (mocked.Calls[0].Arguments.Get(0)).(event.Event)
 				assert.Contains(t, res.Title, test.expectedTitle)
 				assert.ElementsMatch(t, res.Tags, test.expectedTags)
 			}

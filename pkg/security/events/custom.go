@@ -22,20 +22,38 @@ const (
 
 	// LostEventsRuleID is the rule ID for the lost_events_* events
 	LostEventsRuleID = "lost_events"
+	//LostEventsRuleDesc is the rule description for the lost_events_* events
+	LostEventsRuleDesc = "Lost events"
+
 	// RulesetLoadedRuleID is the rule ID for the ruleset_loaded events
 	RulesetLoadedRuleID = "ruleset_loaded"
-	// NoisyProcessRuleID is the rule ID for the noisy_process events
-	NoisyProcessRuleID = "noisy_process"
+	// RulesetLoadedRuleDesc is the rule description for the ruleset_loaded events
+	RulesetLoadedRuleDesc = "New ruleset loaded"
+
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
+	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
+	AbnormalPathRuleDesc = "Abnormal path detected"
+
 	// SelfTestRuleID is the rule ID for the self_test events
 	SelfTestRuleID = "self_test"
+	// SelfTestRuleDesc is the rule description for the self_test events
+	SelfTestRuleDesc = "Self tests result"
+
 	// AnomalyDetectionRuleID is the rule ID for anomaly_detection events
 	AnomalyDetectionRuleID = "anomaly_detection"
+	// AnomalyDetectionRuleID is the rule description for anomaly_detection events
+	AnomalyDetectionRuleDesc = "Anomaly detection"
+
 	// NoProcessContextErrorRuleID is the rule ID for events without process context
 	NoProcessContextErrorRuleID = "no_process_context"
+	// NoProcessContextErrorRuleDesc is the rule description for events without process context
+	NoProcessContextErrorRuleDesc = "No process context detected"
+
 	// BrokenProcessLineageErrorRuleID is the rule ID for events with a broken process lineage
 	BrokenProcessLineageErrorRuleID = "broken_process_lineage"
+	// BrokenProcessLineageErrorRuleDesc is the rule description for events with a broken process lineage
+	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
 )
 
 type CustomEventCommonFields struct {
@@ -49,10 +67,10 @@ func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
 }
 
 // NewCustomRule returns a new custom rule
-func NewCustomRule(id eval.RuleID) *rules.Rule {
+func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
 	return &rules.Rule{
 		Rule:       &eval.Rule{ID: id},
-		Definition: &rules.RuleDefinition{ID: id},
+		Definition: &rules.RuleDefinition{ID: id, Description: description},
 	}
 }
 
@@ -61,7 +79,6 @@ func AllCustomRuleIDs() []string {
 	return []string{
 		LostEventsRuleID,
 		RulesetLoadedRuleID,
-		NoisyProcessRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
 		AnomalyDetectionRuleID,
@@ -109,6 +126,11 @@ func (ce *CustomEvent) GetTags() []string {
 // GetType returns the type of the custom event as a string
 func (ce *CustomEvent) GetType() string {
 	return ce.eventType.String()
+}
+
+// GetWorkloadID returns the workload id
+func (ce *CustomEvent) GetWorkloadID() string {
+	return ""
 }
 
 // GetEventType returns the event type

@@ -4,7 +4,6 @@
 // Copyright 2018-present Datadog, Inc.
 
 //go:build zlib && test
-// +build zlib,test
 
 package stream
 

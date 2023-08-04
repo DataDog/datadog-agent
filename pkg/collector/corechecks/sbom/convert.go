@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package sbom
 

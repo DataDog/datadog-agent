@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -13,6 +12,7 @@ import (
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
@@ -27,6 +27,14 @@ func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPo
 		Spec:     extractVerticalPodAutoscalerSpec(&v.Spec),
 		Status:   extractVerticalPodAutoscalerStatus(&v.Status),
 	}
+
+	// This is duplicated in status, but this matches other resource pattern
+	if len(v.Status.Conditions) > 0 {
+		vpaConditions, conditionTags := extractVerticalPodAutoscalerConditions(v)
+		m.Conditions = vpaConditions
+		m.Tags = append(m.Tags, conditionTags...)
+	}
+
 	m.Tags = append(m.Tags, transformers.RetrieveUnifiedServiceTags(v.ObjectMeta.Labels)...)
 	return m
 }
@@ -170,4 +178,31 @@ func extractContainerConditions(cr []v1.VerticalPodAutoscalerCondition) []*model
 		con = append(con, &rec)
 	}
 	return con
+}
+
+// extractVerticalPodAutoscalerConditions iterates over vpa conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractVerticalPodAutoscalerConditions(p *v1.VerticalPodAutoscaler) ([]*model.VerticalPodAutoscalerCondition, []string) {
+	conditions := make([]*model.VerticalPodAutoscalerCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
+
+	for _, condition := range p.Status.Conditions {
+		c := &model.VerticalPodAutoscalerCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }

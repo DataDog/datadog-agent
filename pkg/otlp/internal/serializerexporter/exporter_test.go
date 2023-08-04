@@ -55,8 +55,10 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 	defer config.Datadog.Set("hostname", "")
 
 	const (
-		histogramMetricName = "test.histogram"
-		numberMetricName    = "test.gauge"
+		histogramMetricName        = "test.histogram"
+		numberMetricName           = "test.gauge"
+		histogramRuntimeMetricName = "process.runtime.dotnet.exceptions.count"
+		numberRuntimeMetricName    = "process.runtime.go.goroutines"
 	)
 	tests := []struct {
 		name           string
@@ -123,6 +125,64 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				nil,
 			),
 		},
+		{
+			name: "runtime metrics, no tags",
+			genMetrics: func(t *testing.T) pmetric.Metrics {
+				h := pmetric.NewHistogramDataPoint()
+				h.BucketCounts().FromRaw([]uint64{100})
+				h.SetCount(100)
+				h.SetSum(0)
+
+				n := pmetric.NewNumberDataPoint()
+				n.SetIntValue(777)
+				return newMetrics(histogramMetricName, h, numberMetricName, n)
+			},
+			setConfig:      func(t *testing.T) {},
+			wantSketchTags: tagset.NewCompositeTags([]string{}, nil),
+			wantSerieTags:  tagset.NewCompositeTags([]string{}, nil),
+		},
+		{
+			name: "runtime metrics, metric tags and extra tags",
+			genMetrics: func(t *testing.T) pmetric.Metrics {
+				h := pmetric.NewHistogramDataPoint()
+				h.BucketCounts().FromRaw([]uint64{100})
+				h.SetCount(100)
+				h.SetSum(0)
+				hAttrs := h.Attributes()
+				hAttrs.PutStr("histogram_1_id", "value1")
+				hAttrs.PutStr("histogram_2_id", "value2")
+				hAttrs.PutStr("histogram_3_id", "value3")
+
+				n := pmetric.NewNumberDataPoint()
+				n.SetIntValue(777)
+				nAttrs := n.Attributes()
+				nAttrs.PutStr("gauge_1_id", "value1")
+				nAttrs.PutStr("gauge_2_id", "value2")
+				nAttrs.PutStr("gauge_3_id", "value3")
+				return newMetrics(histogramRuntimeMetricName, h, numberRuntimeMetricName, n)
+			},
+			setConfig: func(t *testing.T) {
+				config.SetFeatures(t, config.EKSFargate)
+				config.Datadog.SetDefault("tags", []string{"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3"})
+				t.Cleanup(func() {
+					config.Datadog.SetDefault("tags", []string{})
+				})
+			},
+			wantSketchTags: tagset.NewCompositeTags(
+				[]string{
+					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
+					"histogram_1_id:value1", "histogram_2_id:value2", "histogram_3_id:value3",
+				},
+				nil,
+			),
+			wantSerieTags: tagset.NewCompositeTags(
+				[]string{
+					"serverless_tag1:test1", "serverless_tag2:test2", "serverless_tag3:test3",
+					"gauge_1_id:value1", "gauge_2_id:value2", "gauge_3_id:value3",
+				},
+				nil,
+			),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,6 +213,11 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			for _, s := range rec.series {
 				if s.Name == "datadog.agent.otlp.metrics" {
 					assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
+				}
+				if s.Name == "datadog.agent.otlp.runtime_metrics" {
+					assert.True(t, s.Tags.Find(func(tag string) bool {
+						return tag == "language:go" || tag == "language:dotnet"
+					}))
 				}
 				if s.Name == numberMetricName {
 					if tt.wantSerieTags.Len() > 0 {

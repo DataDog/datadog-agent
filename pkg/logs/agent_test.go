@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package logs
 
@@ -157,6 +156,19 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
 	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("fake:").String())
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
+}
+
+func (suite *AgentTestSuite) TestGetPipelineProvider() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createAgent(endpoints)
+	agent.Start()
+
+	assert.NotNil(suite.T(), agent.GetPipelineProvider())
 }
 
 func TestAgentTestSuite(t *testing.T) {

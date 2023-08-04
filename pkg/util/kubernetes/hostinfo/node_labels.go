@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package hostinfo
 
@@ -58,4 +57,9 @@ func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error)
 		return cl.GetNodeLabels(nodeName)
 	}
 	return n.apiserverNodeLabelsFunc(ctx, nodeName)
+}
+
+// GetNodeName returns the node name for this host
+func (n *NodeInfo) GetNodeName(ctx context.Context) (string, error) {
+	return n.client.GetNodename(ctx)
 }

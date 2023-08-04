@@ -18,8 +18,7 @@
 #define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 3
 
 // Maximum size for the path buffer.
-// NOTE: we may need to change the max size.
-#define HTTP2_MAX_PATH_LEN 30
+#define HTTP2_MAX_PATH_LEN 160
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
@@ -42,7 +41,7 @@ typedef enum {
     kMethod = 2,
     kPath = 4,
     kStatus = 9,
-} __attribute__ ((packed)) static_table_key_t;
+} static_table_key_t;
 
 typedef enum {
     kGET = 2,
@@ -56,7 +55,7 @@ typedef enum {
     k400 = 12,
     k404 = 13,
     k500 = 14,
-} __attribute__ ((packed)) static_table_value_t;
+} static_table_value_t;
 
 typedef struct {
     static_table_key_t key;
@@ -75,7 +74,7 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
-    __u32  stream_id;
+    __u32 stream_id;
 } http2_stream_key_t;
 
 typedef struct {
@@ -84,7 +83,7 @@ typedef struct {
     __u64 request_started;
 
     __u16 response_status_code;
-    __u8 request_method;
+    __u32 request_method;
     __u8 path_size;
     bool request_end_of_stream;
 

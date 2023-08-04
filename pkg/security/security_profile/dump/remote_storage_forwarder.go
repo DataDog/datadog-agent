@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dump
 
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -57,4 +56,4 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender aggregator.Sender) {}
+func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender sender.Sender) {}

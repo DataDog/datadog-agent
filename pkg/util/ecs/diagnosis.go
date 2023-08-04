@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package ecs
 
@@ -19,9 +18,9 @@ import (
 )
 
 func init() {
-	diagnosis.Register("ECS Metadata availability", diagnoseECS)
-	diagnosis.Register("ECS Metadata with tags availability", diagnoseECSTags)
-	diagnosis.Register("ECS Fargate Metadata availability", diagnoseFargate)
+	diagnosis.RegisterMetadataAvail("ECS Metadata availability", diagnoseECS)
+	diagnosis.RegisterMetadataAvail("ECS Metadata with tags availability", diagnoseECSTags)
+	diagnosis.RegisterMetadataAvail("ECS Fargate Metadata availability", diagnoseFargate)
 }
 
 // diagnose the ECS metadata API availability

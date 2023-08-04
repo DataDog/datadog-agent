@@ -7,13 +7,15 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -35,7 +37,7 @@ type FlowAggregator struct {
 	flushFlowsToSendInterval     time.Duration // interval for checking flows to flush and send them to EP Forwarder
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
-	sender                       aggregator.Sender
+	sender                       sender.Sender
 	epForwarder                  epforwarder.EventPlatformForwarder
 	stopChan                     chan struct{}
 	flushLoopDone                chan struct{}
@@ -44,11 +46,34 @@ type FlowAggregator struct {
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
-	timeNowFunction              func() time.Time // Allows to mock time in tests
+	TimeNowFunction              func() time.Time // Allows to mock time in tests
+
+	lastSequencePerExporter   map[SequenceDeltaKey]uint32
+	lastSequencePerExporterMu sync.Mutex
+}
+
+type SequenceDeltaKey struct {
+	Namespace  string
+	ExporterIP string
+	FlowType   common.FlowType
+}
+
+type SequenceDeltaValue struct {
+	Delta        int64
+	LastSequence uint32
+	Reset        bool
+}
+
+// maxNegativeSequenceDiffToReset are thresholds used to detect sequence reset
+var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
+	common.TypeSFlow5:   -1000,
+	common.TypeNetFlow5: -1000,
+	common.TypeNetFlow9: -100,
+	common.TypeIPFIX:    -100,
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -66,7 +91,8 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
-		timeNowFunction:              time.Now,
+		TimeNowFunction:              time.Now,
+		lastSequencePerExporter:      make(map[SequenceDeltaKey]uint32),
 	}
 }
 
@@ -103,9 +129,9 @@ func (agg *FlowAggregator) run() {
 	}
 }
 
-func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
+func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
-		flowPayload := buildPayload(flow, agg.hostname)
+		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 		payloadBytes, err := json.Marshal(flowPayload)
 		if err != nil {
 			log.Errorf("Error marshalling device metadata: %s", err)
@@ -206,6 +232,7 @@ func (agg *FlowAggregator) flushLoop() {
 			flushStartTime := time.Now()
 			agg.flush()
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
+			agg.sender.Commit()
 		// refresh rollup trackers
 		case <-rollupTrackersRefresh:
 			agg.rollupTrackersRefresh()
@@ -216,13 +243,23 @@ func (agg *FlowAggregator) flushLoop() {
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
-	flushTime := agg.timeNowFunction()
+	flushTime := agg.TimeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
 	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
+	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
+	for key, seqDelta := range sequenceDeltaPerExporter {
+		tags := []string{"device_namespace:" + key.Namespace, "exporter_ip:" + key.ExporterIP, "flow_type:" + string(key.FlowType)}
+		agg.sender.Count("datadog.netflow.aggregator.sequence.delta", float64(seqDelta.Delta), "", tags)
+		agg.sender.Gauge("datadog.netflow.aggregator.sequence.last", float64(seqDelta.LastSequence), "", tags)
+		if seqDelta.Reset {
+			agg.sender.Count("datadog.netflow.aggregator.sequence.reset", float64(1), "", tags)
+		}
+	}
+
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 	if len(flowsToFlush) > 0 {
-		agg.sendFlows(flowsToFlush)
+		agg.sendFlows(flowsToFlush, flushTime)
 	}
 	agg.sendExporterMetadata(flowsToFlush, flushTime)
 
@@ -246,6 +283,50 @@ func (agg *FlowAggregator) flush() int {
 	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
 	agg.flushedFlowCount.Add(uint64(flushCount))
 	return len(flowsToFlush)
+}
+
+// getSequenceDelta return the delta of current sequence number compared to previously saved sequence number
+// Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
+// only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
+func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[SequenceDeltaKey]SequenceDeltaValue {
+	maxSequencePerExporter := make(map[SequenceDeltaKey]uint32)
+	for _, flow := range flowsToFlush {
+		key := SequenceDeltaKey{
+			Namespace:  flow.Namespace,
+			ExporterIP: net.IP(flow.ExporterAddr).String(),
+			FlowType:   flow.FlowType,
+		}
+		if flow.SequenceNum > maxSequencePerExporter[key] {
+			maxSequencePerExporter[key] = flow.SequenceNum
+		}
+	}
+	sequenceDeltaPerExporter := make(map[SequenceDeltaKey]SequenceDeltaValue)
+
+	agg.lastSequencePerExporterMu.Lock()
+	defer agg.lastSequencePerExporterMu.Unlock()
+	for key, seqnum := range maxSequencePerExporter {
+		lastSeq, prevExist := agg.lastSequencePerExporter[key]
+		delta := int64(0)
+		if prevExist {
+			delta = int64(seqnum) - int64(lastSeq)
+		}
+		maxNegSeqDiff := maxNegativeSequenceDiffToReset[key.FlowType]
+		reset := delta < int64(maxNegSeqDiff)
+		log.Debugf("[getSequenceDelta] key=%s, seqnum=%d, delta=%d, last=%d, reset=%t", key, seqnum, delta, agg.lastSequencePerExporter[key], reset)
+		seqDeltaValue := SequenceDeltaValue{LastSequence: seqnum}
+		if reset { // sequence reset
+			seqDeltaValue.Delta = int64(seqnum)
+			seqDeltaValue.Reset = reset
+			agg.lastSequencePerExporter[key] = seqnum
+		} else if delta < 0 {
+			seqDeltaValue.Delta = 0
+		} else {
+			seqDeltaValue.Delta = delta
+			agg.lastSequencePerExporter[key] = seqnum
+		}
+		sequenceDeltaPerExporter[key] = seqDeltaValue
+	}
+	return sequenceDeltaPerExporter
 }
 
 func (agg *FlowAggregator) rollupTrackersRefresh() {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package probe
 
@@ -46,4 +45,9 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return nil, false
+}
+
+// ResolveHashes resolves the hash of the provided file
+func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return nil
 }

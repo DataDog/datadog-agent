@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"runtime"
 	"strings"
 	"sync"
@@ -35,7 +34,6 @@ const (
 )
 
 var (
-	workspaceFolder  = path.Join(os.TempDir(), e2eWorkspaceDirectory)
 	stackManager     *StackManager
 	initStackManager sync.Once
 )
@@ -122,7 +120,25 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 
-	return sm.deleteStack(ctx, name, sm.stacks[name])
+	stack, ok := sm.stacks[name]
+	if !ok {
+		// Build configuration from profile
+		profile := runner.GetProfile()
+		stackName := buildStackName(profile.NamePrefix(), name)
+		workspace, err := buildWorkspace(ctx, profile, stackName, func(ctx *pulumi.Context) error { return nil })
+		if err != nil {
+			return err
+		}
+
+		newStack, err := auto.SelectStack(ctx, stackName, workspace)
+		if err != nil {
+			return err
+		}
+
+		stack = &newStack
+	}
+
+	return sm.deleteStack(ctx, name, stack)
 }
 
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
@@ -166,9 +182,14 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		Description:    pulumi.StringRef("E2E Test inline project"),
 		StackConfigDir: stackName,
 		Config: map[string]workspace.ProjectConfigType{
-			// Always disable
+			// We should always disable default providers
+			// Disabling all known except AWS due to https://github.com/pulumi/pulumi-eks/pull/886
 			"pulumi:disable-default-providers": {
-				Value: []string{"*"},
+				Value: []string{"kubernetes", "azure-native", "awsx", "eks"},
+			},
+			// Required in CI due to https://github.com/pulumi/pulumi-eks/pull/886
+			"aws:skipMetadataApiCheck": {
+				Value: "false",
 			},
 		},
 	}

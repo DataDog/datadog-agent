@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (linux && !linux_bpf) || ebpf_bindata
-// +build linux,!linux_bpf ebpf_bindata
 
 package ebpf
 

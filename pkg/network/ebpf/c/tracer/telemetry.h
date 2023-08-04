@@ -17,11 +17,12 @@
 enum telemetry_counter
 {
     tcp_failed_connect,
-    missed_tcp_close,
-    missed_udp_close,
+    unbatched_tcp_close,
+    unbatched_udp_close,
     udp_send_processed,
     udp_send_missed,
     udp_dropped_conns,
+    tcp_dropped_conns,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -36,11 +37,11 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     case tcp_failed_connect:
         __sync_fetch_and_add(&val->tcp_failed_connect, 1);
         break;
-    case missed_tcp_close:
-        __sync_fetch_and_add(&val->missed_tcp_close, 1);
+    case unbatched_tcp_close:
+        __sync_fetch_and_add(&val->unbatched_tcp_close, 1);
         break;
-    case missed_udp_close:
-        __sync_fetch_and_add(&val->missed_udp_close, 1);
+    case unbatched_udp_close:
+        __sync_fetch_and_add(&val->unbatched_udp_close, 1);
         break;
     case udp_send_processed:
         __sync_fetch_and_add(&val->udp_sends_processed, 1);
@@ -50,6 +51,9 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case udp_dropped_conns:
         __sync_fetch_and_add(&val->udp_dropped_conns, 1);
+        break;
+    case tcp_dropped_conns:
+        __sync_fetch_and_add(&val->tcp_dropped_conns, 1);
         break;
     }
 }

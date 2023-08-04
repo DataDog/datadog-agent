@@ -8,7 +8,6 @@
 // which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
-// +build cgo,linux
 
 package ebpf
 
@@ -24,7 +23,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -137,8 +136,8 @@ func (m *OOMKillCheck) Run() error {
 		sender.Count("oom_kill.oom_process.count", 1, "", tags)
 
 		// submit event with a few more details
-		event := metrics.Event{
-			Priority:       metrics.EventPriorityNormal,
+		event := event.Event{
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: oomKillCheckName,
 			EventType:      oomKillCheckName,
 			AggregationKey: containerID,

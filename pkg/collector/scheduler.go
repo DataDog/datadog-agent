@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,7 +47,7 @@ func init() {
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
-	configToChecks map[string][]check.ID // cache the ID of checks we load for each config
+	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
 	collector      *Collector
 	m              sync.RWMutex
@@ -56,7 +57,7 @@ type CheckScheduler struct {
 func InitCheckScheduler(collector *Collector) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
-		configToChecks: make(map[string][]check.ID),
+		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog())),
 	}
 	// add the check loaders
@@ -90,7 +91,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
 		ids := s.configToChecks[digest]
-		stopped := map[check.ID]struct{}{}
+		stopped := map[checkid.ID]struct{}{}
 		for _, id := range ids {
 			// `StopCheck` might time out so we don't risk to block
 			// the polling loop forever
@@ -109,7 +110,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 			delete(s.configToChecks, digest)
 		} else {
 			// keep the checks we failed to stop in `configToChecks`
-			dangling := []check.ID{}
+			dangling := []checkid.ID{}
 			for _, id := range s.configToChecks[digest] {
 				if _, found := stopped[id]; !found {
 					dangling = append(dangling, id)

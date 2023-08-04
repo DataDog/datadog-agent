@@ -95,7 +95,8 @@ func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, e
 	}
 
 	res, err := httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond)
-	if err == nil {
+	// We don't want to register the source when we force imdsv2
+	if err == nil && !forceIMDSv2 {
 		setCloudProviderSource(source)
 	}
 	return res, err

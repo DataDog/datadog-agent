@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -13,10 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	corev1Informers "k8s.io/client-go/informers/core/v1"
-	corev1Listers "k8s.io/client-go/listers/core/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
+	corev1Informers "k8s.io/client-go/informers/core/v1"
+	corev1Listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -60,12 +59,9 @@ func (c *NamespaceCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *NamespaceCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Namespaces()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Namespaces()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *NamespaceCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *NamespaceCollector) Metadata() *collectors.CollectorMetadata {

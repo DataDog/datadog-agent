@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -53,12 +52,16 @@ func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
-	if f.Filesystem == "" && !f.IsFileless() {
-		fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
-		if err != nil {
-			ev.SetPathResolutionError(f, err)
+	if f.Filesystem == "" {
+		if f.IsFileless() {
+			f.Filesystem = model.TmpFS
+		} else {
+			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+			if err != nil {
+				ev.SetPathResolutionError(f, err)
+			}
+			f.Filesystem = fs
 		}
-		f.Filesystem = fs
 	}
 	return f.Filesystem
 }
@@ -118,11 +121,10 @@ func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountE
 
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	if ev.ContainerContext.ID != "" {
-		if ev.ContainerContext == eventZero.ContainerContext {
-			if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
-				ev.ContainerContext = &containerContext.ContainerContext
-			}
+	if ev.ContainerContext.ID != "" && !ev.ContainerContext.Resolved {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
+			ev.ContainerContext = &containerContext.ContainerContext
+			ev.ContainerContext.Resolved = true
 		}
 	}
 	return ev.ContainerContext, ev.ContainerContext != nil
@@ -184,7 +186,7 @@ func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Proce
 
 // ResolveProcessArgv0 resolves the first arg of the event
 func (fh *FieldHandlers) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
-	arg0, _ := fh.resolvers.ProcessResolver.GetProcessArgv0(process)
+	arg0, _ := sprocess.GetProcessArgv0(process)
 	return arg0
 }
 
@@ -293,28 +295,28 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 	return e.BoolName
 }
 
+// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
+func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false)
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		return ev.ProcessCacheEntry, false
+	}
+	return ev.ProcessCacheEntry, true
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
 		return model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
 	}
 
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode)
+	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true)
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		// keep the original PIDContext
-		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
-		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
-
-		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
-
-		// mark interpreter as resolved too
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
-
+		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
 		return ev.ProcessCacheEntry, false
 	}
 
@@ -512,4 +514,14 @@ func (fh *FieldHandlers) ResolveModuleArgs(ev *model.Event, module *model.LoadMo
 		return strings.Join(argsTmp, " ")
 	}
 	return module.Args
+}
+
+// ResolveHashesFromEvent resolves the hashes of the requested event
+func (fh *FieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+}
+
+// ResolveHashes resolves the hashes of the requested file event
+func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
 }

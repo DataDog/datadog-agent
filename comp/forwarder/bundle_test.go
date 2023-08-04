@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -20,7 +21,9 @@ func TestBundleDependencies(t *testing.T) {
 		// automatically.
 		fx.Supply(defaultforwarder.Params{}),
 		config.Module,
+		log.Module,
 		fx.Supply(config.Params{}),
+		fx.Supply(log.Params{}),
 		fx.Invoke(func(defaultforwarder.Component) {}),
 		Bundle,
 	))

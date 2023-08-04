@@ -1,0 +1,5 @@
+ad_identifiers:
+  - _container_lifecycle
+init_config:
+instances:
+  -

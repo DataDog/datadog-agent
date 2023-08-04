@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package connection
 
@@ -39,6 +38,8 @@ type perfBatchManager struct {
 	stateByCPU []percpuState
 
 	expiredStateInterval time.Duration
+
+	ch *cookieHasher
 }
 
 // newPerfBatchManager returns a new `PerfBatchManager` and initializes the
@@ -63,6 +64,7 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, er
 		batchMap:             batchMap,
 		stateByCPU:           state,
 		expiredStateInterval: defaultExpiredStateInterval,
+		ch:                   newCookieHasher(),
 	}, nil
 }
 
@@ -153,8 +155,8 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		}
 
 		conn := buffer.Next()
-		populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
-		updateTCPStats(conn, ct.Conn_stats.Cookie, &ct.Tcp_stats)
+		populateConnStats(conn, &ct.Tup, &ct.Conn_stats, p.ch)
+		updateTCPStats(conn, &ct.Tcp_stats, ct.Tcp_retransmits)
 	}
 }
 

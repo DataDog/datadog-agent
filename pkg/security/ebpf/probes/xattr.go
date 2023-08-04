@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -15,53 +14,53 @@ var xattrProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_vfs_setxattr",
+			EBPFFuncName: "hook_vfs_setxattr",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_vfs_removexattr",
+			EBPFFuncName: "hook_vfs_removexattr",
 		},
 	},
 }
 
-func getXattrProbes() []*manager.Probe {
+func getXattrProbes(fentry bool) []*manager.Probe {
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "setxattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "fsetxattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "lsetxattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "removexattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "fremovexattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "lremovexattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return xattrProbes
 }

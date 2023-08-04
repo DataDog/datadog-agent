@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 

@@ -14,9 +14,19 @@ class GoModule:
     If True, a check will run to ensure this is true.
     """
 
-    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, importable=True, independent=False):
+    def __init__(
+        self,
+        path,
+        targets=None,
+        condition=lambda: True,
+        should_tag=True,
+        importable=True,
+        independent=False,
+        lint_targets=None,
+    ):
         self.path = path
         self.targets = targets if targets else ["."]
+        self.lint_targets = lint_targets if lint_targets else self.targets
         self.condition = condition
         self.should_tag = should_tag
         # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
@@ -130,10 +140,17 @@ DEFAULT_MODULES = {
     "test/e2e/containers/otlp_sender": GoModule(
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
-    "test/new-e2e": GoModule("test/new-e2e", condition=lambda: False, should_tag=False),
+    "test/new-e2e": GoModule(
+        "test/new-e2e",
+        independent=True,
+        should_tag=False,
+        targets=["./runner", "./utils/e2e/client"],
+        lint_targets=["."],
+    ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True, should_tag=False),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
+    "pkg/proto": GoModule("pkg/proto", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),

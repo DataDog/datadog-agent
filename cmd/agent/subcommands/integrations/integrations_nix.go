@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && !darwin && python
-// +build !windows,!darwin,python
 
 package integrations
 

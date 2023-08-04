@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package defaultforwarder
 
@@ -17,9 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestNewWorker(t *testing.T) {
@@ -28,7 +29,8 @@ func TestNewWorker(t *testing.T) {
 	requeue := make(chan transaction.Transaction)
 
 	mockConfig := pkgconfig.Mock(t)
-	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.Timeout, config.Datadog.GetDuration("forwarder_timeout")*time.Second)
 }
@@ -40,7 +42,8 @@ func TestNewNoSSLWorker(t *testing.T) {
 
 	mockConfig := config.Mock(t)
 	mockConfig.Set("skip_ssl_validation", true)
-	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
@@ -50,7 +53,8 @@ func TestWorkerStart(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 1)
 	sender := &PointSuccessfullySentMock{}
 	mockConfig := pkgconfig.Mock(t)
-	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), sender)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender)
 
 	mock := newTestTransaction()
 	mock.pointCount = 1
@@ -86,7 +90,8 @@ func TestWorkerRetry(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(fmt.Errorf("some kind of error")).Times(1)
@@ -108,7 +113,8 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
@@ -130,7 +136,8 @@ func TestWorkerResetConnections(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(nil).Times(1)
@@ -174,7 +181,8 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	w := NewWorker(mockConfig, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig), &PointSuccessfullySentMock{})
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	// making stopChan non blocking on insert and closing stopped channel
 	// to avoid blocking in the Stop method since we don't actually start
 	// the workder

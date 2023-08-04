@@ -18,9 +18,9 @@ import (
 	"time"
 	"unicode"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -702,7 +702,7 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("status2Error", func(t *testing.T) {
-		for _, tt := range []struct {
+		for _, tt := range []*struct {
 			status ptrace.StatusCode
 			msg    string
 			events ptrace.SpanEventSlice

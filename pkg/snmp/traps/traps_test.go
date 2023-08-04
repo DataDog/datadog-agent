@@ -4,11 +4,11 @@
 // Copyright 2020-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package traps
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"net"
 	"strconv"
 	"strings"
@@ -70,9 +70,23 @@ var (
 			{Name: ".1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []uint8{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0x20}},
 		},
 	}
+	Unknownv1Trap = gosnmp.SnmpTrap{
+		AgentAddress: "127.0.0.1",
+		Enterprise:   ".1.3.6.1.2.1.1234.4321",
+		GenericTrap:  6,
+		SpecificTrap: 2,
+		Timestamp:    1000,
+		Variables: []gosnmp.SnmpPDU{
+			{Name: ".1.3.6.1.2.1.1234.4321.1", Type: gosnmp.OctetString, Value: []uint8{0x66, 0x6f, 0x6f}},
+			{Name: ".1.3.6.1.2.1.1234.4321.2", Type: gosnmp.OctetString, Value: []uint8{0x62, 0x61, 0x72}},
+			{Name: ".1.3.6.1.2.1.1234.4321.3", Type: gosnmp.OctetString, Value: []uint8{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0, 0, 0, 0, 0x20}},
+		},
+	}
 )
 
 func getFreePort() uint16 {
+	sender := mocksender.NewMockSender("")
+
 	var port uint16
 	for i := 0; i < 5; i++ {
 		conn, err := net.ListenPacket("udp", ":0")
@@ -84,7 +98,7 @@ func getFreePort() uint16 {
 		if err != nil {
 			continue
 		}
-		listener, err := startSNMPTrapListener(Config{Port: port}, nil)
+		listener, err := startSNMPTrapListener(Config{Port: port}, sender, nil)
 		if err != nil {
 			continue
 		}

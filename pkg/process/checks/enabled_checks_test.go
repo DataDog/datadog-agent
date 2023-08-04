@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func assertNotContainsCheck(t *testing.T, checks []string, name string) {
 }
 
 func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ConfigReaderWriter) []string {
-	sysprobeConfigStruct, err := sysconfig.NewCustom("", false)
+	sysprobeConfigStruct, err := sysconfig.New("")
 	require.NoError(t, err)
 
 	var enabledChecks []string
@@ -89,7 +90,11 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg.Set("system_probe_config.enabled", true)
 
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
-		assertContainsCheck(t, enabledChecks, ConnectionsCheckName)
+		if runtime.GOOS == "darwin" {
+			assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
+		} else {
+			assertContainsCheck(t, enabledChecks, ConnectionsCheckName)
+		}
 	})
 
 	t.Run("disabled", func(t *testing.T) {

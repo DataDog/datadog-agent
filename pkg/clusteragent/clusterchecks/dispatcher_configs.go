@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
@@ -51,7 +50,7 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 	fastDigest := config.FastDigest()
 	d.store.digestToConfig[digest] = config
 	for _, instance := range config.Instances {
-		checkID := check.BuildID(config.Name, fastDigest, instance, config.InitConfig)
+		checkID := checkid.BuildID(config.Name, fastDigest, instance, config.InitConfig)
 		d.store.idToDigest[checkID] = digest
 		if targetNodeName != "" {
 			configsInfo.Set(1.0, targetNodeName, string(checkID), le.JoinLeaderValue)
@@ -173,6 +172,6 @@ func (d *dispatcher) getConfigAndDigest(checkID string) (integration.Config, str
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	digest := d.store.idToDigest[check.ID(checkID)]
+	digest := d.store.idToDigest[checkid.ID(checkID)]
 	return d.store.digestToConfig[digest], digest
 }

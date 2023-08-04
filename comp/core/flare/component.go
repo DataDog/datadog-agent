@@ -21,7 +21,7 @@ type Component interface {
 	// Create creates a new flare locally and returns the path to the flare file.
 	Create(pdata ProfileData, ipcError error) (string, error)
 	// Send sends a flare archive to Datadog.
-	Send(flarePath string, caseID string, email string) (string, error)
+	Send(flarePath string, caseID string, email string, source string) (string, error)
 }
 
 // Module defines the fx options for this component.

@@ -8,7 +8,6 @@
 // which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
-// +build cgo,linux
 
 package ebpf
 

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package system
 
@@ -64,6 +63,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 					LowThreshold: pointer.Ptr(uint64(40000)),
 					RSS:          pointer.Ptr(uint64(300)),
 					Cache:        pointer.Ptr(uint64(200)),
+					InactiveFile: pointer.Ptr(uint64(10)),
 					Swap:         pointer.Ptr(uint64(0)),
 					SwapLimit:    pointer.Ptr(uint64(500)),
 					OOMEvents:    pointer.Ptr(uint64(10)),
@@ -109,6 +109,7 @@ func TestBuildContainerMetrics(t *testing.T) {
 				},
 				Memory: &provider.ContainerMemStats{
 					UsageTotal:       pointer.Ptr(100.0),
+					WorkingSet:       pointer.Ptr(90.0),
 					KernelMemory:     pointer.Ptr(40.0),
 					Limit:            pointer.Ptr(42000.0),
 					Softlimit:        pointer.Ptr(40000.0),
@@ -234,7 +235,8 @@ func TestBuildContainerMetrics(t *testing.T) {
 			},
 			wantStats: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Ptr(float64(utilsystem.HostCPUCount()) * 100),
+					Limit:          pointer.Ptr(float64(utilsystem.HostCPUCount()) * 100),
+					DefaultedLimit: true,
 				},
 				PID:    &provider.ContainerPIDStats{},
 				Memory: &provider.ContainerMemStats{},

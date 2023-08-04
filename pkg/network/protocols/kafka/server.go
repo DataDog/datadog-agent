@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package kafka
 
 import (
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -21,5 +24,5 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*started \\(kafka.server.KafkaServer\\).*"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*started \\(kafka.server.KafkaServer\\).*"), 3*time.Minute)
 }

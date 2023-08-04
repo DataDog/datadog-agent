@@ -76,11 +76,7 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 	})
 }
 
-func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping in short mode")
-	}
-	cfg := config.New()
+func testDogStatsDReverseProxyEndToEndUDP(t *testing.T, cfg *config.AgentConfig) {
 	port, err := getAvailableUDPPort()
 	if err != nil {
 		t.Skip("Couldn't find available UDP port to run test. Skipping.")
@@ -132,6 +128,22 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	t.Run("ipV4", func(t *testing.T) {
+		cfg := config.New()
+		cfg.StatsdHost = "127.0.0.1"
+		testDogStatsDReverseProxyEndToEndUDP(t, cfg)
+	})
+	t.Run("ipV6", func(t *testing.T) {
+		cfg := config.New()
+		cfg.StatsdHost = "[::1]"
+		testDogStatsDReverseProxyEndToEndUDP(t, cfg)
+	})
 }
 
 // getAvailableUDPPort requests a random port number and makes sure it is available

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -50,8 +51,6 @@ const (
 	Invoke RuntimeEvent = "INVOKE"
 	// Shutdown event
 	Shutdown RuntimeEvent = "SHUTDOWN"
-	// Failure event
-	Failure RuntimeEvent = "FAILURE"
 
 	// Timeout is one of the possible ShutdownReasons
 	Timeout ShutdownReason = "timeout"
@@ -129,12 +128,12 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
-	} else if payload.EventType == Shutdown || payload.EventType == Failure {
+	} else if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			ecs := daemon.ExecutionContext.GetCurrentState()
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
@@ -171,12 +170,12 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
 	log.Debug("Received invocation event...")
 	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
-	daemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
+	daemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 	daemon.StartLogCollection()
 	ecs := daemon.ExecutionContext.GetCurrentState()
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
 		metricTags = tags.AddInitTypeTag(metricTags)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {

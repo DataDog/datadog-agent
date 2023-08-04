@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -212,7 +214,10 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, captur
 	}
 
 	metricPrefixBlacklist := cfg.GetStringSlice("statsd_metric_namespace_blacklist")
-	metricBlocklist := cfg.GetStringSlice("statsd_metric_blocklist")
+	metricBlocklist := newBlocklist(
+		cfg.GetStringSlice("statsd_metric_blocklist"),
+		cfg.GetBool("statsd_metric_blocklist_match_prefix"),
+	)
 
 	defaultHostname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -712,7 +717,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*metrics.Event, error) {
+func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*event.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
@@ -726,7 +731,7 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*metrics.ServiceCheck, error) {
+func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*servicecheck.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)

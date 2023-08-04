@@ -4,7 +4,6 @@
 // Copyright 2018-present Datadog, Inc.
 
 //go:build secrets && windows
-// +build secrets,windows
 
 package secrets
 

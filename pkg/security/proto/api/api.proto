@@ -39,11 +39,40 @@ message SecurityConfigMessage {
     bool ActivityDumpEnabled = 3;
 }
 
-message RunSelfTestParams {}
+message RuleSetReportMessage{
+    repeated EventTypePolicy Policies = 1;
+}
+
+message EventTypePolicy{
+    string EventType = 1;
+    uint32 Mode = 2;
+    uint32 Flags = 3;
+    Approvers Approvers = 4;
+}
+
+message Approvers {
+    string Field = 1;
+    repeated ApproverDetails ApproverDetails = 2;
+}
+
+message ApproverDetails {
+    string Field = 1;
+    string Value = 2;
+    int32 Type = 3;
+}
+
+message GetRuleSetReportParams{}
+
+message GetRuleSetReportResultMessage{
+    RuleSetReportMessage RuleSetReportMessage = 1;
+    string Error = 2;
+}
 
 message ReloadPoliciesParams{}
 
 message ReloadPoliciesResultMessage{}
+
+message RunSelfTestParams {}
 
 message SecuritySelfTestResultMessage {
     bool Ok = 1;
@@ -101,13 +130,13 @@ message StorageRequestParams {
 
 message ActivityDumpParams {
     string Comm = 1;
-    int32 Timeout = 2;
+    string Timeout = 2;
     bool DifferentiateArgs = 4;
     StorageRequestParams Storage = 5;
     string ContainerID = 6;
 }
 
-message ActivityDumpMetadataMessage {
+message MetadataMessage {
     string AgentVersion = 1;
     string AgentCommit = 2;
     string KernelVersion = 3;
@@ -138,9 +167,10 @@ message ActivityDumpMessage {
     string Service = 3;
     repeated string Tags = 4;
     repeated StorageRequestMessage Storage = 5;
-    ActivityDumpMetadataMessage Metadata = 6;
-    repeated string DNSNames = 8;
+    MetadataMessage Metadata = 6;
     string Error = 7;
+    repeated string DNSNames = 8;
+    ActivityTreeStatsMessage Stats = 9;
 }
 
 message ActivityDumpListParams {}
@@ -177,12 +207,70 @@ message ActivityDumpStreamMessage {
     bytes Data = 3;
 }
 
+message WorkloadSelectorMessage {
+    string Name = 1;
+    string Tag = 2;
+}
+
+message LastAnomalyTimestampMessage {
+    string EventType = 1;
+    string Timestamp = 2;
+    bool IsStableEventType = 3;
+}
+
+message InstanceMessage {
+    string ContainerID = 1;
+    repeated string Tags = 2;
+}
+
+message ActivityTreeStatsMessage {
+    int64 ProcessNodesCount = 1;
+    int64 FileNodesCount = 2;
+    int64 DNSNodesCount = 3;
+    int64 SocketNodesCount = 4;
+    int64 ApproximateSize = 5;
+}
+
+message SecurityProfileMessage {
+    bool LoadedInKernel = 1;
+    string LoadedInKernelTimestamp = 2;
+    WorkloadSelectorMessage Selector = 3;
+    uint64 ProfileCookie = 4;
+    repeated string AnomalyDetectionEvents = 5;
+    repeated LastAnomalyTimestampMessage LastAnomalies = 6;
+    repeated InstanceMessage Instances = 7;
+    string Status = 8;
+    string Version = 9;
+    MetadataMessage Metadata = 10;
+    repeated string Tags = 11;
+    ActivityTreeStatsMessage Stats = 12;
+}
+
+message SecurityProfileListParams {
+    bool IncludeCache = 1;
+}
+
+message SecurityProfileListMessage {
+    repeated SecurityProfileMessage Profiles = 1;
+    string Error = 2;
+}
+
+message SecurityProfileSaveParams {
+    WorkloadSelectorMessage Selector = 1;
+}
+
+message SecurityProfileSaveMessage {
+    string Error = 1;
+    string File = 2;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
+    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}
@@ -193,4 +281,8 @@ service SecurityModule {
     rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
     rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}
     rpc GetActivityDumpStream(ActivityDumpStreamParams) returns (stream ActivityDumpStreamMessage) {}
+
+    // Security Profiles
+    rpc ListSecurityProfiles(SecurityProfileListParams) returns (SecurityProfileListMessage) {}
+    rpc SaveSecurityProfile(SecurityProfileSaveParams) returns (SecurityProfileSaveMessage) {}
 }

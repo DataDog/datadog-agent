@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
 
 // Package diagnose implements 'cluster-agent diagnose'.
 package diagnose
@@ -42,5 +41,5 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(log log.Component, config config.Component) error {
-	return diagnose.RunAll(color.Output)
+	return diagnose.RunMetadataAvail(color.Output)
 }

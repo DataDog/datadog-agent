@@ -4,14 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package kubernetesapiserver
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func newBundledTransformer(clusterName string) eventTransformer {
@@ -24,7 +22,7 @@ type bundledTransformer struct {
 	clusterName string
 }
 
-func (c *bundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, []error) {
+func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
 	var errors []error
 
 	bundlesByObject := make(map[bundleID]*kubernetesEventBundle)
@@ -59,7 +57,7 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, []e
 		}
 	}
 
-	datadogEvs := make([]metrics.Event, 0, len(bundlesByObject))
+	datadogEvs := make([]event.Event, 0, len(bundlesByObject))
 
 	for id, bundle := range bundlesByObject {
 		datadogEv, err := bundle.formatEvents()

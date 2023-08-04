@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build freebsd || netbsd || openbsd || solaris || dragonfly || linux
-// +build freebsd netbsd openbsd solaris dragonfly linux
 
 package launchgui
 

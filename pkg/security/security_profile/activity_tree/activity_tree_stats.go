@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -22,9 +21,9 @@ import (
 // ActivityTreeStats represents the node counts in an activity dump
 type ActivityTreeStats struct {
 	ProcessNodes int64
-	fileNodes    int64
-	dnsNodes     int64
-	socketNodes  int64
+	FileNodes    int64
+	DNSNodes     int64
+	SocketNodes  int64
 
 	processedCount map[model.EventType]*atomic.Uint64
 	addedCount     map[model.EventType]map[NodeGenerationType]*atomic.Uint64
@@ -42,6 +41,7 @@ func NewActivityTreeNodeStats() *ActivityTreeStats {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		ats.processedCount[i] = atomic.NewUint64(0)
 		ats.addedCount[i] = map[NodeGenerationType]*atomic.Uint64{
+			Unknown:        atomic.NewUint64(0),
 			Runtime:        atomic.NewUint64(0),
 			Snapshot:       atomic.NewUint64(0),
 			ProfileDrift:   atomic.NewUint64(0),
@@ -60,9 +60,9 @@ func NewActivityTreeNodeStats() *ActivityTreeStats {
 func (stats *ActivityTreeStats) ApproximateSize() int64 {
 	var total int64
 	total += stats.ProcessNodes * int64(unsafe.Sizeof(ProcessNode{})) // 1024
-	total += stats.fileNodes * int64(unsafe.Sizeof(FileNode{}))       // 80
-	total += stats.dnsNodes * int64(unsafe.Sizeof(DNSNode{}))         // 24
-	total += stats.socketNodes * int64(unsafe.Sizeof(SocketNode{}))   // 40
+	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))       // 80
+	total += stats.DNSNodes * int64(unsafe.Sizeof(DNSNode{}))         // 24
+	total += stats.SocketNodes * int64(unsafe.Sizeof(SocketNode{}))   // 40
 	return total
 }
 

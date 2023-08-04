@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && windows
-// +build containerd,windows
 
 package containerd
 
@@ -120,5 +119,6 @@ func fillStatsFromSpec(outContainerStats *provider.ContainerStats, spec *oci.Spe
 	// Always reporting a limit allows to compute CPU % accurately.
 	if outContainerStats.CPU != nil && outContainerStats.CPU.Limit == nil {
 		outContainerStats.CPU.Limit = pointer.Ptr(100 * float64(system.HostCPUCount()))
+		outContainerStats.CPU.DefaultedLimit = true
 	}
 }

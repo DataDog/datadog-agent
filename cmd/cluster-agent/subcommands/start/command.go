@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
 
 // Package start implements 'cluster-agent start'.
 package start
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -45,7 +45,6 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -95,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
+func start(log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -151,7 +150,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 
 	// Initialize remote configuration
 	var rcClient *remote.Client
-	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
 		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
@@ -190,7 +189,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 	// Serving stale data is better than serving no data at all.
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseEventPlatformForwarder = false
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hname)
 	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
 	le, err := leaderelection.GetLeaderEngine()
@@ -223,21 +222,17 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 	}
 
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
-	if pkgconfig.Datadog.GetBool("orchestrator_explorer.enabled") {
-		// Generate and persist a cluster ID
-		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
-		// so we store it in a configmap that we try and read before generating a new one.
-		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
-		_, err = apicommon.GetOrCreateClusterID(coreClient)
-		if err != nil {
-			pkglog.Errorf("Failed to generate or retrieve the cluster ID")
-		}
+	// Generate and persist a cluster ID
+	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
+	// so we store it in a configmap that we try and read before generating a new one.
+	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	clusterId, err := apicommon.GetOrCreateClusterID(coreClient)
+	if err != nil {
+		pkglog.Errorf("Failed to generate or retrieve the cluster ID")
+	}
 
-		if clusterName == "" {
-			pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
-		}
-	} else {
-		pkglog.Info("Orchestrator explorer is disabled")
+	if clusterName == "" {
+		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
 
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
@@ -302,6 +297,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 				K8sClient:           apiCl.Cl,
 				RcClient:            rcClient,
 				ClusterName:         clusterName,
+				ClusterId:           clusterId,
 				StopCh:              stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {
@@ -326,7 +322,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
 			// Webhook and secret controllers are started successfully
-			// Setup the the k8s admission webhook server
+			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)

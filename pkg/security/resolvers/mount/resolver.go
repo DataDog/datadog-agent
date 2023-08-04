@@ -4,14 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package mount
 
 import (
 	"context"
 	"path"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,42 +25,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
-	deleteDelayTime       = 5 * time.Second
-	fallbackLimiterPeriod = 5 * time.Second
+	deleteDelayTime                      = 5 * time.Second
+	numAllowedMountIDsToResolvePerPeriod = 75
+	fallbackLimiterPeriod                = 5 * time.Second
 )
-
-func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
-	// Has optional fields, which is a space separated list of values.
-	// Example: shared:2 master:7
-	if len(mnt.Optional) > 0 {
-		for _, field := range strings.Split(mnt.Optional, " ") {
-			target, value, found := strings.Cut(field, ":")
-			if found {
-				if target == "shared" || target == "master" {
-					groupID, err := strconv.ParseUint(value, 10, 32)
-					return uint32(groupID), err
-				}
-			}
-		}
-	}
-	return 0, nil
-}
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
-	// groupID is not use for the path resolution, don't make it critical
-	groupID, _ := parseGroupID(mnt)
-
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
-		MountID:       uint32(mnt.ID),
-		GroupID:       groupID,
-		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
-		ParentMountID: uint32(mnt.Parent),
+		MountID: uint32(mnt.ID),
+		Device:  uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
+		ParentPathKey: model.PathKey{
+			MountID: uint32(mnt.Parent),
+		},
 		FSType:        mnt.FSType,
 		MountPointStr: mnt.Mountpoint,
 		Path:          mnt.Mountpoint,
@@ -91,7 +72,7 @@ type Resolver struct {
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
-	fallbackLimiter *simplelru.LRU[uint32, time.Time]
+	fallbackLimiter *utils.Limiter[uint32]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -132,28 +113,32 @@ func (mr *Resolver) SyncCache(pid uint32) error {
 	return err
 }
 
-// syncCache update cache with the first working pid
-func (mr *Resolver) syncCache(pids ...uint32) error {
-	var err error
-	var mnts []*mountinfo.Info
+func (mr *Resolver) syncPid(pid uint32) error {
+	mnts, err := kernel.ParseMountInfoFile(int32(pid))
+	if err != nil {
+		return err
+	}
 
-	for _, pid := range pids {
-		mnts, err = kernel.ParseMountInfoFile(int32(pid))
-		if err != nil {
-			mr.cgroupsResolver.DelPID(pid)
+	for _, mnt := range mnts {
+		if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
 			continue
 		}
 
-		for _, mnt := range mnts {
-			if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
-				continue
-			}
+		m := newMountFromMountInfo(mnt)
+		mr.insert(m)
+	}
 
-			m := newMountFromMountInfo(mnt)
-			mr.insert(m)
+	return nil
+}
+
+// syncCache update cache with the first working pid
+func (mr *Resolver) syncCache(pids ...uint32) error {
+	var err error
+
+	for _, pid := range pids {
+		if err = mr.syncPid(pid); err == nil {
+			return nil
 		}
-
-		return nil
 	}
 
 	return err
@@ -176,7 +161,7 @@ func (mr *Resolver) finalize(first *model.Mount) {
 
 		// finalize children
 		for _, child := range mr.mounts {
-			if child.ParentMountID == curr.MountID {
+			if child.ParentPathKey.MountID == curr.MountID {
 				if _, exists := mr.mounts[child.MountID]; exists {
 					open_queue = append(open_queue, child)
 				}
@@ -224,14 +209,14 @@ func (mr *Resolver) ResolveFilesystem(mountID, pid uint32, containerID string) (
 
 	mount, err := mr.resolveMount(mountID, containerID, pid)
 	if err != nil {
-		return "", err
+		return model.UnknownFS, err
 	}
 
 	return mount.GetFSType(), nil
 }
 
 // Insert a new mount point in the cache
-func (mr *Resolver) Insert(e model.Mount, pid uint32, containerID string) error {
+func (mr *Resolver) Insert(e model.Mount) error {
 	if e.MountID == 0 {
 		return ErrMountUndefined
 	}
@@ -297,11 +282,11 @@ func (mr *Resolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string
 	}
 	cache[mountID] = true
 
-	if mount.ParentMountID == 0 {
+	if mount.ParentPathKey.MountID == 0 {
 		return "", ErrMountUndefined
 	}
 
-	parentMountPath, err := mr._getMountPath(mount.ParentMountID, cache)
+	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, cache)
 	if err != nil {
 		return "", err
 	}
@@ -390,37 +375,19 @@ func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (s
 	return mr.resolveMountPath(mountID, containerID, pid)
 }
 
-func (mr *Resolver) isSyncCacheAllowed(mountID uint32) bool {
-	now := time.Now()
-	if ts, ok := mr.fallbackLimiter.Get(mountID); ok {
-		if now.After(ts) {
-			mr.fallbackLimiter.Remove(mountID)
-		} else {
-			return false
-		}
-	}
-	return true
-}
-
 func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.procMissStats.Inc()
-
-	// add to fallback limiter to avoid storm of file access
-	mr.fallbackLimiter.Add(mountID, time.Now().Add(fallbackLimiterPeriod))
 }
 
-func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ...uint32) (string, error) {
+func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uint32) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
 	}
 
+	pids := []uint32{pid}
+
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
-	if exists {
-		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 {
-		pids = append(pids, 1)
-	}
+	workload, workloadExists := mr.cgroupsResolver.GetWorkload(containerID)
 
 	path, err := mr.getMountPath(mountID)
 	if err == nil {
@@ -437,8 +404,14 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ..
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.isSyncCacheAllowed(mountID) {
+	if !mr.fallbackLimiter.Allow(mountID) {
 		return "", &ErrMountNotFound{MountID: mountID}
+	}
+
+	if workloadExists {
+		pids = append(pids, workload.GetPIDs()...)
+	} else if len(containerID) == 0 && pid != 1 {
+		pids = append(pids, 1)
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -470,12 +443,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
-	if exists {
-		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 {
-		pids = append(pids, 1)
-	}
+	workload, workloadExists := mr.cgroupsResolver.GetWorkload(containerID)
 
 	mount, exists := mr.mounts[mountID]
 	if exists {
@@ -490,6 +458,16 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 
 	if !mr.opts.UseProcFS {
 		return nil, &ErrMountNotFound{MountID: mountID}
+	}
+
+	if !mr.fallbackLimiter.Allow(mountID) {
+		return nil, &ErrMountNotFound{MountID: mountID}
+	}
+
+	if workloadExists {
+		pids = append(pids, workload.GetPIDs()...)
+	} else if len(containerID) == 0 {
+		pids = append(pids, 1)
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -628,11 +606,12 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 	mr.redemption = redemption
 
-	fallbackLimiter, err := simplelru.NewLRU[uint32, time.Time](64, nil)
+	// create a rate limiter that allows for 64 mount IDs
+	limiter, err := utils.NewLimiter[uint32](64, numAllowedMountIDsToResolvePerPeriod, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
-	mr.fallbackLimiter = fallbackLimiter
+	mr.fallbackLimiter = limiter
 
 	return mr, nil
 }

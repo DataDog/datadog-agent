@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jetson
-// +build jetson
 
 package nvidia
 
@@ -13,7 +12,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 type ramMetricSender struct {
@@ -29,7 +28,7 @@ func (ramMetricSender *ramMetricSender) Init() error {
 	return nil
 }
 
-func (ramMetricSender *ramMetricSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (ramMetricSender *ramMetricSender) SendMetrics(sender sender.Sender, field string) error {
 	ramFields := regexFindStringSubmatchMap(ramMetricSender.regex, field)
 	if ramFields == nil {
 		return errors.New("could not parse RAM fields")

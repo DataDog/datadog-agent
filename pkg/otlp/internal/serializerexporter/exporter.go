@@ -44,7 +44,8 @@ func newDefaultConfig() component.Config {
 				SendAggregations: false,
 			},
 			SumConfig: sumConfig{
-				CumulativeMonotonicMode: CumulativeMonotonicSumModeToDelta,
+				CumulativeMonotonicMode:        CumulativeMonotonicSumModeToDelta,
+				InitialCumulativeMonotonicMode: InitialValueModeAuto,
 			},
 			SummaryConfig: summaryConfig{
 				Mode: SummaryModeGauges,
@@ -126,6 +127,8 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 		numberMode = metrics.NumberModeCumulativeToDelta
 	}
 	options = append(options, metrics.WithNumberMode(numberMode))
+	options = append(options, metrics.WithInitialCumulMonoValueMode(
+		metrics.InitialCumulMonoValueMode(cfg.Metrics.SumConfig.InitialCumulativeMonotonicMode)))
 
 	return metrics.NewTranslator(logger, options...)
 }
@@ -170,12 +173,13 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	consumer := &serializerConsumer{cardinality: e.cardinality, extraTags: e.extraTags}
-	err := e.tr.MapMetrics(ctx, ld, consumer)
+	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err
 	}
 
 	consumer.addTelemetryMetric(e.hostname)
+	consumer.addRuntimeTelemetryMetric(e.hostname, rmt.Languages)
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}

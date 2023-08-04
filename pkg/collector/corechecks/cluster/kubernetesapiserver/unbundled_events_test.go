@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package kubernetesapiserver
 
@@ -16,7 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 )
 
@@ -32,7 +31,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	tests := []struct {
 		name     string
 		event    *v1.Event
-		expected []metrics.Event
+		expected []event.Event
 	}{
 		{
 			name: "event is filtered out",
@@ -66,12 +65,12 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				LastTimestamp:  ts,
 				Count:          1,
 			},
-			expected: []metrics.Event{
+			expected: []event.Event{
 				{
 					Title:    "Pod default/redis: Failed",
 					Text:     "All containers terminated",
 					Ts:       ts.Time.Unix(),
-					Priority: metrics.EventPriorityNormal,
+					Priority: event.EventPriorityNormal,
 					Host:     "test-host-test-cluster",
 					Tags: []string{
 						"event_reason:Failed",
@@ -84,7 +83,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"pod_name:redis",
 						"source_component:kubelet",
 					},
-					AlertType:      metrics.EventAlertTypeWarning,
+					AlertType:      event.EventAlertTypeWarning,
 					AggregationKey: "kubernetes_apiserver:foobar",
 					SourceTypeName: "kubernetes",
 					EventType:      "kubernetes_apiserver",

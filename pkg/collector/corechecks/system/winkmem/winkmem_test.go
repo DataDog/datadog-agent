@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 package winkmem
 

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+
 package config
 
 import (
@@ -51,13 +53,15 @@ func TestEventMonitor(t *testing.T) {
 		{cws: true, fim: true, process_events: true, network_events: true, enabled: true},
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			t.Logf("%+v\n", tc)
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(tc.cws))
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED", strconv.FormatBool(tc.fim))
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED", strconv.FormatBool(tc.process_events))
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(tc.network_events))
+			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(tc.network_events))
 
-			cfg, err := New("")
-			t.Log(cfg)
+			cfg, err := New("/doesnotexist")
+			t.Logf("%+v\n", cfg)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
 		})

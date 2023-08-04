@@ -23,6 +23,9 @@ func init() {
 func TestGetHostTags(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconfig_from_environment", false)
+	defer mockConfig.Set("autoconfig_from_environment", true)
+
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
 	defer mockConfig.Set("tags", nil)
 
@@ -33,6 +36,11 @@ func TestGetHostTags(t *testing.T) {
 
 func TestGetEmptyHostTags(t *testing.T) {
 	ctx := context.Background()
+
+	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconfig_from_environment", false)
+	defer mockConfig.Set("autoconfig_from_environment", true)
+
 	// getHostTags should never return a nil value under System even when there are no host tags
 	hostTags := GetHostTags(ctx, false)
 	assert.NotNil(t, hostTags.System)
@@ -42,6 +50,9 @@ func TestGetEmptyHostTags(t *testing.T) {
 func TestGetHostTagsWithSplits(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconfig_from_environment", false)
+	defer mockConfig.Set("autoconfig_from_environment", true)
+
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ","})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer mockConfig.Set("tags", nil)
@@ -54,6 +65,9 @@ func TestGetHostTagsWithSplits(t *testing.T) {
 func TestGetHostTagsWithoutSplits(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconfig_from_environment", false)
+	defer mockConfig.Set("autoconfig_from_environment", true)
+
 	mockConfig.Set("tag_value_split_separator", map[string]string{"kafka_partition": ";"})
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "kafka_partition:0,1,2"})
 	defer mockConfig.Set("tags", nil)
@@ -66,6 +80,9 @@ func TestGetHostTagsWithoutSplits(t *testing.T) {
 func TestGetHostTagsWithEnv(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconfig_from_environment", false)
+	defer mockConfig.Set("autoconfig_from_environment", true)
+
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag3", "env:prod"})
 	mockConfig.Set("env", "preprod")
 	defer mockConfig.Set("tags", nil)
@@ -91,6 +108,9 @@ func TestMarshalEmptyHostTags(t *testing.T) {
 func TestCombineExtraTags(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconfig_from_environment", false)
+	defer mockConfig.Set("autoconfig_from_environment", true)
+
 	mockConfig.Set("tags", []string{"tag1:value1", "tag2", "tag4"})
 	mockConfig.Set("extra_tags", []string{"tag1:value2", "tag3", "tag4"})
 	defer mockConfig.Set("tags", nil)
@@ -104,6 +124,9 @@ func TestCombineExtraTags(t *testing.T) {
 func TestHostTagsCache(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconfig_from_environment", false)
+	defer mockConfig.Set("autoconfig_from_environment", true)
+
 	mockConfig.Set("collect_gce_tags", false)
 
 	fooTags := []string{"foo1:value1"}

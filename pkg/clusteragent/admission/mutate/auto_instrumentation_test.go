@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -16,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic/fake"
 )
 
 func TestInjectAutoInstruConfig(t *testing.T) {
@@ -37,7 +37,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 				},
 			},
 			expectedEnvKey: "JAVA_TOOL_OPTIONS",
-			expectedEnvVal: " -javaagent:/datadog-lib/dd-java-agent.jar",
+			expectedEnvVal: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
 			wantErr:        false,
 		},
 		{
@@ -50,7 +50,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 				},
 			},
 			expectedEnvKey: "JAVA_TOOL_OPTIONS",
-			expectedEnvVal: "predefined -javaagent:/datadog-lib/dd-java-agent.jar",
+			expectedEnvVal: "predefined -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
 			wantErr:        false,
 		},
 		{
@@ -507,6 +507,22 @@ func TestInjectLibConfig(t *testing.T) {
 			},
 		},
 		{
+			name:    "inject all case",
+			pod:     fakePodWithAnnotation("admission.datadoghq.com/all-lib.config.v1", `{"version":1,"service_language":"all","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
+			lang:    "all",
+			wantErr: false,
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+			},
+		},
+		{
 			name:         "invalid json",
 			pod:          fakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", "invalid"),
 			lang:         java,
@@ -665,6 +681,332 @@ func TestInjectAll(t *testing.T) {
 			targetNamespaces = tt.targetNamespaces
 			got := injectAll(tt.ns, "gcr.io/datadoghq")
 			require.EqualValues(t, tt.want, got)
+		})
+	}
+}
+
+func TestInjectAutoInstrumentation(t *testing.T) {
+	tests := []struct {
+		name         string
+		pod          *corev1.Pod
+		expectedEnvs []corev1.EnvVar
+		wantErr      bool
+	}{
+		{
+			name: "inject all",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+				{
+					Name:  "LD_PRELOAD",
+					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject java",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/java-lib.version":   "latest",
+				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject python",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/python-lib.version":   "latest",
+				"admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject node",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/js-lib.version":   "latest",
+				"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject library and all",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+				"admission.datadoghq.com/js-lib.version":    "v1.10",
+				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.40",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject library and all no library version",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+				{
+					Name:  "LD_PRELOAD",
+					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.40",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject all error - bad json",
+			pod: fakePodWithAnnotations(map[string]string{
+				// TODO: we might not want to be injecting the libraries if the config is malformed
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+				{
+					Name:  "LD_PRELOAD",
+					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "inject java bad json",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/java-lib.version":   "latest",
+				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
+			require.False(t, (err != nil) != tt.wantErr)
+
+			container := tt.pod.Spec.Containers[0]
+			for _, contEnv := range container.Env {
+				found := false
+				for _, expectEnv := range tt.expectedEnvs {
+					if expectEnv.Name == contEnv.Name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					require.Failf(t, "Unexpected env var injected in container", contEnv.Name)
+				}
+			}
+			for _, expectEnv := range tt.expectedEnvs {
+				found := false
+				for _, contEnv := range container.Env {
+					if expectEnv.Name == contEnv.Name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					require.Failf(t, "Unexpected env var injected in container", expectEnv.Name)
+				}
+			}
+
+			envCount := 0
+			for _, contEnv := range container.Env {
+				for _, expectEnv := range tt.expectedEnvs {
+					if expectEnv.Name == contEnv.Name {
+						require.Equal(t, expectEnv.Value, contEnv.Value)
+						envCount++
+						break
+					}
+				}
+			}
+			require.Equal(t, len(tt.expectedEnvs), envCount)
 		})
 	}
 }

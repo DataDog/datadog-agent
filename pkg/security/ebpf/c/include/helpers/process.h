@@ -18,16 +18,16 @@ static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_
     return TTY_NAME_LEN;
 }
 
-void __attribute__((always_inline)) copy_proc_entry_except_comm(struct process_entry_t* src, struct process_entry_t* dst) {
+void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t* src, struct process_entry_t* dst) {
     dst->executable = src->executable;
     dst->exec_timestamp = src->exec_timestamp;
     copy_tty_name(src->tty_name, dst->tty_name);
+    bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
 }
 
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
     copy_container_id(src->container.container_id, dst->container.container_id);
-    copy_proc_entry_except_comm(&src->entry, &dst->entry);
-    bpf_probe_read(dst->entry.comm, TASK_COMM_LEN, src->entry.comm);
+    copy_proc_entry(&src->entry, &dst->entry);
 }
 
 void __attribute__((always_inline)) copy_credentials(struct credentials_t* src, struct credentials_t* dst) {

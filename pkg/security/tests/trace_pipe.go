@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build linux
-// +build linux
 
 package tests
 
@@ -68,8 +67,8 @@ func NewTracePipe() (*TracePipe, error) {
 }
 
 // A line from trace_pipe looks like (leading spaces included):
-// `        chromium-15581 [000] d... 92783.722567: : Hello, World!`
-var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4}) +(\d+\.\d+)\: (.*?)\: (.*)`)
+// `        chromium-15581 [000] d...1 92783.722567: : Hello, World!`
+var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4,5}) +(\d+\.\d+)\: (.*?)\: (.*)`)
 
 func parseTraceLine(raw string) (*TraceEvent, error) {
 	fields := traceLineRegexp.FindStringSubmatch(raw)

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
 
@@ -14,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -29,7 +28,7 @@ type args struct {
 
 type serviceCheck struct {
 	name     string
-	status   metrics.ServiceCheckStatus
+	status   servicecheck.ServiceCheckStatus
 	tags     []string
 	hostname string
 	message  string
@@ -133,7 +132,7 @@ func Test_resourcequotaTransformer(t *testing.T) {
 func Test_cronJobNextScheduleTransformer(t *testing.T) {
 	type serviceCheck struct {
 		name     string
-		status   metrics.ServiceCheckStatus
+		status   servicecheck.ServiceCheckStatus
 		hostname string
 		tags     []string
 		message  string
@@ -160,7 +159,7 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:     "kubernetes_state.cronjob.on_schedule_check",
-				status:   metrics.ServiceCheckOK,
+				status:   servicecheck.ServiceCheckOK,
 				tags:     []string{"cronjob:foo", "namespace:default"},
 				hostname: "foo",
 				message:  "",
@@ -182,7 +181,7 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.on_schedule_check",
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				tags:    []string{"cronjob:foo", "namespace:default"},
 				message: "The cron job check scheduled at 2020-07-23 10:53:35 +0000 UTC is 2 seconds late",
 			},
@@ -270,7 +269,7 @@ func Test_jobCompleteTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckOK,
+				status: servicecheck.ServiceCheckOK,
 				tags:   []string{"job_name:foo", "namespace:default"},
 			},
 		},
@@ -289,7 +288,7 @@ func Test_jobCompleteTransformer(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckOK,
+				status: servicecheck.ServiceCheckOK,
 				tags:   []string{"job:foo", "namespace:default"},
 			},
 		},
@@ -348,7 +347,7 @@ func Test_jobFailedTransformer(t *testing.T) {
 			},
 			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckCritical,
+				status: servicecheck.ServiceCheckCritical,
 				tags:   []string{"kube_cronjob:foo", "namespace:default"},
 			},
 			expectedMetric: &metricsExpected{
@@ -373,7 +372,7 @@ func Test_jobFailedTransformer(t *testing.T) {
 			},
 			expectedServiceCheck: &serviceCheck{
 				name:   "kubernetes_state.job.complete",
-				status: metrics.ServiceCheckCritical,
+				status: servicecheck.ServiceCheckCritical,
 				tags:   []string{"kube_cronjob:foo", "namespace:default"},
 			},
 			expectedMetric: &metricsExpected{
@@ -1192,7 +1191,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:true"},
-				status:  metrics.ServiceCheckOK,
+				status:  servicecheck.ServiceCheckOK,
 				message: "foo is currently reporting Ready = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1218,7 +1217,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:false"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting Ready = false",
 			},
 			expectedMetric: &metricsExpected{
@@ -1244,7 +1243,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:unknown"},
-				status:  metrics.ServiceCheckWarning,
+				status:  servicecheck.ServiceCheckWarning,
 				message: "foo is currently reporting Ready = unknown",
 			},
 			expectedMetric: &metricsExpected{
@@ -1324,7 +1323,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.ready",
 				tags:    []string{"node:foo", "condition:Ready", "status:foo"},
-				status:  metrics.ServiceCheckUnknown,
+				status:  servicecheck.ServiceCheckUnknown,
 				message: "foo is currently reporting Ready = foo",
 			},
 			expectedMetric: &metricsExpected{
@@ -1370,7 +1369,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.out_of_disk",
 				tags:    []string{"node:foo", "condition:OutOfDisk", "status:false"},
-				status:  metrics.ServiceCheckOK,
+				status:  servicecheck.ServiceCheckOK,
 				message: "foo is currently reporting OutOfDisk = false",
 			},
 			expectedMetric: &metricsExpected{
@@ -1396,7 +1395,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.out_of_disk",
 				tags:    []string{"node:foo", "condition:OutOfDisk", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting OutOfDisk = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1422,7 +1421,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.disk_pressure",
 				tags:    []string{"node:foo", "condition:DiskPressure", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting DiskPressure = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1448,7 +1447,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.network_unavailable",
 				tags:    []string{"node:foo", "condition:NetworkUnavailable", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting NetworkUnavailable = true",
 			},
 			expectedMetric: &metricsExpected{
@@ -1474,7 +1473,7 @@ func Test_nodeConditionTransformer(t *testing.T) {
 			expectedServiceCheck: &serviceCheck{
 				name:    "kubernetes_state.node.memory_pressure",
 				tags:    []string{"node:foo", "condition:MemoryPressure", "status:true"},
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				message: "foo is currently reporting MemoryPressure = true",
 			},
 			expectedMetric: &metricsExpected{

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package tailerfactory
 
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -52,10 +52,12 @@ func fileTestSetup(t *testing.T) {
 	})
 }
 
-func makeTestPod() *workloadmeta.KubernetesPod {
-	return &workloadmeta.KubernetesPod{
+func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
+	podID := "poduuid"
+	containerID := "abc"
+	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
-			ID:   "poduuid",
+			ID:   podID,
 			Kind: workloadmeta.KindKubernetesPod,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
@@ -64,7 +66,7 @@ func makeTestPod() *workloadmeta.KubernetesPod {
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
 			{
-				ID:   "abc",
+				ID:   containerID,
 				Name: "cname",
 				Image: workloadmeta.ContainerImage{
 					Name: "iname",
@@ -72,6 +74,19 @@ func makeTestPod() *workloadmeta.KubernetesPod {
 			},
 		},
 	}
+
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+	}
+
+	return pod, container
 }
 
 func TestMakeFileSource_docker_success(t *testing.T) {
@@ -86,11 +101,14 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
-		Type:       "docker",
-		Identifier: "abc",
-		Source:     "src",
-		Service:    "svc",
-		Tags:       []string{"tag!"},
+		Type:                        "docker",
+		Identifier:                  "abc",
+		Source:                      "src",
+		Service:                     "svc",
+		Tags:                        []string{"tag!"},
+		AutoMultiLine:               pointer.Ptr(true),
+		AutoMultiLineSampleSize:     123,
+		AutoMultiLineMatchThreshold: 0.123,
 	})
 	child, err := tf.makeFileSource(source)
 	require.NoError(t, err)
@@ -102,6 +120,9 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	require.Equal(t, source.Config.Service, child.Config.Service)
 	require.Equal(t, source.Config.Tags, child.Config.Tags)
 	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+	require.Equal(t, *source.Config.AutoMultiLine, true)
+	require.Equal(t, source.Config.AutoMultiLineSampleSize, 123)
+	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.123)
 }
 
 func TestMakeFileSource_docker_no_file(t *testing.T) {
@@ -170,7 +191,9 @@ func TestMakeK8sSource(t *testing.T) {
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := workloadmeta.NewMockStore()
-	store.SetEntity(makeTestPod())
+	pod, container := makeTestPod()
+	store.SetEntity(pod)
+	store.SetEntity(container)
 
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
@@ -180,11 +203,14 @@ func TestMakeK8sSource(t *testing.T) {
 	for _, sourceConfigType := range []string{"docker", "containerd"} {
 		t.Run("source.Config.Type="+sourceConfigType, func(t *testing.T) {
 			source := sources.NewLogSource("test", &config.LogsConfig{
-				Type:       sourceConfigType,
-				Identifier: "abc",
-				Source:     "src",
-				Service:    "svc",
-				Tags:       []string{"tag!"},
+				Type:                        sourceConfigType,
+				Identifier:                  "abc",
+				Source:                      "src",
+				Service:                     "svc",
+				Tags:                        []string{"tag!"},
+				AutoMultiLine:               pointer.Ptr(true),
+				AutoMultiLineSampleSize:     123,
+				AutoMultiLineMatchThreshold: 0.123,
 			})
 			child, err := tf.makeK8sFileSource(source)
 			require.NoError(t, err)
@@ -195,6 +221,9 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, "src", child.Config.Source)
 			require.Equal(t, "svc", child.Config.Service)
 			require.Equal(t, []string{"tag!"}, child.Config.Tags)
+			require.Equal(t, *child.Config.AutoMultiLine, true)
+			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
+			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)
 			switch sourceConfigType {
 			case "docker":
 				require.Equal(t, sources.DockerSourceType, child.GetSourceType())
@@ -246,8 +275,8 @@ func TestFindK8sLogPath(t *testing.T) {
 			defer func() {
 				require.NoError(t, os.RemoveAll(podLogsBasePath))
 			}()
-
-			gotPattern := findK8sLogPath(makeTestPod(), "cname")
+			pod, _ := makeTestPod()
+			gotPattern := findK8sLogPath(pod, "cname")
 			require.Equal(t, filepath.Join(podLogsBasePath, expectedPattern), gotPattern)
 		})
 	}

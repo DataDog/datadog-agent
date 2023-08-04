@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package tracer
 
@@ -176,17 +175,18 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	var delta network.Delta
 	if t.usmMonitor != nil { //nolint
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), nil, nil)
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats())
 	} else {
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil, nil, nil)
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	}
 
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
 
-	ips := make([]util.Address, 0, len(delta.Conns)*2)
+	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {
-		ips = append(ips, conn.Source, conn.Dest)
+		ips[conn.Source] = struct{}{}
+		ips[conn.Dest] = struct{}{}
 	}
 	names := t.reverseDNS.Resolve(ips)
 	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())

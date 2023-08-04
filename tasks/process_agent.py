@@ -128,7 +128,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
-        ctx.run(f"cp pkg/network/java/agent-usm.jar {docker_context}")
+        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -155,16 +155,4 @@ def gen_mocks(ctx):
     """
     Generate mocks
     """
-
-    interfaces = {
-        "./pkg/process/runner": ["Submitter"],
-        "./pkg/process/checks": ["Check", "CheckWithRealTime"],
-        "./pkg/process/net": ["SysProbeUtil"],
-        "./pkg/process/procutil": ["Probe"],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake --name=\"{interface_regex}\"")
+    ctx.run("mockery")

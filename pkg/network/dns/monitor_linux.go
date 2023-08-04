@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package dns
 
@@ -18,6 +17,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -106,6 +106,7 @@ func (m *dnsMonitor) Start() error {
 func (m *dnsMonitor) Close() {
 	m.socketFilterSnooper.Close()
 	if m.p != nil {
+		ebpfcheck.RemoveNameMappings(m.p.Manager)
 		_ = m.p.Stop(manager.CleanAll)
 	}
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmx
 

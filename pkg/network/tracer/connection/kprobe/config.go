@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kprobe
 
@@ -28,6 +27,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
+	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -57,7 +57,6 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
-		enableProbe(enabled, probes.TCPSetState)
 		// special case for tcp_retransmit_skb probe: on CO-RE,
 		// we want to load the version that makes use of
 		// the tcp_sock field, which is the same as the
@@ -96,7 +95,17 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	if c.CollectUDPv6Conns {
 		enableProbe(enabled, probes.UDPv6DestroySock)
 		enableProbe(enabled, probes.UDPv6DestroySockReturn)
-		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
+		if kv >= kv5180 || runtimeTracer {
+			// prebuilt shouldn't arrive here with 5.18+ and UDPv6 enabled
+			if !coreTracer && !runtimeTracer {
+				return nil, fmt.Errorf("UDPv6 does not function on prebuilt tracer with kernel versions 5.18+")
+			}
+			enableProbe(enabled, probes.IP6MakeSkb)
+		} else if kv >= kv470 {
+			enableProbe(enabled, probes.IP6MakeSkbPre5180)
+		} else {
+			enableProbe(enabled, probes.IP6MakeSkbPre470)
+		}
 		enableProbe(enabled, probes.IP6MakeSkbReturn)
 		enableProbe(enabled, probes.Inet6Bind)
 		enableProbe(enabled, probes.Inet6BindRet)

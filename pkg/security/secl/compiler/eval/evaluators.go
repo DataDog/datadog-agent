@@ -60,8 +60,9 @@ type IntEvaluator struct {
 	OpOverrides *OpOverrides
 
 	// used during compilation of partial
-	isDeterministic bool
-	isDuration      bool
+	isDeterministic           bool
+	isDuration                bool
+	isFromArithmeticOperation bool
 }
 
 // Eval returns the result of the evaluation

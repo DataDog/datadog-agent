@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !docker && !linux && !kubeapiserver
-// +build !docker,!linux,!kubeapiserver
 
 package tests
 

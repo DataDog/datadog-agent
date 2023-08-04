@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -19,9 +18,9 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -30,7 +29,7 @@ import (
 )
 
 // computeEvents converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *containers.Filter) {
+func computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -50,7 +49,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *cont
 			}
 		}
 
-		alertType := metrics.EventAlertTypeInfo
+		alertType := event.EventAlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
 			t, err := tagger.Tag(containers.BuildTaggerEntityName(e.ID), collectors.HighCardinality)
@@ -66,13 +65,13 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *cont
 			}
 
 			if split[2] == "oom" {
-				alertType = metrics.EventAlertTypeError
+				alertType = event.EventAlertTypeError
 			}
 		}
 
-		output := metrics.Event{
+		output := event.Event{
 			Title:          fmt.Sprintf("Event on %s from Containerd", split[1]),
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: containerdCheckName,
 			EventType:      containerdCheckName,
 			AlertType:      alertType,

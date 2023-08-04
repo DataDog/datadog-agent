@@ -13,6 +13,11 @@ import (
 	"github.com/skydive-project/go-debouncer"
 )
 
+const (
+	PolicyProviderTypeDir = "file"
+	PolicyProviderTypeRC  = "remote-config"
+)
+
 var (
 	debounceDelay = 5 * time.Second
 )
@@ -33,7 +38,8 @@ type PolicyLoader struct {
 	debouncer *debouncer.Debouncer
 }
 
-// LoadPolicies loads the policies
+// LoadPolicies gathers the policies in the correct precedence order and ensuring there's only 1 default policy.
+// RC Default replaces Local Default and takes precedence above any other policies, and RC Custom takes precedence over Local Custom.
 func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierror.Error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -44,7 +50,7 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 		defaultPolicy *Policy
 	)
 
-	// use the provider in the order of insertion, keep the very last default policy
+	p.remoteConfigProvidersFirst()
 	for _, provider := range p.Providers {
 		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters)
 		if err.ErrorOrNil() != nil {
@@ -57,7 +63,9 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 
 		for _, policy := range policies {
 			if policy.Name == DefaultPolicyName {
-				defaultPolicy = policy
+				if defaultPolicy == nil {
+					defaultPolicy = policy // only load the first seen default policy
+				}
 			} else {
 				allPolicies = append(allPolicies, policy)
 			}
@@ -131,4 +139,20 @@ func NewPolicyLoader(providers ...PolicyProvider) *PolicyLoader {
 	p.SetProviders(providers)
 
 	return p
+}
+
+// Rules from RC override local rules if they share the same ID, so the RC policy provider has to be first
+func (p *PolicyLoader) remoteConfigProvidersFirst() {
+	var remoteConfigProviders []PolicyProvider
+	var otherProviders []PolicyProvider
+
+	for _, provider := range p.Providers {
+		if provider.Type() == PolicyProviderTypeRC {
+			remoteConfigProviders = append(remoteConfigProviders, provider)
+		} else {
+			otherProviders = append(otherProviders, provider)
+		}
+	}
+
+	p.Providers = append(remoteConfigProviders, otherProviders...)
 }

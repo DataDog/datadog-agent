@@ -48,6 +48,15 @@
         "is_kworker": {
             "type": "boolean"
         },
+        "args": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "argv0": {
+            "type": "string"
+        },
         "credentials": {
             "type": "object",
             "properties": {
@@ -151,15 +160,6 @@
                     "items": {
                         "type": "string"
                     }
-                },
-                "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "argv0": {
-                    "type": "string"
                 }
             },
             "required": [

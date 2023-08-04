@@ -4,14 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package trivy
 
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -66,40 +64,6 @@ func TestCustomBoltCache_Blobs(t *testing.T) {
 	storedBlobInfo, err := cache.GetBlob(blobID)
 	require.NoError(t, err)
 	require.Equal(t, blobInfo, storedBlobInfo)
-}
-
-func TestCustomBoltCache_DeleteBlobs(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultCacheSize, defaultDiskSize)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, cache.Close())
-	}()
-
-	// Store 3 blobs with IDs "0", "1", "2"
-	for blobID, osName := range []string{"3.15", "3.16", "3.17"} {
-		blobInfo := types.BlobInfo{
-			SchemaVersion: 1,
-			OS: types.OS{
-				Family: "alpine",
-				Name:   osName,
-			},
-		}
-
-		err := cache.PutBlob(strconv.Itoa(blobID), blobInfo)
-		require.NoError(t, err)
-	}
-
-	// Delete 2 blobs
-	err = cache.DeleteBlobs([]string{"0", "1"})
-	require.NoError(t, err)
-
-	// Check that the deleted blobs are no longer there, but the other one is
-	_, err = cache.GetBlob("0")
-	require.Error(t, err)
-	_, err = cache.GetBlob("1")
-	require.Error(t, err)
-	_, err = cache.GetBlob("2")
-	require.NoError(t, err)
 }
 
 func TestCustomBoltCache_MissingBlobs(t *testing.T) {

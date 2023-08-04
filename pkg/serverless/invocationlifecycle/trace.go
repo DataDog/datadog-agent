@@ -8,16 +8,17 @@ package invocationlifecycle
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -111,6 +112,10 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Metrics:  triggerMetrics,
 	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
+	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.Coldstart)
+	if endDetails.ProactiveInit {
+		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", endDetails.ProactiveInit)
+	}
 
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {

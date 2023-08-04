@@ -15,11 +15,12 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -71,44 +72,52 @@ var (
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
+var trace *httptrace.ClientTrace
+var traceOnce sync.Once
+
 // Trace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
-var Trace = &httptrace.ClientTrace{
-	DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
-		if dnsInfo.Err != nil {
-			transactionsDNSErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "unknown", "dns_lookup_failure")
-			log.Debugf("DNS Lookup failure: %s", dnsInfo.Err)
-			return
+func GetClientTrace(log log.Component) *httptrace.ClientTrace {
+	traceOnce.Do(func() {
+		trace = &httptrace.ClientTrace{
+			DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
+				if dnsInfo.Err != nil {
+					transactionsDNSErrors.Add(1)
+					tlmTxErrors.Inc("unknown", "unknown", "dns_lookup_failure")
+					log.Debugf("DNS Lookup failure: %s", dnsInfo.Err)
+					return
+				}
+				connectionDNSSuccess.Add(1)
+				tlmConnectEvents.Inc("dns_lookup_success")
+				log.Tracef("DNS Lookup success, addresses: %s", dnsInfo.Addrs)
+			},
+			WroteRequest: func(wroteInfo httptrace.WroteRequestInfo) {
+				if wroteInfo.Err != nil {
+					transactionsWroteRequestErrors.Add(1)
+					tlmTxErrors.Inc("unknown", "unknown", "writing_failure")
+					log.Debugf("Request writing failure: %s", wroteInfo.Err)
+				}
+			},
+			ConnectDone: func(network, addr string, err error) {
+				if err != nil {
+					transactionsConnectionErrors.Add(1)
+					tlmTxErrors.Inc("unknown", "unknown", "connection_failure")
+					log.Debugf("Connection failure: %s", err)
+					return
+				}
+				connectionConnectSuccess.Add(1)
+				tlmConnectEvents.Inc("connection_success")
+				log.Tracef("New successful connection to address: %q", addr)
+			},
+			TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
+				if err != nil {
+					transactionsTLSErrors.Add(1)
+					tlmTxErrors.Inc("unknown", "unknown", "tls_handshake_failure")
+					log.Errorf("TLS Handshake failure: %s", err)
+				}
+			},
 		}
-		connectionDNSSuccess.Add(1)
-		tlmConnectEvents.Inc("dns_lookup_success")
-		log.Tracef("DNS Lookup success, addresses: %s", dnsInfo.Addrs)
-	},
-	WroteRequest: func(wroteInfo httptrace.WroteRequestInfo) {
-		if wroteInfo.Err != nil {
-			transactionsWroteRequestErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "unknown", "writing_failure")
-			log.Debugf("Request writing failure: %s", wroteInfo.Err)
-		}
-	},
-	ConnectDone: func(network, addr string, err error) {
-		if err != nil {
-			transactionsConnectionErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "unknown", "connection_failure")
-			log.Debugf("Connection failure: %s", err)
-			return
-		}
-		connectionConnectSuccess.Add(1)
-		tlmConnectEvents.Inc("connection_success")
-		log.Tracef("New successful connection to address: %q", addr)
-	},
-	TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
-		if err != nil {
-			transactionsTLSErrors.Add(1)
-			tlmTxErrors.Inc("unknown", "unknown", "tls_handshake_failure")
-			log.Errorf("TLS Handshake failure: %s", err)
-		}
-	},
+	})
+	return trace
 }
 
 // Compile-time check to ensure that HTTPTransaction conforms to the Transaction interface
@@ -201,7 +210,7 @@ type TransactionsSerializer interface {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, config config.Component, client *http.Client) error
+	Process(ctx context.Context, config config.Component, log log.Component, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
@@ -213,7 +222,7 @@ type Transaction interface {
 	// It forces a new implementation of `Transaction` to define how to
 	// serialize the transaction to `TransactionsSerializer` as a `Transaction`
 	// must be serializable in domainForwarder.
-	SerializeTo(TransactionsSerializer) error
+	SerializeTo(log.Component, TransactionsSerializer) error
 }
 
 // NewHTTPTransaction returns a new HTTPTransaction.
@@ -274,10 +283,10 @@ func (t *HTTPTransaction) GetPointCount() int {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, client *http.Client) error {
+func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, client *http.Client) error {
 	t.AttemptHandler(t)
 
-	statusCode, body, err := t.internalProcess(ctx, config, client)
+	statusCode, body, err := t.internalProcess(ctx, config, log, client)
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -294,7 +303,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, client *http.Client) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, client *http.Client) (int, []byte, error) {
 	reader := bytes.NewReader(t.Payload.GetContent())
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
@@ -388,7 +397,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 }
 
 // SerializeTo serializes the transaction using TransactionsSerializer
-func (t *HTTPTransaction) SerializeTo(serializer TransactionsSerializer) error {
+func (t *HTTPTransaction) SerializeTo(log log.Component, serializer TransactionsSerializer) error {
 	if t.StorableOnDisk {
 		return serializer.Add(t)
 	}

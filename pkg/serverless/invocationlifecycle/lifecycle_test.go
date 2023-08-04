@@ -11,13 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -28,7 +30,8 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 
 	endInvocationTime := time.Now()
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
@@ -58,7 +61,8 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -92,7 +96,8 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
 
@@ -121,7 +126,8 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -169,7 +175,8 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	var tracePayload *api.Payload
@@ -203,11 +210,13 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_SERVICE", "mock-lambda-service")
 
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -254,7 +263,9 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	httpStatusCode := testProcessor.GetInferredSpan().Span.GetMeta()["http.status_code"]
+	peerService := testProcessor.GetInferredSpan().Span.GetMeta()["peer.service"]
 	assert.NotNil(t, httpStatusCode)
+	assert.Equal(t, peerService, "mock-lambda-service")
 	assert.Equal(t, testProcessor.GetInferredSpan().Span.Start, completedInferredSpan.Start)
 }
 
@@ -264,7 +275,8 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -349,7 +361,8 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -370,6 +383,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 
 	// assert http.status_code is 500
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
 		"http.method":                       "POST",
 		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
@@ -414,6 +428,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
 		"http.method":                       "GET",
 		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
@@ -439,7 +454,8 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -460,6 +476,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 
 	// assert http.status_code is 500
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
 		"http.method":                       "GET",
 		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
@@ -504,6 +521,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket(t *testing.T) {
 		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
 		"request_id":                        "test-request-id",
 		"http.status_code":                  "200",
@@ -525,7 +543,8 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -546,6 +565,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 
 	// assert http.status_code is 500
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/p62c47itsb/stages/dev",
 		"request_id":                        "test-request-id",
 		"http.status_code":                  "500",
@@ -586,6 +606,7 @@ func TestTriggerTypesLifecycleEventForALB(t *testing.T) {
 		ResponseRawPayload: []byte(`{"statusCode": 200}`),
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
 		"request_id":                        "test-request-id",
 		"http.status_code":                  "200",
@@ -609,7 +630,8 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -630,6 +652,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 
 	// assert http.status_code is 500
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:elasticloadbalancing:us-east-2:123456789012:targetgroup/lambda-xyz/123abc",
 		"request_id":                        "test-request-id",
 		"http.status_code":                  "500",
@@ -671,6 +694,7 @@ func TestTriggerTypesLifecycleEventForCloudwatch(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:events:us-east-1:123456789012:rule/ExampleRule",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "cloudwatch-events",
@@ -693,6 +717,7 @@ func TestTriggerTypesLifecycleEventForCloudwatchLogs(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:logs:us-east-1:123456789012:log-group:testLogGroup",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "cloudwatch-logs",
@@ -715,6 +740,7 @@ func TestTriggerTypesLifecycleEventForDynamoDB(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:dynamodb:us-east-1:123456789012:table/ExampleTableWithStream/stream/2015-06-27T00:48:05.899",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "dynamodb",
@@ -737,6 +763,7 @@ func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:kinesis:sa-east-1:425362996713:stream/kinesisStream",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "kinesis",
@@ -759,6 +786,7 @@ func TestTriggerTypesLifecycleEventForS3(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "aws:s3:sample:event:source",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "s3",
@@ -781,6 +809,7 @@ func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:sns:sa-east-1:425362996713:serverlessTracingTopicPy",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "sns",
@@ -803,6 +832,7 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:sqs:sa-east-1:425362996713:InferredSpansQueueNode",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "sqs",
@@ -844,8 +874,97 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 
 	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
 	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	// These IDs are B64 decoded from the snssqs.json event sample's _datadog MessageAttribute
+	expectedTraceID := uint64(1728904347387697031)
+	expectedParentID := uint64(353722510835624345)
 
+	assert.Equal(t, expectedTraceID, snsSpan.TraceID)
+	assert.Equal(t, expectedParentID, snsSpan.ParentID)
 	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
+}
+
+func TestTriggerTypesLifecycleEventForSNSSQSNoDdContext(t *testing.T) {
+
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("snssqs_no_dd_context.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
+	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectedTraceID := uint64(0)
+	expectedParentID := uint64(0)
+
+	assert.Equal(t, expectedTraceID, snsSpan.TraceID)
+	assert.Equal(t, expectedParentID, snsSpan.ParentID)
+	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
+}
+
+func TestTriggerTypesLifecycleEventForSQSNoDdContext(t *testing.T) {
+
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("sqs_no_dd_context.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectedTraceID := uint64(0)
+	expectedParentID := uint64(0)
+
+	assert.Equal(t, expectedTraceID, sqsSpan.TraceID)
+	assert.Equal(t, expectedParentID, sqsSpan.ParentID)
 }
 
 func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
@@ -864,6 +983,7 @@ func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
+		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "eventbridge.custom.event.sender",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "eventbridge",

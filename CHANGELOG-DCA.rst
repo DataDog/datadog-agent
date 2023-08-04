@@ -2,6 +2,73 @@
 Release Notes
 =============
 
+.. _Release Notes_7.46.0:
+
+7.46.0 / 6.46.0
+======
+
+.. _Release Notes_7.46.0_New Features:
+
+New Features
+------------
+
+- Enable collection of Vertical Pod Autoscalers by default in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect conditions for a variety of Kubernetes resources.
+
+- Collect persistent volume source in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the timeout for idle HTTP connections.
+
+- When the cluster-agent is started with ``hostNetwork: true``, the leader election mechanism was using a node name instead of the pod name. This was breaking the “follower to leader” forwarding mechanism.
+  This change introduce the ``DD_POD_NAME`` environment variable as a more reliable way to set the cluster-agent pod name. It is supposed to be filled by the Kubernetes downward API.
+
+
+.. _Release Notes_7.45.0:
+
+7.45.0 / 6.45.0
+======
+
+.. _Release Notes_7.45.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add "active" tag on the telemetry datadog.cluster_agent.external_metrics.datadog_metrics tag.
+  The label active is true if DatadogMetrics CR is used, false otherwise.
+
+- Library injection via Admission Controller: Allow configuring the CPU and Memory requests/limits for library init containers.
+
+- Validate the orchestration config provided by the user.
+
+
+.. _Release Notes_7.45.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the admission controller in socket mode for pods with init containers.
+
+- Fix resource requirements detection for containers without any request and
+  limit set.
+
+- The KSM core check now correctly handles labels and annotations with
+  uppercase letters defined in the "labels_as_tags" and "annotations_as_tags"
+  config attributes.
+
+
 .. _Release Notes_7.44.0:
 
 7.44.0 / 6.44.0

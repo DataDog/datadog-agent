@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package tc
 
@@ -13,14 +12,16 @@ import (
 	"os"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/vishvananda/netlink"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // NetDeviceKey is used to uniquely identify a network device
@@ -110,6 +111,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
 		} else {
 			tcr.programs[deviceKey] = newProbe
+			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, device.GetKey()), "cws")
 		}
 	}
 	return combinedErr.ErrorOrNil()

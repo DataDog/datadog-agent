@@ -15,7 +15,6 @@ type ConnTuple struct {
 	Metadata uint32
 }
 type TCPStats struct {
-	Retransmits       uint32
 	Rtt               uint32
 	Rtt_var           uint32
 	State_transitions uint16
@@ -30,14 +29,14 @@ type ConnStats struct {
 	Sent_packets   uint64
 	Recv_packets   uint64
 	Direction      uint8
-	Conn_tags      uint8
 	Protocol_stack ProtocolStack
-	Pad_cgo_0      [2]byte
+	Pad_cgo_0      [3]byte
 }
 type Conn struct {
-	Tup        ConnTuple
-	Conn_stats ConnStats
-	Tcp_stats  TCPStats
+	Tup             ConnTuple
+	Conn_stats      ConnStats
+	Tcp_stats       TCPStats
+	Tcp_retransmits uint32
 }
 type Batch struct {
 	C0  Conn
@@ -50,11 +49,12 @@ type Batch struct {
 type Telemetry struct {
 	Tcp_failed_connect  uint64
 	Tcp_sent_miscounts  uint64
-	Missed_tcp_close    uint64
-	Missed_udp_close    uint64
+	Unbatched_tcp_close uint64
+	Unbatched_udp_close uint64
 	Udp_sends_processed uint64
 	Udp_sends_missed    uint64
 	Udp_dropped_conns   uint64
+	Tcp_dropped_conns   uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -101,6 +101,8 @@ const (
 
 const BatchSize = 0x4
 const SizeofBatch = 0x1f0
+
+const SizeofConn = 0x78
 
 type ClassificationProgram = uint32
 

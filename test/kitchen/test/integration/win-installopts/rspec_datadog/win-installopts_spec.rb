@@ -57,8 +57,8 @@ end
 
 
 describe 'win-installopts' do
-  it_behaves_like 'an installed Agent'
-  it_behaves_like 'a running Agent with no errors'
+  include_examples 'Agent install'
   it_behaves_like 'a configured Agent'
+  include_examples 'Agent uninstall'
 end
   

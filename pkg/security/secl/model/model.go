@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -output accessors_unix.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers-tags windows -field-handlers field_handlers_windows.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
 package model
 
@@ -28,6 +29,10 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	// TmpFS tmpfs
+	TmpFS = "tmpfs"
+	// UnknownFS unknow filesystem
+	UnknownFS = "unknown"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -182,6 +187,7 @@ type ContainerContext struct {
 	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
 	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved  bool     `field:"-"`
 }
 
 type Status uint32
@@ -247,7 +253,6 @@ type Event struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-" platform:"linux"`
 	PIDContext             PIDContext             `field:"-" json:"-" platform:"linux"`
 	SpanContext            SpanContext            `field:"-" json:"-" platform:"linux"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*" platform:"linux"`
@@ -296,14 +301,15 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount           UmountEvent           `field:"-" json:"-" platform:"linux"`
-	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
-	MountReleased    MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
-	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
-	NetDevice        NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
-	VethPair         VethPairEvent         `field:"-" json:"-" platform:"linux"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+	ProcessCacheEntry *ProcessCacheEntry    `field:"-" json:"-" platform:"linux"`
+	Umount            UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry  InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs          ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased     MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing     CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice         NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair          VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS    UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
 
 	// mark event with having error
 	Error error `field:"-" json:"-"`
@@ -365,9 +371,32 @@ func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
 }
 
-// IsInProfile return true if the event was fount in the profile
+// IsInProfile return true if the event was found in the profile
 func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
+func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
+	return AnomalyDetectionSyscallEventType == e.GetEventType()
+}
+
+// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
+func (e *Event) IsAnomalyDetectionEvent() bool {
+	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
+		return false
+	}
+
+	// first, check if the current event is a kernel generated anomaly detection event
+	if e.IsKernelSpaceAnomalyDetectionEvent() {
+		return true
+	} else if !e.SecurityProfileContext.CanGenerateAnomaliesFor(e.GetEventType()) {
+		// the profile can't generate anomalies for the current event type
+		return false
+	} else if e.IsInProfile() {
+		return false
+	}
+	return true
 }
 
 // AddToFlags adds a flag to the event
@@ -404,6 +433,11 @@ func (e *Event) GetTags() []string {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}
 	return tags
+}
+
+// GetWorkloadID returns an ID that represents the workload
+func (e *Event) GetWorkloadID() string {
+	return e.SecurityProfileContext.Name
 }
 
 // Retain the event
@@ -537,6 +571,18 @@ type Credentials struct {
 	CapPermitted uint64 `field:"cap_permitted"` // SECLDoc[cap_permitted] Definition:`Permitted capability set of the process` Constants:`Kernel Capability constants`
 }
 
+// Equals returns if both credentials are equal
+func (c *Credentials) Equals(o *Credentials) bool {
+	return (c.UID == o.UID &&
+		c.GID == o.GID &&
+		c.EUID == o.EUID &&
+		c.EGID == o.EGID &&
+		c.FSUID == o.FSUID &&
+		c.FSGID == o.FSGID &&
+		c.CapEffective == o.CapEffective &&
+		c.CapPermitted == o.CapPermitted)
+}
+
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (p *Process) GetPathResolutionError() string {
 	return p.FileEvent.GetPathResolutionError()
@@ -583,7 +629,7 @@ type Process struct {
 	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
-	Credentials ``
+	Credentials
 
 	ArgsID uint32 `field:"-" json:"-"`
 	EnvsID uint32 `field:"-" json:"-"`
@@ -610,7 +656,8 @@ type Process struct {
 	ScrubbedArgsTruncated bool           `field:"-" json:"-"`
 	Variables             eval.Variables `field:"-" json:"-"`
 
-	IsThread bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsThread    bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExecChild bool `field:"-"`         // Indicates whether the process is an exec child of its parent
 
 	Source uint64 `field:"-" json:"-"`
 }
@@ -650,6 +697,11 @@ type FileFields struct {
 	Flags int32  `field:"-" json:"-"`
 }
 
+// Equals compares two FileFields
+func (f *FileFields) Equals(o *FileFields) bool {
+	return f.Inode == o.Inode && f.MountID == o.MountID && f.MTime == o.MTime && f.UID == o.UID && f.GID == o.GID && f.Mode == o.Mode
+}
+
 // IsFileless return whether it is a file less access
 func (f *FileFields) IsFileless() bool {
 	// TODO(safchain) fix this heuristic by add a flag in the event intead of using mount ID 0
@@ -671,6 +723,57 @@ func (f *FileFields) GetInUpperLayer() bool {
 	return f.Flags&UpperLayer != 0
 }
 
+// HashState is used to prevent the hash resolver from retrying to hash a file
+type HashState int
+
+const (
+	// NoHash means that computing a hash hasn't been attempted
+	NoHash HashState = iota
+	// Done means that the hashes were already computed
+	Done
+	// FileNotFound means that the underlying file is not longer available to compute the hash
+	FileNotFound
+	// PathnameResolutionError means that the underlying file wasn't properly resolved
+	PathnameResolutionError
+	// FileTooBig means that the underlying file is larger than the hash resolver file size limit
+	FileTooBig
+	// EventTypeNotConfigured means that the event type prevents a hash from being computed
+	EventTypeNotConfigured
+	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
+	HashWasRateLimited
+	// UnknownHashError means that we couldn't hash the file and we don't know why
+	UnknownHashError
+	// MaxHashState is used for initializations
+	MaxHashState
+)
+
+// HashAlgorithm is used to configure the hash algorithms of the hash resolver
+type HashAlgorithm int
+
+const (
+	// SHA1 is used to identify a SHA1 hash
+	SHA1 HashAlgorithm = iota
+	// SHA256 is used to identify a SHA256 hash
+	SHA256
+	// MD5 is used to identify a MD5 hash
+	MD5
+	// MaxHashAlgorithm is used for initializations
+	MaxHashAlgorithm
+)
+
+func (ha HashAlgorithm) String() string {
+	switch ha {
+	case SHA1:
+		return "sha1"
+	case SHA256:
+		return "sha256"
+	case MD5:
+		return "md5"
+	default:
+		return ""
+	}
+}
+
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields ``
@@ -685,9 +788,17 @@ type FileEvent struct {
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
+	HashState HashState `field:"-"`
+	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
+
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
 	IsBasenameStrResolved bool `field:"-" json:"-"`
+}
+
+// Equals compare two FileEvent
+func (e *FileEvent) Equals(o *FileEvent) bool {
+	return e.FileFields.Equals(&o.FileFields)
 }
 
 // SetPathnameStr set and mark as resolved
@@ -708,6 +819,11 @@ func (e *FileEvent) GetPathResolutionError() string {
 		return e.PathResolutionError.Error()
 	}
 	return ""
+}
+
+// IsOverlayFS returns whether it is an overlay fs
+func (e *FileEvent) IsOverlayFS() bool {
+	return e.Filesystem == "overlay"
 }
 
 // InvalidateDentryEvent defines a invalidate dentry event
@@ -742,18 +858,15 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32 `field:"-"`
-	GroupID        uint32 `field:"-"`
-	Device         uint32 `field:"-"`
-	ParentMountID  uint32 `field:"-"`
-	ParentInode    uint64 `field:"-"`
-	RootMountID    uint32 `field:"-"`
-	RootInode      uint64 `field:"-"`
-	BindSrcMountID uint32 `field:"-"`
-	FSType         string `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string `field:"-"`
-	RootStr        string `field:"-"`
-	Path           string `field:"-"`
+	MountID        uint32  `field:"-"`
+	Device         uint32  `field:"-"`
+	ParentPathKey  PathKey `field:"-"`
+	RootPathKey    PathKey `field:"-"`
+	BindSrcMountID uint32  `field:"-"`
+	FSType         string  `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr  string  `field:"-"`
+	RootStr        string  `field:"-"`
+	Path           string  `field:"-"`
 }
 
 // MountEvent represents a mount event
@@ -825,15 +938,19 @@ type ProcessCacheEntry struct {
 }
 
 const (
-	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromUnknown = iota
+	ProcessCacheEntryFromEvent
 	ProcessCacheEntryFromKernelMap
 	ProcessCacheEntryFromProcFS
+	ProcessCacheEntryFromSnapshot
 )
 
 var ProcessSources = [...]string{
-	"Event",
-	"KernelMap",
-	"ProcFS",
+	"unknown",
+	"event",
+	"map",
+	"procfs_fallback",
+	"procfs_snapshot",
 }
 
 func ProcessSourceToString(source uint64) string {
@@ -933,7 +1050,7 @@ type PIDContext struct {
 	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	Inode     uint64 `field:"-"`          // used to track exec and event loss
+	ExecInode uint64 `field:"-"`          // used to track exec and event loss
 }
 
 // RenameEvent represents a rename event
@@ -1259,6 +1376,7 @@ type ExtraFieldHandlers interface {
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
+	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -1271,7 +1389,7 @@ func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerC
 	return nil, false
 }
 
-// ResolveEventTimestamp stub implementation
+// ResolveEventTime stub implementation
 func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 	return ev.Timestamp
 }
@@ -1279,4 +1397,9 @@ func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 // GetProcessService stub implementation
 func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
+}
+
+// ResolveHashes resolves the hash of the provided file
+func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
+	return nil
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-2021 Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package orchestrator
 
@@ -14,12 +13,11 @@ import (
 	"math/rand"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -27,12 +25,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
+	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
 )
 
 const (
 	maximumWaitForAPIServer = 10 * time.Second
 	collectionInterval      = 10 * time.Second
+	defaultResyncInterval   = 300 * time.Second
 )
 
 func init() {
@@ -63,14 +69,15 @@ func (c *OrchestratorInstance) parse(data []byte) error {
 // OrchestratorCheck wraps the config and the informers needed to run the check
 type OrchestratorCheck struct {
 	core.CheckBase
-	orchestratorConfig *orchcfg.OrchestratorConfig
-	instance           *OrchestratorInstance
-	collectorBundle    *CollectorBundle
-	stopCh             chan struct{}
-	clusterID          string
-	groupID            *atomic.Int32
-	isCLCRunner        bool
-	apiClient          *apiserver.APIClient
+	orchestratorConfig          *orchcfg.OrchestratorConfig
+	instance                    *OrchestratorInstance
+	collectorBundle             *CollectorBundle
+	stopCh                      chan struct{}
+	clusterID                   string
+	groupID                     *atomic.Int32
+	isCLCRunner                 bool
+	apiClient                   *apiserver.APIClient
+	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
@@ -142,6 +149,8 @@ func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, in
 		return err
 	}
 
+	o.orchestratorInformerFactory = getOrchestratorInformerFactory(o.apiClient)
+
 	// Create a new bundle for the check.
 	o.collectorBundle = NewCollectorBundle(o)
 
@@ -189,4 +198,19 @@ func (o *OrchestratorCheck) Run() error {
 func (o *OrchestratorCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", o.ID())
 	close(o.stopCh)
+}
+
+func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.OrchestratorInformerFactory {
+	of := &collectors.OrchestratorInformerFactory{
+		InformerFactory:        informers.NewSharedInformerFactory(apiClient.Cl, defaultResyncInterval),
+		CRDInformerFactory:     externalversions.NewSharedInformerFactory(apiClient.CRDClient, defaultResyncInterval),
+		DynamicInformerFactory: dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicCl, defaultResyncInterval),
+		VPAInformerFactory:     vpai.NewSharedInformerFactory(apiClient.VPAClient, defaultResyncInterval),
+	}
+
+	tweakListOptions := func(options *metav1.ListOptions) {
+		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
+	}
+	of.UnassignedPodInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.Cl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions))
+	return of
 }

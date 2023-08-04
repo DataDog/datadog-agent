@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -91,6 +90,57 @@ func Test_calculateBusyness(t *testing.T) {
 				},
 			},
 			want: 200,
+		},
+		{
+			name: "with histogrambuckets case",
+			stats: types.CLCRunnersStats{
+				"cluster check": types.CLCRunnerStats{
+					AverageExecutionTime: 100,
+					MetricSamples:        100,
+					HistogramBuckets:     100,
+					IsClusterCheck:       true,
+				},
+				"node check": types.CLCRunnerStats{
+					AverageExecutionTime: 100,
+					MetricSamples:        100,
+					HistogramBuckets:     100,
+					IsClusterCheck:       false,
+				},
+				"failed check": types.CLCRunnerStats{
+					AverageExecutionTime: 100,
+					MetricSamples:        100,
+					HistogramBuckets:     100,
+					LastExecFailed:       true,
+				},
+			},
+			want: 400,
+		},
+		{
+			name: "with events case",
+			stats: types.CLCRunnersStats{
+				"cluster check": types.CLCRunnerStats{
+					AverageExecutionTime: 100,
+					MetricSamples:        100,
+					HistogramBuckets:     100,
+					Events:               100,
+					IsClusterCheck:       true,
+				},
+				"node check": types.CLCRunnerStats{
+					AverageExecutionTime: 100,
+					MetricSamples:        100,
+					HistogramBuckets:     100,
+					Events:               100,
+					IsClusterCheck:       false,
+				},
+				"failed check": types.CLCRunnerStats{
+					AverageExecutionTime: 100,
+					MetricSamples:        100,
+					HistogramBuckets:     100,
+					Events:               100,
+					LastExecFailed:       true,
+				},
+			},
+			want: 440,
 		},
 	}
 	for _, tt := range tests {

@@ -76,9 +76,8 @@ Agent (v7.44.0-rc-7)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewStatus(tt.payload)
-
-			isReady, err := s.IsReady()
+			s := newStatus(tt.payload)
+			isReady, err := s.isReady()
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedReady, isReady)
 		})

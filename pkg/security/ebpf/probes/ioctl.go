@@ -4,7 +4,6 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -15,7 +14,7 @@ var ioctlProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_vfs_ioctl",
+			EBPFFuncName: "hook_do_vfs_ioctl",
 		},
 	},
 }

@@ -84,6 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					commonpath.PyChecksPath,
 					commonpath.DefaultLogFile,
 					commonpath.DefaultJmxLogFile,
+					commonpath.DefaultDogstatsDLogFile,
 				)),
 				flare.Module,
 				core.Bundle,
@@ -257,7 +258,7 @@ func makeFlare(flareComp flare.Component, log log.Component, config config.Compo
 		}
 	}
 
-	response, e := flareComp.Send(filePath, caseID, customerEmail)
+	response, e := flareComp.Send(filePath, caseID, customerEmail, "local")
 	fmt.Println(response)
 	if e != nil {
 		return e

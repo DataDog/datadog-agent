@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package ecs
 
@@ -28,12 +27,14 @@ const (
 )
 
 type collector struct {
-	store           workloadmeta.Store
-	metaV1          *v1.Client
-	clusterName     string
-	hasResourceTags bool
-	resourceTags    map[string]resourceTags
-	seen            map[workloadmeta.EntityID]struct{}
+	store               workloadmeta.Store
+	metaV1              v1.Client
+	metaV3or4           func(metaURI, metaVersion string) v3or4.Client
+	clusterName         string
+	hasResourceTags     bool
+	collectResourceTags bool
+	resourceTags        map[string]resourceTags
+	seen                map[workloadmeta.EntityID]struct{}
 }
 
 type resourceTags struct {
@@ -63,7 +64,13 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
+	// This only exists to allow overriding for testing
+	c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
+		return v3or4.NewClient(metaURI, metaVersion)
+	}
+
 	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
+	c.collectResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
 
 	instance, err := c.metaV1.GetInstance(ctx)
 	if err == nil {
@@ -123,7 +130,8 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 			Containers:  taskContainers,
 		}
 
-		if c.hasResourceTags {
+		// Only fetch tags if they're both available and used
+		if c.hasResourceTags && c.collectResourceTags {
 			rt := c.getResourceTags(ctx, entity)
 			entity.ContainerInstanceTags = rt.containerInstanceTags
 			entity.Tags = rt.tags
@@ -244,7 +252,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 		return rt
 	}
 
-	metaV3orV4 := v3or4.NewClient(metaURI, metaVersion)
+	metaV3orV4 := c.metaV3or4(metaURI, metaVersion)
 	taskWithTags, err := metaV3orV4.GetTaskWithTags(ctx)
 	if err != nil {
 		log.Errorf("failed to get task with tags from metadata %s API: %s", metaVersion, err)

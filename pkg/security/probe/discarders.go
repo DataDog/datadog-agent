@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -20,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,7 +38,7 @@ const (
 	maxParentDiscarderDepth = 3
 
 	// allEventTypes is a mask to match all the events
-	allEventTypes = math.MaxUint32
+	allEventTypes = math.MaxUint32 //nolint:deadcode,unused
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)
@@ -63,12 +63,6 @@ type Discarder struct {
 	Field eval.Field
 }
 
-// DiscarderStats is used to collect kernel space metrics about discarders
-type DiscarderStats struct {
-	DiscarderAdded uint64 `yaml:"discarder_added"`
-	EventDiscarded uint64 `yaml:"event_discarded"`
-}
-
 // ErrDiscarderNotSupported is returned when trying to discover a discarder on a field that doesn't support them
 type ErrDiscarderNotSupported struct {
 	Field string
@@ -87,7 +81,7 @@ var (
 )
 
 var (
-	dentryInvalidDiscarder = []interface{}{""}
+	dentryInvalidDiscarder = []string{""}
 	eventZeroDiscarder     = &model.Event{
 		FieldHandlers:    &model.DefaultFieldHandlers{},
 		ContainerContext: &model.ContainerContext{},
@@ -95,7 +89,7 @@ var (
 )
 
 // InvalidDiscarders exposes list of values that are not discarders
-var InvalidDiscarders = map[eval.Field][]interface{}{
+var InvalidDiscarders = map[eval.Field][]string{
 	"open.file.path":               dentryInvalidDiscarder,
 	"unlink.file.path":             dentryInvalidDiscarder,
 	"chmod.file.path":              dentryInvalidDiscarder,
@@ -126,10 +120,12 @@ func marshalDiscardHeader(req *erpc.ERPCRequest, eventType model.EventType, time
 	return 16
 }
 
+//nolint:deadcode,unused
 type pidDiscarders struct {
 	erpc *erpc.ERPC
 }
 
+//nolint:deadcode,unused
 func (p *pidDiscarders) discardWithTimeout(req *erpc.ERPCRequest, eventType model.EventType, pid uint32, timeout int64) error {
 	req.OP = erpc.DiscardPidOp
 	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
@@ -138,6 +134,7 @@ func (p *pidDiscarders) discardWithTimeout(req *erpc.ERPCRequest, eventType mode
 	return p.erpc.Request(req)
 }
 
+//nolint:deadcode,unused
 func newPidDiscarders(erpc *erpc.ERPC) *pidDiscarders {
 	return &pidDiscarders{erpc: erpc}
 }
@@ -429,7 +426,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
@@ -445,29 +442,30 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.R
 		return false, 0, 0, err
 	}
 
+	parentKey := pathKey
+
 	for i := 0; i < discarderDepth; i++ {
-		parentMountID, parentInode, err := id.dentryResolver.GetParent(mountID, inode, pathID)
-		if err != nil || dentry.IsFakeInode(parentInode) {
+		parentKey, err = id.dentryResolver.GetParent(parentKey)
+		if err != nil || dentry.IsFakeInode(pathKey.Inode) {
 			if i == 0 {
 				return false, 0, 0, err
 			}
 			break
 		}
-		mountID, inode = parentMountID, parentInode
 	}
 
 	// do not insert multiple time the same discarder
-	if id.isRecentlyAdded(mountID, inode, timestamp) {
+	if id.isRecentlyAdded(parentKey.MountID, parentKey.Inode, timestamp) {
 		return false, 0, 0, nil
 	}
 
-	if err := id.discardInode(req, eventType, mountID, inode, false); err != nil {
+	if err := id.discardInode(req, eventType, parentKey.MountID, parentKey.Inode, false); err != nil {
 		return false, 0, 0, err
 	}
 
-	id.recentlyAdded(mountID, inode, timestamp)
+	id.recentlyAdded(parentKey.MountID, parentKey.Inode, timestamp)
 
-	return true, mountID, inode, nil
+	return true, parentKey.MountID, parentKey.Inode, nil
 }
 
 // function used to retrieve discarder information, *.file.path, FileEvent, file deleted
@@ -480,7 +478,6 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 		if fileEvent.PathResolutionError != nil {
 			return false, fileEvent.PathResolutionError
 		}
-		mountID, inode, pathID := fileEvent.MountID, fileEvent.Inode, fileEvent.PathID
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
@@ -497,13 +494,13 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 				return false, nil
 			}
 
-			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
+			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.PathKey, event.TimestampRaw)
 			if !isDiscarded && !isDeleted && err == nil {
-				if !dentry.IsFakeInode(inode) {
-					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
+				if !dentry.IsFakeInode(fileEvent.PathKey.Inode) {
+					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.PathKey.Inode, filename)
 
 					// not able to discard the parent then only discard the filename
-					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
+					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, fileEvent.PathKey.MountID, fileEvent.PathKey.Inode, true)
 				}
 			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
@@ -521,27 +518,23 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 }
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
-func isInvalidDiscarder(field eval.Field, value interface{}) bool {
-	values, exists := invalidDiscarders[field]
-	if !exists {
-		return false
-	}
-
-	return values[value]
+func isInvalidDiscarder(field eval.Field, value string) bool {
+	return invalidDiscarders[invalidDiscarderEntry{
+		field: field,
+		value: value,
+	}]
 }
 
 // rearrange invalid discarders for fast lookup
-func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
-	invalidDiscarders := make(map[eval.Field]map[interface{}]bool)
+func createInvalidDiscardersCache() map[invalidDiscarderEntry]bool {
+	invalidDiscarders := make(map[invalidDiscarderEntry]bool)
 
 	for field, values := range InvalidDiscarders {
-		ivalues := invalidDiscarders[field]
-		if ivalues == nil {
-			ivalues = make(map[interface{}]bool)
-			invalidDiscarders[field] = ivalues
-		}
 		for _, value := range values {
-			ivalues[value] = true
+			invalidDiscarders[invalidDiscarderEntry{
+				field: field,
+				value: value,
+			}] = true
 		}
 	}
 
@@ -565,10 +558,10 @@ type InodeDiscarderDump struct {
 
 // DiscardersDump describes a dump of discarders
 type DiscardersDump struct {
-	Date   time.Time                 `yaml:"date"`
-	Inodes []InodeDiscarderDump      `yaml:"inodes"`
-	Pids   []PidDiscarderDump        `yaml:"pids"`
-	Stats  map[string]DiscarderStats `yaml:"stats"`
+	Date   time.Time                           `yaml:"date"`
+	Inodes []InodeDiscarderDump                `yaml:"inodes"`
+	Pids   []PidDiscarderDump                  `yaml:"pids"`
+	Stats  map[string]discarder.DiscarderStats `yaml:"stats"`
 }
 
 func dumpPidDiscarders(resolver *dentry.Resolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
@@ -624,7 +617,7 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 			MountID:              inodeEntry.PathKey.MountID,
 		}
 
-		path, err := resolver.Resolve(inodeEntry.PathKey.MountID, inodeEntry.PathKey.Inode, inodeEntry.PathKey.PathID, false)
+		path, err := resolver.Resolve(inodeEntry.PathKey, false)
 		if err == nil {
 			record.FilePath = path
 		}
@@ -640,14 +633,14 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 	return dumps, nil
 }
 
-func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error) {
+func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.DiscarderStats, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	stats := make(map[string]DiscarderStats)
-	perCpu := make([]DiscarderStats, numCPU)
+	stats := make(map[string]discarder.DiscarderStats)
+	perCpu := make([]discarder.DiscarderStats, numCPU)
 
 	var eventType uint32
 	for _, buffer := range buffers {
@@ -659,7 +652,7 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error)
 
 				entry, exists := stats[key]
 				if !exists {
-					stats[key] = DiscarderStats{
+					stats[key] = discarder.DiscarderStats{
 						DiscarderAdded: stat.DiscarderAdded,
 						EventDiscarded: stat.EventDiscarded,
 					}
@@ -703,7 +696,12 @@ func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsB
 	return dump, nil
 }
 
-var invalidDiscarders map[eval.Field]map[interface{}]bool
+type invalidDiscarderEntry struct {
+	field eval.Field
+	value string
+}
+
+var invalidDiscarders map[invalidDiscarderEntry]bool
 
 func init() {
 	invalidDiscarders = createInvalidDiscardersCache()

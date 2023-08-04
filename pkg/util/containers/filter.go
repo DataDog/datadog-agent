@@ -63,6 +63,8 @@ const (
 	pauseContainerCDK = `image:cdk/pause.*`
 	// - giantswarm/pause
 	pauseContainerGiantSwarm = `image:giantswarm/pause.*`
+	// - registry.k8s.io/pause
+	pauseContainerRegistryK8sIo = `image:registry\.k8s\.io/pause.*`
 
 	// filter prefixes for inclusion/exclusion
 	imageFilterPrefix         = `image:`
@@ -185,6 +187,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 			pauseContainerUpstream,
 			pauseContainerCDK,
 			pauseContainerGiantSwarm,
+			pauseContainerRegistryK8sIo,
 		)
 	}
 
@@ -280,6 +283,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 			pauseContainerUpstream,
 			pauseContainerCDK,
 			pauseContainerGiantSwarm,
+			pauseContainerRegistryK8sIo,
 		)
 	}
 	return NewFilter(MetricsFilter, includeList, excludeList)

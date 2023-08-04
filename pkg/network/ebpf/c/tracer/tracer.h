@@ -43,8 +43,6 @@ typedef struct {
     __u64 sent_packets;
     __u64 recv_packets;
     __u8 direction;
-    // keep the conn_tags u8 to keep the struct slim
-    __u8 conn_tags;
     protocol_stack_t protocol_stack;
 } conn_stats_ts_t;
 
@@ -57,7 +55,6 @@ typedef enum
 } conn_flags_t;
 
 typedef struct {
-    __u32 retransmits;
     __u32 rtt;
     __u32 rtt_var;
 
@@ -70,6 +67,7 @@ typedef struct {
     conn_tuple_t tup;
     conn_stats_ts_t conn_stats;
     tcp_stats_t tcp_stats;
+    __u32 tcp_retransmits;
 } conn_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
@@ -93,11 +91,12 @@ typedef struct {
 typedef struct {
     __u64 tcp_failed_connect;
     __u64 tcp_sent_miscounts;
-    __u64 missed_tcp_close;
-    __u64 missed_udp_close;
+    __u64 unbatched_tcp_close;
+    __u64 unbatched_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
+    __u64 tcp_dropped_conns;
 } telemetry_t;
 
 typedef struct {

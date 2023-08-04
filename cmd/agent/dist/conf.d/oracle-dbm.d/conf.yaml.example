@@ -15,7 +15,6 @@ instances:
   ## If you use Oracle names resolution via tnsnamas.ora or ldap.ora, 
   ## you must specify 'tns_alias' instead of 'server' and 'service_name'.
   # 
-
 - server: <HOST> or server: <HOST>:<PORT>
 
   ## @param port - string - optional
@@ -65,6 +64,33 @@ instances:
   ## @param reported_hostname - string - optional
   ## Set the reported hostname for this instance. This value overrides the hostname detected by the Agent
 
+  ## Configure collection of database sysmetrics
+  #
+  # sysmetrics:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of database sysmetrics
+      #
+      # enabled: true
+
+  ## Configure collection of tablespace usage
+  #
+  # tablespaces:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of tablespace usage
+      #
+      # enabled: true
+
+  ## Configure collection of process memory usage
+  #
+  # processes:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of process memory usage
+      #
+      # enabled: true
+
   ## @param dbm - boolean - optional - default: false
   ## Set to `true` to enable Database Monitoring.
   #
@@ -91,6 +117,15 @@ instances:
       ## Configure query metrics collection for Datadog agent statements
       #
       # include_datadog_queries: false
+  
+  ## Configure collection of execution plans
+  #
+  # execution_plans:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Enable collection of execution plans. Requires query metrics.
+      #
+      # enabled: false
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
@@ -129,6 +164,15 @@ instances:
       #
       # collect_comments: true
 
+    ## Configure collection of shared memory usage
+    #
+    # shared_memory:
+
+        ## @param enabled - boolean - optional - default: true. Requires `dbm: true`.
+        ## Enable collection of database shared memory usages
+        #
+        # enabled: true
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
@@ -137,3 +181,56 @@ instances:
     # tags:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
+
+    ## @param custom_queries - list of mappings - optional
+    ## Each query must have 2 fields, and can have a third optional field:
+    ##
+    ## 1. query - The SQL to execute. It can be a simple statement or a multi-line script.
+    ##            Use the pipe `|` if you require a multi-line script.
+    ## 2. columns - The list representing each column, ordered sequentially from left to right.
+    ##              The number of columns must equal the number of columns returned in the query.
+    ##              There are 2 required pieces of data:
+    ##                a. name - The suffix to append to `<INTEGRATION>.` to form
+    ##                          the full metric name. If `type` is a `tag` type, this column is
+    ##                          considered a tag and applied to every
+    ##                          metric collected by this particular query.
+    ##                b. type - The submission method (gauge, monotonic_count, etc.) or tag.
+    ## 3. tags (optional) - A list of tags to apply to each metric.
+    ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
+                           The parameter can be defined on a self-managed instance, which
+                           connects to CDB.
+    # custom_queries:
+    #   - query: SELECT foo, COUNT(*) FROM table.events GROUP BY foo
+    #     columns:
+    #     - name: foo
+    #       type: tag
+    #     - name: event.total
+    #       type: gauge
+    #     tags:
+    #     - test:<INTEGRATION>
+    #     pdb: <MYPDB>
+
+  ## Start SQL trace for agent queries
+  ## Requires execute the execute privilege on `dbms_monitor` to datadog user
+  #
+  # agent_sql_trace:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Enable SQL trace
+      #
+      # enabled: false
+
+      ## @param enabled - boolean - optional - default: false
+      ## include bind variables in trace
+      #
+      # binds: false
+
+      ## @param enabled - boolean - optional - default: false
+      ## include wait events in trace
+      #
+      # waits: false
+
+      ## @param enabled - int - optional - default: 10
+      ## Limit the number of traced check executions to avoid filling the file system.
+      #
+      # traced_runs: 10

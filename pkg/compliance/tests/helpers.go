@@ -290,10 +290,6 @@ func (c *assertedRule) Report(event *compliance.CheckEvent) {
 	c.events = append(c.events, event)
 }
 
-func (c *assertedRule) ReportRaw(content []byte, service string, tags ...string) {
-	panic("should not have been called")
-}
-
 func buildSuite(name string, rules ...*assertedRule) string {
 	const suiteTpl = `schema:
   version: 1.0.0

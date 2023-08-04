@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package flare
 
@@ -20,10 +19,19 @@ import (
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
-	common.SetupConfig("./test")
+	common.SetupConfigWithWarnings("./test", "")
 	mockConfig := config.Mock(t)
 	mockConfig.Set("compliance_config.dir", "./test/compliance.d")
 	logFilePath := "./test/logs/agent.log"
+
+	// Mock getLinuxKernelSymbols. It can take a long time to scrub when creating a flare.
+	defer func(f func(flarehelpers.FlareBuilder) error) {
+		linuxKernelSymbols = f
+	}(getLinuxKernelSymbols)
+	linuxKernelSymbols = func(fb flarehelpers.FlareBuilder) error {
+		fb.AddFile("kallsyms", []byte("some kernel symbol"))
+		return nil
+	}
 
 	tests := []struct {
 		name          string

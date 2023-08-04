@@ -4,21 +4,22 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type metricAggregator interface {
 	accumulate(ksmstore.DDMetric)
-	flush(aggregator.Sender, *KSMCheck, *labelJoiner)
+	flush(sender.Sender, *KSMCheck, *labelJoiner)
 }
 
 // maxNumberOfAllowedLabels contains the maximum number of labels that can be used to aggregate metrics.
@@ -44,6 +45,18 @@ type countObjectsAggregator struct {
 	counterAggregator
 }
 
+// resourceAggregator represents an aggregation on a resource metric, where the type of resource is part of the metric
+// in the form of a label, instead of in the name.
+type resourceAggregator struct {
+	ddMetricPrefix   string
+	ddMetricSuffix   string
+	ksmMetricName    string
+	allowedLabels    []string
+	allowedResources []string
+
+	accumulators map[string]map[[maxNumberOfAllowedLabels]string]float64
+}
+
 type cronJob struct {
 	namespace string
 	name      string
@@ -51,7 +64,7 @@ type cronJob struct {
 
 type cronJobState struct {
 	id    int
-	state metrics.ServiceCheckStatus
+	state servicecheck.ServiceCheckStatus
 }
 
 type lastCronJobAggregator struct {
@@ -102,6 +115,29 @@ func newCountObjectsAggregator(ddMetricName, ksmMetricName string, allowedLabels
 	}
 }
 
+func newResourceValuesAggregator(ddMetricPrefix, ddMetricSuffix, ksmMetricName string, allowedLabels, allowedResources []string) metricAggregator {
+	if len(allowedLabels) > maxNumberOfAllowedLabels {
+		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
+		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
+		log.Error("BUG in KSM metric aggregator")
+		return nil
+	}
+
+	accumulators := make(map[string]map[[maxNumberOfAllowedLabels]string]float64)
+	for _, allowedResource := range allowedResources {
+		accumulators[allowedResource] = make(map[[maxNumberOfAllowedLabels]string]float64)
+	}
+
+	return &resourceAggregator{
+		ddMetricPrefix:   ddMetricPrefix,
+		ddMetricSuffix:   ddMetricSuffix,
+		ksmMetricName:    ksmMetricName,
+		allowedLabels:    allowedLabels,
+		allowedResources: allowedResources,
+		accumulators:     accumulators,
+	}
+}
+
 func newLastCronJobAggregator() *lastCronJobAggregator {
 	return &lastCronJobAggregator{
 		accumulator: make(map[cronJob]cronJobState),
@@ -136,15 +172,33 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 	a.accumulator[labelValues]++
 }
 
+func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
+	var labelValues [maxNumberOfAllowedLabels]string
+
+	for i := range a.allowedLabels {
+		if a.allowedLabels[i] == "" {
+			break
+		}
+
+		labelValues[i] = metric.Labels[a.allowedLabels[i]]
+	}
+
+	resource := metric.Labels["resource"]
+
+	if _, ok := a.accumulators[resource]; ok {
+		a.accumulators[resource][labelValues] += metric.Val
+	}
+}
+
 func (a *lastCronJobCompleteAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, metrics.ServiceCheckOK)
+	a.aggregator.accumulate(metric, servicecheck.ServiceCheckOK)
 }
 
 func (a *lastCronJobFailedAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, metrics.ServiceCheckCritical)
+	a.aggregator.accumulate(metric, servicecheck.ServiceCheckCritical)
 }
 
-func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state metrics.ServiceCheckStatus) {
+func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.ServiceCheckStatus) {
 	if condition, found := metric.Labels["condition"]; !found || condition != "true" {
 		return
 	}
@@ -176,7 +230,7 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state metri
 	}
 }
 
-func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for labelValues, count := range a.accumulator {
 
 		labels := make(map[string]string)
@@ -196,15 +250,37 @@ func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJo
 	a.accumulator = make(map[[maxNumberOfAllowedLabels]string]float64)
 }
 
-func (a *lastCronJobCompleteAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+	for _, resource := range a.allowedResources {
+		metricName := fmt.Sprintf("%s%s.%s_%s", ksmMetricPrefix, a.ddMetricPrefix, resource, a.ddMetricSuffix)
+
+		for labelValues, count := range a.accumulators[resource] {
+			labels := make(map[string]string)
+			for i, allowedLabel := range a.allowedLabels {
+				if allowedLabel == "" {
+					break
+				}
+
+				labels[allowedLabel] = labelValues[i]
+			}
+
+			hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
+
+			sender.Gauge(metricName, count, hostname, tags)
+		}
+		a.accumulators[resource] = make(map[[maxNumberOfAllowedLabels]string]float64)
+	}
+}
+
+func (a *lastCronJobCompleteAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	a.aggregator.flush(sender, k, labelJoiner)
 }
 
-func (a *lastCronJobFailedAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *lastCronJobFailedAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	a.aggregator.flush(sender, k, labelJoiner)
 }
 
-func (a *lastCronJobAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for cronjob, state := range a.accumulator {
 		hostname, tags := k.hostnameAndTags(
 			map[string]string{
@@ -225,6 +301,16 @@ func defaultMetricAggregators() map[string]metricAggregator {
 	cronJobAggregator := newLastCronJobAggregator()
 
 	return map[string]metricAggregator{
+		"kube_configmap_info": newCountObjectsAggregator(
+			"configmap.count",
+			"kube_configmap_info",
+			[]string{"namespace"},
+		),
+		"kube_secret_info": newCountObjectsAggregator(
+			"secret.count",
+			"kube_secret_info",
+			[]string{"namespace"},
+		),
 		"kube_apiservice_labels": newCountObjectsAggregator(
 			"apiservice.count",
 			"kube_apiservice_labels",
@@ -312,5 +398,33 @@ func defaultMetricAggregators() map[string]metricAggregator {
 		),
 		"kube_job_complete": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
 		"kube_job_failed":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
+		"kube_node_status_allocatable": newResourceValuesAggregator(
+			"node",
+			"allocatable.total",
+			"kube_node_status_allocatable",
+			[]string{},
+			[]string{"cpu", "memory"},
+		),
+		"kube_node_status_capacity": newResourceValuesAggregator(
+			"node",
+			"capacity.total",
+			"kube_node_status_capacity",
+			[]string{},
+			[]string{"cpu", "memory"},
+		),
+		"kube_pod_container_resource_with_owner_tag_requests": newResourceValuesAggregator(
+			"container",
+			"requested.total",
+			"kube_pod_container_resource_with_owner_tag_requests",
+			[]string{"namespace", "container", "owner_name", "owner_kind"},
+			[]string{"cpu", "memory"},
+		),
+		"kube_pod_container_resource_with_owner_tag_limits": newResourceValuesAggregator(
+			"container",
+			"limit.total",
+			"kube_pod_container_resource_with_owner_tag_limits",
+			[]string{"namespace", "container", "owner_name", "owner_kind"},
+			[]string{"cpu", "memory"},
+		),
 	}
 }

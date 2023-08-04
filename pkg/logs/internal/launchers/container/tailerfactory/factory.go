@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 // Package tailerfactory implements the logic required to determine which kind
 // of tailer to use for a container-related LogSource, and to create that tailer.

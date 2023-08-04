@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -15,66 +14,66 @@ var mountProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_attach_recursive_mnt",
+			EBPFFuncName: "hook_attach_recursive_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_propagate_mnt",
+			EBPFFuncName: "hook_propagate_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_sb_umount",
+			EBPFFuncName: "hook_security_sb_umount",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_clone_mnt",
+			EBPFFuncName: "hook_clone_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe___attach_mnt",
+			EBPFFuncName: "hook___attach_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_attach_mnt",
+			EBPFFuncName: "hook_attach_mnt",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_mnt_set_mountpoint",
+			EBPFFuncName: "hook_mnt_set_mountpoint",
 		},
 	},
 }
 
-func getMountProbes() []*manager.Probe {
+func getMountProbes(fentry bool) []*manager.Probe {
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mount",
-	}, EntryAndExit, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "umount",
-	}, EntryAndExit)...)
+	}, fentry, Exit|SupportFexit)...)
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unshare",
-	}, Entry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 
 	return mountProbes
 }

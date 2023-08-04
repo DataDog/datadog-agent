@@ -6,6 +6,12 @@
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/routing-helpers.h"
 
+// This entry point is needed to bypass a memory limit on socket filters.
+// There is a limitation on number of instructions can be attached to a socket filter,
+// as we classify more protocols, we reached that limit, thus we workaround it
+// by using tail call.
+BPF_PROG_ARRAY(classification_progs, CLASSIFICATION_PROG_MAX)
+
 // This function essentially encodes all routing aspects of tail-calls.
 //
 // For example, if this function gets called from `CLASSIFICATION_QUEUES_PROG`

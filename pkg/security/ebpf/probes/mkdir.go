@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -15,35 +14,35 @@ var mkdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_vfs_mkdir",
+			EBPFFuncName: "hook_vfs_mkdir",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_mkdirat",
+			EBPFFuncName: "hook_do_mkdirat",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_mkdirat",
+			EBPFFuncName: "rethook_do_mkdirat",
 		},
 	},
 }
 
-func getMkdirProbes() []*manager.Probe {
+func getMkdirProbes(fentry bool) []*manager.Probe {
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mkdir",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mkdirat",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return mkdirProbes
 }

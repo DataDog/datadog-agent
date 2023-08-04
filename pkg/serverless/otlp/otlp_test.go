@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//go:build otlp
-// +build otlp
+//go:build serverless && otlp
+// +build serverless,otlp
 
 package otlp
 
@@ -21,9 +21,9 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -111,7 +111,8 @@ func testServerlessOTLPAgentReceivesTraces(client otlptrace.Client, traceChan <-
 
 	select {
 	case <-traceChan:
-	case <-time.After(10 * time.Second):
+	// 1 sec is the amount of time we wait when shutting down the daemon
+	case <-time.After(1 * time.Second):
 		return fmt.Errorf("timeout waiting for span to arrive")
 	}
 	return nil

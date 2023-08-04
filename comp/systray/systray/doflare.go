@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 package systray
 
@@ -215,7 +214,7 @@ func requestFlare(s *systray, caseID, customerEmail string) (response string, e 
 
 	s.log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
 
-	response, e = s.flare.Send(filePath, caseID, customerEmail)
+	response, e = s.flare.Send(filePath, caseID, customerEmail, "local")
 	s.log.Debug(response)
 	if e != nil {
 		return
