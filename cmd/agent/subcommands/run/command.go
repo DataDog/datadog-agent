@@ -439,8 +439,10 @@ func startAgent(
 
 		if err := rcclient.Start("core-agent"); err != nil {
 			pkglog.Errorf("Failed to start the RC client component: %s", err)
+		} else {
+			// Subscribe to `AGENT_TASK` product
+			rcclient.SubscribeAgentTask()
 		}
-		rcclient.SubscribeAgentTask()
 	}
 
 	// create and setup the Autoconfig instance

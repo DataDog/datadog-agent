@@ -90,7 +90,8 @@ func (rc rcClient) Start(agentName string) error {
 func (rc rcClient) SubscribeAgentTask() {
 	rc.taskProcessed = map[string]bool{}
 	if rc.client == nil {
-		pkglog.Errorf("No client")
+		pkglog.Errorf("No remote-config client")
+		return
 	}
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 }
