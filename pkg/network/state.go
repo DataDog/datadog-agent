@@ -243,6 +243,21 @@ func (ns *networkState) GetTelemetryDelta(
 	return nil
 }
 
+func trimConns(conns []ConnectionStats, f func(c *ConnectionStats) bool) []ConnectionStats {
+	removed := 0
+	for i := 0; i < len(conns)-removed; {
+		if f(&conns[i]) {
+			conns[i], conns[len(conns)-removed-1] = conns[len(conns)-removed-1], conns[i]
+			removed++
+			continue
+		}
+
+		i++
+	}
+
+	return conns[:len(conns)-removed]
+}
+
 // GetDelta returns the connections for the given client
 // If the client is not registered yet, we register it and return the connections we have in the global state
 // Otherwise we return both the connections with last stats and the closed connections for this client
@@ -259,32 +274,17 @@ func (ns *networkState) GetDelta(
 
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
-	connsByKey := ns.getConnsByCookie(active)
+	connsByCookie := ns.getConnsByCookie(active)
 
 	client := ns.getClient(id)
-	defer client.Reset(connsByKey)
+	defer client.Reset(connsByCookie)
 
 	// Update all connections with relevant up-to-date stats for client
-	closed := ns.mergeConnections(id, connsByKey)
-
-	trimConns := func(conns []ConnectionStats, f func(c *ConnectionStats) bool) []ConnectionStats {
-		removed := 0
-		for i := 0; i < len(conns)-removed; {
-			if f(&conns[i]) {
-				conns[i], conns[len(conns)-removed-1] = conns[len(conns)-removed-1], conns[i]
-				removed++
-				continue
-			}
-
-			i++
-		}
-
-		return conns[:len(conns)-removed]
-	}
+	closed := ns.mergeConnections(id, connsByCookie)
 
 	// remove connections that are not active anymore
 	active = trimConns(active, func(conn *ConnectionStats) bool {
-		_, ok := connsByKey[conn.Cookie]
+		_, ok := connsByCookie[conn.Cookie]
 		return !ok
 	})
 
@@ -294,15 +294,18 @@ func (ns *networkState) GetDelta(
 	// do local resolution if available
 	resolved := resolver.Resolve(cs)
 
-	// aggregate/roll up connections
-	aggr := newConnectionAggregator(cs.Len(), resolved)
-	active = trimConns(active, func(c *ConnectionStats) bool {
-		return aggr.Aggregate(c)
-	})
+	// aggregate/roll up connections only if we
+	// have container resolution
+	if resolved {
+		aggr := newConnectionAggregator(cs.Len(), resolved)
+		active = trimConns(active, func(c *ConnectionStats) bool {
+			return aggr.Aggregate(c)
+		})
 
-	closed = trimConns(closed, func(c *ConnectionStats) bool {
-		return aggr.Aggregate(c)
-	})
+		closed = trimConns(closed, func(c *ConnectionStats) bool {
+			return aggr.Aggregate(c)
+		})
+	}
 
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -690,10 +693,7 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 	client.lastFetch = now
 
 	// connections aggregated by tuple
-	closed = client.closedConnections
-	removed := 0
-	for i := 0; i < len(closed)-removed; {
-		closedConn := &closed[i]
+	closed = trimConns(client.closedConnections, func(closedConn *ConnectionStats) bool {
 		cookie := closedConn.Cookie
 		if activeConn := active[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
@@ -703,9 +703,7 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 				delete(client.stats, cookie)
 				if activeConn.LastUpdateEpoch > closedConn.LastUpdateEpoch {
 					// keep active connection
-					closed[i], closed[len(closed)-removed-1] = closed[len(closed)-removed-1], closed[i]
-					removed++
-					continue
+					return true
 				}
 
 				// keep closed connection
@@ -718,13 +716,11 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 
 		if closedConn.Last.IsZero() {
 			// not reporting an "empty" connection
-			closed[i], closed[len(closed)-removed-1] = closed[len(closed)-removed-1], closed[i]
-			removed++
-			continue
+			return true
 		}
 
-		i++
-	}
+		return false
+	})
 
 	// Active connections
 	for cookie, c := range active {
@@ -737,6 +733,17 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 			continue
 		}
 	}
+
+	aggr := newConnectionAggregator(len(active)+len(closed), false)
+	for cookie, c := range active {
+		if aggr.Aggregate(c) {
+			delete(active, cookie)
+		}
+	}
+
+	closed = trimConns(closed, func(c *ConnectionStats) bool {
+		return aggr.Aggregate(c)
+	})
 
 	client.closedConnections = closed
 	return closed

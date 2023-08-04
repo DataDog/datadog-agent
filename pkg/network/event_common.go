@@ -153,6 +153,7 @@ func NewConnections(p *PooledConnectionBuffer) *Connections {
 
 func (c *Connections) Reclaim() {
 	c.Conns = nil
+	c.buffer.Reset()
 	c.buffer.Pool.Put(c.buffer.ConnectionBuffer)
 }
 
