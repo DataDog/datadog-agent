@@ -292,6 +292,8 @@ int hook_do_exit(ctx_t *ctx) {
         cleanup_traced_state(tgid);
     }
 
+    pop_syscall(EVENT_ANY);
+
     return 0;
 }
 
