@@ -7,7 +7,7 @@
 set -e
 install_script_version=1.2.0
 dmg_file=/tmp/datadog-agent.dmg
-dmg_base_url="https://s3.amazonaws.com/dd-agent"
+dmg_base_url="https://install.datadoghq.com"
 etc_dir=/opt/datadog-agent/etc
 log_dir=/opt/datadog-agent/logs
 run_dir=/opt/datadog-agent/run
@@ -62,7 +62,7 @@ fi
 
 function find_latest_patch_version_for() {
     major_minor="$1"
-    patch_versions=$(curl "https://s3.amazonaws.com/dd-agent?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
+    patch_versions=$(curl "${dmg_base_url}?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
     if [ -z "$patch_versions" ]; then
         echo "-1"
     fi
