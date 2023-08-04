@@ -96,7 +96,3 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
-  revive:
-    rules:
-      - name: package-comments
-        disabled: true
