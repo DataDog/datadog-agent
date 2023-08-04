@@ -11,7 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI, get_github_token
+from .libs.common.github_api import GithubAPI
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
@@ -712,7 +712,7 @@ def verify_workspace(ctx, branch_name=None):
     if branch_name is None:
         user_name = ctx.run("whoami", hide="out")
         branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
-        github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
+        github = GithubAPI(repository=GITHUB_REPO_NAME)
         check_clean_branch_state(ctx, github, branch_name)
     return branch_name
 

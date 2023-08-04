@@ -93,7 +93,6 @@ class TestStatusCode5XX(unittest.TestCase):
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
             release.COMPATIBLE_MAJOR_VERSIONS[7],
-            request_retry_sleep_time=0,
         )
         self.assertEqual(version, Version(major=7, minor=29, patch=0))
 
