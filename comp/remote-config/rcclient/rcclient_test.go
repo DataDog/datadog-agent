@@ -97,7 +97,7 @@ func TestAgentConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	})
 	assert.Equal(t, "info", mockSettings.logLevel)
-	assert.Equal(t, settings.SourceDefault, mockSettings.source)
+	assert.Equal(t, settings.SourceConfig, mockSettings.source)
 
 	// -----------------
 	// Test scenario #2: log level was changed by the user BEFORE Agent Flare request
