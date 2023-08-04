@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mocksender
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -27,8 +30,7 @@ func NewMockSender(id checkid.ID) *MockSender {
 	opts.DontStartForwarders = true
 	log := log.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
-
+	mockSender.senderManager = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
 	SetSender(mockSender, id)
 
 	return mockSender
@@ -36,12 +38,13 @@ func NewMockSender(id checkid.ID) *MockSender {
 
 // SetSender sets passed sender with the passed ID.
 func SetSender(sender *MockSender, id checkid.ID) {
-	aggregator.SetSender(sender, id) //nolint:errcheck
+	sender.senderManager.SetSender(sender, id) //nolint:errcheck
 }
 
 // MockSender allows mocking of the checks sender for unit testing
 type MockSender struct {
 	mock.Mock
+	senderManager sender.SenderManager
 }
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,6 +21,8 @@ import (
 // descheduled, taking care that Run is not executing during or after
 // that.
 type CheckWrapper struct {
+	senderManager sender.SenderManager
+
 	inner check.Check
 	// done is true when the check was cancelled and must not run.
 	done bool
@@ -57,7 +58,7 @@ func (c *CheckWrapper) destroySender() {
 	c.runM.Lock()
 	defer c.runM.Unlock()
 	c.done = true
-	aggregator.DestroySender(c.ID())
+	c.senderManager.DestroySender(c.ID())
 }
 
 // Stop implements Check#Stop
@@ -72,6 +73,7 @@ func (c *CheckWrapper) String() string {
 
 // Configure implements Check#Configure
 func (c *CheckWrapper) Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	c.senderManager = senderManger
 	return c.inner.Configure(senderManger, integrationConfigDigest, config, initConfig, source)
 }
 

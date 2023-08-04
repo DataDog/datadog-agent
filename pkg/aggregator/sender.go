@@ -128,25 +128,6 @@ func GetSender(id checkid.ID) (sender.Sender, error) {
 	return demultiplexerInstance.GetSender(id)
 }
 
-// DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
-// Should be called when no sender with this ID is used anymore
-// The metrics of this (these) sender(s) that haven't been flushed yet will be lost
-func DestroySender(id checkid.ID) {
-	if demultiplexerInstance == nil {
-		return
-	}
-	demultiplexerInstance.DestroySender(id)
-}
-
-// SetSender returns the passed sender with the passed ID.
-// This is largely for testing purposes
-func SetSender(sender sender.Sender, id checkid.ID) error {
-	if demultiplexerInstance == nil {
-		return errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.SetSender(sender, id)
-}
-
 // GetDefaultSender returns the default sender
 func GetDefaultSender() (sender.Sender, error) {
 	if demultiplexerInstance == nil {

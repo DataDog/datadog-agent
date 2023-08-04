@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -34,6 +35,9 @@ func newSenders(aggregator *BufferedAggregator) *senders {
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
 func (s *senders) SetSender(sender sender.Sender, id checkid.ID) error {
+	if s == nil {
+		return errors.New("Demultiplexer was not initialized")
+	}
 	return s.senderPool.setSender(sender, id)
 }
 
@@ -52,7 +56,9 @@ func (s *senders) GetSender(cid checkid.ID) (sender.Sender, error) {
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
 func (s *senders) DestroySender(id checkid.ID) {
-	s.senderPool.removeSender(id)
+	if s != nil {
+		s.senderPool.removeSender(id)
+	}
 }
 
 // getDefaultSender returns a default sender.
