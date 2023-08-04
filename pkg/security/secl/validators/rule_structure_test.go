@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 package validators
 
 import (
@@ -10,9 +12,9 @@ import (
 	"testing"
 )
 
-// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/validators --run=TestHasBareWildcard
+// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/validators --run=TestHasBareWildcardInField
 // These test cases were originally written for an AlwaysTrue rule check. A more complex AlwaysTrue rule check is currently tabled in favor of a more naive bare wildcard check.
-func TestHasBareWildcard(t *testing.T) {
+func TestHasBareWildcardInField(t *testing.T) {
 	type args struct {
 		ruleExpression string
 	}
