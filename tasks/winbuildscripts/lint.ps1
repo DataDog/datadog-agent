@@ -8,7 +8,7 @@ if ($Env:TARGET_ARCH -eq "x64") {
 & $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
 
 $LINT_ROOT=(Get-Location).Path
-$Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
+$Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;C:\devtools\vstudio\VC\Tools\Llvm\bin"
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
@@ -20,14 +20,13 @@ if ($Env:TARGET_ARCH -eq "x86") {
 & inv -e deps
 & .\tasks\winbuildscripts\pre-go-build.ps1 -Architecure "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
-# FIXME: clang-format is not found/installed
-# & inv -e rtloader.format --raise-if-changed
-# $err = $LASTEXITCODE
-# Write-Host Format result is $err
-# if($err -ne 0){
-#   Write-Host -ForegroundColor Red "rtloader format failed $err"
-#   [Environment]::Exit($err)
-# }
+& inv -e rtloader.format --raise-if-changed
+$err = $LASTEXITCODE
+Write-Host Format result is $err
+if($err -ne 0){
+  Write-Host -ForegroundColor Red "rtloader format failed $err"
+  [Environment]::Exit($err)
+}
 
 & inv -e install-tools
 & inv -e lint-go --arch $archflag
