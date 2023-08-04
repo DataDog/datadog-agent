@@ -68,6 +68,7 @@ from .test import (
     test,
 )
 from .utils import generate_config
+from .windows_resources import build_messagetable
 
 # the root namespace
 ns = Collection()
@@ -106,6 +107,7 @@ ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
+ns.add_task(build_messagetable)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

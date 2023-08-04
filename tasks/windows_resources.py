@@ -1,5 +1,7 @@
 import os
 
+from invoke import task
+
 from .utils import get_version_numeric_only, get_win_py_runtime_var
 
 MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
@@ -15,11 +17,14 @@ def arch_to_windres_target(
         raise Exception(f"Unsupported architecture: {arch}")
 
 
+@task
 def build_messagetable(
     ctx,
-    env,
     arch='x64',
 ):
+    """
+    Build the header and resource for the MESSAGETABLE shared between agent binaries.
+    """
     windres_target = arch_to_windres_target(arch)
 
     messagefile = MESSAGESTRINGS_MC_PATH
@@ -28,12 +33,12 @@ def build_messagetable(
 
     # Generate the message header and resource file
     command = f"windmc --target {windres_target} -r {root} -h {root} {messagefile}"
-    ctx.run(command, env=env)
+    ctx.run(command)
 
-    build_rc(ctx, env, f'{root}/messagestrings.rc', arch=arch)
+    build_rc(ctx, f'{root}/messagestrings.rc', arch=arch)
 
 
-def build_rc(ctx, env, rc_file, arch='x64', vars=None, out=None):
+def build_rc(ctx, rc_file, arch='x64', vars=None, out=None):
     if vars is None:
         vars = {}
 
@@ -49,7 +54,7 @@ def build_rc(ctx, env, rc_file, arch='x64', vars=None, out=None):
     for key, value in vars.items():
         command += f" --define {key}={value}"
 
-    ctx.run(command, env=env)
+    ctx.run(command)
 
 
 def versioninfo_vars(

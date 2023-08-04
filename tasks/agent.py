@@ -143,11 +143,10 @@ def build(
         if arch == "x86":
             env["GOARCH"] = "386"
 
-        build_messagetable(ctx, env, arch=arch)
+        build_messagetable(ctx, arch=arch)
         vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
         build_rc(
             ctx,
-            env,
             "cmd/agent/windows_resources/agent.rc",
             arch=arch,
             vars=vars,

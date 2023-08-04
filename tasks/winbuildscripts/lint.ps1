@@ -18,22 +18,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 
 & inv -e deps
-
-& inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$LINT_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
-$err = $LASTEXITCODE
-Write-Host Build result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader make failed $err"
-    [Environment]::Exit($err)
-}
-
-& inv -e rtloader.install
-$err = $LASTEXITCODE
-Write-Host rtloader install result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader install failed $err"
-    [Environment]::Exit($err)
-}
+& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecure "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
 & inv -e install-tools
 & inv -e lint-go --arch $archflag
