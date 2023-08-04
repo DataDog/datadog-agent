@@ -319,7 +319,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	utils.AddBoolConst(&options, e.cfg.CollectTCPv6Conns, "tcpv6_enabled")
 
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
-	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
+	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)

@@ -107,39 +107,39 @@ HOOK_SYSCALL_EXIT(setresuid) {
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setuid16) {
+HOOK_SYSCALL_ENTRY0(setuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setuid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setfsuid16) {
+HOOK_SYSCALL_ENTRY0(setfsuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setfsuid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setfsuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setreuid16) {
+HOOK_SYSCALL_ENTRY0(setreuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setreuid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setreuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setresuid16) {
+HOOK_SYSCALL_ENTRY0(setresuid16) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setresuid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setresuid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -179,39 +179,39 @@ HOOK_SYSCALL_EXIT(setresgid) {
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setgid16) {
+HOOK_SYSCALL_ENTRY0(setgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setgid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setgid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setfsgid16) {
+HOOK_SYSCALL_ENTRY0(setfsgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setfsgid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setfsgid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setregid16) {
+HOOK_SYSCALL_ENTRY0(setregid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setregid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setregid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setresgid16) {
+HOOK_SYSCALL_ENTRY0(setresgid16) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setresgid16) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setresgid16) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
