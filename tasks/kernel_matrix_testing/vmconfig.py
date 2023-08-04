@@ -69,6 +69,10 @@ distributions = {
     "amzn_5.4": "amzn_5.4",
     "amzn_5.10": "amzn_5.10",
     "amzn_5.15": "amzn_5.15",
+    "fedora_35": "fedora_35",
+    "fedora_36": "fedora_36",
+    "fedora_37": "fedora_37",
+    "fedora_38": "fedora_38",
 }
 distro_arch_mapping = {"x86_64": "amd64", "arm64": "arm64"}
 images_path_local = {
@@ -81,6 +85,10 @@ images_path_local = {
     "amzn_5.4": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.4.qcow2",
     "amzn_5.10": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.10.qcow2",
     "amzn_5.15": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.15.qcow2",
+    "fedora_35": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-35.amd64.qcow2",
+    "fedora_36": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-36.amd64.qcow2",
+    "fedora_37": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-37.amd64.qcow2",
+    "fedora_38": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-38.amd64.qcow2",
 }
 
 images_path_s3 = {
@@ -93,6 +101,10 @@ images_path_s3 = {
     "amzn_5.4": "{url_base}amzn2-kvm-2.0-{arch}-5.4.qcow2",
     "amzn_5.10": "{url_base}amzn2-kvm-2.0-{arch}-5.10.qcow2",
     "amzn_5.15": "{url_base}amzn2-kvm-2.0-{arch}-5.15.qcow2",
+    "fedora_35": "{url_base}Fedora-Cloud-Base-35.{arch}.qcow2",
+    "fedora_36": "{url_base}Fedora-Cloud-Base-36.{arch}.qcow2",
+    "fedora_37": "{url_base}Fedora-Cloud-Base-37.{arch}.qcow2",
+    "fedora_38": "{url_base}Fedora-Cloud-Base-38.{arch}.qcow2",
 }
 
 images_name = {
@@ -105,6 +117,10 @@ images_name = {
     "amzn_5.4": "amzn2-kvm-2.0-{arch}-5.4.qcow2",
     "amzn_5.10": "amzn2-kvm-2.0-{arch}-5.10.qcow2",
     "amzn_5.15": "amzn2-kvm-2.0-{arch}-5.15.qcow2",
+    "fedora_35": "Fedora-Cloud-Base-35.{arch}.qcow2",
+    "fedora_36": "Fedora-Cloud-Base-36.{arch}.qcow2",
+    "fedora_37": "Fedora-Cloud-Base-37.{arch}.qcow2",
+    "fedora_38": "Fedora-Cloud-Base-38.{arch}.qcow2",
 }
 
 TICK = "\u2713"
@@ -114,10 +130,14 @@ table = [
     ["ubuntu-18 (bionic)", TICK, CROSS],
     ["ubuntu-20 (focal)", TICK, TICK],
     ["ubuntu-22 (jammy)", TICK, TICK],
-    ["amazon linux 2 - 4.14", TICK, TICK],
-    ["amazon linux 2 - 5.4", TICK, TICK],
-    ["amazon linux 2 - 5.10", TICK, TICK],
-    ["amazon linux 2 - 5.15", TICK, CROSS],
+    ["amazon linux 2 - v4.14", TICK, TICK],
+    ["amazon linux 2 - v5.4", TICK, TICK],
+    ["amazon linux 2 - v5.10", TICK, TICK],
+    ["amazon linux 2 - v5.15", TICK, CROSS],
+    ["fedora 35 - v5.14.10", TICK, TICK],
+    ["fedora 36 - v5.17.5", TICK, TICK],
+    ["fedora 37 - v6.0.7", TICK, TICK],
+    ["fedora 38 - v6.2.9", TICK, TICK],
 ]
 
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
