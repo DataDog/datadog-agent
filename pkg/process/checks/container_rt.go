@@ -11,7 +11,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -31,8 +31,8 @@ func NewRTContainerCheck(config ddconfig.ConfigReader) *RTContainerCheck {
 type RTContainerCheck struct {
 	maxBatchSize      int
 	hostInfo          *HostInfo
-	containerProvider containers.ContainerProvider
-	lastRates         map[string]*containers.ContainerRateMetrics
+	containerProvider proccontainers.ContainerProvider
+	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	config            ddconfig.ConfigReader
 }
 
@@ -40,7 +40,7 @@ type RTContainerCheck struct {
 func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	r.maxBatchSize = getMaxBatchSize(r.config)
 	r.hostInfo = hostInfo
-	r.containerProvider = containers.GetSharedContainerProvider()
+	r.containerProvider = proccontainers.GetSharedContainerProvider()
 	return nil
 }
 
@@ -68,7 +68,7 @@ func (r *RTContainerCheck) ShouldSaveLastRun() bool { return true }
 func (r *RTContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	var err error
 	var containers []*model.Container
-	var lastRates map[string]*containers.ContainerRateMetrics
+	var lastRates map[string]*proccontainers.ContainerRateMetrics
 	containers, lastRates, _, err = r.containerProvider.GetContainers(cacheValidityRT, r.lastRates)
 	if err == nil {
 		r.lastRates = lastRates

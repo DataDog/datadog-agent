@@ -15,7 +15,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,8 +38,8 @@ type ContainerCheck struct {
 	config ddconfig.ConfigReader
 
 	hostInfo          *HostInfo
-	containerProvider containers.ContainerProvider
-	lastRates         map[string]*containers.ContainerRateMetrics
+	containerProvider proccontainers.ContainerProvider
+	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
 
 	containerFailedLogLimit *util.LogLimit
@@ -49,7 +49,7 @@ type ContainerCheck struct {
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
-	c.containerProvider = containers.GetSharedContainerProvider()
+	c.containerProvider = proccontainers.GetSharedContainerProvider()
 	c.hostInfo = info
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
@@ -93,7 +93,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	var err error
 	var containers []*model.Container
 	var pidToCid map[int]string
-	var lastRates map[string]*containers.ContainerRateMetrics
+	var lastRates map[string]*proccontainers.ContainerRateMetrics
 	containers, lastRates, pidToCid, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
 	if err == nil {
 		c.lastRates = lastRates
