@@ -447,9 +447,6 @@ type AgentConfig struct {
 	// RemoteConfigClient retrieves sampling updates from the remote config backend
 	RemoteConfigClient RemoteClient `json:"-"`
 
-	// RemoteCustomTagsClient retrieves custom tags updates from the remote config backend
-	RemoteCustomTagsClient RemoteClient `json:"-"`
-
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 

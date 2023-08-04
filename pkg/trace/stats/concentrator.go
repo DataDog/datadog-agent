@@ -78,6 +78,10 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 }
 
 func (c *Concentrator) SetCustomTags(tags map[string][]string) {
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	for spanName, newCustomTags := range tags {
 		c.customTags[spanName] = newCustomTags
 	}

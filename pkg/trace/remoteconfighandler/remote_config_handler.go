@@ -141,12 +141,17 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		}
 	}
 
-	if len(mergedConfig.CustomTags) > 0 && !(mapsAreEqual(mergedConfig.CustomTags, h.configState.LatestCustomTags)) {
-		for spanName, customTags := range mergedConfig.CustomTags {
+	if rawTagsMap, ok := updates["config_id"]; ok {
+		var tagsMap map[string][]string
+		json.Unmarshal(rawTagsMap.Config, &tagsMap)
+		for spanName, customTags := range tagsMap {
 			pkglog.Infof("Adding custom tag(s) %s to span %s through remote config", customTags, spanName)
-			h.concentrator.SetCustomTags(mergedConfig.CustomTags)
-			h.configState.LatestCustomTags = mergedConfig.CustomTags
+			h.concentrator.SetCustomTags(tagsMap)
+			// need a reference to the TOTAL custom tags map here, not just the updated custom tags...
+			// h.configState.LatestCustomTags = mergedConfig.CustomTags
 		}
+	} else {
+		// need to set custom tags back to what it originally was...again need a reference to the TOTAL custom tags map
 	}
 
 	if err != nil {
