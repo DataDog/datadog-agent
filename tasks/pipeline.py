@@ -177,7 +177,7 @@ def auto_cancel_previous_pipelines(ctx):
     git_sha = os.getenv("CI_COMMIT_SHA")
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
-
+    print("Pipelines running on the same ref: ", pipelines)
     pipelines_without_current = [p for p in pipelines if p["sha"] != git_sha]
 
     for pipeline in pipelines_without_current:
