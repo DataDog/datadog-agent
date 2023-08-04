@@ -9,9 +9,7 @@ cancel-prev-pipelines:
     when: never
   - if: $CI_COMMIT_REF_NAME == "main"
     when: never
-  - if: $CI_COMMIT_REF_NAME =~ /^[6-7]\.[0-9]+\.x$/
-    when: never
-  - if: $CI_COMMIT_REF_NAME =~ /^[6-7]\.[0-9]+\.x$/
+  - if: $CI_COMMIT_REF_NAME =~ /^[6-7]\.[0-9]+.*/
     when: never
   - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
     when: never
