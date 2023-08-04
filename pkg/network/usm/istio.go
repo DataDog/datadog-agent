@@ -16,7 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -56,8 +57,8 @@ type istioMonitor struct {
 
 func newIstioMonitor(mgr *manager.Manager) *istioMonitor {
 	return &istioMonitor{
-		registry: utils.NewFileRegistry(),
-		procRoot: util.GetProcRoot(),
+		registry: utils.NewFileRegistry("istio"),
+		procRoot: kernel.ProcFSRoot(),
 		done:     make(chan struct{}),
 
 		// Callbacks
@@ -100,9 +101,12 @@ func (m *istioMonitor) Start() {
 				return
 			case <-processSync.C:
 				m.sync()
+				m.registry.Log()
 			}
 		}
 	}()
+
+	log.Debugf("Istio monitoring enabled")
 }
 
 func (m *istioMonitor) Stop() {
@@ -117,7 +121,7 @@ func (m *istioMonitor) Stop() {
 func (m *istioMonitor) sync() {
 	deletionCandidates := m.registry.GetRegisteredProcesses()
 
-	_ = util.WithAllProcs(m.procRoot, func(pid int) error {
+	_ = kernel.WithAllProcs(m.procRoot, func(pid int) error {
 		if _, ok := deletionCandidates[uint32(pid)]; ok {
 			// We have previously hooked into this process and it remains active,
 			// so we remove it from the deletionCandidates list, and move on to the next PID
