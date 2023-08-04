@@ -212,11 +212,6 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			c.buckets[btime] = b
 		}
 
-		// traceutil.SetName(s, "testtwo")
-		// traceutil.SetMeta(s, "test", "hi")
-		// traceutil.SetMeta(s, "georegion", "amer")
-		// traceutil.SetMeta(s, "costcenter", "accounting")
-
 		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation, c.customTags)
 	}
 }
