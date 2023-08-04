@@ -9,6 +9,7 @@ include:
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
+  - /.gitlab/cancel-prev-pipelines.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
@@ -56,6 +57,7 @@ default:
       - api_failure
 
 stages:
+  - .pre
   - setup
   - maintenance_jobs
   - deps_build
