@@ -131,6 +131,10 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
+    # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+    if os.path.isdir(junit_tgz):
+        junit_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
+
     xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:
         # unpack all files from archive
