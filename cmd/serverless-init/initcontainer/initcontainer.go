@@ -8,6 +8,7 @@
 package initcontainer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -51,11 +52,15 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig: config,
+		LogConfig: 	config,
+		LineBuffer: bytes.Buffer{},
+		IsDotnet: 	commandName == "dotnet",
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig: config,
-		IsError:   true,
+		LogConfig: 	config,
+		LineBuffer: bytes.Buffer{},
+		IsDotnet: 	commandName == "dotnet",
+		IsError:   	true,
 	}
 	err := cmd.Start()
 	if err != nil {
