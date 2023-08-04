@@ -230,10 +230,6 @@ func run(log log.Component,
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
 func StartAgentWithDefaults(ctx context.Context) error {
-	if err := common.CheckAndUpgradeConfig(); err != nil {
-		// continue running with what we have.
-	}
-
 	var dsdServer dogstatsdServer.Component
 
 	// run startAgent in an app, so that the log and config components get initialized
