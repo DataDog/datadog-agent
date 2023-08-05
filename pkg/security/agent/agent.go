@@ -138,9 +138,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			continue
 		}
 
-		if !rsa.connected.Load() {
-			rsa.connected.Store(true)
-
+		if !rsa.connected.Swap(true) {
 			log.Info("Successfully connected to the runtime security module")
 		}
 
