@@ -7,13 +7,21 @@
 
 package rules
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
 
 type EventCollector struct {
+	sync.Mutex
 	eventsCollected []CollectedEvent
 }
 
 func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
+	ec.Lock()
+	defer ec.Unlock()
+
 	eventType := event.GetType()
 	collectedEvent := CollectedEvent{
 		Type:       eventType,
@@ -44,6 +52,9 @@ func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result boo
 }
 
 func (ec *EventCollector) Stop() []CollectedEvent {
+	ec.Lock()
+	defer ec.Unlock()
+
 	collected := ec.eventsCollected
 	ec.eventsCollected = nil
 	return collected
