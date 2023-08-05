@@ -1194,27 +1194,26 @@ func (et ErrTimeout) Error() string {
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test
 func (tm *testModule) NewTimeoutError() ErrTimeout {
-	err := ErrTimeout{
-		"timeout, details: ",
-	}
+	var msg strings.Builder
 
-	err.msg += GetStatusMetrics(tm.probe)
-	err.msg += spew.Sdump(ddebpf.GetProbeStats())
+	msg.WriteString("timeout, details: ")
+	msg.WriteString(GetStatusMetrics(tm.probe))
+	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
 
 	events := tm.ruleEngine.StopEventCollector()
 	if len(events) != 0 {
-		err.msg += "\nevents evaluated:\n"
+		msg.WriteString("\nevents evaluated:\n")
 
 		for _, event := range events {
-			err.msg += fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult)
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
 			for field, value := range event.Fields {
-				err.msg += fmt.Sprintf("\t%s = %v\n", field, value)
+				msg.WriteString(fmt.Sprintf("\t%s = %v\n", field, value))
 			}
-			err.msg += "}\n"
+			msg.WriteString("}\n")
 		}
 	}
 
-	return err
+	return ErrTimeout{msg.String()}
 }
 
 // ActionMessage is used to send a message from an action function to its callback
