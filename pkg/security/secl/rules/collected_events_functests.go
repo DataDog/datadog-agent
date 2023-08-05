@@ -14,13 +14,23 @@ type EventCollector struct {
 }
 
 func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
+	eventType := event.GetType()
 	collectedEvent := CollectedEvent{
-		Type:       event.GetType(),
+		Type:       eventType,
 		EvalResult: result,
 		Fields:     make(map[string]interface{}, len(rs.fields)),
 	}
 
 	for _, field := range rs.fields {
+		fieldEventType, err := event.GetFieldEventType(field)
+		if err != nil {
+			rs.logger.Errorf("failed to get event type for field %s: %v", field, err)
+		}
+
+		if fieldEventType != "*" && fieldEventType != eventType {
+			continue
+		}
+
 		value, err := event.GetFieldValue(field)
 		if err != nil {
 			rs.logger.Errorf("failed to get value for %s: %v", field, err)
