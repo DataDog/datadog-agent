@@ -9,12 +9,6 @@ package rules
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-type CollectedEvent struct {
-	Type       string
-	EvalResult bool
-	Fields     map[string]interface{}
-}
-
 type EventCollector struct {
 	eventsCollected []CollectedEvent
 }
