@@ -29,7 +29,7 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	}
 
 	typeTag := "type:" + msgType.String()
-	tlmBytesIn.Add(float64(m.Size()), typeTag)
+	tlmBytesIn.Add(float64(1000), typeTag)
 
 	var encoded []byte
 	if msgType == model.TypeCollectorProcEvent {

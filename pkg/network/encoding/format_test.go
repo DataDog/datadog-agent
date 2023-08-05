@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
+//nolint:all
 func TestFormatRouteIdx(t *testing.T) {
 
 	tests := []struct {
