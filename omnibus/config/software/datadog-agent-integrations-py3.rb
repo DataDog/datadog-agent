@@ -16,9 +16,6 @@ dependency 'snowflake-connector-python-py3'
 dependency 'confluent-kafka-python'
 
 if arm?
-  # psycopg2 doesn't come with pre-built wheel on the arm architecture.
-  # to compile from source, it requires the `pg_config` executable present on the $PATH
-  dependency 'postgresql'
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
@@ -27,10 +24,19 @@ if arm?
 end
 
 if osx?
+  dependency 'postgresql'
   dependency 'unixodbc'
 end
 
 if linux?
+  # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
+  #   to compile from source, it requires the `pg_config` executable present on the $PATH
+  # * We also need it to build psycopg[c] Python dependency
+  # * Note: because having unixodbc already built breaks postgresql build,
+  #   we made unixodbc depend on postgresql to ensure proper build order.
+  #   If we're ever removing/changing one of these dependencies, we need to
+  #   take this into account.
+  dependency 'postgresql'
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
@@ -48,6 +54,11 @@ whitelist_file "embedded/lib/python3.9/site-packages/psycopg2"
 whitelist_file "embedded/lib/python3.9/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
+
+gcc_version = ENV['GCC_VERSION']
+if gcc_version.nil? || gcc_version.empty?
+  gcc_version = '10.4.0'
+end
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -92,6 +103,13 @@ if arm?
   blacklist_folders.push('ibm_ace')
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
+end
+
+if redhat? && !arm?
+  # RPM builds are done on CentOS 6 which is based on glibc v2.12 however newer libraries require v2.17, see:
+  # https://blog.rust-lang.org/2022/08/01/Increasing-glibc-kernel-requirements.html
+  dependency 'pydantic-core-py3'
+  blacklist_packages.push(/^pydantic-core==/)
 end
 
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
@@ -188,6 +206,12 @@ build do
       nix_build_env["CFLAGS"] += " -std=c99"
     end
 
+    # We only have gcc 10.4.0 on linux for now
+    if linux?
+      nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
+      nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
+    end
+
     #
     # Prepare the requirements file containing ALL the dependencies needed by
     # any integration. This will provide the "static Python environment" of the Agent.
@@ -226,6 +250,10 @@ build do
       end
 
       if !blacklist_flag
+        # on non windows OS, we use the c version of the psycopg installation
+        if line.start_with?('psycopg[binary]') && !windows?
+          line.sub! 'psycopg[binary]', 'psycopg[c]'
+        end
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line

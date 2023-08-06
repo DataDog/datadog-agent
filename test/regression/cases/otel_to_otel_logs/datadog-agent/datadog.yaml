@@ -16,6 +16,11 @@ apm_config:
   errors_per_second: 0
   max_events_per_second: 0
 
+logs_enabled: true
+logs_config:
+  logs_dd_url: 127.0.0.1:9091
+  logs_no_ssl: true
+
 otlp_config:
   receiver:
     protocols:

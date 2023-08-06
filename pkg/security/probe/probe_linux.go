@@ -77,7 +77,7 @@ var (
 	defaultEventTypes = []eval.EventType{
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
-		model.ExecEventType.String(),
+		model.ExitEventType.String(),
 	}
 )
 
@@ -299,11 +299,7 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	return p.updateProbes([]eval.EventType{
-		model.ForkEventType.String(),
-		model.ExecEventType.String(),
-		model.ExecEventType.String(),
-	})
+	return p.updateProbes(nil)
 }
 
 func (p *Probe) PlaySnapshot() {
@@ -1065,7 +1061,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) || p.isNeededForSecurityProfile(eventType) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -1607,7 +1603,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.Probe.ERPCDentryResolutionEnabled, p.Config.Probe.NetworkEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.Probe.ERPCDentryResolutionEnabled, p.Config.Probe.NetworkEnabled, useMmapableMaps, p.useFentry)
 	if !p.Config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()

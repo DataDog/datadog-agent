@@ -84,6 +84,8 @@ func (pu *podUnmarshaller) filteringDecoder(ptr unsafe.Pointer, iter *jsoniter.I
 
 		if !expired {
 			p.Items = append(p.Items, pod)
+		} else {
+			p.ExpiredCount++
 		}
 		return true
 	}

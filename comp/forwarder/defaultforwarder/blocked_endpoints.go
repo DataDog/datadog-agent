@@ -55,7 +55,7 @@ func newBlockedEndpoints(config config.Component, log log.Component) *blockedEnd
 
 	return &blockedEndpoints{
 		errorPerEndpoint: make(map[string]*block),
-		backoffPolicy:    backoff.NewPolicy(backoffFactor, backoffBase, backoffMax, recInterval, recoveryReset),
+		backoffPolicy:    backoff.NewExpBackoffPolicy(backoffFactor, backoffBase, backoffMax, recInterval, recoveryReset),
 	}
 }
 
