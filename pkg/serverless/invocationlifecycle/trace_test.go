@@ -226,6 +226,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
 		Coldstart:          true,
 		ProactiveInit:      false,
+		Runtime:            "dotnet6",
 	}
 
 	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
@@ -239,6 +240,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	assert.Equal(t, "", executionSpan.Meta["proactive_initialization"])
 	assert.Equal(t, testString, executionSpan.Meta["function.request"])
 	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
+	assert.Equal(t, "dotnet", executionSpan.Meta["language"])
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)

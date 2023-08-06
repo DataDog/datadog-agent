@@ -65,8 +65,8 @@
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - !reference [.upload_sbom_artifacts]
   variables:
-    KUBERNETES_MEMORY_REQUEST: "6Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
     KUBERNETES_CPU_REQUEST: 8
   artifacts:
     expire_in: 2 weeks
@@ -163,8 +163,8 @@ agent_deb-arm64-a7:
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_CPU_REQUEST: 8
-    KUBERNETES_MEMORY_REQUEST: "6Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
