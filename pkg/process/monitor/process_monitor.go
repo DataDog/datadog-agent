@@ -239,8 +239,10 @@ func (pm *ProcessMonitor) Initialize() error {
 	pm.initOnce.Do(
 		func() {
 			pm.done = make(chan struct{})
+			pm.callbackRunnersWG = sync.WaitGroup{}
 			pm.initCallbackRunner()
 
+			pm.processMonitorWG = sync.WaitGroup{}
 			pm.processMonitorWG.Add(1)
 			// Setting up the main loop
 			pm.netlinkDoneChannel = make(chan struct{})
@@ -325,13 +327,12 @@ func (pm *ProcessMonitor) Stop() {
 	if pm.done != nil {
 		close(pm.done)
 		pm.done = nil
+		pm.processMonitorWG.Wait()
 	}
-	pm.processMonitorWG.Wait()
+
 	// that's being done for testing purposes.
 	// As tests are running altogether, initOne and processMonitor are being created only once per compilation unit
 	// thus, the first test works without an issue, but the second test has troubles.
-	pm.processMonitorWG = sync.WaitGroup{}
-	pm.callbackRunnersWG = sync.WaitGroup{}
 	pm.initOnce = sync.Once{}
 	pm.processExecCallbacksMutex.Lock()
 	pm.processExecCallbacks = make(map[*ProcessCallback]struct{})
