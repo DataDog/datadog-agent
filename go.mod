@@ -580,9 +580,14 @@ require (
 
 require (
 	github.com/cloudflare/circl v1.3.3 // indirect
+	github.com/florianl/go-nfqueue v1.3.1 // indirect
+	github.com/fogleman/gg v1.3.0 // indirect
+	github.com/goccy/go-graphviz v0.1.1 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/google/s2a-go v0.1.2 // indirect
 	github.com/hashicorp/hcl/v2 v2.17.0 // indirect
+	github.com/insomniacslk/dublin-traceroute v0.4.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
@@ -592,6 +597,7 @@ require (
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
+	golang.org/x/image v0.6.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230525234020-1aefcd67740a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect

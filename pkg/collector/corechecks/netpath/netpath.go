@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute/probes/probev4"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -25,6 +27,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+)
+
+// Program constants and default values
+const (
+	ProgramName         = "Dublin Traceroute"
+	ProgramVersion      = "v0.2"
+	ProgramAuthorName   = "Andrea Barberio"
+	ProgramAuthorInfo   = "https://insomniac.slackware.it"
+	DefaultSourcePort   = 12345
+	DefaultDestPort     = 33434
+	DefaultNumPaths     = 10
+	DefaultMinTTL       = 1
+	DefaultMaxTTL       = 30
+	DefaultDelay        = 50 //msec
+	DefaultReadTimeout  = 3 * time.Second
+	DefaultOutputFormat = "json"
 )
 
 const checkName = "netpath"
@@ -63,6 +81,32 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) traceroute(sender sender.Sender) error {
+	rawTarget := c.config.Hostname
+	target, err := resolve(rawTarget, false)
+	if err != nil {
+		return fmt.Errorf("Cannot resolve %s: %v", rawTarget, err)
+	}
+
+	var dt dublintraceroute.DublinTraceroute
+	dt = &probev4.UDPv4{
+		Target:     target,
+		SrcPort:    uint16(DefaultSourcePort),
+		DstPort:    uint16(DefaultDestPort),
+		UseSrcPort: false,
+		NumPaths:   uint16(DefaultNumPaths),
+		MinTTL:     uint8(DefaultMinTTL),
+		MaxTTL:     uint8(DefaultMaxTTL),
+		Delay:      time.Duration(DefaultDelay) * time.Millisecond,
+		Timeout:    DefaultReadTimeout,
+		BrokenNAT:  false,
+	}
+	results, err := dt.Traceroute()
+	if err != nil {
+		return fmt.Errorf("Traceroute() failed: %v", err)
+	}
+	log.Warnf("results: %+v", results)
+
+	return nil
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
 	options.SetMaxHops(15)
@@ -172,6 +216,40 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 	}
 
 	return nil
+}
+
+// resolve returns the first IP address for the given host. If `wantV6` is true,
+// it will return the first IPv6 address, or nil if none. Similarly for IPv4
+// when `wantV6` is false.
+// If the host is already an IP address, such IP address will be returned. If
+// `wantV6` is true but no IPv6 address is found, it will return an error.
+// Similarly for IPv4 when `wantV6` is false.
+func resolve(host string, wantV6 bool) (net.IP, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		if wantV6 && ip.To4() != nil {
+			return nil, errors.New("Wanted an IPv6 address but got an IPv4 address")
+		} else if !wantV6 && ip.To4() == nil {
+			return nil, errors.New("Wanted an IPv4 address but got an IPv6 address")
+		}
+		return ip, nil
+	}
+	ipaddrs, err := net.LookupIP(host)
+	if err != nil {
+		return nil, err
+	}
+	var ret net.IP
+	for _, ipaddr := range ipaddrs {
+		if wantV6 && ipaddr.To4() == nil {
+			ret = ipaddr
+			break
+		} else if !wantV6 && ipaddr.To4() != nil {
+			ret = ipaddr
+		}
+	}
+	if ret == nil {
+		return nil, errors.New("No IP address of the requested type was found")
+	}
+	return ret, nil
 }
 
 // Configure the CPU check

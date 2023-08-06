@@ -1,0 +1,42 @@
+[
+    {
+        "dst": "8.8.8.8",
+        "dst_port": 33434,
+        "ttl": 1,
+        "reply": {
+            "src": "1.2.3.4",
+            "icmp_type": 11,
+            "icmp_code": 0
+        }
+    },
+    {
+        "dst": "8.8.8.8",
+        "dst_port": 33434,
+        "ttl": 2,
+        "reply": {
+            "src": "1.2.3.5",
+            "icmp_type": 11,
+            "icmp_code": 0
+        }
+    },
+    {
+        "dst": "8.8.8.8",
+        "dst_port": 33434,
+        "ttl": 3,
+        "reply": {
+            "src": "1.2.3.6",
+            "icmp_type": 11,
+            "icmp_code": 0
+        }
+    },
+    {
+        "dst": "8.8.8.8",
+        "dst_port": 33434,
+        "ttl": 4,
+        "reply": {
+            "src": "8.8.8.8",
+            "icmp_type": 3,
+            "icmp_code": 3
+        }
+    }
+]
