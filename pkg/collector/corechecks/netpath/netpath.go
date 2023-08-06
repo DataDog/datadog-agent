@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute/probes/probev4"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute/results"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -93,7 +94,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		SrcPort:    uint16(DefaultSourcePort),
 		DstPort:    uint16(DefaultDestPort),
 		UseSrcPort: false,
-		NumPaths:   uint16(DefaultNumPaths),
+		NumPaths:   uint16(1),
 		MinTTL:     uint8(DefaultMinTTL),
 		MaxTTL:     uint8(DefaultMaxTTL),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond,
@@ -104,7 +105,17 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	if err != nil {
 		return fmt.Errorf("Traceroute() failed: %v", err)
 	}
-	log.Warnf("results: %+v", results)
+
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		return err
+	}
+
+	err = c.traceRouteDublin(sender, results, hname, rawTarget)
+	if err != nil {
+		return err
+	}
+	//log.Warnf("results: %+v", results)
 
 	return nil
 	options := traceroute.TracerouteOptions{}
@@ -113,11 +124,6 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
 	destinationHost := c.config.Hostname
-
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		return err
-	}
 
 	ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
 	if err != nil {
@@ -214,6 +220,63 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 
 		prevHop = hop
 	}
+
+	return nil
+}
+
+func (c *Check) traceRouteDublin(sender sender.Sender, results *results.Results, hname string, destinationHost string) error {
+
+	for idx, probes := range results.Flows {
+		log.Warnf("flow idx: %d\n", idx)
+		for probleIndex, probe := range probes {
+			//log.Warnf("probleIndex: %d, probe %+v\n", probleIndex, probe)
+			log.Warnf("%d - %d - %s\n", probleIndex, probe.Sent.IP.TTL, probe.Name)
+		}
+	}
+
+	//hops := hostHops[0]
+	//var prevHop traceroute.TracerouteHop
+	//for _, hop := range hops {
+	//	ip := hop.AddressString()
+	//	durationMs := hop.ElapsedTime.Seconds() * 10e3
+	//	tr := TracerouteV2{
+	//		TracerouteSource: "netpath_integration",
+	//		Timestamp:        time.Now().UnixMilli(),
+	//		AgentHost:        hname,
+	//		DestinationHost:  destinationHost,
+	//		TTL:              hop.TTL,
+	//		IpAddress:        ip,
+	//		Host:             hop.HostOrAddressString(),
+	//		Duration:         durationMs,
+	//		Success:          hop.Success,
+	//	}
+	//	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
+	//	if err != nil {
+	//		return err
+	//	}
+	//
+	//	log.Infof("traceroute: %s", tracerouteStr)
+	//
+	//	sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+	//	tags := []string{
+	//		"target_service:" + c.config.TargetService,
+	//		"agent_host:" + hname,
+	//		"target:" + destinationHost,
+	//		"hop_ip_address:" + ip,
+	//		"hop_host:" + hop.HostOrAddressString(),
+	//		"ttl:" + strconv.Itoa(hop.TTL),
+	//	}
+	//	if prevHop.TTL > 0 {
+	//		prevIp := prevHop.AddressString()
+	//		tags = append(tags, "prev_hop_ip_address:"+prevIp)
+	//		tags = append(tags, "prev_hop_host:"+prevHop.HostOrAddressString())
+	//	}
+	//	log.Infof("[netpath] tags: %s", tags)
+	//	sender.Gauge("netpath.hop.duration", durationMs, "", CopyStrings(tags))
+	//	sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
+	//
+	//	prevHop = hop
+	//}
 
 	return nil
 }
