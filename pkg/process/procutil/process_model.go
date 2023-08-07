@@ -18,6 +18,7 @@ type Process struct {
 	Name     string
 	Cwd      string
 	Exe      string
+	Comm     string
 	Cmdline  []string
 	Username string // (Windows only)
 	Uids     []int32

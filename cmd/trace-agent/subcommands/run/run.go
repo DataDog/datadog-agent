@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package run
 
 import (
 	"context"
@@ -16,9 +16,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags"
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
+	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -27,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -52,74 +51,42 @@ to your datadog.yaml. Exiting...`
 const stackDepth = 3
 
 // Run is the entrypoint of our code, which starts the agent.
-func Run(ctx context.Context) {
-	if flags.Version {
-		fmt.Println(version.AgentVersion)
-		return
-	}
+func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) error {
 
-	cfg, err := cmdconfig.LoadConfigFile(flags.ConfigPath)
+	tracecfg := cfg.Object()
+	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
-		fmt.Println(err) // TODO: remove me
-		if err == config.ErrMissingAPIKey {
-			fmt.Println(config.ErrMissingAPIKey)
-
-			// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-			// http://supervisord.org/subprocess.html#process-states
-			time.Sleep(5 * time.Second)
-
-			// Don't use os.Exit() method here, even with os.Exit(0) the Service Control Manager
-			// on Windows will consider the process failed and log an error in the Event Viewer and
-			// attempt to restart the process.
-			return
-		}
-		osutil.Exitf("%v", err)
-	}
-	err = info.InitInfo(cfg) // for expvar & -info option
-	if err != nil {
-		osutil.Exitf("%v", err)
+		return err
 	}
 
-	if flags.Info {
-		if err := info.Info(os.Stdout, cfg); err != nil {
-			osutil.Exitf("Failed to print info: %s", err)
-		}
-		return
-	}
-
-	telemetryCollector := telemetry.NewCollector(cfg)
+	telemetryCollector := telemetry.NewCollector(tracecfg)
 
 	if err := coreconfig.SetupLogger(
 		coreconfig.LoggerName("TRACE"),
 		coreconfig.Datadog.GetString("log_level"),
-		cfg.LogFilePath,
+		tracecfg.LogFilePath,
 		coreconfig.GetSyslogURI(),
 		coreconfig.Datadog.GetBool("syslog_rfc"),
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
 	); err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
-		osutil.Exitf("Cannot create logger: %v", err)
+		return fmt.Errorf("Cannot create logger: %v", err)
 	}
 	tracelog.SetLogger(corelogger{})
 	defer log.Flush()
 
-	if !cfg.Enabled {
+	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
 		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
 
-		// a sleep is necessary to ensure that supervisor registers this process as "STARTED"
-		// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
-		// http://supervisord.org/subprocess.html#process-states
-		time.Sleep(5 * time.Second)
-		return
+		return nil
 	}
 
 	defer watchdog.LogOnPanic()
 
-	if flags.CPUProfile != "" {
-		f, err := os.Create(flags.CPUProfile)
+	if cliParams.CPUProfile != "" {
+		f, err := os.Create(cliParams.CPUProfile)
 		if err != nil {
 			log.Error(err)
 		}
@@ -128,16 +95,16 @@ func Run(ctx context.Context) {
 		defer pprof.StopCPUProfile()
 	}
 
-	if flags.PIDFilePath != "" {
-		err := pidfile.WritePID(flags.PIDFilePath)
+	if cliParams.PIDFilePath != "" {
+		err := pidfile.WritePID(cliParams.PIDFilePath)
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.CantWritePIDFile, err)
 			log.Criticalf("Error writing PID file, exiting: %v", err)
 			os.Exit(1)
 		}
 
-		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), flags.PIDFilePath)
-		defer os.Remove(flags.PIDFilePath)
+		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), cliParams.PIDFilePath)
+		defer os.Remove(cliParams.PIDFilePath)
 	}
 
 	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
@@ -147,14 +114,13 @@ func Run(ctx context.Context) {
 	err = manager.ConfigureAutoExit(ctx, coreconfig.Datadog)
 	if err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantSetupAutoExit, err)
-		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
-		return
+		return fmt.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
-	err = metrics.Configure(cfg, []string{"version:" + version.AgentVersion})
+	err = metrics.Configure(tracecfg, []string{"version:" + version.AgentVersion})
 	if err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
-		osutil.Exitf("cannot configure dogstatsd: %v", err)
+		return fmt.Errorf("cannot configure dogstatsd: %v", err)
 	}
 	defer metrics.Flush()
 	defer timing.Stop()
@@ -202,24 +168,24 @@ func Run(ctx context.Context) {
 		rcClient, err := rc.NewAgentGRPCConfigFetcher()
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
-			osutil.Exitf("could not instantiate the tracer remote config client: %v", err)
+			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
 		}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remoteConfigHandler(r, rcClient, cfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.ConfigHandler(r, rcClient, tracecfg) },
 		})
 	}
 
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
 		Handler: func(r *api.HTTPReceiver) http.Handler {
-			return cmdconfig.SetHandler()
+			return cfg.SetHandler()
 		},
 	})
 
-	agnt := agent.NewAgent(ctx, cfg, telemetryCollector)
-	log.Infof("Trace agent running on host %s", cfg.Hostname)
-	if pcfg := profilingConfig(cfg); pcfg != nil {
+	agnt := agent.NewAgent(ctx, tracecfg, telemetryCollector)
+	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
+	if pcfg := profilingConfig(tracecfg); pcfg != nil {
 		if err := profiling.Start(*pcfg); err != nil {
 			log.Warn(err)
 		} else {
@@ -234,8 +200,8 @@ func Run(ctx context.Context) {
 	agnt.Run()
 
 	// collect memory profile
-	if flags.MemProfile != "" {
-		f, err := os.Create(flags.MemProfile)
+	if cliParams.MemProfile != "" {
+		f, err := os.Create(cliParams.MemProfile)
 		if err != nil {
 			log.Error("Could not create memory profile: ", err)
 		}
@@ -249,6 +215,8 @@ func Run(ctx context.Context) {
 		}
 		f.Close()
 	}
+
+	return nil
 }
 
 type corelogger struct{}
@@ -304,13 +272,13 @@ func (corelogger) Criticalf(format string, params ...interface{}) error {
 // Flush implements Logger.
 func (corelogger) Flush() { log.Flush() }
 
-func profilingConfig(cfg *config.AgentConfig) *profiling.Settings {
+func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
 		return nil
 	}
 	endpoint := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url")
 	if endpoint == "" {
-		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, cfg.Site)
+		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
 	}
 	return &profiling.Settings{
 		ProfilingURL: endpoint,

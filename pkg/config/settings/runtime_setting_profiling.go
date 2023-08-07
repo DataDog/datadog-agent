@@ -87,8 +87,12 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
 
+		tags := cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
+		tags = append(tags, fmt.Sprintf("version:%v", v))
+
 		settings := profiling.Settings{
 			ProfilingURL:         site,
+			Socket:               cfg.GetString(l.ConfigPrefix + "internal_profiling.unix_socket"),
 			Env:                  cfg.GetString(l.ConfigPrefix + "env"),
 			Service:              l.Service,
 			Period:               cfg.GetDuration(l.ConfigPrefix + "internal_profiling.period"),
@@ -97,7 +101,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			BlockProfileRate:     cfg.GetInt(l.ConfigPrefix + "internal_profiling.block_profile_rate"),
 			WithGoroutineProfile: cfg.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
 			WithDeltaProfiles:    cfg.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+			Tags:                 tags,
 		}
 		err := profiling.Start(settings)
 		if err == nil {
