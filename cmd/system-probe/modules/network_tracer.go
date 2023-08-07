@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,7 +70,7 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		return &networkTracer{tracer: t, done: done}, err
+		return &networkTracer{tracer: t, done: done, maxConnsPerMessage: cfg.MaxConnsPerMessage}, err
 	},
 }
 
@@ -78,11 +80,81 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	done         chan struct{}
 	restartTimer *time.Timer
+
+	connectionserver.UnsafeSystemProbeServer
+	maxConnsPerMessage int
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
+}
+
+func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
+	buf, err := marshaler.Marshal(cs)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Tracef("GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	return buf, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
+	start := time.Now()
+
+	runCounter := atomic.NewUint64(0)
+	id := req.GetClientID()
+	cs, err := nt.tracer.GetActiveConnections(id)
+	if err != nil {
+		return err
+	}
+
+	if nt.restartTimer != nil {
+		nt.restartTimer.Reset(inactivityRestartDuration)
+	}
+
+	count := runCounter.Inc()
+	logRequests(id, count, len(cs.Conns), start)
+
+	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
+	connections := &connectionserver.Connection{}
+
+	defer network.Reclaim(cs)
+
+	for len(cs.Conns) > 0 {
+		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
+		rest := cs.Conns[finalBatchSize:]
+		cs.Conns = cs.Conns[:finalBatchSize]
+
+		conns, err := getConnectionsFromMarshaler(marshaler, cs)
+		if err != nil {
+			return err
+		}
+
+		connections.Data = conns
+		err = s2.Send(connections)
+		if err != nil {
+			log.Errorf("unable to send current connection batch due to: %v", err)
+		}
+
+		cs.Conns = rest
+	}
+
+	return nil
+}
+
+// RegisterGRPC register system probe grpc server
+func (nt *networkTracer) RegisterGRPC(server *grpc.Server) error {
+	connectionserver.RegisterSystemProbeServer(server, nt)
+	return nil
 }
 
 // Register all networkTracer endpoints
