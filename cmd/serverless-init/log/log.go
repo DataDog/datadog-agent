@@ -112,7 +112,7 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	// will exceed maxBufferSize
 	if cw.LineBuffer.Len()+len(p) > maxBufferSize {
 		fmt.Print(string(p))
-		Write(cw.LogConfig, []byte(cw.LineBuffer.String()), cw.IsError)
+		Write(cw.LogConfig, getByteArrayClone(cw.LineBuffer.Bytes()), cw.IsError)
 		cw.LineBuffer.Reset()
 	}
 
@@ -126,10 +126,16 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	}
 
 	fmt.Println(string(p))
-	Write(cw.LogConfig, []byte(cw.LineBuffer.String()), cw.IsError)
+	Write(cw.LogConfig, getByteArrayClone(cw.LineBuffer.Bytes()), cw.IsError)
 	cw.LineBuffer.Reset()
 
 	return len(p), nil
+}
+
+func getByteArrayClone(src []byte) []byte {
+	clone := make([]byte, len(src))
+	copy(clone, src)
+	return clone
 }
 
 func isEnabled(envValue string) bool {

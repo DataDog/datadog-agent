@@ -71,7 +71,7 @@ func TestCustomWriterDotnet(t *testing.T) {
 
 func TestCustomWriterDotnetBufferOverflow(t *testing.T) {
 	// Custom writer should buffer log chunks not ending in a newline when isDotnet: true
-	testContentChunk1 := []byte(strings.Repeat("a", 256*1024))
+	testContentChunk1 := []byte(strings.Repeat("a", maxBufferSize))
 	testContentChunk2 := []byte("b\n")
 	config := &Config{
 		channel:   make(chan *config.ChannelMessage, 2),
@@ -101,12 +101,12 @@ func TestCustomWriterDotnetBufferOverflow(t *testing.T) {
 	}
 
 	assert.Equal(t, 2, len(messages))
-	assert.Equal(t, []byte(strings.Repeat("a", 256*1024)), messages[0])
+	assert.Equal(t, []byte(strings.Repeat("a", maxBufferSize)), messages[0])
 	assert.Equal(t, []byte("b\n"), messages[1])
 }
 
 func TestCustomWriterMaxBufferSize(t *testing.T) {
-	testContent := []byte(strings.Repeat("a", 256*1024+1))
+	testContent := []byte(strings.Repeat("a", maxBufferSize+1))
 	config := &Config{
 		channel:   make(chan *config.ChannelMessage, 2),
 		isEnabled: true,
@@ -118,7 +118,7 @@ func TestCustomWriterMaxBufferSize(t *testing.T) {
 	numMessages := 0
 	select {
 	case message := <-config.channel:
-		assert.Equal(t, []byte(strings.Repeat("a", 256*1024)), message.Content)
+		assert.Equal(t, []byte(strings.Repeat("a", maxBufferSize)), message.Content)
 		numMessages++
 	case <-time.After(100 * time.Millisecond):
 		t.FailNow()
