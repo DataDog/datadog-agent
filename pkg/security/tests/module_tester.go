@@ -53,6 +53,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -73,6 +74,7 @@ var (
 
 const (
 	getEventTimeout                 = 10 * time.Second
+	maxRecordedEvents               = 100
 	filelessExecutionFilenamePrefix = "memfd:"
 )
 
@@ -253,6 +255,7 @@ type testOpts struct {
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
 	tagsResolver                        tags.Resolver
+	preRules                            []*rules.RuleDefinition
 }
 
 func (s *stringSlice) String() string {
@@ -291,7 +294,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableSBOM == opts.enableSBOM
+		to.enableSBOM == opts.enableSBOM &&
+		reflect.DeepEqual(to.preRules, opts.preRules)
 }
 
 type testModule struct {
@@ -308,6 +312,7 @@ type testModule struct {
 	statsdClient  *statsdclient.StatsdClient
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
+	preRuleset    *rules.RuleSet
 }
 
 var testMod *testModule
@@ -917,6 +922,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		statsdClient:  statsdClient,
 		proFile:       proFile,
 		eventHandlers: eventHandlers{},
+		preRuleset:    rules.NewRuleSet(&model.Model{}, nil, &rules.Opts{}, &eval.Opts{}),
 	}
 
 	emopts := eventmonitor.Opts{
@@ -957,6 +963,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 				ruleSet.AddListener(testMod)
 			}
 		})
+	}
+
+	parsingContext := ast.NewParsingContext()
+	for _, rule := range opts.preRules {
+		testMod.preRuleset.AddRule(parsingContext, rule)
 	}
 
 	// listen to probe event
@@ -1212,7 +1223,38 @@ func (err ErrSkipTest) Error() string {
 	return err.msg
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
+func (tm *testModule) minifyEvent(event *model.Event, stripAncestors bool) (string, error) {
+	eventJSON, err := tm.marshalEvent(event)
+	if err != nil {
+		return "", err
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(eventJSON), &m); err != nil {
+		return "", err
+	}
+	if processMap, found := m["process"].(map[string]interface{}); found {
+		if ancestors, found := processMap["ancestors"].([]interface{}); found {
+			for _, ancestor := range ancestors {
+				delete(ancestor.(map[string]interface{}), "credentials")
+			}
+		}
+		if parent, found := processMap["parent"].(map[string]interface{}); found {
+			delete(parent, "credentials")
+		}
+		delete(processMap, "credentials")
+		if stripAncestors {
+			delete(processMap, "ancestors")
+		}
+	}
+
+	if eventJSON, err := json.MarshalIndent(m, "", "  "); err != nil {
+		return "", err
+	} else {
+		return string(eventJSON), nil
+	}
+}
+
+func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule)) {
 	tb.Helper()
 
 	if err := tm.GetSignal(tb, action, validateEvent(tb, cb, tm.probe)); err != nil {
