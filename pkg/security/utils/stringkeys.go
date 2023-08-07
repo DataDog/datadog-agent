@@ -16,6 +16,7 @@ type StringKeys struct {
 	inner map[string]struct{}
 }
 
+// NewStringKeys returns a new `StringKeys` build from the provided keys
 func NewStringKeys(from []string) *StringKeys {
 	sk := &StringKeys{
 		inner: make(map[string]struct{}, len(from)),
@@ -27,16 +28,19 @@ func NewStringKeys(from []string) *StringKeys {
 	return sk
 }
 
+// Insert inserts a new key in the map
 func (sk *StringKeys) Insert(value string) {
 	sk.inner[value] = struct{}{}
 }
 
+// ForEach iterates over each key, and run `f` on them
 func (sk *StringKeys) ForEach(f func(string)) {
 	for value := range sk.inner {
 		f(value)
 	}
 }
 
+// Keys returns a slice of all the keys contained in this map
 func (sk *StringKeys) Keys() []string {
 	values := make([]string, 0, len(sk.inner))
 	for value := range sk.inner {

@@ -79,7 +79,7 @@ var (
 
 	// syscalls metrics
 
-	// MetricSyscallsMap is the number of inflight events
+	// MetricSyscallsInFlight is the number of inflight events
 	// Tags: event_type
 	MetricSyscallsInFlight = newRuntimeMetric(".syscalls_map.event_inflight")
 
@@ -170,7 +170,7 @@ var (
 	// MetricMountResolverHits is the counter of successful mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverHits = newRuntimeMetric(".mount_resolver.hits")
-	// MetricDentryResolverMiss is the counter of unsuccessful mount resolution
+	// MetricMountResolverMiss is the counter of unsuccessful mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverMiss = newRuntimeMetric(".mount_resolver.miss")
 
@@ -253,7 +253,7 @@ var (
 	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
 	// Tags: -
 	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
-	// MetricSecurityProfileEventFiltering
+	// MetricSecurityProfileEventFiltering is the name of the metric used to report the count of Security Profile event filtered
 	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
 	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
 
