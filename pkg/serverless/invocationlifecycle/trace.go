@@ -28,7 +28,7 @@ const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 )
 
-var /* const */ runtimeRegex = regexp.MustCompile(`^(java|dotnet)\d*$`)
+var /* const */ runtimeRegex = regexp.MustCompile(`^(java|dotnet|ruby)\d*$`)
 
 // ExecutionStartInfo is saved information from when an execution span was started
 type ExecutionStartInfo struct {
