@@ -269,7 +269,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 		// then add all the other hops
 		for idx, hop := range hops {
 			hop := hop
-			nodename := fmt.Sprintf("NULL - %d", idx)
+			nodename := fmt.Sprintf("* (hop #%d)", idx)
 			label := "*"
 			hostname := ""
 			if hop.Received != nil {
