@@ -678,6 +678,8 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		}
 	}
 
+	// no-op in the general case, only used to collect events in functional tests
+	// for debugging purposes
 	rs.eventCollector.CollectEvent(rs, event, result)
 
 	return result
