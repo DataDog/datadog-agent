@@ -108,7 +108,6 @@ func TestActivityDumps(t *testing.T) {
 			if node.Process.Pid < node.Process.PPid {
 				t.Errorf("PID < PPID")
 			}
-			assert.Equal(t, false, node.Process.IsThread)
 			assert.Equal(t, uint64(0), node.Process.SpanID)
 			assert.Equal(t, uint64(0), node.Process.TraceID)
 			assert.Equal(t, "", node.Process.TTYName)

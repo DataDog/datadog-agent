@@ -23,23 +23,23 @@ int __attribute__((always_inline)) trace__sys_utimes() {
 
 // On old kernels, we have sys_utime and compat_sys_utime.
 // On new kernels, we have _x64_sys_utime32, __ia32_sys_utime32, __x64_sys_utime, __ia32_sys_utime
-SYSCALL_COMPAT_KPROBE0(utime) {
+HOOK_SYSCALL_COMPAT_ENTRY0(utime) {
     return trace__sys_utimes();
 }
 
-SYSCALL_KPROBE0(utime32) {
+HOOK_SYSCALL_ENTRY0(utime32) {
     return trace__sys_utimes();
 }
 
-SYSCALL_COMPAT_TIME_KPROBE0(utimes) {
+HOOK_SYSCALL_COMPAT_TIME_ENTRY0(utimes) {
     return trace__sys_utimes();
 }
 
-SYSCALL_COMPAT_TIME_KPROBE0(utimensat) {
+HOOK_SYSCALL_COMPAT_TIME_ENTRY0(utimensat) {
     return trace__sys_utimes();
 }
 
-SYSCALL_COMPAT_TIME_KPROBE0(futimesat) {
+HOOK_SYSCALL_COMPAT_TIME_ENTRY0(futimesat) {
     return trace__sys_utimes();
 }
 
@@ -71,29 +71,29 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
     return 0;
 }
 
-int __attribute__((always_inline)) kprobe_sys_utimes_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+ HOOK_SYSCALL_COMPAT_EXIT(utime) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_COMPAT_KRETPROBE(utime) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_EXIT(utime32) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(utime32) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_COMPAT_TIME_EXIT(utimes) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_COMPAT_TIME_KRETPROBE(utimes) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_COMPAT_TIME_EXIT(utimensat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
-SYSCALL_COMPAT_TIME_KRETPROBE(utimensat) {
-    return kprobe_sys_utimes_ret(ctx);
-}
-
-SYSCALL_COMPAT_TIME_KRETPROBE(futimesat) {
-    return kprobe_sys_utimes_ret(ctx);
+HOOK_SYSCALL_COMPAT_TIME_EXIT(futimesat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_utimes_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_utimes_exit")

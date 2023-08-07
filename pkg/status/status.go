@@ -306,9 +306,17 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 func getRemoteConfigStatus() map[string]interface{} {
 	status := make(map[string]interface{})
 
-	if expvar.Get("remoteConfigStatus") != nil {
+	if config.IsRemoteConfigEnabled(config.Datadog) && expvar.Get("remoteConfigStatus") != nil {
 		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
 		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
+	} else {
+		if !config.Datadog.GetBool("remote_configuration.enabled") {
+			status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
+		} else if config.Datadog.GetBool("fips.enabled") {
+			status["disabledReason"] = "it is not supported when FIPS is enabled. (`fips.enabled: true`)"
+		} else if config.Datadog.GetString("site") == "ddog-gov.com" {
+			status["disabledReason"] = "it is not supported on GovCloud. (`site: \"ddog-gov.com\"`)"
+		}
 	}
 
 	return status

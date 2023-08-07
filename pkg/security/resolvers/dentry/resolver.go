@@ -174,31 +174,6 @@ func (dr *Resolver) sendERPCStats() error {
 	return dr.bufferSelector.Put(ebpf.BufferSelectorERPCMonitorKey, dr.activeERPCStatsBuffer)
 }
 
-// DelCacheEntry removes an entry from the cache
-func (dr *Resolver) DelCacheEntry(mountID uint32, inode uint64) {
-	if entries, exists := dr.cache[mountID]; exists {
-		key := model.PathKey{Inode: inode}
-
-		// Delete path recursively
-		for {
-			path, exists := entries.Get(key)
-			if !exists {
-				break
-			}
-			// this is also call the onEvict function of LRU thus releasing the entry from the pool
-			entries.Remove(key)
-
-			parent := path.Parent
-			if parent.Inode == 0 {
-				break
-			}
-
-			// Prepare next key
-			key = parent
-		}
-	}
-}
-
 // DelCacheEntries removes all the entries belonging to a mountID
 func (dr *Resolver) DelCacheEntries(mountID uint32) {
 	delete(dr.cache, mountID)

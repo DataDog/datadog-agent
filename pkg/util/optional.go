@@ -25,6 +25,11 @@ func NewNoneOptional[T any]() Optional[T] {
 	return Optional[T]{}
 }
 
+// IsSet returns true if a value is set.
+func (o *Optional[T]) IsSet() bool {
+	return o.set
+}
+
 // Get returns the value and true if a value is set, otherwise it returns (undefined, false).
 func (o *Optional[T]) Get() (T, bool) {
 	return o.value, o.set
