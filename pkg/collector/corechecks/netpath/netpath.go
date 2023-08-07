@@ -100,7 +100,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		SrcPort:    uint16(DefaultSourcePort),
 		DstPort:    uint16(DefaultDestPort),
 		UseSrcPort: false,
-		NumPaths:   uint16(c.config.Numpaths),
+		NumPaths:   numpaths,
 		MinTTL:     uint8(DefaultMinTTL),
 		MaxTTL:     uint8(DefaultMaxTTL),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond,
@@ -342,7 +342,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 			tags = append(tags, "prev_hop_host:"+c.getHostname(prev.node))
 			log.Infof("[netpath] tags: %s", tags)
 			sender.Gauge("netpath.hop.duration", float64(cur.probe.RttUsec)/1000, "", CopyStrings(tags))
-			sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
+			sender.Count("netpath.hop.record", float64(1), "", CopyStrings(tags))
 
 			//prevHop = hop
 
