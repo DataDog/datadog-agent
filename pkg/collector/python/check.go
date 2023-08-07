@@ -326,7 +326,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 // GetSenderStats returns the stats from the last run of the check
 func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
 		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
