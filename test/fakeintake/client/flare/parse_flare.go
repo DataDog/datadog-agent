@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-// This file contains the logic for parsing the flare content returned by the Fake Intake and transform it into
+// This file contains the logic for parsing the flare content returned by the Fake Intake and transforms it into
 // a manageable Flare structure.
 //
 // Datadog Agent is sending the flare using MIME Multipart media type as defined in RFC 2046. The multipart body contains the following:
@@ -81,8 +81,8 @@ func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 	}
 
 	// flare_file is the only part that needs a special parsing as it's the flare zip content.
-	suffixToTrim := string(parsedFlareData["hostname"]) + string(os.PathSeparator)
-	zipFiles, err := parseRawZIP(parsedFlareData["flare_file"], suffixToTrim)
+	prefixToTrim := string(parsedFlareData["hostname"]) + string(os.PathSeparator)
+	zipFiles, err := parseRawZIP(parsedFlareData["flare_file"], prefixToTrim)
 	if err != nil {
 		return Flare{}, err
 	}
