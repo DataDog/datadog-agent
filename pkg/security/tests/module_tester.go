@@ -1207,7 +1207,7 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 		for _, event := range events {
 			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
 			for field, value := range event.Fields {
-				msg.WriteString(fmt.Sprintf("\t%s = %v\n", field, value))
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
 			}
 			msg.WriteString("}\n")
 		}
