@@ -23,6 +23,7 @@ type RuntimeSecurityClient struct {
 	conn      *grpc.ClientConn
 }
 
+// SecurityModuleClientWrapper represents a security module client
 type SecurityModuleClientWrapper interface {
 	DumpDiscarders() (string, error)
 	DumpProcessCache(withArgs bool) (string, error)
