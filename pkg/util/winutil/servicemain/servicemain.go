@@ -24,7 +24,7 @@ type Service interface {
 	Name() string
 
 	// Init() implements application initialization and is run when the service status is SERVICE_START_PENDING.
-	// The service status is set to SERVICE_RUNNING when Init() returns sucessfully.
+	// The service status is set to SERVICE_RUNNING when Init() returns successfully.
 	// See ErrCleanStopAfterInit if you need to exit without calling Service.Run() or throwing an error.
 	Init() error
 

@@ -3,19 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package run
+//go:build windows
+
+package service
 
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 type service struct {
-	dsdServer dogstatsdServer.Component
+	server dogstatsdServer.Component
 }
 
 func NewWindowsService() *service {
@@ -27,23 +29,23 @@ func (s *service) Name() string {
 }
 
 func (s *service) Init() error {
-	var dsdServer dogstatsdServer.Component
+	var server dogstatsdServer.Component
 
 	_ = common.CheckAndUpgradeConfig()
 	// ignore config upgrade error, continue running with what we have.
 
-	dsdServer, err := StartAgentWithDefaults()
+	server, err := runcmd.StartAgentWithDefaults()
 	if err != nil {
 		return err
 	}
 
-	s.dsdServer = dsdServer
+	s.server = server
 
 	return nil
 }
 
 func (s *service) Run(ctx context.Context) error {
-	defer stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, s.dsdServer)
+	defer runcmd.StopAgentWithDefaults(s.server)
 
 	// Wait for stop signal
 	select {

@@ -591,6 +591,11 @@ func startAgent(
 	return nil
 }
 
+// StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
+func StopAgentWithDefaults(server dogstatsdServer.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server)
+}
+
 // stopAgent Tears down the agent process
 func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 	// retrieve the agent health before stopping the components

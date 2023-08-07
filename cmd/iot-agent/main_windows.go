@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
+	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
@@ -29,7 +29,7 @@ func main() {
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 && servicemain.RunningAsWindowsService() {
-		servicemain.Run(run.NewWindowsService())
+		servicemain.Run(service.NewWindowsService())
 		return
 	}
 	defer log.Flush()

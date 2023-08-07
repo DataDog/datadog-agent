@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 
@@ -32,24 +31,6 @@ type RunParams struct {
 	Foreground bool
 	// Debug contains the value for the --debug flag.
 	Debug bool
-}
-
-type service struct {
-	cliParams       *RunParams
-	defaultConfPath string
-}
-
-func (s *service) Name() string {
-	return tracecfg.ServiceName
-}
-
-func (s *service) Init() error {
-	// Nothing to do, kept empty for compatibility with previous implementation.
-	return nil
-}
-
-func (s *service) Run(ctx context.Context) error {
-	return runFx(ctx, s.cliParams, s.defaultConfPath)
 }
 
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
