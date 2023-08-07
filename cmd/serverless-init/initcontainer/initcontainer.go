@@ -52,15 +52,15 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig: 	config,
+		LogConfig:  config,
 		LineBuffer: bytes.Buffer{},
-		IsDotnet: 	commandName == "dotnet",
+		IsDotnet:   commandName == "dotnet",
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig: 	config,
+		LogConfig:  config,
 		LineBuffer: bytes.Buffer{},
-		IsDotnet: 	commandName == "dotnet",
-		IsError:   	true,
+		IsDotnet:   commandName == "dotnet",
+		IsError:    true,
 	}
 	err := cmd.Start()
 	if err != nil {
