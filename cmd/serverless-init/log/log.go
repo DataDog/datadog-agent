@@ -96,22 +96,24 @@ func SetupLog(conf *Config, tags map[string]string) {
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
+	return cw.writeWithMaxBufferSize(p, maxBufferSize)
+}
+
+func (cw *CustomWriter) writeWithMaxBufferSize(p []byte, maxBufferSize int) (n int, err error) {
+	fmt.Print(string(p))
+
 	if len(p) > maxBufferSize {
 		p = p[:maxBufferSize]
 	}
 
 	if !cw.ShouldBuffer {
-		fmt.Print(string(p))
 		Write(cw.LogConfig, p, cw.IsError)
 		return len(p), nil
 	}
 
-	// .NET specific behavior
-
 	// Prevent buffer overflow, flush the buffer if writing the current chunk
 	// will exceed maxBufferSize
 	if cw.LineBuffer.Len()+len(p) > maxBufferSize {
-		fmt.Print(string(p))
 		Write(cw.LogConfig, getByteArrayClone(cw.LineBuffer.Bytes()), cw.IsError)
 		cw.LineBuffer.Reset()
 	}
@@ -121,11 +123,9 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	// for the rest of the log before flushing.
 	cw.LineBuffer.Write(p)
 	if string(p[len(p)-1]) != "\n" {
-		fmt.Print(string(p))
 		return len(p), nil
 	}
 
-	fmt.Println(string(p))
 	Write(cw.LogConfig, getByteArrayClone(cw.LineBuffer.Bytes()), cw.IsError)
 	cw.LineBuffer.Reset()
 
