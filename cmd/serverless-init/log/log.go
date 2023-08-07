@@ -101,7 +101,7 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	}
 
 	if !cw.IsDotnet {
-		fmt.Println(string(p))
+		fmt.Print(string(p))
 		Write(cw.LogConfig, p, cw.IsError)
 		return len(p), nil
 	}
