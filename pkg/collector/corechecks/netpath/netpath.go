@@ -267,9 +267,9 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 		nodes = append(nodes, node{node: firstNodeName, probe: &hops[0]})
 
 		// then add all the other hops
-		for idx, hop := range hops {
+		for _, hop := range hops {
 			hop := hop
-			nodename := fmt.Sprintf("* (hop #%d)", idx)
+			nodename := fmt.Sprintf("unknown (hop #%d)", hop.Sent.IP.TTL)
 			label := "*"
 			hostname := ""
 			if hop.Received != nil {
