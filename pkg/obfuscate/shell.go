@@ -212,10 +212,13 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 				// Check if the next token is an equal sign and has a value
 				if index+2 < len(tokens) && (tokens)[index+1].kind == Equal {
 					// Get tokens that defines the value
-					startValueToken, endValueToken := index+2, grabFullArgument(tokens, index+2)
+					startValueToken := index + 2
+					endValueToken, nbrGrabbed := grabFullArgument(tokens, index+2)
 
 					// Replace the startValueToken with an obfuscated value
-					obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].start, (tokens)[endValueToken].end})
+					if nbrGrabbed > 0 {
+						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].start, (tokens)[endValueToken].end})
+					}
 
 					// Increment the index to the end of the value
 					index = endValueToken
@@ -229,23 +232,28 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 						// If that's a parameter that have an equal sign (and possibly a value), this should be obfuscated as one value
 						if i+1 < len(tokens) && (tokens)[i+1].kind == Equal {
 							// Get tokens that defines the value
-							startValueToken, endValueToken := i, grabFullArgument(tokens, i+1)
+							startValueToken := i
+							endValueToken, nbrGrabbed := grabFullArgument(tokens, i+2)
 
 							// Remove the tokens that defines the value
-							if startValueToken < endValueToken {
-								obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].start, (tokens)[endValueToken].end})
+							if nbrGrabbed > 0 {
+								i += nbrGrabbed - 1 + 2
+							} else {
+								// If there is no value, we just skip the equal sign
+								i++
 							}
 
-							// Increment the index to the end of the value
-							i = endValueToken
+							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].start, (tokens)[endValueToken].end})
+
 						} else {
 							// Get tokens that defines the value
-							startValueToken, endValueToken := i, grabFullArgument(tokens, i)
+							startValueToken := i
+							endValueToken, nbrGrabbed := grabFullArgument(tokens, i)
 
-							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
-
-							// Increment the index to the end of the value
-							i = endValueToken
+							if nbrGrabbed > 0 {
+								obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+								i += nbrGrabbed - 1
+							}
 						}
 					}
 
@@ -262,26 +270,40 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 				// The parameter needs to be obfuscated
 
 				// Check if the next token is an equal sign and has a value
-				if index+2 < len(tokens) && tokens[index+1].kind == Equal {
+				if index+1 < len(tokens) && tokens[index+1].kind == Equal {
+					// Check if the next token exists (check for end of command)
+					if index+2 == len(tokens) {
+						// Skip the equal sign, do not obfuscate the value as it doesn't exist
+						index++
+						continue
+					}
+
 					// Get tokens that defines the value
-					startValueToken, endValueToken := index+2, grabFullArgument(tokens, index+2)
+					startValueToken := index + 2
+					endValueToken, nbrGrabbed := grabFullArgument(tokens, index+2)
 
 					// Replace the startValueToken with an obfuscated value
-					obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+					// Only if it expands a value (more than one '=' token)
+					if nbrGrabbed > 0 {
+						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+					}
 
 					// Increment the index to the end of the value
-					index = endValueToken
+					index += nbrGrabbed
 				} else {
 					// Replace the next value with an obfuscated value
 					if index+1 < len(tokens) {
 						// Get tokens that defines the value
-						startValueToken, endValueToken := index+1, grabFullArgument(tokens, index+1)
+						startValueToken := index + 1
+						endValueToken, nbrGrabbed := grabFullArgument(tokens, index+1)
 
 						// Replace the startValueToken with an obfuscated value
-						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+						if nbrGrabbed > 0 {
+							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+						}
 
 						// Increment the index to the end of the value
-						index = endValueToken
+						index += nbrGrabbed
 					}
 				}
 			} else if token.kind == Control || token.kind == Redirection {
@@ -301,55 +323,68 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 // - if the argument starting at index 3 is a Field token, then it should only grab the Field token.
 // - if the argument starting at index 3 is an Equal token, then it should grab the Equal token and the next token (calling itself recursively).
 // - if the argument starting at index 3 is a SingleQuote or DoubleQuote token, then it should grab the whole quoted string.
-func grabFullArgument(tokens []ShellToken, index int) int {
+func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 	tokensLength := len(tokens)
 	if index >= tokensLength {
-		return tokensLength - 1 // Return the last token index if we are out of bounds
+		return tokensLength - 1, 0 // Return the last token index if we are out of bounds
 	}
 
-	token := tokens[index]
+	nbrGrabbed := 0
+	for ; index < tokensLength; index++ {
+		kind := tokens[index].kind
 
-	if token.kind == Field {
 		// Grab only the current token
-		return index
-	} else if token.kind == Dollar {
+		if kind == Field || kind == Equal || kind == ShellVariable {
+			return index, nbrGrabbed + 1
+		}
+
+		// We can't grab a control or redirection token
+		if kind == Control || kind == Redirection {
+			return index - 1, nbrGrabbed
+		}
+
 		// Grab the next token
-		return grabFullArgument(tokens, index+1)
-	} else if token.kind == Equal {
-		// Grab the Equal token and the next token
-		return grabFullArgument(tokens, index+1)
-	} else if token.kind == ParentheseOpen {
-		// Grab the whole parentheses content
-		for i := index + 1; i < len(tokens) && tokens[i].kind != ParentheseClose; i++ {
-			if tokens[i].kind == Dollar {
-				// Grab the next token
-				i = grabFullArgument(tokens, i+1)
-			} else if tokens[i].kind == ParentheseOpen {
-				// Grab the whole parentheses content
-				i = grabFullArgument(tokens, i)
+		if kind == Dollar || kind == Equal {
+			nbrGrabbed++
+			// continue
+		} else if kind == ParentheseOpen {
+			// Grab the whole parentheses content
+			for j := index + 1; j < tokensLength && tokens[j].kind != ParentheseClose; j++ {
+				if tokens[j].kind == Dollar {
+					// Grab the next token
+					nbrGrabbed++
+					// continue
+				} else if tokens[j].kind == ParentheseOpen {
+					// Recursively grab the whole parentheses content
+					newIndex, newNbrGrabbed := grabFullArgument(tokens, j)
+					nbrGrabbed += newNbrGrabbed
+					j = newIndex
+				}
 			}
 
-			index = i
-		}
-	} else if token.kind == SingleQuote || token.kind == DoubleQuote {
-		// Grab the whole quoted string
-		startTokenKind := token.kind
-		for i := index + 1; i < len(tokens) && tokens[i].kind != startTokenKind; i++ {
-			if tokens[i].kind == Dollar {
-				// Grab the next token
-				i = grabFullArgument(tokens, i+1)
+			break
+		} else if kind == SingleQuote || kind == DoubleQuote || kind == Backticks {
+			nbrGrabbed++
+			index++
+
+			// Grab the whole quoted string
+			for ; index < tokensLength && tokens[index].kind != kind; index++ {
+				nbrGrabbed++
 			}
 
-			index = i
-		}
+			// Add the last token if it is the same as the start token
+			if index < tokensLength && tokens[index].kind == kind {
+				nbrGrabbed++
+			}
 
-		// Add the last token if it is the same as the start token
-		if index+1 < len(tokens) && tokens[index+1].kind == startTokenKind {
-			index += 1
+			break
+		} else {
+			// Not a known token kind
+			break
 		}
 	}
 
-	return index
+	return index, nbrGrabbed
 }
 
 // obfuscateCommandTokens obfuscates the given command arguments as a ShellToken array.
@@ -407,7 +442,7 @@ func obfuscateCommandTokens(tokens []ShellToken, isExecCmd bool, preObfuscatedIn
 			if equalIndex := strings.Index(token.val, "="); equalIndex == -1 {
 
 				// if --pass xxx, check is --pass is allowed and that we have a xxx
-				if regexParamDeny.MatchString(token.val) && index < len(tokens)-1 && index+1 < len(tokens) {
+				if regexParamDeny.MatchString(token.val) && index < len(tokens)-1 {
 					(tokens)[index+1].val = "?"
 					obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa(index+1))
 				}
