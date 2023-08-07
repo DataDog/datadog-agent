@@ -46,7 +46,7 @@
 .deploy_deb_testing-a6:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   <<: *deploy_deb_resource_group-a6
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -88,7 +88,7 @@ deploy_deb_testing-a6_arm64:
 .deploy_deb_testing-a7:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   <<: *deploy_deb_resource_group-a7
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -161,7 +161,7 @@ deploy_rpm_testing-a6_arm64:
 .deploy_rpm_testing-a7:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -194,7 +194,7 @@ deploy_suse_rpm_testing-a6:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["agent_suse-x64-a6", "tests_rpm-x64-py2", "lint_rpm-x64", "tests_rpm-x64-py3"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -210,7 +210,7 @@ deploy_suse_rpm_testing-a7:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["agent_suse-x64-a7", "iot_agent_suse-x64", "dogstatsd_suse-x64", "lint_rpm-x64", "tests_rpm-x64-py3"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -226,7 +226,7 @@ deploy_windows_testing-a6:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["lint_windows-x64", "tests_windows-x64", "windows_msi_x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -239,7 +239,7 @@ deploy_windows_testing-a7:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["lint_windows-x64", "tests_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
