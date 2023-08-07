@@ -196,7 +196,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c, err := NewPythonCheck(moduleName, checkClass)
+	c, err := NewPythonCheck(senderManager, moduleName, checkClass)
 	if err != nil {
 		return c, err
 	}

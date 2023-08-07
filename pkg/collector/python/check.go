@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -41,6 +41,7 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
+	senderManager  sender.SenderManager
 	id             checkid.ID
 	version        string
 	instance       *C.rtloader_pyobject_t
@@ -61,7 +62,7 @@ type diagnosisJSONSerWrap struct {
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -71,11 +72,12 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, er
 	glock.unlock()
 
 	pyCheck := &PythonCheck{
-		ModuleName:   name,
-		class:        class,
-		interval:     defaults.DefaultCheckInterval,
-		lastWarnings: []error{},
-		telemetry:    utils.IsCheckTelemetryEnabled(name),
+		senderManager: senderManager,
+		ModuleName:    name,
+		class:         class,
+		interval:      defaults.DefaultCheckInterval,
+		lastWarnings:  []error{},
+		telemetry:     utils.IsCheckTelemetryEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -102,7 +104,7 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
 	if commitMetrics {
-		s, err := aggregator.GetSender(c.ID())
+		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
 			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 		}
@@ -228,7 +230,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 	// Set service for this check
 	if len(commonGlobalOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -249,7 +251,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 	// Disable default hostname if specified
 	if commonOptions.EmptyDefaultHostname {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -259,7 +261,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 	// Set configured service for this check, overriding the one possibly defined globally
 	if len(commonOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -306,7 +308,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 	c.source = source
 
 	// Add the possibly configured service as a tag for this check
-	s, err := aggregator.GetSender(c.id)
+	s, err := c.senderManager.GetSender(c.id)
 	if err != nil {
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {

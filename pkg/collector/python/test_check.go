@@ -683,7 +683,7 @@ func testGetDiagnoses(t *testing.T) {
 }
 
 func NewPythonFakeCheck() (*PythonCheck, error) {
-	c, err := NewPythonCheck("fake_check", nil)
+	c, err := NewPythonCheck(aggregator.GetMemultiplexerInstance(), "fake_check", nil)
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {
