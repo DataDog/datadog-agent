@@ -96,6 +96,10 @@ func SetupLog(conf *Config, tags map[string]string) {
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
+	if len(p) > maxBufferSize {
+		p = p[:maxBufferSize]
+	}
+
 	if !cw.IsDotnet {
 		fmt.Println(string(p))
 		Write(cw.LogConfig, p, cw.IsError)
@@ -107,8 +111,8 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	// Prevent buffer overflow, flush the buffer if writing the current chunk
 	// will exceed maxBufferSize
 	if cw.LineBuffer.Len()+len(p) > maxBufferSize {
-		fmt.Println(string(p))
-		Write(cw.LogConfig, cw.LineBuffer.Bytes(), cw.IsError)
+		fmt.Print(string(p))
+		Write(cw.LogConfig, []byte(cw.LineBuffer.String()), cw.IsError)
 		cw.LineBuffer.Reset()
 	}
 
@@ -122,7 +126,7 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	}
 
 	fmt.Println(string(p))
-	Write(cw.LogConfig, cw.LineBuffer.Bytes(), cw.IsError)
+	Write(cw.LogConfig, []byte(cw.LineBuffer.String()), cw.IsError)
 	cw.LineBuffer.Reset()
 
 	return len(p), nil
