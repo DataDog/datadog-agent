@@ -103,6 +103,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ResponseRawPayload: responseBody,
 		Coldstart:          ecs.Coldstart,
 		ProactiveInit:      ecs.ProactiveInit,
+		Runtime:            ecs.Runtime,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {
