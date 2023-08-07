@@ -21,24 +21,24 @@ func TestMovingSum(t *testing.T) {
 	bucketSize := timeWindow / time.Duration(totalBuckets)
 
 	ms := NewMovingSum(timeWindow, bucketSize, mockClock)
-	sum := ms.CalculateMovingSum()
+	sum := ms.MovingSum()
 	assert.Equal(t, int64(0), sum, "Expected sum to be 0")
 
-	ms.AddBytes(5)
-	ms.AddBytes(10)
-	ms.AddBytes(15)
-	sum = ms.CalculateMovingSum()
+	ms.Add(5)
+	ms.Add(10)
+	ms.Add(15)
+	sum = ms.MovingSum()
 	assert.Equal(t, int64(30), sum, "Expected sum to be 30")
 
 	// Advance the clock by 30 hours
 	mockClock.Add(30 * time.Hour)
-	sum = ms.CalculateMovingSum()
+	sum = ms.MovingSum()
 	assert.Equal(t, int64(0), sum, "Expected sum to be 0")
 
 	//Advance the clock by 24 hour
 	mockClock.Add(24 * time.Hour)
-	ms.AddBytes(20)
-	sum = ms.CalculateMovingSum()
+	ms.Add(20)
+	sum = ms.MovingSum()
 	assert.Equal(t, int64(20), sum, "Expected sum to be 20")
 }
 
@@ -51,7 +51,7 @@ func TestMovingSumOverloadedBuckets(t *testing.T) {
 
 	// initializing a moving sum with maximum 10 buckets with each bucket being 1 hour long
 	ms := NewMovingSum(timeWindow, bucketSize, mockClock)
-	sum := ms.CalculateMovingSum()
+	sum := ms.MovingSum()
 	assert.Equal(t, int64(0), sum, "Expected sum to be 0")
 
 	//Reset time
@@ -64,16 +64,16 @@ func TestMovingSumOverloadedBuckets(t *testing.T) {
 		evenNum := 2
 		oddNum := 1
 		if i%2 == 0 {
-			ms.AddBytes(int64(evenNum))
+			ms.Add(int64(evenNum))
 		} else {
-			ms.AddBytes(int64(oddNum))
+			ms.Add(int64(oddNum))
 		}
 	}
-	sum = ms.CalculateMovingSum()
+	sum = ms.MovingSum()
 	assert.Equal(t, int64(15), sum, "Expected sum to be 15")
 
 	// Clear buckets
 	mockClock.Add(24 * time.Hour)
-	sum = ms.CalculateMovingSum()
+	sum = ms.MovingSum()
 	assert.Equal(t, int64(0), sum, "Expected sum to be 0")
 }

@@ -13,22 +13,26 @@ import (
 	"github.com/benbjohnson/clock"
 )
 
-type Bucket struct {
+// Bucket represents a bucket of data within a time window, containing a timestamp and sum.
+type bucket struct {
 	timestamp time.Time
 	sum       int64
 }
 
+// MovingSum is a time-based moving sum that uses buckets to calculate the sum over a specified window.
 type MovingSum struct {
-	buckets    []Bucket
+	buckets    []bucket
 	timeWindow time.Duration
 	bucketSize time.Duration
+	currentSum int64
 	clock      clock.Clock
 	lock       sync.Mutex
 }
 
+// NewMovingSum creates a new MovingSum with the specified time window, bucket size, and clock.
 func NewMovingSum(timeWindow time.Duration, bucketSize time.Duration, clock clock.Clock) *MovingSum {
 	return &MovingSum{
-		buckets:    make([]Bucket, 0),
+		buckets:    make([]bucket, 0),
 		timeWindow: timeWindow,
 		bucketSize: bucketSize,
 		clock:      clock,
@@ -36,15 +40,16 @@ func NewMovingSum(timeWindow time.Duration, bucketSize time.Duration, clock cloc
 	}
 }
 
-func (ms *MovingSum) AddBytes(byteValue int64) {
+// Add adds a byte value to the MovingSum, creating a new bucket if necessary.
+func (ms *MovingSum) Add(byteValue int64) {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
-	ms.dropOldbuckets()
+	ms.dropOldBuckets()
 	now := ms.clock.Now()
 	if len(ms.buckets) == 0 || now.Sub(ms.buckets[len(ms.buckets)-1].timestamp) >= ms.bucketSize {
 		// Create a new bucket if necessary
-		ms.buckets = append(ms.buckets, Bucket{
+		ms.buckets = append(ms.buckets, bucket{
 			timestamp: now,
 			sum:       byteValue,
 		})
@@ -52,25 +57,23 @@ func (ms *MovingSum) AddBytes(byteValue int64) {
 		// Add the value to the last bucket
 		ms.buckets[len(ms.buckets)-1].sum += byteValue
 	}
+	ms.currentSum += byteValue
 }
 
-func (ms *MovingSum) CalculateMovingSum() int64 {
+// MovingSum returns the current sum over the specified time window.
+func (ms *MovingSum) MovingSum() int64 {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
 
 	// Drop old buckets
-	ms.dropOldbuckets()
+	ms.dropOldBuckets()
 
-	// Calculate the sum of the remaining buckets
-	sum := int64(0)
-	for _, bucket := range ms.buckets {
-		sum += bucket.sum
-
-	}
-	return sum
+	// Return current sum
+	return ms.currentSum
 }
 
-func (ms *MovingSum) dropOldbuckets() {
+// dropOldbuckets removes buckets that are outside the specified time window.
+func (ms *MovingSum) dropOldBuckets() {
 	now := ms.clock.Now()
 	threshold := now.Add(-ms.timeWindow)
 	dropFromIndex := 0
@@ -78,17 +81,20 @@ func (ms *MovingSum) dropOldbuckets() {
 		if bucket.timestamp.After(threshold) {
 			break
 		}
+		ms.currentSum -= bucket.sum
 		dropFromIndex++
 	}
 	ms.buckets = ms.buckets[dropFromIndex:]
 }
 
+// InfoKey returns a string representing the key for the moving sum.
 func (ms *MovingSum) InfoKey() string {
 	return "24h Moving Sum (bytes): "
 }
 
+// Info returns the moving sum as a formatted string slice.
 func (ms *MovingSum) Info() []string {
-	MovingSum := ms.CalculateMovingSum()
+	MovingSum := ms.MovingSum()
 
 	return []string{
 		fmt.Sprintf("%d", MovingSum),
