@@ -45,11 +45,11 @@ func (flare *Flare) GetHostname() string {
 
 // GetFilenames returns all the filenames in the flare archive
 func (flare *Flare) GetFilenames() []string {
-    filenames := make([]string, 0, len(flare.zipFiles))
-    for name := range flare.zipFiles {
-        filenames = append(filenames, name)
-    }
-    return filenames
+	filenames := make([]string, 0, len(flare.zipFiles))
+	for name := range flare.zipFiles {
+		filenames = append(filenames, name)
+	}
+	return filenames
 }
 
 // GetFile returns a *zip.File whose name is 'path' or 'path/'. Returns an error if the file does not exist
@@ -95,6 +95,7 @@ func (flare *Flare) GetFileContent(path string) (string, error) {
 	if err != nil {
 		return "", nil
 	}
+	defer fileReader.Close()
 
 	fileContent := make([]byte, file.UncompressedSize64)
 	_, err = io.ReadFull(fileReader, fileContent)
