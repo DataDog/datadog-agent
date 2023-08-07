@@ -26,6 +26,7 @@ const (
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
 	sourceEnvVar        = "DD_SOURCE"
 	sourceName          = "Datadog Agent"
+	maxBufferSize       = 256 * 1024 // Max log size is 256KB: https://docs.datadoghq.com/agent/logs/log_transport/?tab=https
 )
 
 // Config holds the log configuration
@@ -101,7 +102,17 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 
-	// In dotnet, only flush the log buffer if the chunk to be appended ends in a newline.
+	// .NET specific behavior
+
+	// Prevent buffer overflow, flush the buffer if writing the current chunk
+	// will exceed maxBufferSize
+	if cw.LineBuffer.Len()+len(p) > maxBufferSize {
+		fmt.Println(string(p))
+		Write(cw.LogConfig, cw.LineBuffer.Bytes(), cw.IsError)
+		cw.LineBuffer.Reset()
+	}
+
+	// Only flush the log buffer if the chunk to be appended ends in a newline.
 	// Otherwise, the chunk only represents part of a log. Push it into the buffer and wait
 	// for the rest of the log before flushing.
 	cw.LineBuffer.Write(p)
