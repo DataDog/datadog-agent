@@ -20,6 +20,16 @@ type cmdTestCase struct {
 func TestBasicShellCommandObfuscation(t *testing.T) {
 	tests := []cmdTestCase{
 		{
+			command:           "foo --pass secret not_secret --token=secret; md5 --password=pony; cat passwords.txt > /tmp/hello",
+			expected:          "foo --pass ? not_secret --token=?; md5 ?; cat passwords.txt > /tmp/hello",
+			obfuscatedIndices: "11:6 32:6 39:15",
+		},
+		{
+			command:           "foo --pass '$(\"md5\" --arg)'",
+			expected:          "foo --pass ?",
+			obfuscatedIndices: "11:16",
+		},
+		{
 			command:           "md5 --password=",
 			expected:          "md5 ?",
 			obfuscatedIndices: "4:11",
@@ -30,19 +40,14 @@ func TestBasicShellCommandObfuscation(t *testing.T) {
 			obfuscatedIndices: "4:5",
 		},
 		{
-			command:           "foo --pass '$(\"md5\" --arg)'",
-			expected:          "foo --pass ?",
-			obfuscatedIndices: "11:16",
-		},
-		{
-			command:           "foo --pass secret not_secret --token=secret; md5 --password=pony; cat passwords.txt > /tmp/hello",
-			expected:          "foo --pass ? not_secret --token=?; md5 ?; cat passwords.txt > /tmp/hello",
-			obfuscatedIndices: "11:6 32:6 39:15",
-		},
-		{
 			command:           "md5 --password=pony",
 			expected:          "md5 ?",
 			obfuscatedIndices: "4:15",
+		},
+		{
+			command:           "md5 --pass",
+			expected:          "md5 ?",
+			obfuscatedIndices: "4:6",
 		},
 		{
 			command:           "cat passwords.txt other | while read line; do; md5 -s $line; done",
@@ -53,6 +58,11 @@ func TestBasicShellCommandObfuscation(t *testing.T) {
 			command:           "cmd --pass abc --token=def",
 			expected:          "cmd --pass ? --token=?",
 			obfuscatedIndices: "11:3 21:3",
+		},
+		{
+			command:           "cmd --pass",
+			expected:          "cmd --pass",
+			obfuscatedIndices: "",
 		},
 		{
 			command:           "ENV=\"i'm a var env who say: $hello\" ENV2=\"ZZZ\" LD_PRELOAD=YYY ls",
@@ -69,6 +79,16 @@ func TestBasicShellCommandObfuscation(t *testing.T) {
 			expected:          "ENV=? LD_PRELOAD=YYY ls",
 			obfuscatedIndices: "4:4",
 		},
+		/*
+			This test doesn't work because the lexer badly catch multiple environment variables that refers to variables
+			For example here: ENV2 is considered as a Field and not as a ShellVariable
+
+			{
+				command:           "ENV=$hey ENV2=$other LD_PRELOAD=YYY ls",
+				expected:          "ENV=? ENV2=? LD_PRELOAD=YYY ls",
+				obfuscatedIndices: "4:4 11:6",
+			},
+		*/
 		{
 			command:           "md5 --pass=pony",
 			expected:          "md5 ?",
@@ -88,6 +108,43 @@ func TestBasicShellCommandObfuscation(t *testing.T) {
 			command:           "md5 -s pony",
 			expected:          "md5 ? ?",
 			obfuscatedIndices: "4:2 6:4",
+		},
+		{
+			command:           "cmd --token; cmd --pass=x ; LD_PRELOAD=$token cmd2 hello world",
+			expected:          "cmd --token; cmd --pass=? ; LD_PRELOAD=$token cmd2 hello world",
+			obfuscatedIndices: "24:1",
+		},
+
+		// Tests without any obfuscation
+		{
+			command:           "cmd --pass=; cmd2 --pass=",
+			expected:          "cmd --pass=; cmd2 --pass=",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "cmd --pass=",
+			expected:          "cmd --pass=",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "cmd --pass; cmd2 --pass",
+			expected:          "cmd --pass; cmd2 --pass",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "cmd; cmd; LD_PRELOAD=XXX cmd2 --pass",
+			expected:          "cmd; cmd; LD_PRELOAD=XXX cmd2 --pass",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "cmd --token; cmd --pass= ; LD_PRELOAD=$token cmd2 hello world",
+			expected:          "cmd --token; cmd --pass= ; LD_PRELOAD=$token cmd2 hello world",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "cmd hello world; bin --pass; md5; md5 > txt.txt; md5",
+			expected:          "cmd hello world; bin --pass; md5; md5 > txt.txt; md5",
+			obfuscatedIndices: "",
 		},
 		{
 			command:           "md5sum file",
