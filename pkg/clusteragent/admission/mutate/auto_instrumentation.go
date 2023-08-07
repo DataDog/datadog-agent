@@ -333,6 +333,8 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error {
 	initCtrName := initContainerName(lang)
+	initCtrRunAsUser := int64(10000)
+	initCtrRunAsGroup := int64(10000)
 	log.Debugf("Injecting init container named %q with image %q into pod %s", initCtrName, image, podString(pod))
 	initContainer := corev1.Container{
 		Name:    initCtrName,
@@ -343,6 +345,10 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 				Name:      volumeName,
 				MountPath: mountPath,
 			},
+		},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:  &initCtrRunAsUser,
+			RunAsGroup: &initCtrRunAsGroup,
 		},
 	}
 	resources, hasResources, err := initResources()

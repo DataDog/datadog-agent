@@ -256,6 +256,12 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 			require.Equal(t, []string{"sh", "copy-lib.sh", "/datadog-lib"}, container.Command)
 			require.Equal(t, "datadog-auto-instrumentation", container.VolumeMounts[0].Name)
 			require.Equal(t, "/datadog-lib", container.VolumeMounts[0].MountPath)
+
+			securityContext := container.SecurityContext
+			require.NotNil(t, securityContext)
+			require.Equal(t, *securityContext.RunAsUser, int64(10000))
+			require.Equal(t, *securityContext.RunAsGroup, int64(10000))
+
 			initContainerFound = true
 			break
 		}
