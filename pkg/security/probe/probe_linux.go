@@ -509,7 +509,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			seclog.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.ArgsEnvsEventType:
@@ -1620,6 +1620,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	resolversOpts := resolvers.ResolversOpts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
+		UseRingBuffer:         useRingBuffers,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
