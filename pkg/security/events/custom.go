@@ -98,6 +98,7 @@ func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson
 	}
 }
 
+// NewCustomEvent returns a new custom event
 func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler, tags ...string) *CustomEvent {
 	return NewCustomEventLazy(eventType, func() easyjson.Marshaler {
 		return marshaler
@@ -140,6 +141,7 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
+// MarshalEasyJSON marshals the custom event to JSON using easyJSON
 func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	ce.marshalerCtor().MarshalEasyJSON(w)
 }

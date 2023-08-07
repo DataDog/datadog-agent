@@ -13,20 +13,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// RuleFilterEvent represents a rule filtering event
 type RuleFilterEvent struct {
 }
 
+// RuleFilterModel represents a rule fitlering model
 type RuleFilterModel struct {
 }
 
+// NewRuleFilterModel returns a new rule filtering model
 func NewRuleFilterModel() *RuleFilterModel {
 	return &RuleFilterModel{}
 }
 
+// NewEvent returns a new rule filtering event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{}
 }
 
+// GetEvaluator returns a new evaluator for a rule filtering field
 func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch",
@@ -58,6 +63,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
+// GetFieldValue returns the value of the given field
 func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch",
