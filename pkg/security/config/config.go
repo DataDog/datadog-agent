@@ -47,6 +47,8 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorPerRuleEnabled bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
+	// AuthSocket is true if the socket need to be authentificate by root or dd-agent
+	AuthSocket bool
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
@@ -228,6 +230,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
+		AuthSocket:           coreconfig.SystemProbe.GetBool("runtime_security_config.auth_socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: coreconfig.SystemProbe.GetDuration("runtime_security_config.event_server.retention"),

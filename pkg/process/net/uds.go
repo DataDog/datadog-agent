@@ -8,13 +8,18 @@
 package net
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const udsAgentSig = "UDS_AGENT_SIG-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca4"
+const udsProcessAgentSig = "UDS_PROCESS_AGENT_SIG-6df08279acf372b0fe1c624369059fe2d6ade65d05"
 
 // UDSListener (Unix Domain Socket Listener)
 type UDSListener struct {
@@ -22,8 +27,41 @@ type UDSListener struct {
 	socketPath string
 }
 
+// HttpServe is equivalent to http.Serve()
+// but will check credential if authSocket is true by verifying the client pid binary signature
+func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
+	srv := &http.Server{Handler: handler}
+	if authSocket {
+		srv.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
+			var unixConn *net.UnixConn
+			var ok bool
+			if unixConn, ok = c.(*net.UnixConn); !ok {
+				return ctx
+			}
+			valid, err := IsUnixNetConnValid(unixConn, udsAgentSig, udsProcessAgentSig)
+			if err != nil || !valid {
+				if err != nil {
+					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
+				} else if !valid {
+					log.Errorf("unix socket %s -> %s closing connection, rejected. Client accessing this socket require a signed binary", unixConn.LocalAddr(), unixConn.RemoteAddr())
+				}
+				// reject the connection
+				newCtx, cancelCtx := context.WithCancel(ctx)
+				ctx = newCtx
+				cancelCtx()
+				c.Close()
+			}
+			if valid {
+				log.Debugf("unix socket %s -> %s connection authenticated", unixConn.LocalAddr(), unixConn.RemoteAddr())
+			}
+			return ctx
+		}
+	}
+	return srv.Serve(l)
+}
+
 // NewListener returns an idle UDSListener
-func NewListener(socketAddr string) (*UDSListener, error) {
+func NewListener(socketAddr string, authSocket bool) (*UDSListener, error) {
 	if len(socketAddr) == 0 {
 		return nil, fmt.Errorf("uds: empty socket path provided")
 	}
@@ -51,19 +89,24 @@ func NewListener(socketAddr string) (*UDSListener, error) {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	if err := os.Chmod(socketAddr, 0720); err != nil {
-		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
-	}
+	if authSocket { // in authSocket mode we don't care about the user as we check the client binary signature at runtime
+		if err := os.Chmod(socketAddr, 0777); err != nil {
+			return nil, fmt.Errorf("can't set the socket at write only: %s", err)
+		}
+	} else {
+		if err := os.Chmod(socketAddr, 0720); err != nil {
+			return nil, fmt.Errorf("can't set the socket at write only: %s", err)
+		}
 
-	perms, err := filesystem.NewPermission()
-	if err != nil {
-		return nil, err
-	}
+		perms, err := filesystem.NewPermission()
+		if err != nil {
+			return nil, err
+		}
 
-	if err := perms.RestrictAccessToUser(socketAddr); err != nil {
-		return nil, err
+		if err := perms.RestrictAccessToUser(socketAddr); err != nil {
+			return nil, err
+		}
 	}
-
 	listener := &UDSListener{
 		conn:       conn,
 		socketPath: socketAddr,

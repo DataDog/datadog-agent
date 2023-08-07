@@ -83,6 +83,7 @@ def environ(env):
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
+    'github.com/fullstorydev/grpcurl/cmd/grpcurl',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/goware/modvendor',

@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"runtime"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -23,7 +24,7 @@ import (
 
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
-	conn, err := net.NewListener(cfg.SocketAddress)
+	conn, err := net.NewListener(cfg.SocketAddress, cfg.AuthSocket)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
 	}
@@ -48,8 +49,13 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
+	// only linux supports unix socket credential
+	if runtime.GOOS != "linux" {
+		cfg.AuthSocket = false
+	}
+
 	go func() {
-		err = http.Serve(conn.GetListener(), mux)
+		err := net.HttpServe(conn.GetListener(), mux, cfg.AuthSocket)
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("error creating HTTP server: %s", err)
 		}

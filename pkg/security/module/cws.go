@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -28,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
+
+const udsSecurityAgent = "UDS_SECURITY_AGENT_SIG-4ce7aa6ef3c376b3d80ac1ec5f2b50fcd5d65e896"
 
 // CWSConsumer represents the system-probe module for the runtime security agent
 type CWSConsumer struct {
@@ -58,6 +61,11 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
 
+	var grpcOpts []grpc.ServerOption
+	if config.AuthSocket {
+		grpcOpts = append(grpcOpts, GRPCWithCredOptions(udsSecurityAgent))
+	}
+
 	c := &CWSConsumer{
 		config:       config,
 		probe:        evm.Probe,
@@ -68,7 +76,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		apiServer:     NewAPIServer(config, evm.Probe, evm.StatsdClient, selfTester),
 		rateLimiter:   events.NewRateLimiter(config, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    NewGRPCServer(config.SocketPath),
+		grpcServer:    NewGRPCServer(config.SocketPath, grpcOpts...),
 		selfTester:    selfTester,
 	}
 

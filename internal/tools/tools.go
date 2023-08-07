@@ -12,6 +12,7 @@ package tools
 
 import (
 	_ "github.com/frapposelli/wwhrd"
+	_ "github.com/fullstorydev/grpcurl/cmd/grpcurl"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/goware/modvendor"

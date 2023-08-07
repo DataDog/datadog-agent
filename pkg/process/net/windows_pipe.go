@@ -9,6 +9,7 @@ package net
 
 import (
 	"net"
+	"net/http"
 )
 
 // WindowsPipeListener for communicating with Probe
@@ -18,7 +19,8 @@ type WindowsPipeListener struct {
 }
 
 // NewListener sets up a TCP listener for now, will eventually be a named pipe
-func NewListener(socketAddr string) (*WindowsPipeListener, error) {
+// authSocket are unused, as windows doesn't support credential
+func NewListener(socketAddr string, authSocket bool) (*WindowsPipeListener, error) {
 	l, err := net.Listen("tcp", socketAddr)
 	return &WindowsPipeListener{l, "path"}, err
 }
@@ -31,4 +33,10 @@ func (wp *WindowsPipeListener) GetListener() net.Listener {
 // Stop closes the WindowsPipeListener connection and stops listening
 func (wp *WindowsPipeListener) Stop() {
 	wp.conn.Close()
+}
+
+// HttpServe is equivalent to http.Serve()
+// authSocket are unused, as windows doesn't support credential
+func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
+	return http.Serve(l, handler)
 }
