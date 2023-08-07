@@ -8,7 +8,8 @@
 #include "protocols/http2/helpers.h"
 #include "protocols/grpc/defs.h"
 
-#define GRPC_MAX_FRAMES_TO_PROCESS 10
+#define GRPC_MAX_FRAMES_TO_FILTER 10
+#define GRPC_MAX_FRAMES_TO_PROCESS 2
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
 
 // The HPACK specification defines the specific Huffman encoding used for string
@@ -17,6 +18,11 @@
 // is byte-aligned and can be compared without any masking on the final byte.
 #define GRPC_ENCODED_CONTENT_TYPE "\x1d\x75\xd0\x62\x0d\x26\x3d\x4c\x4d\x65\x64"
 #define GRPC_CONTENT_TYPE_LEN (sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1)
+
+typedef struct {
+    __u32 offset;
+    __u32 length;
+} header_info_t;
 
 static __always_inline void check_and_skip_magic(const struct __sk_buff *skb, skb_info_t *info) {
     char buf[HTTP2_MARKER_SIZE];
@@ -123,6 +129,9 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
     struct http2_frame current_frame;
 
+    header_info_t frames[GRPC_MAX_FRAMES_TO_PROCESS];
+    u32 frames_count = 0;
+
     // Make a mutable copy of skb_info
     skb_info_t info = *skb_info;
 
@@ -131,8 +140,8 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
     check_and_skip_magic(skb, &info);
 
     // Loop through the HTTP2 frames in the packet
-#pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == PAYLOAD_UNDETERMINED; ++i) {
+#pragma unroll(GRPC_MAX_FRAMES_TO_FILTER)
+    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_FILTER && frames_count < GRPC_MAX_FRAMES_TO_PROCESS; ++i) {
         if (info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
             break;
         }
@@ -144,12 +153,18 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
             break;
         }
 
-        if (current_frame.type != kHeadersFrame) {
-            info.data_off += current_frame.length;
-            continue;
+        if (current_frame.type == kHeadersFrame) {
+            frames[frames_count++] = (header_info_t){ .offset = info.data_off, .length = current_frame.length };
         }
 
-        status = scan_headers(skb, &info, current_frame.length);
+        info.data_off += current_frame.length;
+    }
+
+#pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
+    for (__u8 i = 0; i < frames_count && status == PAYLOAD_UNDETERMINED; ++i) {
+        info.data_off = frames[i].offset;
+
+        status = scan_headers(skb, &info, frames[i].length);
     }
 
     return status;
