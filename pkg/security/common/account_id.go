@@ -19,16 +19,16 @@ import (
 
 type cloudProviderDetector struct {
 	name              string
-	accountIdName     string
+	accountIDName     string
 	callback          func(context.Context) bool
 	accountIdCallback func(context.Context) (string, error)
 }
 
 func queryAccountId(ctx context.Context) (string, string, error) {
 	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, accountIdName: "account_id", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
-		{name: gce.CloudProviderName, accountIdName: "project_id", callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
-		{name: azure.CloudProviderName, accountIdName: "subscription_id", callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
+		{name: ec2.CloudProviderName, accountIDName: "account_id", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
+		{name: gce.CloudProviderName, accountIDName: "project_id", callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
+		{name: azure.CloudProviderName, accountIDName: "subscription_id", callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
 	}
 
 	for _, cloudDetector := range detectors {
@@ -42,7 +42,7 @@ func queryAccountId(ctx context.Context) (string, string, error) {
 
 			log.Infof("Detecting account id from %s cloud provider: %+q", cloudDetector.name, accountID)
 
-			return cloudDetector.accountIdName, accountID, nil
+			return cloudDetector.accountIDName, accountID, nil
 		}
 	}
 

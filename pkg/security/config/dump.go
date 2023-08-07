@@ -92,7 +92,7 @@ type StorageFormat int
 
 const (
 	// Json is used to request the JSON format
-	Json StorageFormat = iota // json
+	JSON StorageFormat = iota // json
 	// Protobuf is used to request the protobuf format
 	Protobuf // protobuf
 	// Dot is used to request the dot format
@@ -103,7 +103,7 @@ const (
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{Json, Protobuf, Dot, Profile}
+	return []StorageFormat{JSON, Protobuf, Dot, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input
