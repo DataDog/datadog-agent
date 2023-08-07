@@ -292,6 +292,9 @@ int hook_do_exit(ctx_t *ctx) {
         cleanup_traced_state(tgid);
     }
 
+    // cleanup any remaining syscall cache entry for this pid_tgid
+    pop_syscall(EVENT_ANY);
+
     return 0;
 }
 
