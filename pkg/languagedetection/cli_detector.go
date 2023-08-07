@@ -6,8 +6,11 @@
 package languagedetection
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -65,11 +68,37 @@ func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
 }
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process) []*languagemodels.Language {
+func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReader) []*languagemodels.Language {
 	langs := make([]*languagemodels.Language, len(procs))
+	unknownPids := make([]int32, 0, len(procs))
+	langsToModify := make(map[int32]*languagemodels.Language, len(procs))
 	for i, proc := range procs {
-		languageName := languageNameFromCommandLine(proc.Cmdline)
-		langs[i] = &languagemodels.Language{Name: languageName}
+		lang := &languagemodels.Language{Name: languageNameFromCommandLine(proc.Cmdline)}
+		langs[i] = lang
+		if lang.Name == languagemodels.Unknown {
+			unknownPids = append(unknownPids, proc.Pid)
+			langsToModify[proc.Pid] = lang
+		}
+	}
+
+	if sysprobeConfig != nil && sysprobeConfig.GetBool("language_detection.enabled") {
+		util, err := net.GetRemoteSystemProbeUtil(
+			sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+		)
+		if err != nil {
+			log.Warn("Failed to request language:", err)
+			return langs
+		}
+
+		privilegedLangs, err := util.DetectLanguage(unknownPids)
+		if err != nil {
+			log.Warn("Failed to request language:", err)
+			return langs
+		}
+
+		for i, pid := range unknownPids {
+			*langsToModify[pid] = privilegedLangs[i]
+		}
 	}
 	return langs
 }

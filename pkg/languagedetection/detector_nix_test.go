@@ -166,6 +166,6 @@ func BenchmarkDetectLanguage(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		DetectLanguage(procs)
+		DetectLanguage(procs, nil)
 	}
 }
