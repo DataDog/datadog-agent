@@ -90,8 +90,6 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 }
 
 func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
-	defer network.Reclaim(cs)
-
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		return nil, err
@@ -126,18 +124,23 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	count := runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
 
+	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
+	connections := &connectionserver.Connection{}
+
+	defer network.Reclaim(cs)
+
 	for len(cs.Conns) > 0 {
 		finalBatchSize := min(maxConnsPerMessage, len(cs.Conns))
 		rest := cs.Conns[finalBatchSize:]
 		cs.Conns = cs.Conns[:finalBatchSize]
 
-		marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
 		conns, err := getConnectionsFromMarshaler(marshaler, cs)
 		if err != nil {
 			return err
 		}
 
-		err = s2.Send(&connectionserver.Connection{Data: conns})
+		connections.Data = conns
+		err = s2.Send(connections)
 		if err != nil {
 			log.Errorf("unable to send current connection batch due to: %v", err)
 		}
