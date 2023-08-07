@@ -262,7 +262,7 @@ func TestServer(t *testing.T) {
 		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
 
-		assert.Len(t, getResponse10Min.Payloads, 2, "should contain two element before cleanup %+v", getResponse10Min)
+		assert.Len(t, getResponse10Min.Payloads, 2, "should contain two elements before cleanup %+v", getResponse10Min)
 
 		clock.Add(10 * time.Minute)
 
