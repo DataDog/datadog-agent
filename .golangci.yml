@@ -37,8 +37,6 @@ issues:
       linters:
         - errcheck
     # disable typecheck in folder where it breaks because of build tags
-    - path: "pkg/security/"
-      linters: [typecheck]
     - path: "pkg/process/"
       linters: [typecheck]
     # Ignore name repetition for checks (docker.Docker*, jmx.JMX*, etc.)
