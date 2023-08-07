@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package mocksender
 
 import (
@@ -45,6 +43,10 @@ func SetSender(sender *MockSender, id checkid.ID) {
 type MockSender struct {
 	mock.Mock
 	senderManager sender.SenderManager
+}
+
+func (m *MockSender) SetSenderManager(senderManager sender.SenderManager) {
+	m.senderManager = senderManager
 }
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface

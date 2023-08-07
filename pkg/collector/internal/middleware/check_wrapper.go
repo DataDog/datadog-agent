@@ -31,9 +31,10 @@ type CheckWrapper struct {
 }
 
 // NewCheckWrapper returns a wrapped check.
-func NewCheckWrapper(inner check.Check) *CheckWrapper {
+func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager) *CheckWrapper {
 	return &CheckWrapper{
-		inner: inner,
+		inner:         inner,
+		senderManager: senderManager,
 	}
 }
 
@@ -72,9 +73,11 @@ func (c *CheckWrapper) String() string {
 }
 
 // Configure implements Check#Configure
-func (c *CheckWrapper) Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	c.senderManager = senderManger
-	return c.inner.Configure(senderManger, integrationConfigDigest, config, initConfig, source)
+func (c *CheckWrapper) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	if c.senderManager == nil {
+		c.senderManager = senderManager
+	}
+	return c.inner.Configure(c.senderManager, integrationConfigDigest, config, initConfig, source)
 }
 
 // Interval implements Check#Interval

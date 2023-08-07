@@ -128,14 +128,6 @@ func GetSender(id checkid.ID) (sender.Sender, error) {
 	return demultiplexerInstance.GetSender(id)
 }
 
-// GetDefaultSender returns the default sender
-func GetDefaultSender() (sender.Sender, error) {
-	if demultiplexerInstance == nil {
-		return nil, errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.GetDefaultSender()
-}
-
 // DisableDefaultHostname allows check to override the default hostname that will be injected
 // when no hostname is specified at submission (for metrics, events and service checks).
 func (s *checkSender) DisableDefaultHostname(disable bool) {

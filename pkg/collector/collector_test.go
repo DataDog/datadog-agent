@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
@@ -83,7 +84,7 @@ type CollectorTestSuite struct {
 }
 
 func (suite *CollectorTestSuite) SetupTest() {
-	suite.c = NewCollector()
+	suite.c = NewCollector(aggregator.GetMemultiplexerInstance())
 	suite.c.Start()
 }
 
@@ -151,7 +152,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck())
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.GetMemultiplexerInstance())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")

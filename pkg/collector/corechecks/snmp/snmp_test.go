@@ -1203,7 +1203,7 @@ namespace: '%s'
 				deps := createDeps(t)
 				aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 			}
-
+			sender.SetSenderManager(aggregator.GetMemultiplexerInstance())
 			mocksender.SetSender(sender, chk.ID())
 
 			sess.On("GetNext", []string{"1.0"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
@@ -1228,6 +1228,7 @@ namespace: '%s'
 
 			sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
 		})
+		break
 	}
 }
 

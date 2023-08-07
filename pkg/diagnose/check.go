@@ -60,7 +60,7 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
 	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
-	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), aggregator.GetMemultiplexerInstance(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

@@ -56,9 +56,7 @@ func (s *senders) GetSender(cid checkid.ID) (sender.Sender, error) {
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
 func (s *senders) DestroySender(id checkid.ID) {
-	if s != nil {
-		s.senderPool.removeSender(id)
-	}
+	s.senderPool.removeSender(id)
 }
 
 // getDefaultSender returns a default sender.

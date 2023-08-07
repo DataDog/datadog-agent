@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -45,6 +44,7 @@ type Worker struct {
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
+	senderManager sender.SenderManager,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -70,7 +70,7 @@ func NewWorker(
 		pendingChecksChan,
 		checksTracker,
 		shouldAddCheckStatsFunc,
-		aggregator.GetDefaultSender,
+		senderManager.GetDefaultSender,
 		pollingInterval,
 	)
 }

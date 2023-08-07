@@ -449,7 +449,7 @@ func startAgent(
 	}
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(common.MainCtx, aggregator.GetMemultiplexerInstance(), pkgconfig.Datadog.GetString("confd_path"))
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
 		logsAgent.AddScheduler(adScheduler.New(common.AC))

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -120,16 +121,17 @@ func TestWorkerInit(t *testing.T) {
 	pendingChecksChan := make(chan check.Check, 1)
 	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
-	_, err := NewWorker(1, 2, nil, checksTracker, mockShouldAddStatsFunc)
+	senderManager := aggregator.GetMemultiplexerInstance()
+	_, err := NewWorker(senderManager, 1, 2, nil, checksTracker, mockShouldAddStatsFunc)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc)
+	_, err = NewWorker(senderManager, 1, 2, pendingChecksChan, nil, mockShouldAddStatsFunc)
 	require.NotNil(t, err)
 
-	_, err = NewWorker(1, 2, pendingChecksChan, checksTracker, nil)
+	_, err = NewWorker(senderManager, 1, 2, pendingChecksChan, checksTracker, nil)
 	require.NotNil(t, err)
 
-	worker, err := NewWorker(1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(senderManager, 1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	assert.Nil(t, err)
 	assert.NotNil(t, worker)
 }
@@ -148,7 +150,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			worker, err := NewWorker(1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+			worker, err := NewWorker(aggregator.GetMemultiplexerInstance(), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 			assert.Nil(t, err)
 
 			worker.Run()
@@ -170,7 +172,7 @@ func TestWorkerName(t *testing.T) {
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
-		worker, err := NewWorker(1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+		worker, err := NewWorker(aggregator.GetMemultiplexerInstance(), 1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 		assert.Nil(t, err)
 		assert.NotNil(t, worker)
 
@@ -222,7 +224,7 @@ func TestWorker(t *testing.T) {
 	pendingChecksChan <- testCheck1
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.GetMemultiplexerInstance(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 
 	wg.Add(1)
@@ -352,7 +354,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	}
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.GetMemultiplexerInstance(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -397,7 +399,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	pendingChecksChan <- testCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.GetMemultiplexerInstance(), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
 
 	worker.Run()
@@ -454,7 +456,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	pendingChecksChan <- squelchedStatsCheck
 	close(pendingChecksChan)
 
-	worker, err := NewWorker(100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc)
+	worker, err := NewWorker(aggregator.GetMemultiplexerInstance(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc)
 	require.Nil(t, err)
 
 	worker.Run()

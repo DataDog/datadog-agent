@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -47,9 +48,14 @@ func (demultiplexerInstanceWrapper) SetSender(sender sender.Sender, id checkid.I
 	return demultiplexerInstance.SetSender(sender, id)
 }
 func (demultiplexerInstanceWrapper) DestroySender(id checkid.ID) {
-	demultiplexerInstance.DestroySender(id)
+	if demultiplexerInstance != nil {
+		demultiplexerInstance.DestroySender(id)
+	}
 }
 func (demultiplexerInstanceWrapper) GetDefaultSender() (sender.Sender, error) {
+	if demultiplexerInstance == nil {
+		return nil, errors.New("Demultiplexer was not initialized")
+	}
 	return demultiplexerInstance.GetDefaultSender()
 }
 
