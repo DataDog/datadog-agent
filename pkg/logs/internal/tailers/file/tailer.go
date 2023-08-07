@@ -18,7 +18,6 @@ import (
 	"go.uber.org/atomic"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/benbjohnson/clock"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -293,7 +293,7 @@ func (t *Tailer) readForever() {
 			return
 		}
 		t.recordBytes(int64(n))
-		t.movingSum.AddBytes(int64(n))
+		t.movingSum.Add(int64(n))
 
 		select {
 		case <-t.stop:
