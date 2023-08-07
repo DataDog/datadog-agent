@@ -29,16 +29,25 @@ const (
 	useWinParams = true
 )
 
-func runService(ctx context.Context, globalParams *command.GlobalParams) error {
-	defer servicemain.RunTimeExitGate()
+type service struct {
+	globalParams *command.GlobalParams
+}
 
-	err := runAgent(ctx, globalParams)
+func (s *service) Name() string {
+	return ServiceName
+}
+
+func (s *service) Init() error {
+	// Nothing to do, kept empty for compatibility with previous implementation.
+	return nil
+}
+
+func (s *service) Run(ctx context.Context) error {
+	err := runAgent(ctx, s.globalParams)
 	if err != nil {
-		// For compatibility with the previous cleanupAndExitHandler implementation, os.Exit() on error.
-		// Since we won't be returning, SCM will put the service into failure/recovery
-		// and automatically restart the service.
-		// If this behavior is no longer desired then simply return the error and let
-		// SERVICE_STOPPED be set.
+		// For compatibility with the previous cleanupAndExitHandler implementation, call os.Exit() on error.
+		// Since we won't be returning, SCM will put the service into failure/recovery and automatically restart the service.
+		// If this behavior is no longer desired then simply return the error and let SERVICE_STOPPED be set.
 		winutil.LogEventViewer(ServiceName, messagestrings.MSG_SERVICE_FAILED, err.Error())
 		os.Exit(1)
 	}
@@ -51,9 +60,7 @@ func rootCmdRun(globalParams *command.GlobalParams) {
 
 	if !globalParams.WinParams.Foreground {
 		if servicemain.RunningAsWindowsService() {
-			servicemain.RunAsWindowsService(ServiceName, func(ctx context.Context) error {
-				return runService(ctx, globalParams)
-			})
+			servicemain.Run(&service{globalParams: globalParams})
 			return
 		}
 

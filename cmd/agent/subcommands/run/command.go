@@ -229,7 +229,7 @@ func run(log log.Component,
 }
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
-func StartAgentWithDefaults(ctx context.Context) error {
+func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	var dsdServer dogstatsdServer.Component
 
 	// run startAgent in an app, so that the log and config components get initialized
@@ -262,21 +262,10 @@ func StartAgentWithDefaults(ctx context.Context) error {
 	)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	defer func() {
-		stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, dsdServer)
-	}()
-
-	// Wait for stop signal
-	select {
-	case <-signals.Stopper:
-	case <-signals.ErrorStopper:
-	case <-ctx.Done():
-	}
-
-	return nil
+	return dsdServer, nil
 }
 
 func getSharedFxOption() fx.Option {

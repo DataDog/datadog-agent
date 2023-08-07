@@ -9,6 +9,7 @@ package servicemain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,14 +19,45 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
+type Service interface {
+	// Name() returns the string to be used as the source for event log records.
+	Name() string
+
+	// Init() implements application initialization and is run when the service status is SERVICE_START_PENDING.
+	// The service status is set to SERVICE_RUNNING when Init() returns sucessfully.
+	// See ErrCleanStopAfterInit if you need to exit without calling Service.Run() or throwing an error.
+	Init() error
+
+	// Run() implements all application logic and is run when the service status is SERVICE_RUNNING.
+	//
+	// The provided context is cancellable. Run() must monitor ctx.Done() and return as soon as possible
+	// when it is set. There is no standard time limit, it is up to the program performing the service stop.
+	// The Services.msc snap-in has a 125 second limit, if the operating system is rebooting there is a 20 second limit.
+	// https://learn.microsoft.com/en-us/windows/win32/services/service-control-handler-function
+	//
+	// The service will exit when Run() returns. Run() must return for the service status to be be updated to SERVICE_STOPPED.
+	// If the process exits without setting SERVICE_STOPPED, Service Control Manager (SCM) will treat
+	// this as an unexpected exit and enter failure/recovery, regardless of the process exit code.
+	// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_failure_actionsa
+	Run(ctx context.Context) error
+}
+
+// Return ErrCleanStopAfterInit from Service.Init() to report SERVICE_RUNNING and then exit without error.
+//
+// Example usage, the service detects that it is not configured and wishes to stop running, but does not want
+// an error reported, as failing to start may cause commands like `Restart-Service -Force datadogagent` to fail if run
+// after modifying the configuration to disable the service.
+//
+// If your service detects this state in Service.Run() instead then you do not need to do anything, it is handled automatically.
+var ErrCleanStopAfterInit = errors.New("the service did not start but requested a clean exit")
+
 // implements golang svc.Handler
 type controlHandler struct {
-	serviceName string
-	service     func(ctx context.Context) error
+	service Service
 }
 
 // RunningAsWindowsService returns true if the current process is running as a Windows Service
-// and the application should call RunAsWindowsService.
+// and the application should call Run().
 func RunningAsWindowsService() bool {
 	isWindowsService, err := svc.IsWindowsService()
 	if err != nil {
@@ -35,47 +67,28 @@ func RunningAsWindowsService() bool {
 	return isWindowsService
 }
 
-// RunAsWindowsService fullfills the contract required by programs running as Windows Services.
+// Run fullfills the contract required by programs running as Windows Services.
 // https://learn.microsoft.com/en-us/windows/win32/services/service-programs
 //
-// RunAsWindowsService should be called as early as possible in the process initialization.
+// Run should be called as early as possible in the process initialization.
 // If called too late you may encounter service start timeout errors from SCM.
 //
 // SCM only gives services 30 seconds (by default) to respond after the process is created.
 // Specifically, this timeout refers to calling StartServiceCtrlDispatcher, which is called by
-// golang's svc.Run.
-// This timeout is adjustable at the host level with the ServicesPipeTimeout registry value.
+// golang's svc.Run. This timeout is adjustable at the host level with the ServicesPipeTimeout registry value.
 // https://learn.microsoft.com/en-us/troubleshoot/windows-server/system-management-components/service-not-start-events-7000-7011-time-out-error
 //
 // Golang initializes all packages before giving control to main(). This means that if the package
 // initialization takes longer than the SCM timeout then SCM will kill our process before main()
-// is even called.
-//
-// One observed source of extended process initialization times is dependency packages that call
+// is even called. One observed source of extended process initialization times is dependency packages that call
 // golang's user.Current() function to get the current user. If this becomes a recurring issue we may
 // want to consider calling StartServiceCtrlDispatcher before the go runtime is initialized, for example
 // via a C constructor.
-//
-// @serviceName
-//   - used as the source for event log records.
-//
-// @service
-//   - Function containing all application logic when run as a service.
-//   - The context argument to the @service function is cancellable. The @service must monitor
-//     ctx.Done() and return as soon as possible when it is set. There is no standard time limit, it
-//     is up to the program performing the service stop. The Services.msc snap-in has a 125 second limit,
-//     if the operating system is rebooting there is a 20 second limit.
-//     https://learn.microsoft.com/en-us/windows/win32/services/service-control-handler-function
-//   - The @service function must return. If it does not return then the service status will not
-//     be updated to SERVICE_STOPPED. Service Control Manager (SCM) will treat this as an unexpected exit
-//     and enter failure/recovery, regardless of the process exit code.
-//     https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_failure_actionsa
-func RunAsWindowsService(serviceName string, service func(ctx context.Context) error) {
+func Run(service Service) {
 	var s controlHandler
-	s.serviceName = serviceName
 	s.service = service
 
-	s.eventlog(messagestrings.MSG_SERVICE_STARTING, s.serviceName)
+	s.eventlog(messagestrings.MSG_SERVICE_STARTING, s.service.Name())
 
 	// golang svc.Run calls StartServiceCtrlDispatcher, which does not return until the service
 	// enters the SERVICE_STOPPED state.
@@ -86,7 +99,7 @@ func RunAsWindowsService(serviceName string, service func(ctx context.Context) e
 	// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nc-winsvc-lpservice_main_functiona
 	// https://learn.microsoft.com/en-us/windows/win32/services/writing-a-service-program-s-main-function
 	// https://learn.microsoft.com/en-us/windows/win32/services/writing-a-servicemain-function
-	err := svc.Run(s.serviceName, &s)
+	err := svc.Run(s.service.Name(), &s)
 	if err != nil {
 		s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
 		return
@@ -94,36 +107,50 @@ func RunAsWindowsService(serviceName string, service func(ctx context.Context) e
 
 	// svc.Run() can return before Execute() ends if there is an error, but since we trigger
 	// process exit when svc.Run() returns its okay if we leak the goroutine.
-	s.eventlog(messagestrings.MSG_SERVICE_STOPPED, s.serviceName)
+	s.eventlog(messagestrings.MSG_SERVICE_STOPPED, s.service.Name())
 }
 
-// If the service depends on datadogagent, then defer this function in your RunAsWindowService callback.
+// runTimeExitGate is used to ensure the service exits without error on short-lived successful stops
 //
 // On Windows, the Service Control Manager (SCM) requires that dependent services stop. This means that when running
 // `Restart-Service datadogagent`, Windows will try to stop the Process Agent, and then to be helpful it will immediately start it again.
 // However, if Process Agent is not configured to be running it will exit immediately, which `Restart-Service` will report as an error.
 // To avoid the error on a successful exit we must ensure that we are in the RUNNING state long enough for `Restart-Service` or other
 // tools to consider the restart successful.
-func RunTimeExitGate() {
-	exitGate := time.After(5 * time.Second)
-	<-exitGate
+func runTimeExitGate() <-chan time.Time {
+	return time.After(5 * time.Second)
 }
 
 func (s *controlHandler) eventlog(msgnum uint32, arg string) {
-	winutil.LogEventViewer(s.serviceName, msgnum, arg)
+	winutil.LogEventViewer(s.service.Name(), msgnum, arg)
 }
 
 // Execute is called by golang svc.Run and is responsible for handling the control requests and state transitions for the service
+// golang.org/x/sys/windows/svc contains the actual control handler callback and status handle, and communicates with
+// our Execute() function via the provided channels.
 // https://learn.microsoft.com/en-us/windows/win32/services/service-status-transitions
 func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
+
 	// first thing we must do is inform SCM that we are SERVICE_START_PENDING.
 	changes <- svc.Status{State: svc.StartPending}
 
+	const runningCmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
+
+	err := s.service.Init()
+	if err != nil {
+		if errors.Is(err, ErrCleanStopAfterInit) {
+			changes <- svc.Status{State: svc.Running, Accepts: runningCmdsAccepted}
+			<-runTimeExitGate()
+			return
+		}
+		s.eventlog(messagestrings.MSG_AGENT_START_FAILURE, err.Error())
+		return
+	}
+
 	// Now tell SCM that we are SERVICE_RUNNING
 	// per MSDN: For best system performance, your application should enter the running state within 25-100 milliseconds.
-	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
-	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
-	s.eventlog(messagestrings.MSG_SERVICE_STARTED, s.serviceName)
+	changes <- svc.Status{State: svc.Running, Accepts: runningCmdsAccepted}
+	s.eventlog(messagestrings.MSG_SERVICE_STARTED, s.service.Name())
 
 	// make sure that we set state to SERVICE_STOP_PENDING when we return so SCM knows
 	// not to send anymore control requests.
@@ -139,9 +166,11 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 		for c := range r {
 			switch c.Cmd {
 			case svc.Interrogate:
+				// current status query
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.PreShutdown, svc.Shutdown:
-				s.eventlog(messagestrings.MSG_RECEIVED_STOP_SVC_COMMAND, s.serviceName)
+				// stop
+				s.eventlog(messagestrings.MSG_RECEIVED_STOP_SVC_COMMAND, s.service.Name())
 				cancelfunc()
 				return
 			default:
@@ -151,11 +180,14 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 		}
 	}()
 
+	exitGate := runTimeExitGate()
+
 	// Run the actual agent/service
-	err := s.service(ctx)
+	err = s.service.Run(ctx)
 	if err != nil {
 		s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
 	}
+	defer func() { <-exitGate }()
 
 	// golang sets the status to SERVICE_STOPPED before returning from svc.Run() so we don't
 	// need to do so here.

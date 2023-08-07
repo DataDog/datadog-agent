@@ -6,15 +6,24 @@
 package run
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type contextSupplier struct {
+	ctx context.Context
+}
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
@@ -33,6 +42,19 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	setParamFlags(runCmd, cliParams)
 
 	return runCmd
+}
+
+func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
+	if cliParams.ConfPath == "" {
+		cliParams.ConfPath = defaultConfPath
+	}
+	return fxutil.OneShot(Run,
+		fx.Supply(&contextSupplier{ctx: ctx}),
+		fx.Supply(cliParams),
+		config.Module,
+		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
+		coreconfig.Module,
+	)
 }
 
 func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {

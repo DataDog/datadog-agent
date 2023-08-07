@@ -141,9 +141,9 @@ func run(log log.Component, config config.Component, telemetry telemetry.Compone
 }
 
 // StartSystemProbeWithDefaults is a temporary way for other packages to use startSystemProbe.
-func StartSystemProbeWithDefaults(ctx context.Context) error {
+func StartSystemProbeWithDefaults() error {
 	// run startSystemProbe in an app, so that the log and config components get initialized
-	err := fxutil.OneShot(
+	return fxutil.OneShot(
 		func(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
 			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, telemetry, sysprobeconfig, rcclient)
 		},
@@ -160,23 +160,11 @@ func StartSystemProbeWithDefaults(ctx context.Context) error {
 			return log.NewLogger(lc, params, sysprobeconfig)
 		}),
 	)
+}
 
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		stopSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}})
-	}()
-
-	// Wait for stop signal
-	select {
-	case <-signals.Stopper:
-	case <-signals.ErrorStopper:
-	case <-ctx.Done():
-	}
-
-	return nil
+// StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.
+func StopSystemProbeWithDefaults() {
+	stopSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}})
 }
 
 // startSystemProbe Initializes the system-probe process

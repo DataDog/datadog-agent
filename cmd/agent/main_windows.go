@@ -6,7 +6,6 @@
 package main
 
 import (
-	"context"
 	_ "expvar"
 	_ "net/http/pprof"
 	"os"
@@ -20,19 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
-func runService(ctx context.Context) error {
-	_ = common.CheckAndUpgradeConfig()
-	// ignore config upgrade error, continue running with what we have.
-	return run.StartAgentWithDefaults(ctx)
-}
-
 func main() {
 	common.EnableLoggingToFile()
 	// if command line arguments are supplied, even in a non interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 && servicemain.RunningAsWindowsService() {
-		servicemain.RunAsWindowsService(common.ServiceName, runService)
+		servicemain.Run(run.NewWindowsService())
 		return
 	}
 	defer log.Flush()

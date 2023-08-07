@@ -8,8 +8,12 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -19,13 +23,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
+type service struct{}
+
+func (s *service) Name() string {
+	return config.ServiceName
+}
+
+func (s *service) Init() error {
+	err := runsubcmd.StartSystemProbeWithDefaults()
+	if errors.Is(err, runsubcmd.ErrNotEnabled) {
+		return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+	}
+	return err
+}
+
+func (s *service) Run(ctx context.Context) error {
+	defer runsubcmd.StopSystemProbeWithDefaults()
+
+	// Wait for stop signal
+	select {
+	case <-signals.Stopper:
+	case <-signals.ErrorStopper:
+	case <-ctx.Done():
+	}
+
+	return nil
+}
+
 func main() {
 	// if command line arguments are supplied, even in a non-interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.
 	if len(os.Args) == 1 {
 		if servicemain.RunningAsWindowsService() {
-			servicemain.RunAsWindowsService(config.ServiceName, runsubcmd.StartSystemProbeWithDefaults)
+			servicemain.Run(&service{})
 		}
 	}
 	defer log.Flush()

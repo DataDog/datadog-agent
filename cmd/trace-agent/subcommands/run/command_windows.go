@@ -11,15 +11,12 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 
 	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 type RunParams struct {
@@ -37,6 +34,24 @@ type RunParams struct {
 	Debug bool
 }
 
+type service struct {
+	cliParams       *RunParams
+	defaultConfPath string
+}
+
+func (s *service) Name() string {
+	return tracecfg.ServiceName
+}
+
+func (s *service) Init() error {
+	// Nothing to do, kept empty for compatibility with previous implementation.
+	return nil
+}
+
+func (s *service) Run(ctx context.Context) error {
+	return runFx(ctx, s.cliParams, s.defaultConfPath)
+}
+
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	cmd.PersistentFlags().BoolVarP(&cliParams.Foreground, "foreground", "f", false,
 		"runs the trace-agent in the foreground.")
@@ -47,36 +62,19 @@ func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
 	if !cliParams.Foreground {
 		if servicemain.RunningAsWindowsService() {
-			servicemain.RunAsWindowsService(tracecfg.ServiceName, func(ctx context.Context) error {
-				return run(ctx, cliParams, defaultConfPath)
-			})
+			servicemain.Run(&service{cliParams: cliParams, defaultConfPath: defaultConfPath})
 			return nil
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	return run(ctx, cliParams, defaultConfPath)
+	return runFx(ctx, cliParams, defaultConfPath)
 }
 
-func run(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
-	if cliParams.ConfPath == "" {
-		cliParams.ConfPath = defaultConfPath
-	}
-
-	return fxutil.OneShot(func(cliParams *RunParams, config config.Component) error {
-		return Run(ctx, cliParams, config)
-	},
-		fx.Supply(cliParams),
-		config.Module,
-		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
-		coreconfig.Module,
-	)
-}
-
-func Run(ctx context.Context, cliParams *RunParams, config config.Component) error {
+func Run(cs *contextSupplier, cliParams *RunParams, config config.Component) error {
 	// Entrypoint here
 
-	ctx, cancelFunc := context.WithCancel(ctx)
+	ctx, cancelFunc := context.WithCancel(cs.ctx)
 
 	// Handle stops properly
 	go func() {
