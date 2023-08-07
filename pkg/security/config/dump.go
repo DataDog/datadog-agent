@@ -91,7 +91,7 @@ func (sr *StorageRequest) GetOutputPath(filename string) string {
 type StorageFormat int
 
 const (
-	// Json is used to request the JSON format
+	// JSON is used to request the JSON format
 	JSON StorageFormat = iota // json
 	// Protobuf is used to request the protobuf format
 	Protobuf // protobuf

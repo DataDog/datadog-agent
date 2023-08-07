@@ -21,21 +21,21 @@ type cloudProviderDetector struct {
 	name              string
 	accountIDName     string
 	callback          func(context.Context) bool
-	accountIdCallback func(context.Context) (string, error)
+	accountIDCallback func(context.Context) (string, error)
 }
 
-func queryAccountId(ctx context.Context) (string, string, error) {
+func queryAccountID(ctx context.Context) (string, string, error) {
 	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, accountIDName: "account_id", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
-		{name: gce.CloudProviderName, accountIDName: "project_id", callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
-		{name: azure.CloudProviderName, accountIDName: "subscription_id", callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
+		{name: ec2.CloudProviderName, accountIDName: "account_id", callback: ec2.IsRunningOn, accountIDCallback: ec2.GetAccountID},
+		{name: gce.CloudProviderName, accountIDName: "project_id", callback: gce.IsRunningOn, accountIDCallback: gce.GetProjectID},
+		{name: azure.CloudProviderName, accountIDName: "subscription_id", callback: azure.IsRunningOn, accountIDCallback: azure.GetSubscriptionID},
 	}
 
 	for _, cloudDetector := range detectors {
 		if cloudDetector.callback(ctx) {
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
 
-			accountID, err := cloudDetector.accountIdCallback(ctx)
+			accountID, err := cloudDetector.accountIDCallback(ctx)
 			if err != nil {
 				return "", "", fmt.Errorf("could not detect cloud provider account ID: %w", err)
 			}
@@ -49,24 +49,24 @@ func queryAccountId(ctx context.Context) (string, string, error) {
 	return "", "", fmt.Errorf("no cloud provider detected")
 }
 
-var accountIdTagCache struct {
+var accountIDTagCache struct {
 	sync.Once
 	value string
 }
 
-// QueryAccountIdTag returns the account id tag matching the current deployment
-func QueryAccountIdTag() string {
-	accountIdTagCache.Do(func() {
+// QueryAccountIDTag returns the account id tag matching the current deployment
+func QueryAccountIDTag() string {
+	accountIDTagCache.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tagName, tagValue, err := queryAccountId(ctx)
+		tagName, tagValue, err := queryAccountID(ctx)
 		if err != nil {
 			log.Errorf("failed to query account id: %v", err)
 			return
 		}
-		accountIdTagCache.value = fmt.Sprintf("%s:%s", tagName, tagValue)
+		accountIDTagCache.value = fmt.Sprintf("%s:%s", tagName, tagValue)
 	})
 
-	return accountIdTagCache.value
+	return accountIDTagCache.value
 }
