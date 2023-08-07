@@ -1097,7 +1097,51 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	if !(aggrConn.IPTranslation == nil ||
 		c.IPTranslation == nil ||
 		*c.IPTranslation == *aggrConn.IPTranslation) {
-		return false
+		// both ip translations are not nil and are
+		// not equal, rollup the ip translation ports
+		// and check again
+		if !sportRolledUp && !dportRolledUp {
+			return false
+		}
+
+		aggrConnReplDstPort, aggrConnReplSrcPort := aggrConn.IPTranslation.ReplDstPort, aggrConn.IPTranslation.ReplSrcPort
+		if sportRolledUp {
+			// more than one connection with
+			// source port dropped in key,
+			// so set source port to 0
+			aggrConn.IPTranslation.ReplDstPort = 0
+			// only reset the port to 0 while
+			// aggregating for comparing the
+			// ip translation below
+			dport := c.IPTranslation.ReplDstPort
+			defer func() {
+				c.IPTranslation.ReplDstPort = dport
+			}()
+			c.IPTranslation.ReplDstPort = 0
+		}
+		if dportRolledUp {
+			// more than one connection with
+			// dest port dropped in key,
+			// so set source port to 0
+			aggrConn.IPTranslation.ReplSrcPort = 0
+			// only reset the port to 0 while
+			// aggregating for comparing the
+			// ip translation below
+			sport := c.IPTranslation.ReplSrcPort
+			defer func() {
+				c.IPTranslation.ReplSrcPort = sport
+			}()
+			c.IPTranslation.ReplSrcPort = 0
+		}
+
+		if *c.IPTranslation != *aggrConn.IPTranslation {
+			// restore the ports for the aggregated connection's
+			// ip translation since we're not aggregating the
+			// passed in connection
+			aggrConn.IPTranslation.ReplDstPort = aggrConnReplDstPort
+			aggrConn.IPTranslation.ReplSrcPort = aggrConnReplSrcPort
+			return false
+		}
 	}
 
 	aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
@@ -1116,18 +1160,24 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 		// source port dropped in key,
 		// so set source port to 0
 		aggrConn.SPort = 0
-		if aggrConn.IPTranslation != nil {
-			aggrConn.IPTranslation.ReplDstPort = 0
-		}
 	}
 	if dportRolledUp {
 		// more than one connection with
 		// dest port dropped in key,
 		// so set source port to 0
 		aggrConn.DPort = 0
-		if aggrConn.IPTranslation != nil {
-			aggrConn.IPTranslation.ReplSrcPort = 0
-		}
+	}
+
+	aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
+	aggrConn.Last = aggrConn.Last.Add(c.Last)
+	aggrConn.rttSum += uint64(c.RTT)
+	aggrConn.rttVarSum += uint64(c.RTTVar)
+	aggrConn.count++
+	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
+		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
+	}
+	if aggrConn.IPTranslation == nil {
+		aggrConn.IPTranslation = c.IPTranslation
 	}
 
 	return true
