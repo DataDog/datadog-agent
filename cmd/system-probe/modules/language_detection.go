@@ -70,12 +70,11 @@ func toDetectLanguageResponse(langs []languagemodels.Language) *languageDetectio
 }
 
 func handleError(writer http.ResponseWriter, status int, err error) {
-	_ = log.Error("Failed to properly handle /lang/detect request:", err)
+	_ = log.Error("Failed to properly handle /language_detection/detect request:", err)
 	writer.WriteHeader(status)
 }
 
 func detectLanguage(writer http.ResponseWriter, request *http.Request) {
-	var b []byte
 	b, err := io.ReadAll(request.Body)
 	if err != nil {
 		handleError(writer, http.StatusInternalServerError, fmt.Errorf("read request body: %v", err))
