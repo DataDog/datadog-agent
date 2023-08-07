@@ -10,6 +10,7 @@ package systemProbe
 
 import (
 	"context"
+  // A blank import should be only in a main or test package, or have a comment justifying it
 	_ "embed"
 	"fmt"
 	"os"

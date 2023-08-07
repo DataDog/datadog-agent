@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+  // A blank import should be only in a main or test package, or have a comment justifying it
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	cache "github.com/patrickmn/go-cache"

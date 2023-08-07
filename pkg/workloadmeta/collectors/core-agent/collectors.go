@@ -8,5 +8,6 @@
 package collectors
 
 import (
+  // A blank import should be only in a main or test package, or have a comment justifying it
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote/process_collector"
 )
