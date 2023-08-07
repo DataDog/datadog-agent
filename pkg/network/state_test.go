@@ -1995,6 +1995,168 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, delta.Kafka, 2)
 }
 
+func TestConnectionRollup(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	conns := []ConnectionStats{
+		{
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 50010,
+				ReplSrcIP:   util.AddressFromString("172.29.177.127"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            50010,
+			ContainerID:      struct{ Source, Dest *string }{strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
+			Monotonic: StatCounters{
+				RecvBytes:      342,
+				SentBytes:      156,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+			Cookie: 1,
+		},
+		{
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 49155,
+				ReplSrcIP:   util.AddressFromString("172.29.177.127"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            49155,
+			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      314,
+				SentBytes:      128,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+			Cookie: 2,
+		},
+		{
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 52907,
+				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            52907,
+			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      306,
+				SentBytes:      120,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+			Cookie: 3,
+		},
+		{
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 52904,
+				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            52904,
+			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      288,
+				SentBytes:      118,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+			Cookie: 4,
+		},
+		{
+			Direction: OUTGOING,
+			Family:    AFINET,
+			IntraHost: false,
+			IPTranslation: &IPTranslation{
+				ReplDstIP:   util.AddressFromString("172.29.141.26"),
+				ReplDstPort: 37240,
+				ReplSrcIP:   util.AddressFromString("172.29.151.242"),
+				ReplSrcPort: 53,
+			},
+			SPortIsEphemeral: EphemeralTrue,
+			Source:           util.AddressFromString("172.29.141.26"),
+			SPort:            37240,
+			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			Monotonic: StatCounters{
+				RecvBytes:      594,
+				SentBytes:      92,
+				RecvPackets:    2,
+				SentPackets:    0,
+				Retransmits:    0,
+				TCPClosed:      0,
+				TCPEstablished: 0,
+			},
+			NetNS:  4026532341,
+			Pid:    28385,
+			Dest:   util.AddressFromString("10.100.0.10"),
+			DPort:  53,
+			Type:   UDP,
+			Cookie: 5,
+		},
+	}
+
+	ns := newDefaultState()
+	ns.RegisterClient("foo")
+	delta := ns.GetDelta("foo", 0, conns, nil, nil, LocalResolver{processEventsEnabled: true})
+	assert.Len(t, delta.Conns, 2)
+
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {

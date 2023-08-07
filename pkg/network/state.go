@@ -305,6 +305,7 @@ func (ns *networkState) GetDelta(
 		closed = trimConns(closed, func(c *ConnectionStats) bool {
 			return aggr.Aggregate(c)
 		})
+		aggr.finalize()
 	}
 
 	if len(dnsStats) > 0 {
@@ -735,6 +736,7 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 	}
 
 	aggr := newConnectionAggregator(len(active)+len(closed), false)
+	defer aggr.finalize()
 	for cookie, c := range active {
 		if aggr.Aggregate(c) {
 			delete(active, cookie)
@@ -998,24 +1000,21 @@ func fixConnectionDirection(c *ConnectionStats) {
 	}
 }
 
+type aggregateConnection struct {
+	*ConnectionStats
+	rttSum, rttVarSum uint64
+	count             uint32
+}
+
 type connectionAggregator struct {
-	conns map[string]*struct {
-		*ConnectionStats
-		rttSum, rttVarSum uint64
-		count             uint32
-	}
+	conns    map[string][]*aggregateConnection
 	buf      []byte
 	resolved bool
 }
 
 func newConnectionAggregator(size int, resolved bool) *connectionAggregator {
 	return &connectionAggregator{
-		conns: make(map[string]*struct {
-			*ConnectionStats
-			rttSum    uint64
-			rttVarSum uint64
-			count     uint32
-		}, size),
+		conns:    make(map[string][]*aggregateConnection, size),
 		buf:      make([]byte, ConnectionByteKeyMaxLen),
 		resolved: resolved,
 	}
@@ -1068,6 +1067,48 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledU
 	return k, ephemeralSport, ephemeralDport
 }
 
+func (a *connectionAggregator) equalIPTranslation(c1, c2 *ConnectionStats, sportRolledUp, dportRolledUp bool) bool {
+	if c1.IPTranslation == c2.IPTranslation ||
+		c1.IPTranslation == nil ||
+		c2.IPTranslation == nil {
+		return true
+	}
+
+	if *c1.IPTranslation == *c2.IPTranslation {
+		return true
+	}
+
+	// both ip translations are not nil and are
+	// not equal, rollup the ip translation ports
+	// and check again
+	if !sportRolledUp && !dportRolledUp {
+		return false
+	}
+
+	if sportRolledUp {
+		c1Dport := c1.IPTranslation.ReplDstPort
+		c2Dport := c2.IPTranslation.ReplDstPort
+		c1.IPTranslation.ReplDstPort = 0
+		c2.IPTranslation.ReplDstPort = 0
+		defer func() {
+			c1.IPTranslation.ReplDstPort = c1Dport
+			c2.IPTranslation.ReplDstPort = c2Dport
+		}()
+	}
+	if dportRolledUp {
+		c1Sport := c1.IPTranslation.ReplSrcPort
+		c2Sport := c2.IPTranslation.ReplSrcPort
+		c1.IPTranslation.ReplSrcPort = 0
+		c2.IPTranslation.ReplSrcPort = 0
+		defer func() {
+			c1.IPTranslation.ReplSrcPort = c1Sport
+			c2.IPTranslation.ReplSrcPort = c2Sport
+		}()
+	}
+
+	return *c1.IPTranslation == *c2.IPTranslation
+}
+
 // Aggregate aggregates a connection. The connection is only
 // aggregated if:
 // - it is not in the collection
@@ -1077,110 +1118,71 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledU
 //   - the other connection's ip translation is not nil AND the nat info is the same
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	key, sportRolledUp, dportRolledUp := a.key(c)
-	aggrConn, ok := a.conns[key]
+	aggrConns, ok := a.conns[key]
 	if !ok {
-		a.conns[key] = &struct {
-			*ConnectionStats
-			rttSum    uint64
-			rttVarSum uint64
-			count     uint32
-		}{
-			ConnectionStats: c,
-			rttSum:          uint64(c.RTT),
-			rttVarSum:       uint64(c.RTTVar),
-			count:           1,
-		}
+		a.conns[key] = []*aggregateConnection{
+			&aggregateConnection{
+				ConnectionStats: c,
+				rttSum:          uint64(c.RTT),
+				rttVarSum:       uint64(c.RTTVar),
+				count:           1,
+			}}
 
 		return false
 	}
 
-	if !(aggrConn.IPTranslation == nil ||
-		c.IPTranslation == nil ||
-		*c.IPTranslation == *aggrConn.IPTranslation) {
-		// both ip translations are not nil and are
-		// not equal, rollup the ip translation ports
-		// and check again
-		if !sportRolledUp && !dportRolledUp {
-			return false
+	for _, aggrConn := range aggrConns {
+		if !a.equalIPTranslation(aggrConn.ConnectionStats, c, sportRolledUp, dportRolledUp) {
+			continue
 		}
 
-		aggrConnReplDstPort, aggrConnReplSrcPort := aggrConn.IPTranslation.ReplDstPort, aggrConn.IPTranslation.ReplSrcPort
+		aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
+		aggrConn.Last = aggrConn.Last.Add(c.Last)
+		aggrConn.rttSum += uint64(c.RTT)
+		aggrConn.rttVarSum += uint64(c.RTTVar)
+		aggrConn.count++
+		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
+			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
+		}
 		if sportRolledUp {
 			// more than one connection with
 			// source port dropped in key,
 			// so set source port to 0
-			aggrConn.IPTranslation.ReplDstPort = 0
-			// only reset the port to 0 while
-			// aggregating for comparing the
-			// ip translation below
-			dport := c.IPTranslation.ReplDstPort
-			defer func() {
-				c.IPTranslation.ReplDstPort = dport
-			}()
-			c.IPTranslation.ReplDstPort = 0
+			aggrConn.SPort = 0
+			if aggrConn.IPTranslation != nil {
+				aggrConn.IPTranslation.ReplDstPort = 0
+			}
 		}
 		if dportRolledUp {
 			// more than one connection with
 			// dest port dropped in key,
 			// so set source port to 0
-			aggrConn.IPTranslation.ReplSrcPort = 0
-			// only reset the port to 0 while
-			// aggregating for comparing the
-			// ip translation below
-			sport := c.IPTranslation.ReplSrcPort
-			defer func() {
-				c.IPTranslation.ReplSrcPort = sport
-			}()
-			c.IPTranslation.ReplSrcPort = 0
+			aggrConn.DPort = 0
+			if aggrConn.IPTranslation != nil {
+				aggrConn.IPTranslation.ReplSrcPort = 0
+			}
 		}
 
-		if *c.IPTranslation != *aggrConn.IPTranslation {
-			// restore the ports for the aggregated connection's
-			// ip translation since we're not aggregating the
-			// passed in connection
-			aggrConn.IPTranslation.ReplDstPort = aggrConnReplDstPort
-			aggrConn.IPTranslation.ReplSrcPort = aggrConnReplSrcPort
-			return false
+		return true
+	}
+
+	a.conns[key] = append(aggrConns, &aggregateConnection{
+		ConnectionStats: c,
+		rttSum:          uint64(c.RTT),
+		rttVarSum:       uint64(c.RTTVar),
+		count:           1,
+	})
+
+	return false
+}
+
+func (a *connectionAggregator) finalize() {
+	for _, aggrConns := range a.conns {
+		for _, c := range aggrConns {
+			c.RTT = uint32(c.rttSum / uint64(c.count))
+			c.RTTVar = uint32(c.rttVarSum / uint64(c.count))
 		}
 	}
-
-	aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-	aggrConn.Last = aggrConn.Last.Add(c.Last)
-	aggrConn.rttSum += uint64(c.RTT)
-	aggrConn.rttVarSum += uint64(c.RTTVar)
-	aggrConn.count++
-	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
-	}
-	if aggrConn.IPTranslation == nil {
-		aggrConn.IPTranslation = c.IPTranslation
-	}
-	if sportRolledUp {
-		// more than one connection with
-		// source port dropped in key,
-		// so set source port to 0
-		aggrConn.SPort = 0
-	}
-	if dportRolledUp {
-		// more than one connection with
-		// dest port dropped in key,
-		// so set source port to 0
-		aggrConn.DPort = 0
-	}
-
-	aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-	aggrConn.Last = aggrConn.Last.Add(c.Last)
-	aggrConn.rttSum += uint64(c.RTT)
-	aggrConn.rttVarSum += uint64(c.RTTVar)
-	aggrConn.count++
-	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
-	}
-	if aggrConn.IPTranslation == nil {
-		aggrConn.IPTranslation = c.IPTranslation
-	}
-
-	return true
 }
 
 func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision bool) {
