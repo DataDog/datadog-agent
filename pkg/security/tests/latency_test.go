@@ -26,7 +26,7 @@ var (
 	host    string
 )
 
-//go:embed latency/bin
+//go:embed latency/bin/*
 var benchLatencyhFS embed.FS
 
 // modified version of testModule.CreateWithOption, to be able to call it without testing module
