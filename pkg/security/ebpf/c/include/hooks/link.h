@@ -41,9 +41,8 @@ int hook_do_linkat(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/vfs_link")
-int kprobe_vfs_link(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_link")
+int hook_vfs_link(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -53,15 +52,15 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    struct dentry *src_dentry = (struct dentry *)CTX_PARM1(ctx);
     syscall->link.src_dentry = src_dentry;
 
-    syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
+    syscall->link.target_dentry = (struct dentry *)CTX_PARM3(ctx);
     // change the register based on the value of vfs_link_target_dentry_position
     if (get_vfs_link_target_dentry_position() == VFS_ARG_POSITION4) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->link.target_dentry, sizeof(syscall->link.target_dentry), &syscall->link.target_dentry);
-        syscall->link.target_dentry = (struct dentry *) PT_REGS_PARM4(ctx);
+        syscall->link.target_dentry = (struct dentry *) CTX_PARM4(ctx);
     }
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
@@ -92,7 +91,7 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_LINK);
@@ -170,16 +169,10 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kretprobe/do_linkat")
-int kretprobe_do_linkat(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_link_ret(ctx, retval, DR_KPROBE);
-}
-
-int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_link_ret(ctx, retval, DR_KPROBE);
+HOOK_EXIT("do_linkat")
+int rethook_do_linkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 5);
+    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 HOOK_SYSCALL_EXIT(link) {
