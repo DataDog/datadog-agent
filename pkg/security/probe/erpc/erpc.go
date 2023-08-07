@@ -53,17 +53,17 @@ type ERPC struct {
 
 // Request defines a EPRC request
 type Request struct {
-	OP   uint8
-	Data []byte
+	OP uint8
+	// Data contains the content of the request
+	// DISCLAIMER: this has to be a byte array, otherwise `unsafe.Pointer(req)` will point to a memory region that
+	// contains a slice header
+	Data [ERPCDefaultDataSize]byte
 }
 
 // NewERPCRequest returns a new eRPC request with a data section of the provided size
-func NewERPCRequest(size int) *Request {
-	if size <= 0 {
-		size = ERPCDefaultDataSize
-	}
+func NewERPCRequest(op uint8) *Request {
 	return &Request{
-		Data: make([]byte, size),
+		OP: op,
 	}
 }
 

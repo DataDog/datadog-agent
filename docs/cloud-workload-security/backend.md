@@ -844,6 +844,10 @@ CSM Threats logs have the following JSON schema:
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
                 },
+                "user_session": {
+                    "$ref": "#/$defs/UserSessionContext",
+                    "description": "Context of the user session for this event"
+                },
                 "executable": {
                     "$ref": "#/$defs/File",
                     "description": "File information of the executable"
@@ -967,6 +971,10 @@ CSM Threats logs have the following JSON schema:
                 "credentials": {
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
+                },
+                "user_session": {
+                    "$ref": "#/$defs/UserSessionContext",
+                    "description": "Context of the user session for this event"
                 },
                 "executable": {
                     "$ref": "#/$defs/File",
@@ -1268,6 +1276,46 @@ CSM Threats logs have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "UserContextSerializer serializes a user context to JSON"
+        },
+        "UserSessionContext": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique identifier of the user session on the host"
+                },
+                "session_type": {
+                    "type": "string",
+                    "description": "Type of the user session"
+                },
+                "k8s_username": {
+                    "type": "string",
+                    "description": "Username of the Kubernetes \"kubectl exec\" session"
+                },
+                "k8s_uid": {
+                    "type": "string",
+                    "description": "UID of the Kubernetes \"kubectl exec\" session"
+                },
+                "k8s_groups": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Groups of the Kubernetes \"kubectl exec\" session"
+                },
+                "k8s_extra": {
+                    "additionalProperties": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "type": "object",
+                    "description": "Extra of the Kubernetes \"kubectl exec\" session"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "UserSessionContextSerializer serializes the user session context to JSON"
         }
     },
     "properties": {
@@ -2601,6 +2649,10 @@ CSM Threats logs have the following JSON schema:
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
         },
+        "user_session": {
+            "$ref": "#/$defs/UserSessionContext",
+            "description": "Context of the user session for this event"
+        },
         "executable": {
             "$ref": "#/$defs/File",
             "description": "File information of the executable"
@@ -2683,6 +2735,7 @@ CSM Threats logs have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
 | `container` | Container context |
@@ -2699,6 +2752,7 @@ CSM Threats logs have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
+| [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
@@ -2767,6 +2821,10 @@ CSM Threats logs have the following JSON schema:
         "credentials": {
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
+        },
+        "user_session": {
+            "$ref": "#/$defs/UserSessionContext",
+            "description": "Context of the user session for this event"
         },
         "executable": {
             "$ref": "#/$defs/File",
@@ -2861,6 +2919,7 @@ CSM Threats logs have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
 | `container` | Container context |
@@ -2879,6 +2938,7 @@ CSM Threats logs have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
+| [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
@@ -3249,6 +3309,63 @@ CSM Threats logs have the following JSON schema:
 | ----- | ----------- |
 | `id` | User name |
 | `group` | Group name |
+
+
+## `UserSessionContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "Unique identifier of the user session on the host"
+        },
+        "session_type": {
+            "type": "string",
+            "description": "Type of the user session"
+        },
+        "k8s_username": {
+            "type": "string",
+            "description": "Username of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_uid": {
+            "type": "string",
+            "description": "UID of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_groups": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Groups of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_extra": {
+            "additionalProperties": {
+                "items": {
+                    "type": "string"
+                },
+                "type": "array"
+            },
+            "type": "object",
+            "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "UserSessionContextSerializer serializes the user session context to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `id` | Unique identifier of the user session on the host |
+| `session_type` | Type of the user session |
+| `k8s_username` | Username of the Kubernetes "kubectl exec" session |
+| `k8s_uid` | UID of the Kubernetes "kubectl exec" session |
+| `k8s_groups` | Groups of the Kubernetes "kubectl exec" session |
+| `k8s_extra` | Extra of the Kubernetes "kubectl exec" session |
 
 
 

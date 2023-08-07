@@ -3,25 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build linux
 
-package inject
+// Package injectcmd holds the inject command of CWS injector
+package injectcmd
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/cws-injector/flags"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/user_session"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -29,20 +29,21 @@ const (
 	UserSessionDataMaxSize = 1024
 )
 
-type injectCliParams struct {
+// InjectCliParams contains the parameters of the inject command
+type InjectCliParams struct {
 	Data        string
 	SessionType string
 }
 
 // Command returns the commands for the setup subcommand
 func Command() []*cobra.Command {
-	var params injectCliParams
+	var params InjectCliParams
 
 	injectCmd := &cobra.Command{
 		Use:   "inject",
 		Short: "Forwards the input user context to the CWS agent with eRPC",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return injectUserSessionCmd(args, &params)
+			return InjectUserSessionCmd(args, &params)
 		},
 	}
 
@@ -53,8 +54,8 @@ func Command() []*cobra.Command {
 	return []*cobra.Command{injectCmd}
 }
 
-// injectUserSessionCmd handles inject commands
-func injectUserSessionCmd(args []string, params *injectCliParams) error {
+// InjectUserSessionCmd handles inject commands
+func InjectUserSessionCmd(args []string, params *InjectCliParams) error {
 	if err := injectUserSession(params); err != nil {
 		// log error but do not return now, we need to execute the user provided command
 		fmt.Println(err.Error())
@@ -78,13 +79,13 @@ func injectUserSessionCmd(args []string, params *injectCliParams) error {
 }
 
 // injectUserSession copies the cws-injector binary to the provided target directory
-func injectUserSession(params *injectCliParams) error {
+func injectUserSession(params *InjectCliParams) error {
 	// sanitize user input
 	if len(params.Data) > UserSessionDataMaxSize {
 		return fmt.Errorf("user session context too long: %d", len(params.Data))
 	}
-	user_session.InitUserSessionTypes()
-	sessionType := user_session.UserSessionTypes[params.SessionType]
+	usersession.InitUserSessionTypes()
+	sessionType := usersession.UserSessionTypes[params.SessionType]
 	if sessionType == 0 {
 		return fmt.Errorf("unknown user session type: %v", params.SessionType)
 	}
@@ -97,26 +98,25 @@ func injectUserSession(params *injectCliParams) error {
 
 	// generate random ID for this session
 	id := (uint64(rand.Uint32()) << 32) + uint64(time.Now().Unix())
-	byteOrder := getHostByteOrder()
 
 	// send the user session to the CWS agent
 	cursor := 0
 	var segmentSize int
 	segmentCursor := uint8(1)
-	for cursor < len(params.Data) || (len(params.Data) == cursor && cursor == 0) {
-		req := erpc.NewERPCRequest(263)
-		req.OP = erpc.UserSessionContextOp
+	for cursor < len(params.Data) || (len(params.Data) == 0 && cursor == 0) {
+		req := erpc.NewERPCRequest(erpc.UserSessionContextOp)
 
-		byteOrder.PutUint64(req.Data[0:8], id)
+		native.Endian.PutUint64(req.Data[0:8], id)
 		req.Data[8] = segmentCursor
-		req.Data[9] = uint8(sessionType)
+		// padding
+		req.Data[16] = uint8(sessionType)
 
-		if 246 < len(params.Data)-cursor {
-			segmentSize = 246
+		if erpc.ERPCDefaultDataSize-17 < len(params.Data)-cursor {
+			segmentSize = erpc.ERPCDefaultDataSize - 17
 		} else {
 			segmentSize = len(params.Data) - cursor
 		}
-		copy(req.Data[16:], params.Data[cursor:cursor+segmentSize])
+		copy(req.Data[17:], params.Data[cursor:cursor+segmentSize])
 
 		// issue eRPC calls
 		if err = client.Request(req); err != nil {
@@ -127,21 +127,9 @@ func injectUserSession(params *injectCliParams) error {
 		segmentCursor++
 
 		if cursor == 0 {
-			// handle cases where we don't have any user session data, but still use this mechanism to track a session
+			// handle cases where we don't have any user session data, but still use this mechanism to start a session
 			cursor++
 		}
 	}
 	return nil
-}
-
-func getHostByteOrder() binary.ByteOrder {
-	var i int32 = 0x01020304
-	u := unsafe.Pointer(&i)
-	pb := (*byte)(u)
-	b := *pb
-	if b == 0x04 {
-		return binary.LittleEndian
-	}
-
-	return binary.BigEndian
 }

@@ -3,21 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build linux
 
+// Package subcommands is used to list the subcommands of CWS injector
 package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cws-injector/command"
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands/inject"
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands/setup"
+	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands/injectcmd"
+	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands/setupcmd"
 )
 
 // CWSInjectorSubcommands returns SubcommandFactories for the subcommands supported
 // with the current build flags.
 func CWSInjectorSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
-		setup.Command,
-		inject.Command,
+		setupcmd.Command,
+		injectcmd.Command,
 	}
 }
