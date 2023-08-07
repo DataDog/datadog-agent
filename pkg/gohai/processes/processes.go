@@ -60,7 +60,7 @@ type ProcessField [7]interface{}
 // Collect collects the processes information.
 // Returns an object which can be converted to a JSON or an error if nothing could be collected.
 // Tries to collect as much information as possible.
-func (processes *Processes) Collect() (result interface{}, err error) {
+func (processes *Processes) Collect() (interface{}, error) {
 	processGroups, err := Get()
 	if err != nil {
 		return nil, err
