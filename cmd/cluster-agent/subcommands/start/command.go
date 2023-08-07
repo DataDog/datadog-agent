@@ -239,7 +239,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// don't import cmd/agent
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
@@ -283,7 +283,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, apiCl, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, aggregator.GetSenderManager(), apiCl, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

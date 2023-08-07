@@ -117,7 +117,7 @@ func run(log log.Component, config config.Component, forwarder defaultforwarder.
 	}
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(mainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)

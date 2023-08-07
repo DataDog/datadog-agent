@@ -8,7 +8,6 @@ package common
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -22,8 +21,8 @@ type ContainersTelemetry struct {
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
-func NewContainersTelemetry() (*ContainersTelemetry, error) {
-	sender, err := aggregator.GetDefaultSender()
+func NewContainersTelemetry(senderManager sender.SenderManager) (*ContainersTelemetry, error) {
+	sender, err := senderManager.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}

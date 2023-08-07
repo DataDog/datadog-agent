@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -50,13 +51,13 @@ type RSAOptions struct {
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string, opts RSAOptions) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(senderManager sender.SenderManager, hostname string, opts RSAOptions) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry, err := newTelemetry(opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
+	telemetry, err := newTelemetry(senderManager, opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
