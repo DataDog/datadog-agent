@@ -44,11 +44,14 @@ var (
 	startupError error
 
 	// knownProtocols holds all known protocols supported by USM to initialize.
-	knownProtocols = []protocols.ProtocolSpec{
+	knownProtocols = []*protocols.ProtocolSpec{
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
 		javaTLSSpec,
+		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
+		// factory.
+		opensslSpec,
 	}
 )
 
@@ -83,10 +86,12 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
+
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr.Manager.Manager, sockFD, bpfTelemetry)
 
 	enabledProtocols, disabledProtocols, err := initProtocols(c, mgr)
 	if err != nil {
@@ -147,10 +152,7 @@ func (m *Monitor) Start() error {
 				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
 			}
 
-			// Cleanup every remaining protocols
-			for _, protocol := range m.enabledProtocols {
-				protocol.Stop(m.ebpfProgram.Manager.Manager)
-			}
+			m.Stop()
 
 			if err != nil {
 				err = fmt.Errorf("could not enable USM: %s", err)
@@ -319,11 +321,7 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []
 
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {
-			// As we're keeping pointers to the disables specs, we're suffering from a common golang-gotcha
-			// Assuming we have http and kafka, http is disabled, kafka is not. Without the following line we'll end up
-			// with enabledProtocols = [kafka] and disabledProtocols = [kafka].
-			spec := spec
-			disabledProtocols = append(disabledProtocols, &spec)
+			disabledProtocols = append(disabledProtocols, spec)
 		}
 	}
 

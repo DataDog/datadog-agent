@@ -42,7 +42,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.91
+	github.com/DataDog/agent-payload/v5 v5.0.92
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
 	github.com/DataDog/datadog-agent/pkg/gohai v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v1.0.3
-	github.com/DataDog/ebpf-manager v0.2.11
+	github.com/DataDog/ebpf-manager v0.2.12
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v1.0.1-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
@@ -216,7 +216,7 @@ require (
 	golang.org/x/sys v0.10.0
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.11.0
+	golang.org/x/tools v0.11.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.56.1

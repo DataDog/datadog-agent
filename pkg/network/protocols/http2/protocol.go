@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 type protocol struct {
@@ -43,7 +44,7 @@ const (
 	eventStream    = "http2"
 )
 
-var Spec = protocols.ProtocolSpec{
+var Spec = &protocols.ProtocolSpec{
 	Factory: newHttpProtocol,
 	Maps: []*manager.Map{
 		{
@@ -76,7 +77,7 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, fmt.Errorf("http2 feature not available on pre %s kernels", MinimumKernelVersion.String())
 	}
 
-	telemetry := http.NewTelemetry()
+	telemetry := http.NewTelemetry("http2")
 
 	return &protocol{
 		cfg:       cfg,
@@ -99,7 +100,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
+	utils.EnableOption(opts, "http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
 }
