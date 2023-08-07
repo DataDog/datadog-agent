@@ -133,7 +133,11 @@ func TestLoadModule(t *testing.T) {
 			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.loaded_from_memory == true && load_module.args == "" && !process.is_kworker`, testModuleName),
 		},
 		{
-			ID:         "test_load_module",
+			ID:         "test_load_module_from_memory_with_params",
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=5"] && load_module.loaded_from_memory == true`, testModuleName),
+		},
+		{
+			ID:         "test_load_module_from_file",
 			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.args == "" && !process.is_kworker`, testModuleName, modulePath),
 		},
 		{
@@ -148,13 +152,12 @@ func TestLoadModule(t *testing.T) {
 			ID:         "test_load_module_with_truncated_params",
 			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["Lorem"]`, testModuleName),
 		},
-		{
-			ID:         "test_load_module_with_params_from_memory",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=5"] && load_module.loaded_from_memory == true`, testModuleName),
-		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{preRules: []*rules.RuleDefinition{{
+		ID:         "test_load_module",
+		Expression: `load_module.name != ""`, // get every module init
+	}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +176,7 @@ func TestLoadModule(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
+			assertTriggeredRule(t, r, "test_load_module_from_memory")
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -201,8 +204,7 @@ func TestLoadModule(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module", r.ID, "invalid rule triggered")
-
+			assertTriggeredRule(t, r, "test_load_module_from_file")
 			test.validateLoadModuleSchema(t, event)
 		})
 	})
@@ -238,7 +240,7 @@ func TestLoadModule(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
+			assertTriggeredRule(t, r, "test_load_module_kworker")
 		})
 	})
 
@@ -255,7 +257,7 @@ func TestLoadModule(t *testing.T) {
 			}
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_with_params", r.ID, "wrong rule triggered")
+			assertTriggeredRule(t, r, "test_load_module_with_params")
 			assertFieldEqual(t, event, "load_module.args", "toto=1 toto=2 toto=3")
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
@@ -263,7 +265,7 @@ func TestLoadModule(t *testing.T) {
 		})
 	})
 
-	t.Run("load_module_with_params_from_memory", func(t *testing.T) {
+	t.Run("load_module_from_memory_with_params", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
@@ -276,7 +278,7 @@ func TestLoadModule(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_with_params_from_memory", r.ID, "wrong rule triggered")
+			assertTriggeredRule(t, r, "test_load_module_from_memory_with_params")
 			assertFieldEqual(t, event, "load_module.argv", []string{"toto=5"})
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
@@ -297,7 +299,7 @@ func TestLoadModule(t *testing.T) {
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_with_truncated_params", r.ID, "wrong rule triggered")
+			assertTriggeredRule(t, r, "test_load_module_with_truncated_params")
 			assertFieldEqual(t, event, "load_module.argv", []string{"Lorem", "ipsum", "dolor", "sit", "amet,", "consectetur", "adipiscing", "elit.", "Duis", "in", "luctus", "quam.", "Nam", "purus", "risus,", "varius", "non", "massa", "bibendum,"})
 			assertFieldEqual(t, event, "load_module.args", "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis in luctus quam. Nam purus risus, varius non massa bibendum,")
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
