@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
@@ -45,7 +46,7 @@ type loader struct {
 // Register a set of modules, which involves:
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
-func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) error {
+func Register(cfg *config.Config, httpMux *mux.Router, server *grpc.Server, factories []Factory) error {
 	if err := driver.Init(cfg); err != nil {
 		log.Warnf("Failed to load driver subsystem %v", err)
 	}
@@ -77,6 +78,14 @@ func Register(cfg *config.Config, httpMux *mux.Router, factories []Factory) erro
 			l.errors[factory.Name] = err
 			log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
 			continue
+		}
+
+		if server != nil {
+			if err = module.RegisterGRPC(server); err != nil {
+				l.errors[factory.Name] = err
+				log.Errorf("error registering grpc endpoints for module %s: %s", factory.Name, err)
+				continue
+			}
 		}
 
 		l.routers[factory.Name] = subRouter

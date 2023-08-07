@@ -18,7 +18,7 @@ import (
 const DefaultMaxConcurrentRequests = 2
 
 // WithConcurrencyLimit enforces a maximum number of concurrent requests over
-// over a certain HTTP handler function
+// a certain HTTP handler function
 func WithConcurrencyLimit(limit int, original func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	inFlight := atomic.NewInt64(0)
 	return func(w http.ResponseWriter, req *http.Request) {

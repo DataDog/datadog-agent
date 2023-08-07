@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -52,6 +53,10 @@ func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, stats)
 	})
 
+	return nil
+}
+
+func (t *tcpQueueLengthModule) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }
 
