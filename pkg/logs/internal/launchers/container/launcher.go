@@ -71,6 +71,9 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	ctx, cancel := context.WithCancel(context.Background())
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
+
+	// TODO: (components) WARNING - this implicitly references a global state that must be set up before Start is
+	// called otherwise the agent will panic. Remove this comment when workloadmeta is converted to a component.
 	workloadmetaStore := workloadmeta.GetGlobalStore()
 	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, workloadmetaStore)
 	go l.run(ctx, sourceProvider)
