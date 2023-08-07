@@ -16,9 +16,9 @@ import (
 	"reflect"
 	"testing"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/tinylib/msgp/msgp"
@@ -161,10 +161,10 @@ func fuzzTracesAPI(f *testing.F, v Version, contentType string, encode encoder, 
 
 func FuzzHandleStats(f *testing.F) {
 	cfg := newTestReceiverConfig()
-	decode := func(stats []byte) (pb.ClientStatsPayload, error) {
+	decode := func(stats []byte) (*pb.ClientStatsPayload, error) {
 		reader := bytes.NewReader(stats)
-		var payload pb.ClientStatsPayload
-		return payload, msgp.Decode(apiutil.NewLimitedReader(io.NopCloser(reader), cfg.MaxRequestBytes), &payload)
+		payload := &pb.ClientStatsPayload{}
+		return payload, msgp.Decode(apiutil.NewLimitedReader(io.NopCloser(reader), cfg.MaxRequestBytes), payload)
 	}
 	receiver := newTestReceiverFromConfig(cfg)
 	mockProcessor := new(mockStatsProcessor)

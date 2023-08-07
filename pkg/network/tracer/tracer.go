@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -162,6 +163,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 	if err != nil {
 		return nil, err
 	}
+	coretelemetry.GetCompatComponent().RegisterCollector(ebpfTracer)
 
 	conntracker, err := newConntracker(cfg, bpfTelemetry)
 	if err != nil {
@@ -208,6 +210,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
+		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 
 		events.RegisterHandler(tr.processCache.handleProcessEvent)
 
@@ -215,25 +218,6 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 	}
-
-	// Refreshes tracer telemetry on a loop
-	// TODO: Replace with prometheus collector interface
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				ddebpf.GetProbeStats()
-				if bpfTelemetry != nil {
-					bpfTelemetry.GetMapsTelemetry()
-					bpfTelemetry.GetHelperTelemetry()
-				}
-			case <-tr.exitTelemetry:
-				return
-			}
-		}
-	}()
 
 	return tr, nil
 }
@@ -263,12 +247,14 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var c netlink.Conntracker
 	var err error
 	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+		coretelemetry.GetCompatComponent().RegisterCollector(c)
 		return c, nil
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
 		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 		if c, err = netlink.NewConntracker(cfg); err == nil {
+			coretelemetry.GetCompatComponent().RegisterCollector(c)
 			return c, nil
 		}
 	}
@@ -370,6 +356,7 @@ func (t *Tracer) Stop() {
 	t.conntracker.Close()
 	t.processCache.Stop()
 	close(t.exitTelemetry)
+	coretelemetry.GetCompatComponent().Reset()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -618,6 +605,8 @@ var allStats = []statsComp{
 	stateStats,
 	tracerStats,
 	httpStats,
+	bpfMapStats,
+	bpfHelperStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -641,6 +630,10 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["tracer"] = tracerStats
 		case httpStats:
 			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
+		case bpfMapStats:
+			ret[nettelemetry.EBPFMapTelemetryNS] = t.bpfTelemetry.GetMapsTelemetry()
+		case bpfHelperStats:
+			ret[nettelemetry.EBPFHelperTelemetryNS] = t.bpfTelemetry.GetHelpersTelemetry()
 		}
 	}
 

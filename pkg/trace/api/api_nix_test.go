@@ -10,14 +10,15 @@ package api
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,14 +40,18 @@ func TestUDS(t *testing.T) {
 	}
 
 	t.Run("off", func(t *testing.T) {
+		// running the tests on different ports to prevent
+		// flaky panics related to the port being already taken
+		port := 8126
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverPort = port
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()
 		defer r.Stop()
 
-		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(payload))
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
 		if err == nil {
 			resp.Body.Close()
 			t.Fatalf("expected to fail, got response %#v", resp)
@@ -54,15 +59,19 @@ func TestUDS(t *testing.T) {
 	})
 
 	t.Run("on", func(t *testing.T) {
+		// running the tests on different ports to prevent
+		// flaky panics related to the port being already taken
+		port := 8125
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
 		conf.ReceiverSocket = sockPath
+		conf.ReceiverPort = port
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()
 		defer r.Stop()
 
-		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(payload))
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
 		if err != nil {
 			t.Fatal(err)
 		}

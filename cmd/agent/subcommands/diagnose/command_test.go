@@ -73,7 +73,7 @@ func TestDatadogConnectivityCommand(t *testing.T) {
 		[]string{"diagnose", "datadog-connectivity", "--no-trace"},
 		runDatadogConnectivityDiagnose,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 			require.Equal(t, true, cliParams.noTrace)
 		})
 }
