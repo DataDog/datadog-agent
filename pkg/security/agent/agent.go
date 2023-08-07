@@ -62,7 +62,7 @@ func NewRuntimeSecurityAgent(senderManager sender.SenderManager, hostname string
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 
-	storage, err := dump.NewSecurityAgentStorageManager()
+	storage, err := dump.NewSecurityAgentStorageManager(senderManager)
 	if err != nil {
 		return nil, err
 	}

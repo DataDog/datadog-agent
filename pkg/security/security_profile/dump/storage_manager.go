@@ -39,12 +39,12 @@ type ActivityDumpStorageManager struct {
 }
 
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
+func NewSecurityAgentStorageManager(senderManager aggregator.SenderManager) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
 
-	sender, err := aggregator.GetDefaultSender()
+	sender, err := senderManager.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}
