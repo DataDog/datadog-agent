@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Adding kubernetes_state.pod.tolerations metric to KSM core check
+    Added the kubernetes_state.pod.tolerations metric to the KSM core check
