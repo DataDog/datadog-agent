@@ -39,10 +39,6 @@ type concentrator interface {
 	SetCustomTags(map[string][]string)
 }
 
-// func (c *stats.Concentrator) SetCustomTags(tags map[string][]string) {
-// 	c.SetCustomTags(tags)
-// }
-
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
 	remoteClient                  config.RemoteClient
@@ -141,17 +137,16 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		}
 	}
 
-	if rawTagsMap, ok := updates["config_id"]; ok {
+	if rawTagsMap, ok := updates["custom_tags"]; ok {
 		var tagsMap map[string][]string
 		json.Unmarshal(rawTagsMap.Config, &tagsMap)
 		for spanName, customTags := range tagsMap {
 			pkglog.Infof("Adding custom tag(s) %s to span %s through remote config", customTags, spanName)
 			h.concentrator.SetCustomTags(tagsMap)
-			// need a reference to the TOTAL custom tags map here, not just the updated custom tags...
-			// h.configState.LatestCustomTags = mergedConfig.CustomTags
+			h.configState.LatestCustomTags = tagsMap
 		}
 	} else {
-		// need to set custom tags back to what it originally was...again need a reference to the TOTAL custom tags map
+		h.concentrator.SetCustomTags(h.agentConfig.CustomTags)
 	}
 
 	if err != nil {
