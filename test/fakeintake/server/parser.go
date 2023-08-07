@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -17,7 +18,15 @@ func NewPayloadParser() PayloadParser {
 	return parser
 }
 
-func (fi *PayloadParser) getLogPayLoadData(payload api.Payload) string {
+func (fi *PayloadParser) getJsonPayload(route string) ([]api.ParsedPayload, error) {
+	payload, ok := fi.payloadJsonStore[route]
+	if ok {
+		return payload, nil
+	}
+	return nil, errors.New("invalid route")
+}
+
+func (fi *PayloadParser) getLogPayLoadJson(payload api.Payload) string {
 	logs, err := aggregator.ParseLogPayload(payload)
 	if err != nil {
 		return err.Error()
@@ -30,7 +39,7 @@ func (fi *PayloadParser) getLogPayLoadData(payload api.Payload) string {
 	return string(output)
 }
 
-func (fi *PayloadParser) getMetricPayLoadData(payload api.Payload) string {
+func (fi *PayloadParser) getMetricPayLoadJson(payload api.Payload) string {
 	MetricOutput, err := aggregator.ParseMetricSeries(payload)
 	if err != nil {
 		return err.Error()
@@ -43,7 +52,7 @@ func (fi *PayloadParser) getMetricPayLoadData(payload api.Payload) string {
 	return string(output)
 }
 
-func (fi *PayloadParser) getCheckRunPayLoadData(payload api.Payload) string {
+func (fi *PayloadParser) getCheckRunPayLoadJson(payload api.Payload) string {
 	MetricOutput, err := aggregator.ParseCheckRunPayload(payload)
 	if err != nil {
 		return err.Error()
@@ -65,11 +74,11 @@ func (fi *PayloadParser) parse(payload api.Payload, route string) {
 	}
 
 	if route == "/api/v2/logs" {
-		parsedPayload.Data = fi.getLogPayLoadData(payload)
+		parsedPayload.Data = fi.getLogPayLoadJson(payload)
 	} else if route == "/api/v2/series" {
-		parsedPayload.Data = fi.getMetricPayLoadData(payload)
+		parsedPayload.Data = fi.getMetricPayLoadJson(payload)
 	} else if route == "/api/v1/check_run" {
-		parsedPayload.Data = fi.getCheckRunPayLoadData(payload)
+		parsedPayload.Data = fi.getCheckRunPayLoadJson(payload)
 	} else {
 		return
 	}

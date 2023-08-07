@@ -263,21 +263,21 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
-	} else if _, ok := fi.payloadParser.payloadJsonStore[route]; ok {
-		payloads := fi.safeGetJsonPayloads(route)
-
+	} else {
+		payloads, payloadErr := fi.safeGetJsonPayloads(route)
+		if payloadErr != nil {
+			writeHttpResponse(w, httpResponse{
+				contentType: "text/plain",
+				statusCode:  http.StatusBadRequest,
+				body:        []byte("invalid route parameter"),
+			})
+			return
+		}
 		// build response
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
-	} else {
-		writeHttpResponse(w, httpResponse{
-			contentType: "text/plain",
-			statusCode:  http.StatusBadRequest,
-			body:        []byte("invalid route parameter"),
-		})
-		return
 	}
 
 	if err != nil {
@@ -325,12 +325,16 @@ func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
 	return payloads
 }
 
-func (fi *Server) safeGetJsonPayloads(route string) []api.ParsedPayload {
+func (fi *Server) safeGetJsonPayloads(route string) ([]api.ParsedPayload, error) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-	payloads := make([]api.ParsedPayload, 0, len(fi.payloadParser.payloadJsonStore[route]))
-	payloads = append(payloads, fi.payloadParser.payloadJsonStore[route]...)
-	return payloads
+	payload, err := fi.payloadParser.getJsonPayload(route)
+	if err != nil {
+		return nil, err
+	}
+	payloads := make([]api.ParsedPayload, 0, len(payload))
+	payloads = append(payloads, payload...)
+	return payloads, err
 }
 
 func (fi *Server) safeFlushPayloads() {
