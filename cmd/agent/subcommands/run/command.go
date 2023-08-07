@@ -449,7 +449,7 @@ func startAgent(
 	}
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, aggregator.GetMemultiplexerInstance(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(common.MainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
 		logsAgent.AddScheduler(adScheduler.New(common.AC))
@@ -509,7 +509,7 @@ func startAgent(
 	util.LogVersionHistory()
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetMemultiplexerInstance()), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
 	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)

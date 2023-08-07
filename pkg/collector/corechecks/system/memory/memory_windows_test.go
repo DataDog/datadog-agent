@@ -62,7 +62,7 @@ func TestMemoryCheckWindows(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	memCheck := new(Check)
-	memCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	memCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 

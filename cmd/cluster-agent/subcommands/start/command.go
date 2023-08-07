@@ -242,7 +242,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	common.LoadComponents(mainCtx, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetMemultiplexerInstance()), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
 	common.Coll.Start()
 
 	// start the autoconfig, this will immediately run any configured check

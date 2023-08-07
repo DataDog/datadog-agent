@@ -28,15 +28,15 @@ import (
 var demultiplexerInstance Demultiplexer
 
 // TODO: (components): Remove this method when SenderManager will be a component
-func GetMemultiplexerInstance() sender.SenderManager {
+func GetSenderManager() sender.SenderManager {
 	return demultiplexerInstanceWrapper{}
 }
 
-// TODO: (components): Remove this struct at the same time as GetMemultiplexerInstance()
+// TODO: (components): Remove this struct at the same time as GetSenderManager()
 //
 // demultiplexerInstanceWrapper is a small wrapper to make sure `demultiplexerInstance`
 // is initialized when calling the methods of SenderManager.
-// If GetMemultiplexerInstance() would return directly the demultiplexerInstance, then the instance
+// If GetSenderManager() would return directly the demultiplexerInstance, then the instance
 // can be null and raise an issue when calling GetSender() even if demultiplexerInstance was initialized
 // in the meantime.
 type demultiplexerInstanceWrapper struct{}

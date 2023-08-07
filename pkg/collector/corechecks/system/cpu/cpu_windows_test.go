@@ -39,7 +39,7 @@ func TestCPUCheckWindows(t *testing.T) {
 	}
 
 	cpuCheck := new(Check)
-	cpuCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)

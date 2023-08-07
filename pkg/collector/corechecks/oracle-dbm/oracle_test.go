@@ -54,7 +54,7 @@ tns_alias: %s
 tns_admin: %s
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
 
-	err := chk.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
 	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)

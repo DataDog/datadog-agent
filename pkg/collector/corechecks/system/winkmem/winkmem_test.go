@@ -18,7 +18,7 @@ import (
 
 func TestWinKMem(t *testing.T) {
 	kcheck := new(KMemCheck)
-	kcheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	kcheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	m := mocksender.NewMockSender(kcheck.ID())
 

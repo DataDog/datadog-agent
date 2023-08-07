@@ -27,7 +27,7 @@ const (
 
 func TestNano(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -81,7 +81,7 @@ func TestNano(t *testing.T) {
 
 func TestTX1(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -134,7 +134,7 @@ func TestTX1(t *testing.T) {
 
 func TestTX2(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 
@@ -197,7 +197,7 @@ func TestTX2(t *testing.T) {
 
 func TestAgxXavier(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock := mocksender.NewMockSender(tegraCheck.ID())
@@ -264,7 +264,7 @@ func TestAgxXavier(t *testing.T) {
 
 func TestXavierNx(t *testing.T) {
 	tegraCheck := new(JetsonCheck)
-	tegraCheck.Configure(aggregator.GetMemultiplexerInstance(), integration.FakeConfigHash, nil, nil, "test")
+	tegraCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, tegraCheck.tegraStatsPath, "/usr/bin/tegrastats")
 	mock := mocksender.NewMockSender(tegraCheck.ID())

@@ -200,12 +200,12 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.UseNoopOrchestratorForwarder = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
-	common.LoadComponents(context.Background(), aggregator.GetMemultiplexerInstance(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, aggregator.GetMemultiplexerInstance())
+	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
