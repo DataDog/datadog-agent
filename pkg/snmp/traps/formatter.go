@@ -258,7 +258,7 @@ func enrichBits(variable trapVariable, varMetadata VariableMetadata) (interface{
 		}
 	}
 
-	hexString := fmt.Sprintf("0x%x", bytes)
+	hexString := fmt.Sprintf("0x%X", bytes)
 	return enabledValues, hexString
 }
 

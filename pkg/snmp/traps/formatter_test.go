@@ -607,7 +607,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.1.1.3",
 						"type":  "string",
-						"value": "0xc000",
+						"value": "0xC000",
 					},
 				},
 			},
@@ -658,7 +658,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
-						"value": "0xf00f000000000000000000800000000020",
+						"value": "0xF00F000000000000000000800000000020",
 					},
 				},
 			},
@@ -960,7 +960,7 @@ func TestEnrichBits(t *testing.T) {
 				"test8",
 				"test15",
 			},
-			expectedHex: "0xc481",
+			expectedHex: "0xC481",
 		},
 		{
 			description: "no bits are enrichable are returned unenriched",
@@ -981,7 +981,7 @@ func TestEnrichBits(t *testing.T) {
 				8,
 				15,
 			},
-			expectedHex: "0xc481",
+			expectedHex: "0xC481",
 		},
 		{
 			description: "mix of enrichable and unenrichable bits are returned semi-enriched",
