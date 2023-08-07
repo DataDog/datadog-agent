@@ -42,7 +42,7 @@ const (
 
 	// AnomalyDetectionRuleID is the rule ID for anomaly_detection events
 	AnomalyDetectionRuleID = "anomaly_detection"
-	// AnomalyDetectionRuleID is the rule description for anomaly_detection events
+	// AnomalyDetectionRuleDesc is the rule description for anomaly_detection events
 	AnomalyDetectionRuleDesc = "Anomaly detection"
 
 	// NoProcessContextErrorRuleID is the rule ID for events without process context
@@ -56,11 +56,13 @@ const (
 	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
 )
 
+// CustomEventCommonFields represents the fields common to all custom events
 type CustomEventCommonFields struct {
 	Timestamp time.Time `json:"date"`
 	Service   string    `json:"service"`
 }
 
+// FillCustomEventCommonFields fills the common fields with default values
 func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
 	commonFields.Service = ServiceName
 	commonFields.Timestamp = time.Now()
@@ -87,7 +89,7 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-// NewCustomEvent returns a new custom event
+// NewCustomEventLazy returns a new custom event
 func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson.Marshaler, tags ...string) *CustomEvent {
 	return &CustomEvent{
 		eventType:     eventType,

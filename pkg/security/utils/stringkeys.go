@@ -49,10 +49,12 @@ func (sk *StringKeys) Keys() []string {
 	return values
 }
 
+// MarshalJSON marshals the keys into JSON
 func (sk *StringKeys) MarshalJSON() ([]byte, error) {
 	return json.Marshal(sk.Keys())
 }
 
+// MarshalEasyJSON marshals the keys into JSON, using easyJSON
 func (sk *StringKeys) MarshalEasyJSON(out *jwriter.Writer) {
 	if len(sk.inner) == 0 && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
 		out.RawString("null")

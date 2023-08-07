@@ -20,11 +20,13 @@ const (
 	cwsIntakeOrigin logsconfig.IntakeOrigin = "cloud-workload-security"
 )
 
+// NewLogContextCompliance returns the context fields to send compliance events to the intake
 func NewLogContextCompliance() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := logsconfig.NewLogsConfigKeys("compliance_config.endpoints.", pkgconfig.Datadog)
 	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
 }
 
+// NewLogContextRuntime returns the context fields to send runtime (CWS) events to the intake
 // This function will only be used on Linux. The only platforms where the runtime agent runs
 func NewLogContextRuntime() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfig.Datadog)
