@@ -7,6 +7,7 @@
 #include "constants/enums.h"
 #include "structs/all.h"
 
+BPF_ARRAY_MAP(syscalls, struct syscall_cache_t, 1) // max entries will be overridden at runtime
 BPF_ARRAY_MAP(path_id, u32, PATH_ID_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
 BPF_ARRAY_MAP(buffer_selector, u32, 4)
@@ -63,7 +64,6 @@ BPF_LRU_MAP(security_profiles, struct container_context_t, struct security_profi
 BPF_LRU_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
-BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, u32, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(syscalls_stats, u32, u32, EVENT_MAX)

@@ -1558,6 +1558,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Name:  "monitor_syscalls_map_enabled",
 			Value: utils.BoolTouint64(opts.SyscallsMapMonitorEnabled),
 		},
+		manager.ConstantEditor{
+			Name:  "syscalls_map_size",
+			Value: uint64(probes.MaxSyscallsEntries),
+		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)

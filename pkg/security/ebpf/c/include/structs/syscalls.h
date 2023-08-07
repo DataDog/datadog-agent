@@ -20,6 +20,7 @@ struct syscall_table_key_t {
 };
 
 struct syscall_cache_t {
+    u64 pid_tgid;
     struct policy_t policy;
     u64 type;
     u8 discarded;
