@@ -40,10 +40,10 @@ type Config struct {
 
 // CustomWriter wraps the log config to allow stdout/stderr redirection
 type CustomWriter struct {
-	LogConfig  *Config
-	LineBuffer bytes.Buffer
-	IsDotnet   bool
-	IsError    bool
+	LogConfig    *Config
+	LineBuffer   bytes.Buffer
+	ShouldBuffer bool
+	IsError      bool
 }
 
 // CreateConfig builds and returns a log config
@@ -100,7 +100,7 @@ func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 		p = p[:maxBufferSize]
 	}
 
-	if !cw.IsDotnet {
+	if !cw.ShouldBuffer {
 		fmt.Print(string(p))
 		Write(cw.LogConfig, p, cw.IsError)
 		return len(p), nil

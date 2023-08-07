@@ -7,7 +7,6 @@ package log
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +38,7 @@ func TestCustomWriterUnbuffered(t *testing.T) {
 	assert.Equal(t, 1, numMessages)
 }
 
-func TestCustomWriterDotnet(t *testing.T) {
+func TestCustomWriterShouldBuffer(t *testing.T) {
 	// Custom writer should buffer log chunks not ending in a newline when isDotnet: true
 	testContentChunk1 := []byte("this is")
 	testContentChunk2 := []byte(" a log line\n")
@@ -48,9 +47,9 @@ func TestCustomWriterDotnet(t *testing.T) {
 		isEnabled: true,
 	}
 	cw := &CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
-		IsDotnet:   true,
+		LogConfig:    config,
+		LineBuffer:   bytes.Buffer{},
+		ShouldBuffer: true,
 	}
 	go func() {
 		cw.Write(testContentChunk1)
@@ -69,7 +68,7 @@ func TestCustomWriterDotnet(t *testing.T) {
 	assert.Equal(t, 1, numMessages)
 }
 
-func TestCustomWriterDotnetBufferOverflow(t *testing.T) {
+func TestCustomWriterShoudBufferOverflow(t *testing.T) {
 	// Custom writer should buffer log chunks not ending in a newline when isDotnet: true
 	testContentChunk1 := []byte(strings.Repeat("a", maxBufferSize))
 	testContentChunk2 := []byte("b\n")
@@ -78,9 +77,9 @@ func TestCustomWriterDotnetBufferOverflow(t *testing.T) {
 		isEnabled: true,
 	}
 	cw := &CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
-		IsDotnet:   true,
+		LogConfig:    config,
+		LineBuffer:   bytes.Buffer{},
+		ShouldBuffer: true,
 	}
 
 	go func() {
@@ -95,7 +94,6 @@ func TestCustomWriterDotnetBufferOverflow(t *testing.T) {
 		case message := <-config.channel:
 			messages = append(messages, message.Content)
 		case <-time.After(100 * time.Millisecond):
-			fmt.Println("timeout")
 			t.FailNow()
 		}
 	}
