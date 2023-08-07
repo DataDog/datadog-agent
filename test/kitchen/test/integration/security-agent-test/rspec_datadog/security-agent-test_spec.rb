@@ -61,7 +61,7 @@ shared_examples "passes" do |bundle, env|
       # The json files are used to print failed tests at the end of the Gitlab job
       gotestsum_test2json_cmd = ["sudo", "-E",
         "/go/bin/gotestsum",
-        "--format", "pkgname",
+        "--format", "testname",
         "--junitfile", xmlpath,
         "--jsonfile", jsonpath,
         "--raw-command", "--",

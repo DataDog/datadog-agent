@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+// team: agent-apm
+
 // DefaultLogFilePath is where the agent will write logs if not overridden in the conf
 var DefaultLogFilePath = "c:\\programdata\\datadog\\logs\\trace-agent.log"
 

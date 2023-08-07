@@ -27,12 +27,12 @@ import (
 )
 
 type vmFakeintakeSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
-func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams.Option) *e2e.StackDefinition[e2e.AgentEnv] {
+func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams.Option) *e2e.StackDefinition[e2e.FakeIntakeEnv] {
 	return e2e.EnvFactoryStackDef(
-		func(ctx *pulumi.Context) (*e2e.AgentEnv, error) {
+		func(ctx *pulumi.Context) (*e2e.FakeIntakeEnv, error) {
 			vm, err := ec2vm.NewEc2VM(ctx, vmParams...)
 			if err != nil {
 				return nil, err
@@ -55,7 +55,7 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
 			if err != nil {
 				return nil, err
 			}
-			return &e2e.AgentEnv{
+			return &e2e.FakeIntakeEnv{
 				VM:         client.NewVM(vm),
 				Agent:      client.NewAgent(installer),
 				Fakeintake: client.NewFakeintake(fakeintakeExporter),

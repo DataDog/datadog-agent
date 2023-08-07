@@ -5,9 +5,7 @@
 
 //go:build !windows
 
-package flags
+package command
 
-// DefaultConfigPath specifies the default configuration file path for non-Windows systems.
-const DefaultConfigPath = "/opt/datadog-agent/etc/datadog.yaml"
-
-func registerOSSpecificFlags() {}
+// defaultConfigPath specifies the default configuration file path for non-Windows systems.
+const defaultConfigPath = "/opt/datadog-agent/etc/datadog.yaml"

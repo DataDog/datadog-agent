@@ -390,6 +390,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		ecs := d.ExecutionContext.GetCurrentState()
 		tagMap := tags.BuildTagMap(ecs.ARN, configTags)
+		d.ExecutionContext.UpdateRuntime(tagMap[tags.RuntimeKey])
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)
