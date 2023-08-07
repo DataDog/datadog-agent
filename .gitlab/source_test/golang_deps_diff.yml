@@ -1,0 +1,26 @@
+---
+# golang_deps_diff stage
+# Contains the step to generate diff of go imports for each binary/build
+golang_deps_diff:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_deps"]
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - inv -e diff.go-deps --report-file=deps-report.md
+  artifacts:
+    paths:
+      - deps-report.md
+    expire_in: 2 weeks
+
+golang_deps_commenter:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
+  tags: ["arch:amd64"]
+  needs: ["golang_deps_diff"]
+  script:
+    - echo "${CI_COMMIT_REF_NAME}"
+    - pr-commenter --for-pr="${CI_COMMIT_REF_NAME}" --header="Go Package Import Differences" --infile deps-report.md

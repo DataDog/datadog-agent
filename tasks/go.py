@@ -17,6 +17,17 @@ from .licenses import get_licenses_list
 from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
+GOOS_MAPPING = {
+    "win32": "windows",
+    "linux": "linux",
+    "darwin": "darwin",
+}
+GOARCH_MAPPING = {
+    "x64": "amd64",
+    "x86": "386",
+    "arm64": "arm64",
+}
+
 
 def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
     if isinstance(targets, str):

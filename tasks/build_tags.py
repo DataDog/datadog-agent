@@ -39,6 +39,7 @@ ALL_TAGS = {
     "process",
     "python",
     "secrets",
+    "serverless",
     "systemd",
     "trivy",
     "zk",
@@ -119,8 +120,11 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
 SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "ec2"}
 
+# SERVERLESS_TAGS lists the tags necessary to build serverless
+SERVERLESS_TAGS = {"serverless", "otlp"}
+
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference({"python", "trivy", "systemd"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman", "secrets"}
@@ -167,6 +171,7 @@ build_tags = {
         "dogstatsd": DOGSTATSD_TAGS,
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
+        "serverless": SERVERLESS_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
@@ -238,7 +243,7 @@ def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.ba
     print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
 
 
-def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
+def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, platform=sys.platform):
     """
     Build the default list of tags based on the build type and current platform.
 
@@ -250,26 +255,26 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
         print("Warning: unrecognized build type, no build tags included.")
         include = set()
 
-    return sorted(filter_incompatible_tags(include, arch=arch))
+    return sorted(filter_incompatible_tags(include, arch=arch, platform=platform))
 
 
-def filter_incompatible_tags(include, arch="x64"):
+def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
 
     exclude = set()
-    if not sys.platform.startswith("linux"):
+    if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
-    if sys.platform == "win32":
+    if platform == "win32":
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
-    if sys.platform == "darwin":
+    if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
 
-    if sys.platform == "win32" and arch == "x86":
+    if platform == "win32" and arch == "x86":
         exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
