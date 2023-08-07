@@ -6,6 +6,9 @@
 package log
 
 import (
+	"bytes"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +31,94 @@ func TestCustomWriterUnbuffered(t *testing.T) {
 	select {
 	case message := <-config.channel:
 		assert.Equal(t, []byte("log line\nlog line\n"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	assert.Equal(t, 1, numMessages)
+}
+
+func TestCustomWriterDotnet(t *testing.T) {
+	// Custom writer should buffer log chunks not ending in a newline when isDotnet: true
+	testContentChunk1 := []byte("this is")
+	testContentChunk2 := []byte(" a log line\n")
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig:  config,
+		LineBuffer: bytes.Buffer{},
+		IsDotnet:   true,
+	}
+	go func() {
+		cw.Write(testContentChunk1)
+		cw.Write(testContentChunk2)
+	}()
+
+	numMessages := 0
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte("this is a log line\n"), message.Content)
+		numMessages++
+	case <-time.After(100 * time.Millisecond):
+		t.FailNow()
+	}
+
+	assert.Equal(t, 1, numMessages)
+}
+
+func TestCustomWriterDotnetBufferOverflow(t *testing.T) {
+	// Custom writer should buffer log chunks not ending in a newline when isDotnet: true
+	testContentChunk1 := []byte(strings.Repeat("a", 256*1024))
+	testContentChunk2 := []byte("b\n")
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig:  config,
+		LineBuffer: bytes.Buffer{},
+		IsDotnet:   true,
+	}
+
+	go func() {
+		cw.Write(testContentChunk1)
+		cw.Write(testContentChunk2)
+	}()
+
+	var messages [][]byte
+
+	for i := 0; i < 2; i++ {
+		select {
+		case message := <-config.channel:
+			messages = append(messages, message.Content)
+		case <-time.After(100 * time.Millisecond):
+			fmt.Println("timeout")
+			t.FailNow()
+		}
+	}
+
+	assert.Equal(t, 2, len(messages))
+	assert.Equal(t, []byte(strings.Repeat("a", 256*1024)), messages[0])
+	assert.Equal(t, []byte("b\n"), messages[1])
+}
+
+func TestCustomWriterMaxBufferSize(t *testing.T) {
+	testContent := []byte(strings.Repeat("a", 256*1024+1))
+	config := &Config{
+		channel:   make(chan *config.ChannelMessage, 2),
+		isEnabled: true,
+	}
+	cw := &CustomWriter{
+		LogConfig: config,
+	}
+	go cw.Write(testContent)
+	numMessages := 0
+	select {
+	case message := <-config.channel:
+		assert.Equal(t, []byte(strings.Repeat("a", 256*1024)), message.Content)
 		numMessages++
 	case <-time.After(100 * time.Millisecond):
 		t.FailNow()
