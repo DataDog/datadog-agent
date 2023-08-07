@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,13 +89,18 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		return fmt.Errorf("Cannot resolve %s: %v", rawTarget, err)
 	}
 
+	numpaths := c.config.Numpaths
+	if numpaths == 0 {
+		numpaths = DefaultNumPaths
+	}
+
 	var dt dublintraceroute.DublinTraceroute
 	dt = &probev4.UDPv4{
 		Target:     target,
 		SrcPort:    uint16(DefaultSourcePort),
 		DstPort:    uint16(DefaultDestPort),
 		UseSrcPort: false,
-		NumPaths:   uint16(1),
+		NumPaths:   uint16(c.config.Numpaths),
 		MinTTL:     uint8(DefaultMinTTL),
 		MaxTTL:     uint8(DefaultMaxTTL),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond,
@@ -224,9 +230,13 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 	return nil
 }
 
-func (c *Check) traceRouteDublin(sender sender.Sender, results *results.Results, hname string, destinationHost string) error {
-
-	for idx, probes := range results.Flows {
+func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname string, destinationHost string) error {
+	var err error
+	type node struct {
+		node  string
+		probe *results.Probe
+	}
+	for idx, probes := range r.Flows {
 		log.Warnf("flow idx: %d\n", idx)
 		for probleIndex, probe := range probes {
 			//log.Warnf("probleIndex: %d, probe %+v\n", probleIndex, probe)
@@ -234,51 +244,139 @@ func (c *Check) traceRouteDublin(sender sender.Sender, results *results.Results,
 		}
 	}
 
-	//hops := hostHops[0]
-	//var prevHop traceroute.TracerouteHop
-	//for _, hop := range hops {
-	//	ip := hop.AddressString()
-	//	durationMs := hop.ElapsedTime.Seconds() * 10e3
-	//	tr := TracerouteV2{
-	//		TracerouteSource: "netpath_integration",
-	//		Timestamp:        time.Now().UnixMilli(),
-	//		AgentHost:        hname,
-	//		DestinationHost:  destinationHost,
-	//		TTL:              hop.TTL,
-	//		IpAddress:        ip,
-	//		Host:             hop.HostOrAddressString(),
-	//		Duration:         durationMs,
-	//		Success:          hop.Success,
-	//	}
-	//	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	log.Infof("traceroute: %s", tracerouteStr)
-	//
-	//	sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
-	//	tags := []string{
-	//		"target_service:" + c.config.TargetService,
-	//		"agent_host:" + hname,
-	//		"target:" + destinationHost,
-	//		"hop_ip_address:" + ip,
-	//		"hop_host:" + hop.HostOrAddressString(),
-	//		"ttl:" + strconv.Itoa(hop.TTL),
-	//	}
-	//	if prevHop.TTL > 0 {
-	//		prevIp := prevHop.AddressString()
-	//		tags = append(tags, "prev_hop_ip_address:"+prevIp)
-	//		tags = append(tags, "prev_hop_host:"+prevHop.HostOrAddressString())
-	//	}
-	//	log.Infof("[netpath] tags: %s", tags)
-	//	sender.Gauge("netpath.hop.duration", durationMs, "", CopyStrings(tags))
-	//	sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
-	//
-	//	prevHop = hop
-	//}
+	flowIDs := make([]int, 0, len(r.Flows))
+	for flowID := range r.Flows {
+		flowIDs = append(flowIDs, int(flowID))
+	}
+	sort.Ints(flowIDs)
 
+	for _, flowID := range flowIDs {
+		hops := r.Flows[uint16(flowID)]
+		if len(hops) == 0 {
+			log.Warnf("No hops for flow ID %d", flowID)
+			continue
+		}
+		var nodes []node
+		// add first hop
+		firstNodeName := hops[0].Sent.IP.SrcIP.String()
+		//firstHop, err := graph.CreateNode(firstNodeName)
+		if err != nil {
+			return fmt.Errorf("failed to create first node: %w", err)
+		}
+		//firstHop.SetShape(cgraph.RectShape)
+		nodes = append(nodes, node{node: firstNodeName, probe: &hops[0]})
+
+		// then add all the other hops
+		for idx, hop := range hops {
+			hop := hop
+			nodename := fmt.Sprintf("NULL - %d", idx)
+			label := "*"
+			hostname := ""
+			if hop.Received != nil {
+				nodename = hop.Received.IP.SrcIP.String()
+				if hop.Name != nodename {
+					hostname = "\n" + hop.Name
+				}
+				// MPLS labels
+				mpls := ""
+				if len(hop.Received.ICMP.MPLSLabels) > 0 {
+					mpls = "MPLS labels: \n"
+					for _, mplsLabel := range hop.Received.ICMP.MPLSLabels {
+						mpls += fmt.Sprintf(" - %d, ttl: %d\n", mplsLabel.Label, mplsLabel.TTL)
+					}
+				}
+				label = fmt.Sprintf("%s%s\n%s\n%s", nodename, hostname, hop.Received.ICMP.Description, mpls)
+			}
+			//n, err := graph.CreateNode(nodename)
+			//if err != nil {
+			//	return "", fmt.Errorf("failed to create node '%s': %w", nodename, err)
+			//}
+			//if hop.IsLast {
+			//	n.SetShape(cgraph.RectShape)
+			//}
+			//n.SetLabel(label)
+			nodes = append(nodes, node{node: nodename, probe: &hop})
+
+			if hop.IsLast {
+				break
+			}
+			log.Warnf("label: %s", label)
+		}
+		// add edges
+		if len(nodes) <= 1 {
+			// no edges to add if there is only one node
+			continue
+		}
+		//color := rand.Intn(0xffffff)
+		// start at node 1. Each node back-references the previous one
+		for idx := 1; idx < len(nodes); idx++ {
+			if idx >= len(nodes) {
+				// we are at the second-to-last node
+				break
+			}
+			prev := nodes[idx-1]
+			cur := nodes[idx]
+			//edgeName := fmt.Sprintf("%s - %s - %d - %d", prev.node, cur.node, idx, flowID)
+			edgeLabel := ""
+			if idx == 1 {
+				edgeLabel += fmt.Sprintf(
+					"srcport %d\ndstport %d",
+					cur.probe.Sent.UDP.SrcPort,
+					cur.probe.Sent.UDP.DstPort,
+				)
+			}
+			if prev.probe.NATID != cur.probe.NATID {
+				edgeLabel += "\nNAT detected"
+			}
+			edgeLabel += fmt.Sprintf("\n%d.%d ms", int(cur.probe.RttUsec/1000), int(cur.probe.RttUsec%1000))
+
+			tags := []string{
+				"target_service:" + c.config.TargetService,
+				"agent_host:" + hname,
+				"target:" + destinationHost,
+				"hop_ip_address:" + cur.node,
+				"hop_host:" + c.getHostname(cur.node),
+				"ttl:" + strconv.Itoa(idx),
+			}
+			tags = append(tags, "prev_hop_ip_address:"+prev.node)
+			tags = append(tags, "prev_hop_host:"+c.getHostname(prev.node))
+			log.Infof("[netpath] tags: %s", tags)
+			sender.Gauge("netpath.hop.duration", float64(cur.probe.RttUsec)/1000, "", CopyStrings(tags))
+			sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
+
+			//prevHop = hop
+
+			//edge, err := graph.CreateEdge(edgeName, prev.node, cur.node)
+			//if err != nil {
+			//	return "", fmt.Errorf("failed to create edge '%s': %w", edgeName, err)
+			//}
+			//edge.SetLabel(edgeLabel)
+			//edge.SetColor(fmt.Sprintf("#%06x", color))
+		}
+	}
+	//var buf bytes.Buffer
+	//if err := gv.Render(graph, "dot", &buf); err != nil {
+	//	return "", fmt.Errorf("failed to render graph: %w", err)
+	//}
+	//if err := graph.Close(); err != nil {
+	//	return "", fmt.Errorf("failed to close graph: %w", err)
+	//}
+	//gv.Close()
+	//return buf.String(), nil
 	return nil
+}
+
+func (c *Check) getHostname(ipAddr string) string {
+	// TODO: this reverse lookup appears to have some standard timeout that is relatively
+	// high. Consider switching to something where there is greater control.
+	currHost := ""
+	currHostList, _ := net.LookupAddr(ipAddr)
+	if len(currHostList) > 0 {
+		currHost = currHostList[0]
+	} else {
+		currHost = ipAddr
+	}
+	return currHost
 }
 
 // resolve returns the first IP address for the given host. If `wantV6` is true,
