@@ -21,19 +21,6 @@ type systemStats struct {
 	Winver    osVersion `json:"winV"`
 }
 
-// Meta is the metadata nested under the meta key
-type Meta struct {
-	SocketHostname string   `json:"socket-hostname"`
-	Timezones      []string `json:"timezones"`
-	SocketFqdn     string   `json:"socket-fqdn"`
-	EC2Hostname    string   `json:"ec2-hostname"`
-	Hostname       string   `json:"hostname"`
-	HostAliases    []string `json:"host_aliases"`
-	InstanceID     string   `json:"instance-id"`
-	AgentHostname  string   `json:"agent-hostname,omitempty"`
-	ClusterName    string   `json:"cluster-name,omitempty"`
-}
-
 // NetworkMeta is metadata about the host's network
 type NetworkMeta struct {
 	ID         string `json:"network-id"`
@@ -71,7 +58,7 @@ type Payload struct {
 	AgentFlavor   string                  `json:"agent-flavor"`
 	PythonVersion string                  `json:"python"`
 	SystemStats   *systemStats            `json:"systemStats"`
-	Meta          *Meta                   `json:"meta"`
+	Meta          *hostMetadataUtils.Meta `json:"meta"`
 	HostTags      *hostMetadataUtils.Tags `json:"host-tags"`
 	ContainerMeta map[string]string       `json:"container-meta,omitempty"`
 	NetworkMeta   *NetworkMeta            `json:"network"`

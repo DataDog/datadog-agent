@@ -57,14 +57,6 @@ func TestGetCPUInfo(t *testing.T) {
 	assert.Equal(t, int32(42), info.Cores)
 }
 
-func TestGetMeta(t *testing.T) {
-	ctx := context.Background()
-	meta := getMeta(ctx, hostname.Data{})
-	assert.NotEmpty(t, meta.SocketHostname)
-	assert.NotEmpty(t, meta.Timezones)
-	assert.NotEmpty(t, meta.SocketFqdn)
-}
-
 func TestBuildKey(t *testing.T) {
 	assert.Equal(t, "metadata/host/foo", buildKey("foo"))
 }
