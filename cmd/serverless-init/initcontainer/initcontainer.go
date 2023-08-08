@@ -52,8 +52,12 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig:    config,
-		LineBuffer:   bytes.Buffer{},
+		LogConfig:  config,
+		LineBuffer: bytes.Buffer{},
+		// Dotnet occasionally writes to stdout in multiple chunks causing log splitting issues.
+		// This happens regardless of logging library (and happens with Console.WriteLine).
+		// ShouldBuffer tells the CustomWriter to buffer all log chunks that don't end in a newline,
+		// fixing log splitting in this scenario.
 		ShouldBuffer: commandName == "dotnet",
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
