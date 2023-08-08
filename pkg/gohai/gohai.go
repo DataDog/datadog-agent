@@ -38,7 +38,7 @@ type Collector interface {
 // the way the new API is defined
 type CollectorV2[T Jsonable] struct {
 	name    string
-	collect func() T
+	collect func() (T, error)
 }
 
 // Jsonable represents a type which can be converted to a mashallable object
@@ -53,7 +53,11 @@ func (collector *CollectorV2[T]) Name() string {
 
 // Collect calls the CollectorV2's collect method and returns only its marshallable object and error
 func (collector *CollectorV2[T]) Collect() (interface{}, error) {
-	json, _, err := collector.collect().AsJSON()
+	info, err := collector.collect()
+	if err != nil {
+		return nil, err
+	}
+	json, _, err := info.AsJSON()
 	return json, err
 }
 
@@ -64,13 +68,20 @@ var collectors = []Collector{
 	&cpu.Cpu{},
 	&filesystem.FileSystem{},
 	&CollectorV2[*memory.Info]{
-		name:    "memory",
-		collect: memory.CollectInfo,
+		name: "memory",
+		collect: func() (*memory.Info, error) {
+			return memory.CollectInfo(), nil
+		},
 	},
-	&network.Network{},
+	&CollectorV2[*network.Info]{
+		name:    "network",
+		collect: network.CollectInfo,
+	},
 	&CollectorV2[*platform.Info]{
-		name:    "platform",
-		collect: platform.CollectInfo,
+		name: "platform",
+		collect: func() (*platform.Info, error) {
+			return platform.CollectInfo(), nil
+		},
 	},
 	&processes.Processes{},
 }

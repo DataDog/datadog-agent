@@ -77,12 +77,12 @@ func memoryMock() *memory.Info {
 	}
 }
 
-func networkMock() (*network.Network, []string, error) {
-	return &network.Network{
-		IpAddress:   "192.168.24.138",
-		IpAddressv6: "fe80::20c:29ff:feb6:d232",
+func networkMock() (*network.Info, error) {
+	return &network.Info{
+		IPAddress:   "192.168.24.138",
+		IPAddressV6: gohaiutils.NewValue("fe80::20c:29ff:feb6:d232"),
 		MacAddress:  "00:0c:29:b6:d2:32",
-	}, nil, nil
+	}, nil
 }
 
 func platformMock() *platform.Info {
@@ -106,7 +106,7 @@ func setupHostMetadataMock(t *testing.T) {
 	t.Cleanup(func() {
 		cpuGet = cpu.Get
 		memoryGet = memory.CollectInfo
-		networkGet = network.Get
+		networkGet = network.CollectInfo
 		platformGet = platform.CollectInfo
 
 		inventoryMutex.Lock()
@@ -132,16 +132,16 @@ func TestGetHostMetadata(t *testing.T) {
 	assert.Equal(t, expectedMetadata, m)
 }
 
-func cpuErrorMock() (*cpu.Cpu, []string, error)             { return nil, nil, fmt.Errorf("err") }
-func memoryErrorMock() *memory.Info                         { return &memory.Info{} }
-func networkErrorMock() (*network.Network, []string, error) { return nil, nil, fmt.Errorf("err") }
-func platformErrorMock() *platform.Info                     { return &platform.Info{} }
+func cpuErrorMock() (*cpu.Cpu, []string, error) { return nil, nil, fmt.Errorf("err") }
+func memoryErrorMock() *memory.Info             { return &memory.Info{} }
+func networkErrorMock() (*network.Info, error)  { return nil, fmt.Errorf("err") }
+func platformErrorMock() *platform.Info         { return &platform.Info{} }
 
 func setupHostMetadataErrorMock(t *testing.T) {
 	t.Cleanup(func() {
 		cpuGet = cpu.Get
 		memoryGet = memory.CollectInfo
-		networkGet = network.Get
+		networkGet = network.CollectInfo
 		platformGet = platform.CollectInfo
 	})
 

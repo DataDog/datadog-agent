@@ -56,7 +56,11 @@ func getGohaiInfo() *gohai {
 	}
 
 	if !config.IsContainerized() || detectDocker0() {
-		networkPayload, err := new(network.Network).Collect()
+		var networkPayload interface{}
+		networkInfo, err := network.CollectInfo()
+		if err == nil {
+			networkPayload, _, err = networkInfo.AsJSON()
+		}
 		if err == nil {
 			res.Network = networkPayload
 		} else {
