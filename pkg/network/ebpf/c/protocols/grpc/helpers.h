@@ -9,7 +9,9 @@
 #include "protocols/grpc/defs.h"
 
 #define GRPC_MAX_FRAMES_TO_FILTER 10
-#define GRPC_MAX_FRAMES_TO_PROCESS 2
+// We only try to process one frame at the moment. Trying to process more yields
+// a verifier issue due to the way clang manages a pointer to the stack.
+#define GRPC_MAX_FRAMES_TO_PROCESS 1
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
 
 // The HPACK specification defines the specific Huffman encoding used for string
@@ -161,7 +163,11 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
     }
 
 #pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
-    for (__u8 i = 0; i < frames_count && status == PAYLOAD_UNDETERMINED; ++i) {
+    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == PAYLOAD_UNDETERMINED; ++i) {
+        if (i >= frames_count) {
+            break;
+        }
+
         info.data_off = frames[i].offset;
 
         status = scan_headers(skb, &info, frames[i].length);
