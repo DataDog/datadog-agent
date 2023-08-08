@@ -85,7 +85,7 @@ kitchen_test_security_agent_arm64:
   needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
-    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    KITCHEN_EC2_INSTANCE_TYPE: "[t4g.xlarge, m6g.xlarge, m7g.xlarge]"
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
