@@ -32,9 +32,9 @@ type Message struct {
 	Status             string
 	IngestionTimestamp int64
 	RawDataLen         int
-    // Extra information from the parsers
+	// Extra information from the parsers
 	ParsingExtra
-    // Extra information for Serverless Logs messages
+	// Extra information for Serverless Logs messages
 	ServerlessExtra
 }
 
@@ -42,7 +42,7 @@ type Message struct {
 // to the rest of the pipeline.
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
-    // Used by docker parsers to transmit an offset.
+	// Used by docker parsers to transmit an offset.
 	Timestamp string
 	IsPartial bool
 }
