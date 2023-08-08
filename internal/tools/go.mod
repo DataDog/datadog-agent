@@ -12,7 +12,7 @@ require (
 	github.com/vektra/mockery/v2 v2.32.2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
-	gotest.tools/gotestsum v1.10.1
+	gotest.tools/gotestsum v1.10.2-0.20230730171209-b8067939dbe9
 )
 
 require (
