@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DuplicateConnectionErr is an error that explains the connection was closed because another client tried to connect
-var DuplicateConnectionErr = errors.New("the stream was closed because another client called StreamEntities")
+// ErrDuplicateConnection is an error that explains the connection was closed because another client tried to connect
+var ErrDuplicateConnection = errors.New("the stream was closed because another client called StreamEntities")
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
@@ -135,7 +135,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			// Ensure that if streamCtx.Done() is closed, we always choose that path.
 			select {
 			case <-streamCtx.Done():
-				return DuplicateConnectionErr
+				return ErrDuplicateConnection
 			default:
 			}
 
@@ -170,7 +170,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 		case <-out.Context().Done():
 			return nil
 		case <-streamCtx.Done():
-			return DuplicateConnectionErr
+			return ErrDuplicateConnection
 		}
 	}
 }

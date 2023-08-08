@@ -14,23 +14,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var mockError = errors.New("mock")
+var errorMock = errors.New("mock")
 
 func TestConfig(t *testing.T) {
 	m := config.Mock(t)
 
 	// no configuration, disabled by default
-	l := fromConfig(1, true, func() (uint64, error) { return 0, mockError })
+	l := fromConfig(1, true, func() (uint64, error) { return 0, errorMock })
 	assert.Nil(t, l)
 
 	// static limit
 	m.Set("dogstatsd_context_limiter.limit", 500)
-	l = fromConfig(1, true, func() (uint64, error) { return 0, mockError })
+	l = fromConfig(1, true, func() (uint64, error) { return 0, errorMock })
 	assert.Equal(t, 500, l.global)
 
 	// fallback to static limit with error
 	m.Set("dogstatsd_context_limiter.cgroup_memory_ratio", 0.5)
-	l = fromConfig(1, true, func() (uint64, error) { return 0, mockError })
+	l = fromConfig(1, true, func() (uint64, error) { return 0, errorMock })
 	assert.Equal(t, 500, l.global)
 
 	// memory based limit
