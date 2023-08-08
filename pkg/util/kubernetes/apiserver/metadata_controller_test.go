@@ -434,10 +434,7 @@ func TestMetadataController(t *testing.T) {
 	go metaController.Run(stop)
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
-		if !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
-			return false
-		}
-		return true
+		return metaController.endpointsListerSynced() && metaController.nodeListerSynced()
 	})
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
