@@ -22,6 +22,7 @@ func TestMountResolver(t *testing.T) {
 	// Prepare test cases
 	type testCase struct {
 		mountID           uint32
+		device            uint32
 		expectedMountPath string
 		expectedError     error
 	}
@@ -44,7 +45,6 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 27,
 								Device:  1,
@@ -61,35 +61,7 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						27,
-						"/",
-						nil,
-					},
-				},
-			},
-		},
-		{
-			"insert_root",
-			args{
-				[]event{
-					{
-						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
-							Mount: model.Mount{
-								MountID: 27,
-								Device:  1,
-								ParentPathKey: model.PathKey{
-									MountID: 1,
-								},
-								FSType:        "ext4",
-								MountPointStr: "/",
-								RootStr:       "",
-							},
-						},
-					},
-				},
-				[]testCase{
-					{
-						27,
+						1,
 						"/",
 						nil,
 					},
@@ -102,7 +74,6 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 127,
 								Device:  52,
@@ -119,18 +90,49 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						127,
+						0,
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
 					},
 					{
+						0,
 						0,
 						"",
 						ErrMountUndefined,
 					},
 					{
 						22,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 22},
+					},
+				},
+			},
+		},
+		{
+			"insert_device",
+			args{
+				[]event{
+					{
+						mount: &model.MountEvent{
+							Mount: model.Mount{
+								MountID: 458,
+								Device:  44,
+								ParentPathKey: model.PathKey{
+									MountID: 27,
+								},
+								MountPointStr: "/usr",
+								RootStr:       "",
+							},
+						},
+					},
+				},
+				[]testCase{
+					{
+						459,
+						44,
+						"/usr",
+						nil,
 					},
 				},
 			},
@@ -141,14 +143,14 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &model.UmountEvent{
-							SyscallEvent: model.SyscallEvent{},
-							MountID:      127,
+							MountID: 127,
 						},
 					},
 				},
 				[]testCase{
 					{
 						127,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 127},
 					},
@@ -161,7 +163,6 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 27,
 								Device:  1,
@@ -176,7 +177,6 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 22,
 								Device:  21,
@@ -191,7 +191,6 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 31,
 								Device:  26,
@@ -208,16 +207,19 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						27,
+						0,
 						"/",
 						nil,
 					},
 					{
 						22,
+						0,
 						"/sys",
 						nil,
 					},
 					{
 						31,
+						0,
 						"/sys/fs/cgroup",
 						nil,
 					},
@@ -230,24 +232,26 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &model.UmountEvent{
-							SyscallEvent: model.SyscallEvent{},
-							MountID:      27,
+							MountID: 27,
 						},
 					},
 				},
 				[]testCase{
 					{
 						27,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 27},
 					},
 					{
 						22,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 22},
 					},
 					{
 						31,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 31},
 					},
@@ -260,7 +264,6 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 27,
 								Device:  1,
@@ -275,7 +278,6 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 176,
 								Device:  52,
@@ -290,10 +292,9 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 638,
-								Device:  52,
+								Device:  53,
 								ParentPathKey: model.PathKey{
 									MountID: 635,
 								},
@@ -305,7 +306,6 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 639,
 								Device:  54,
@@ -322,6 +322,7 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						639,
+						0,
 						"/proc",
 						nil,
 					},
@@ -334,24 +335,31 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						umount: &model.UmountEvent{
-							SyscallEvent: model.SyscallEvent{},
-							MountID:      176,
+							MountID: 176,
+						},
+					},
+					{
+						umount: &model.UmountEvent{
+							MountID: 638,
 						},
 					},
 				},
 				[]testCase{
 					{
 						176,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 176},
 					},
 					{
 						638,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 638},
 					},
 					{
 						639,
+						0,
 						"",
 						&ErrMountNotFound{MountID: 639},
 					},
@@ -364,9 +372,9 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 32,
+								Device:  97,
 								ParentPathKey: model.PathKey{
 									MountID: 638,
 								},
@@ -376,9 +384,9 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 41,
+								Device:  98,
 								ParentPathKey: model.PathKey{
 									MountID: 32,
 								},
@@ -388,9 +396,9 @@ func TestMountResolver(t *testing.T) {
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID: 42,
+								Device:  99,
 								ParentPathKey: model.PathKey{
 									MountID: 41,
 								},
@@ -402,16 +410,19 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						32,
+						0,
 						"/",
 						nil,
 					},
 					{
 						41,
+						0,
 						"/tmp",
 						nil,
 					},
 					{
 						42,
+						0,
 						"/tmp/tmp",
 						nil,
 					},
@@ -420,8 +431,9 @@ func TestMountResolver(t *testing.T) {
 		},
 	}
 
-	// use pid 1 for the tests
-	var pid uint32 = 1
+	var (
+		pid uint32 = 1
+	)
 
 	cr, _ := cgroup.NewResolver(nil)
 
@@ -431,10 +443,10 @@ func TestMountResolver(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(&evt.mount.Mount)
+					mr.insert(&evt.mount.Mount, pid)
 				}
 				if evt.umount != nil {
-					mount, err := mr.ResolveMount(evt.umount.MountID, pid, "")
+					mount, err := mr.ResolveMount(evt.umount.MountID, 0, pid, "")
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -443,7 +455,7 @@ func TestMountResolver(t *testing.T) {
 			}
 
 			for _, testC := range tt.args.cases {
-				p, err := mr.ResolveMountPath(testC.mountID, pid, "")
+				p, err := mr.ResolveMountPath(testC.mountID, testC.device, pid, "")
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
@@ -489,7 +501,7 @@ func TestMountGetParentPath(t *testing.T) {
 		},
 	}
 
-	parentPath, err := mr.getMountPath(4)
+	parentPath, err := mr.getMountPath(4, 44, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
@@ -525,7 +537,7 @@ func TestMountLoop(t *testing.T) {
 		},
 	}
 
-	parentPath, err := mr.getMountPath(3)
+	parentPath, err := mr.getMountPath(3, 44, 1)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
 }
@@ -552,6 +564,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = mr.getMountPath(100)
+		_, _ = mr.getMountPath(100, 44, 1)
 	}
 }

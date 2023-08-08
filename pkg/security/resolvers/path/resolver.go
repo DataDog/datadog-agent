@@ -92,7 +92,20 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 		return pathStr, nil
 	}
 
-	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		}
+
+		if e.Device == 265289732 {
+			fmt.Printf("KO ? : %s/%s\n", mountPath, pathStr)
+		}
+
+		return pathStr, &ErrPathResolution{Err: err}
+	}
+
+	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
@@ -100,13 +113,6 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 		return pathStr, &ErrPathResolution{Err: err}
 	}
 
-	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
-	if err != nil {
-		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
-		}
-		return pathStr, &ErrPathResolution{Err: err}
-	}
 	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)

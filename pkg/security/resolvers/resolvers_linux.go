@@ -252,6 +252,7 @@ func (r *Resolvers) snapshot() error {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
+			continue
 		}
 
 		// Sync the process cache
