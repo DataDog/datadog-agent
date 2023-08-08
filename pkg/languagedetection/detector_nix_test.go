@@ -107,6 +107,12 @@ func TestDetectLanguage(t *testing.T) {
 			comm:     "ruby2.7",
 			expected: languagemodels.Ruby,
 		},
+		{
+			name:     "jruby",
+			cmdline:  []string{"java", "-Djruby.home=/usr/share/jruby", "-Djruby.lib=/usr/share/jruby/lib", "org.jruby.Main", "prog.rb"},
+			comm:     "java",
+			expected: languagemodels.Java, // TODO: not yet implemented
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			process := []*procutil.Process{makeProcess(tc.cmdline, tc.comm)}
