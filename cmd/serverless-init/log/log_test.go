@@ -110,7 +110,9 @@ func TestCustomWriterShoudBufferOverflow(t *testing.T) {
 }
 
 func TestCustomWriterMaxBufferSize(t *testing.T) {
-	testContent := []byte(strings.Repeat("a", maxBufferSize+1))
+	testMaxBufferSize := 5
+
+	testContent := []byte(strings.Repeat("a", testMaxBufferSize+1))
 	config := &Config{
 		channel:   make(chan *config.ChannelMessage, 2),
 		isEnabled: true,
@@ -118,11 +120,11 @@ func TestCustomWriterMaxBufferSize(t *testing.T) {
 	cw := &CustomWriter{
 		LogConfig: config,
 	}
-	go cw.Write(testContent)
+	go cw.writeWithMaxBufferSize(testContent, testMaxBufferSize)
 	numMessages := 0
 	select {
 	case message := <-config.channel:
-		assert.Equal(t, []byte(strings.Repeat("a", maxBufferSize)), message.Content)
+		assert.Equal(t, []byte(strings.Repeat("a", testMaxBufferSize)), message.Content)
 		numMessages++
 	case <-time.After(100 * time.Millisecond):
 		t.FailNow()
