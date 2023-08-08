@@ -14,7 +14,7 @@ var unlinkProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_vfs_unlink",
+			EBPFFuncName: "hook_vfs_unlink",
 		},
 	},
 	{
@@ -26,7 +26,7 @@ var unlinkProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_unlinkat",
+			EBPFFuncName: "rethook_do_unlinkat",
 		},
 	},
 }
@@ -37,12 +37,12 @@ func getUnlinkProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlink",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	unlinkProbes = append(unlinkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlinkat",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return unlinkProbes
 }

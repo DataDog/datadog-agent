@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 type protocol struct {
@@ -34,7 +35,7 @@ const (
 	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
 )
 
-var Spec = protocols.ProtocolSpec{
+var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{
 		{
@@ -73,6 +74,10 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+func (p *protocol) Name() string {
+	return "Kafka"
+}
+
 // ConfigureOptions add the necessary options for the kafka monitoring to work,
 // to be used by the manager. These are:
 // - Set the `kafka_last_tcp_seq_per_connection` map size to the value of the `max_tracked_connection` configuration variable.
@@ -85,6 +90,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 
 func (p *protocol) PreStart(mgr *manager.Manager) error {

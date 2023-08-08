@@ -38,8 +38,8 @@ send_pkg_size-a6:
     !reference [.on_deploy_a6]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
-  dependencies:
+  tags: ["arch:amd64"]
+  needs:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
     - agent_suse-x64-a6
@@ -96,8 +96,8 @@ send_pkg_size-a7:
     !reference [.on_deploy_a7]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
-  dependencies:
+  tags: ["arch:amd64"]
+  needs:
     - agent_deb-x64-a7
     - agent_deb-arm64-a7
     - iot_agent_deb-x64
@@ -136,10 +136,10 @@ send_pkg_size-a7:
             local arch="${3}"
 
             # record the total uncompressed size of each package
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-            if [[ "$arch" == "amd64" || "$os" == "debian" ]]; then add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}; fi
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-            if [[ "$os" == "debian" && "$arch" == "amd64" ]]; then add_metric datadog.agent.package.size $(du -sB1 ${base}/heroku-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:amd64; fi
+            for package in agent dogstatsd iot-agent heroku-agent; do
+                if [ ! -d "${base}/${package}" ]; then continue; fi
+                add_metric datadog.agent.package.size $(du -sB1 "${base}/${package}" | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:${package} agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            done
 
             # record the size of each of the important binaries in each package
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
@@ -147,8 +147,11 @@ send_pkg_size-a7:
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/security-agent | sed 's/\([0-9]\+\).\+/\1/') bin:security-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/process-agent | sed 's/\([0-9]\+\).\+/\1/') bin:process-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-            if [[ "$arch" == "amd64" || "$os" == "debian" ]]; then add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}; fi 
+            if [[ "$arch" == "amd64" || "$os" == "debian" ]]; then add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}; fi
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            if [ -f "${base}/heroku-agent/opt/datadog-agent/bin/agent/agent" ]; then
+                add_metric datadog.agent.binary.size $(du -sB1 ${base}/heroku-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch};
+            fi
         }
 
     # We silence dpkg and cpio output so we don't exceed gitlab log limit
@@ -189,7 +192,7 @@ send_pkg_size-a7:
 .check_pkg_size:
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   script:
     - source /root/.bashrc
     - !reference [.add_metric_func, script]
@@ -207,7 +210,7 @@ send_pkg_size-a7:
     - |
         if [[ "${ARCH}" == "amd64" ]]; then ARCH_RPM_EXT="x86_64"; else ARCH_RPM_EXT="aarch64"; fi
         for flavor in ${FLAVORS}; do
-            
+
             if [[ "${ARCH}" == "amd64" && "$flavor" != "datadog-heroku-agent" ]]; then
               mkdir -p "/tmp/stable/${flavor}/suse"
               curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/${ARCH_RPM_EXT}/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm"
@@ -218,7 +221,7 @@ send_pkg_size-a7:
               set -e
             fi
 
-            mkdir -p "/tmp/stable/${flavor}" 
+            mkdir -p "/tmp/stable/${flavor}"
 
             curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_${ARCH}.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_${ARCH}.deb"
 

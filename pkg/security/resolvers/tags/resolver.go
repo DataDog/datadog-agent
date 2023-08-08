@@ -45,6 +45,7 @@ type Resolver interface {
 	GetValue(id string, tag string) string
 }
 
+// DefaultResolver represents a default resolver based directly on the underlying tagger
 type DefaultResolver struct {
 	tagger Tagger
 }

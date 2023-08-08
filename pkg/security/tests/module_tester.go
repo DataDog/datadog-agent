@@ -40,6 +40,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -308,6 +309,7 @@ type testModule struct {
 	statsdClient  *statsdclient.StatsdClient
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
+	tracePipe     *tracePipeLogger
 }
 
 var testMod *testModule
@@ -886,6 +888,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
+		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+			return testMod, err
+		}
 
 		if err = testMod.reloadConfiguration(); err != nil {
 			return testMod, err
@@ -978,6 +983,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if opts.preStartCallback != nil {
 		opts.preStartCallback(testMod)
+	}
+
+	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+		return nil, err
 	}
 
 	if err := testMod.eventMonitor.Start(); err != nil {
@@ -1115,7 +1124,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 
 	select {
 	case <-time.After(getEventTimeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1184,13 +1193,27 @@ func (et ErrTimeout) Error() string {
 }
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test
-func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
-	err := ErrTimeout{
-		"timeout, details: ",
+func (tm *testModule) NewTimeoutError() ErrTimeout {
+	var msg strings.Builder
+
+	msg.WriteString("timeout, details: ")
+	msg.WriteString(GetStatusMetrics(tm.probe))
+	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
+
+	events := tm.ruleEngine.StopEventCollector()
+	if len(events) != 0 {
+		msg.WriteString("\nevents evaluated:\n")
+
+		for _, event := range events {
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
+			for field, value := range event.Fields {
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
+			}
+			msg.WriteString("}\n")
+		}
 	}
 
-	err.msg += GetStatusMetrics(probe)
-	return err
+	return ErrTimeout{msg.String()}
 }
 
 // ActionMessage is used to send a message from an action function to its callback
@@ -1266,7 +1289,7 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHan
 		tb.FailNow()
 		return nil
 	case <-time.After(getEventTimeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1316,7 +1339,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 
 	select {
 	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1384,7 +1407,7 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Ev
 
 	select {
 	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1435,6 +1458,7 @@ type tracePipeLogger struct {
 	*TracePipe
 	stop       chan struct{}
 	executable string
+	tb         testing.TB
 }
 
 //nolint:unused
@@ -1445,7 +1469,7 @@ func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	_, err := os.Stat(taskPath)
 
 	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
-		log.Debug(event.Raw)
+		l.tb.Log(strings.TrimSuffix(event.Raw, "\n"))
 	}
 }
 
@@ -1494,6 +1518,7 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		TracePipe:  tracePipe,
 		stop:       make(chan struct{}),
 		executable: filepath.Base(executable),
+		tb:         tm.t,
 	}
 	logger.Start()
 
@@ -1528,6 +1553,11 @@ func (tm *testModule) Close() {
 
 	// make sure we don't leak syscalls
 	tm.validateSyscallsInFlight()
+
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
+	}
 
 	tm.statsdClient.Flush()
 

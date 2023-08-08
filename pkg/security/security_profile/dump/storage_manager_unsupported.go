@@ -36,6 +36,7 @@ type ActivityDump struct {
 	StorageRequests map[config.StorageFormat][]config.StorageRequest
 }
 
+// GetImageNameTag returns the image name and tag of this activity dump
 func (ad *ActivityDump) GetImageNameTag() (string, string) {
 	return "", ""
 }

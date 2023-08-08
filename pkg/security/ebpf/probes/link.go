@@ -14,7 +14,7 @@ var linkProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_vfs_link",
+			EBPFFuncName: "hook_vfs_link",
 		},
 	},
 	{
@@ -26,7 +26,7 @@ var linkProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_linkat",
+			EBPFFuncName: "rethook_do_linkat",
 		},
 	},
 }
@@ -37,12 +37,12 @@ func getLinkProbe(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "link",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	linkProbes = append(linkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "linkat",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return linkProbes
 }

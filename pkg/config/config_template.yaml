@@ -1127,7 +1127,7 @@ api_key:
   # force_use_http: true
 
   ## @param force_use_tcp - boolean - optional - default: false
-  ## @env DD_LOGS_FORCE_USE_TCP - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
   ## to `true` to always send logs via TCP. If `use_http` is set to `true`, this parameter
   ## is ignored.
@@ -3829,6 +3829,15 @@ api_key:
         ## - `raw_value` to report the raw value as a Datadog gauge.
         #
         # cumulative_monotonic_mode: to_delta
+
+        ## @param initial_cumulative_monotonic_value - string - optional - default: auto
+        ## How to report the initial value for cumulative monotonic sums. Valid values are:
+        ##
+        ## - `auto` reports the initial value if its start timestamp is set and it happens after the process was started.
+        ## - `drop` always drops the initial value.
+        ## - `keep` always reports the initial value.
+        #
+        # initial_cumulative_monotonic_value: auto   
 
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.

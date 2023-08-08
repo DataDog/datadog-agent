@@ -911,6 +911,8 @@ func getVmAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
 		return 32
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_2, kernel.Kernel6_3):
+		return 32
 	}
 	return 80
 }

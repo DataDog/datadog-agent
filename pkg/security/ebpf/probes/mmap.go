@@ -14,7 +14,7 @@ var mmapProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_fget",
+			EBPFFuncName: "rethook_fget",
 		},
 	},
 	{
@@ -31,6 +31,6 @@ func getMMapProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mmap",
-	}, fentry, Exit)...)
+	}, fentry, Exit|SupportFexit)...)
 	return mmapProbes
 }

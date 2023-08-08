@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,7 +32,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	tags := []string{}
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	tags = append(tags, config.GetGlobalConfiguredTags(false)...)
+	tags = append(tags, configUtils.GetConfiguredTags(config.Datadog, false)...)
 
 	// EKS Fargate specific tags
 	if config.IsFeaturePresent(config.EKSFargate) {

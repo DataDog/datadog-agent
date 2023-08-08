@@ -7,7 +7,9 @@
 
 package probes
 
-import manager "github.com/DataDog/ebpf-manager"
+import (
+	manager "github.com/DataDog/ebpf-manager"
+)
 
 func getExecProbes(fentry bool) []*manager.Probe {
 	var execProbes = []*manager.Probe{
@@ -62,19 +64,19 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_new_exec_interp",
+				EBPFFuncName: "hook_setup_new_exec_interp",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID + "_a",
-				EBPFFuncName: "kprobe_setup_new_exec_args_envs",
+				EBPFFuncName: "hook_setup_new_exec_args_envs",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_arg_pages",
+				EBPFFuncName: "hook_setup_arg_pages",
 			},
 		},
 		{
@@ -143,13 +145,13 @@ func getExecProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execve",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execveat",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
@@ -167,28 +169,16 @@ func getExecProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "clone",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "clone3",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 
-	// with fentry support
 	for _, name := range []string{
 		"setuid",
-	} {
-		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID: SecurityAgentUID,
-			},
-			SyscallFuncName: name,
-		}, fentry, EntryAndExit|SupportFentry)...)
-	}
-
-	// only kprobes
-	for _, name := range []string{
 		"setuid16",
 		"setgid",
 		"setgid16",
@@ -206,12 +196,14 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setresgid16",
 		"capset",
 	} {
+		flags := EntryAndExit | SupportFentry | SupportFexit
+
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID: SecurityAgentUID,
 			},
 			SyscallFuncName: name,
-		}, fentry, EntryAndExit)...)
+		}, fentry, flags)...)
 	}
 
 	return execProbes
@@ -223,21 +215,21 @@ func getExecTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecGetEnvsOffsetKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_get_envs_offset",
+				EBPFFuncName: "tail_call_target_get_envs_offset",
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsSplitKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_parse_args_envs_split",
+				EBPFFuncName: "tail_call_target_parse_args_envs_split",
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_parse_args_envs",
+				EBPFFuncName: "tail_call_target_parse_args_envs",
 			},
 		},
 	}

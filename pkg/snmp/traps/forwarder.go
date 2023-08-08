@@ -6,6 +6,8 @@
 package traps
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,6 +46,7 @@ func (tf *TrapForwarder) Stop() {
 }
 
 func (tf *TrapForwarder) run() {
+	flushTicker := time.NewTicker(10 * time.Second).C
 	for {
 		select {
 		case <-tf.stopChan:
@@ -51,6 +54,8 @@ func (tf *TrapForwarder) run() {
 			return
 		case packet := <-tf.trapsIn:
 			tf.sendTrap(packet)
+		case <-flushTicker:
+			tf.sender.Commit() // Commit metrics
 		}
 	}
 }
