@@ -218,7 +218,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				// We switch to a different AZ and attempt to launch the instance again.
 			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
 				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(opts.InfraEnv, currentAZ), getAvailabilityZone(opts.InfraEnv, currentAZ+1))
-				currentAZ += 1
+				currentAZ++
 				return retry.RetryableError(err)
 			} else {
 				return err

@@ -183,7 +183,7 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStat
 		return
 	}
 	hashTags := generateTagHash(tags)
-	r.runningContainersCounter[hashTags] += 1
+	r.runningContainersCounter[hashTags]++
 	if _, ok := r.runningContainersTags[hashTags]; !ok {
 		r.runningContainersTags[hashTags] = utils.ConcatenateTags(tags, p.config.Tags)
 	}
@@ -203,7 +203,7 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 		return
 	}
 	hashTags := generateTagHash(tags)
-	r.runningPodsCounter[hashTags] += 1
+	r.runningPodsCounter[hashTags]++
 	if _, ok := r.runningPodsTags[hashTags]; !ok {
 		r.runningPodsTags[hashTags] = utils.ConcatenateTags(tags, p.config.Tags)
 	}

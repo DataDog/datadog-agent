@@ -57,7 +57,7 @@ func (s *e2eSuite) Test3_UpdateEnv() {
 func (suite *e2eSuite) createStack(stackName string) *StackDefinition[struct{}] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
 		suite.stackName = stackName
-		suite.runFctCallCount += 1
+		suite.runFctCallCount++
 		return &struct{}{}, nil
 	})
 }

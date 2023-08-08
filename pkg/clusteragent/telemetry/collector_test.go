@@ -59,7 +59,7 @@ func TestTelemetryPath(t *testing.T) {
 	var reqCount int
 	var path string
 	server.assertReq = func(req *http.Request) {
-		reqCount += 1
+		reqCount++
 		path = req.URL.Path
 	}
 

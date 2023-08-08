@@ -23,7 +23,7 @@ type mockExtractor struct {
 }
 
 func (e *mockExtractor) Extract(p map[int32]*procutil.Process) {
-	e.called += 1
+	e.called++
 	e.procs = p
 }
 

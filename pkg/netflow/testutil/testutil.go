@@ -174,7 +174,7 @@ func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int)
 			content := app.Payload()
 			return content, nil
 		}
-		packetCount += 1
+		packetCount++
 	}
 }
 

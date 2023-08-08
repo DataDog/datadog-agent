@@ -216,7 +216,7 @@ func TestCreateChunks(t *testing.T) {
 		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
 		switch id {
 		case traceID1:
-			found += 1
+			found++
 			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
 			require.Equal(t, int32(1), c.Priority)
 		case traceID2:

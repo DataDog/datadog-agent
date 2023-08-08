@@ -50,7 +50,7 @@ func TestTelemetryPath(t *testing.T) {
 	var reqCount int
 	var path string
 	server.assertReq = func(req *http.Request) {
-		reqCount += 1
+		reqCount++
 		path = req.URL.Path
 	}
 
@@ -72,7 +72,7 @@ func TestNoSuccessAfterError(t *testing.T) {
 	var reqCount int
 
 	server.assertReq = func(req *http.Request) {
-		reqCount += 1
+		reqCount++
 		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		ev := OnboardingEvent{}
@@ -99,7 +99,7 @@ func TestErrorAfterSuccess(t *testing.T) {
 	var reqCount int
 
 	server.assertReq = func(req *http.Request) {
-		reqCount += 1
+		reqCount++
 		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		ev := OnboardingEvent{}
@@ -132,13 +132,13 @@ func TestDualShipping(t *testing.T) {
 	var reqCount, reqCount2 int
 
 	server.assertReq = func(req *http.Request) {
-		reqCount += 1
+		reqCount++
 		b, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		body = b
 	}
 	server2.assertReq = func(req *http.Request) {
-		reqCount2 += 1
+		reqCount2++
 		b, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		body2 = b
