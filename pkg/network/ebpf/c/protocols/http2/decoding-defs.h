@@ -27,7 +27,7 @@
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.
-#define HTTP2_BATCH_SIZE 10
+#define HTTP2_BATCH_SIZE 17
 
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
@@ -36,12 +36,6 @@
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 7 - 1
 #define MAX_7_BITS 127
-
-typedef enum {
-    kMethod = 2,
-    kPath = 4,
-    kStatus = 9,
-} static_table_key_t;
 
 typedef enum {
     kGET = 2,
@@ -58,11 +52,6 @@ typedef enum {
 } static_table_value_t;
 
 typedef struct {
-    static_table_key_t key;
-    static_table_value_t value;
-} static_table_entry_t;
-
-typedef struct {
     char buffer[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
     __u8 string_len;
 } dynamic_table_entry_t;
@@ -74,7 +63,7 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
-    __u32  stream_id;
+    __u32 stream_id;
 } http2_stream_key_t;
 
 typedef struct {
@@ -112,11 +101,5 @@ typedef struct {
     __u32 offset;
     __u8 iteration;
 } http2_tail_call_state_t;
-
-typedef enum {
-    HEADER_ERROR = 0,
-    HEADER_NOT_INTERESTING,
-    HEADER_INTERESTING,
-} parse_result_t;
 
 #endif

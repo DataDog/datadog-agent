@@ -16,11 +16,11 @@ import (
 )
 
 type agentSuiteEx5 struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
 func TestAgentSuiteEx5(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx5{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentSuiteEx5{}, e2e.FakeIntakeStackDef(nil))
 }
 
 func (s *agentSuiteEx5) TestCheckRuns() {

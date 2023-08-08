@@ -93,6 +93,8 @@ var (
 	Kernel6_1 = kernel.VersionCode(6, 1, 0)
 	// Kernel6_2 is the KernelVersion representation of kernel version 6.2
 	Kernel6_2 = kernel.VersionCode(6, 2, 0)
+	// Kernel6_3 is the KernelVersion representation of kernel version 6.3
+	Kernel6_3 = kernel.VersionCode(6, 3, 0)
 )
 
 // Version defines a kernel version helper

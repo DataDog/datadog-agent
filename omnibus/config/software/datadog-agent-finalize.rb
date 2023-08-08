@@ -194,6 +194,7 @@ build do
             strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
             strip_exclude("*usm*")
+            strip_exclude("*shared-libraries*")
             strip_exclude("*runtime-security*")
             strip_exclude("*dns*")
             strip_exclude("*conntrack*")

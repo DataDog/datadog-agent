@@ -181,6 +181,9 @@ type RuleSet struct {
 	fields []string
 	logger log.Logger
 	pool   *eval.ContextPool
+
+	// event collector, used for tests
+	eventCollector EventCollector
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -646,6 +649,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
+
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return false
@@ -673,6 +677,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 			}
 		}
 	}
+
+	// no-op in the general case, only used to collect events in functional tests
+	// for debugging purposes
+	rs.eventCollector.CollectEvent(rs, event, result)
 
 	return result
 }
@@ -740,6 +748,10 @@ func (rs *RuleSet) generatePartials() error {
 		}
 	}
 	return nil
+}
+
+func (rs *RuleSet) StopEventCollector() []CollectedEvent {
+	return rs.eventCollector.Stop()
 }
 
 // NewEvent returns a new event using the embedded constructor

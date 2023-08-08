@@ -13,23 +13,16 @@ const (
 )
 
 const (
+	// DentryResolverKernKey is the key to the kernel dentry resolver tail call program
+	DentryResolverKernKey uint32 = iota
+	// ActivityDumpFilterKey is the key to the kernel activity dump filter tail call program
+	ActivityDumpFilterKey
 	// DentryResolverERPCKey is the key to the eRPC dentry resolver tail call program
-	DentryResolverERPCKey uint32 = iota
+	DentryResolverERPCKey
 	// DentryResolverParentERPCKey is the key to the eRPC dentry parent resolver tail call program
 	DentryResolverParentERPCKey
 	// DentryResolverSegmentERPCKey is the key to the eRPC dentry segment resolver tail call program
 	DentryResolverSegmentERPCKey
-	// DentryResolverKernKprobeKey is the key to the kernel dentry resolver tail call program
-	DentryResolverKernKprobeKey
-	// ActivityDumpFilterKprobeKey is the key to the kernel activity dump filter tail call program
-	ActivityDumpFilterKprobeKey
-)
-
-const (
-	// DentryResolverKernTracepointKey is the key to the kernel dentry resolver tail call program
-	DentryResolverKernTracepointKey uint32 = iota
-	// ActivityDumpFilterTracepointKey is the key to the kernel activity dump filter tail call program
-	ActivityDumpFilterTracepointKey
 )
 
 const (

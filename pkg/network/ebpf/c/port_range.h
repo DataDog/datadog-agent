@@ -3,13 +3,20 @@
 
 #include "ip.h"
 
-// TODO: Replace those by injected constants based on system configuration
-// once we have port range detection merged into the codebase.
-#define EPHEMERAL_RANGE_BEG 32768
-#define EPHEMERAL_RANGE_END 60999
+static __always_inline __u16 ephemeral_range_begin() {
+    __u64 val = 0;
+    LOAD_CONSTANT("ephemeral_range_begin", val);
+    return (__u16) val;
+}
+
+static __always_inline __u16 ephemeral_range_end() {
+    __u64 val = 0;
+    LOAD_CONSTANT("ephemeral_range_end", val);
+    return (__u16) val;
+}
 
 static __always_inline int is_ephemeral_port(u16 port) {
-    return port >= EPHEMERAL_RANGE_BEG && port <= EPHEMERAL_RANGE_END;
+    return port >= ephemeral_range_begin() && port <= ephemeral_range_end();
 }
 
 // ensure that the given tuple is in the (src: client, dst: server) format based
