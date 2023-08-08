@@ -96,7 +96,7 @@ func requestHealth(log log.Component, config config.Component, cliParams *cliPar
 			err = fmt.Errorf(e)
 		}
 
-		return fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues.", err)
+		return fmt.Errorf("could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues", err)
 	}
 
 	s := new(health.Status)
