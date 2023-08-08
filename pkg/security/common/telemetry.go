@@ -34,6 +34,7 @@ func NewContainersTelemetry() (*ContainersTelemetry, error) {
 	}, nil
 }
 
+// ListRunningContainers returns the list of running containers (from the workload meta store)
 func (c *ContainersTelemetry) ListRunningContainers() []*workloadmeta.Container {
 	return c.MetadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 }

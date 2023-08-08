@@ -15,7 +15,7 @@ import (
 
 // This file contains additional tests for line-breaking specifically relating
 // to DockerStream, and came with the move of this functionality from
-// ./pkg/logs/internal/tailers/docker/matcher.go.  Some are redundant with
+// ./pkg/logs/tailers/docker/matcher.go.  Some are redundant with
 // other tests in this package.
 
 func getDummyHeader(i int) []byte {

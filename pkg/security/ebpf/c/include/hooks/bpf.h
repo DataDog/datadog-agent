@@ -48,7 +48,7 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
     send_event(ctx, EVENT_BPF, event);
 }
 
-SYSCALL_KPROBE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
+HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size) {
     struct policy_t policy = fetch_policy(EVENT_BPF);
     if (is_discarded_by_process(policy.mode, EVENT_BPF)) {
         return 0;
@@ -88,8 +88,8 @@ __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(bpf) {
-    return sys_bpf_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(bpf) {
+    return sys_bpf_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 HOOK_ENTRY("security_bpf_map")

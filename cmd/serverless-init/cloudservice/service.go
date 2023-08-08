@@ -41,7 +41,7 @@ func (l *LocalService) GetOrigin() string {
 
 // GetPrefix is a default implementation that returns a local prefix
 func (l *LocalService) GetPrefix() string {
-	return "local"
+	return "datadog.serverless_agent"
 }
 
 // Init is not necessary for LocalService
