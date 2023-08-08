@@ -94,6 +94,7 @@ jobs:
             - /go/bin
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /usr/local/bin
+            - /root/.cache/go-build
 
   unit_tests:
     <<: *job_template
