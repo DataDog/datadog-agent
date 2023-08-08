@@ -103,6 +103,7 @@
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
                 "ubuntu-20-04": "ami-0b75998a97c952252",
                 "ubuntu-20-04-2": "ami-0a82127206c2824a1",
+                "ubuntu-20-04-cws": "ami-0332ab1a4fcac2ef3",
                 "ubuntu-21-04": "ami-044f0ceee8e885e87",
                 "ubuntu-22-04": "ami-02ddaf75821f25213",
                 "ubuntu-23-04": "ami-05fab5da2d7fe0b0b"
