@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gogo/protobuf/proto"
 	"io"
 	"net"
 	"net/http"
@@ -20,7 +21,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	langEncoding "github.com/DataDog/datadog-agent/pkg/languagedetection/encoding"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
@@ -234,7 +234,7 @@ func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Lang
 	for i, pid := range pids {
 		procs[i] = &languagepb.Process{Pid: pid}
 	}
-	reqBytes, err := langEncoding.GetMarshaller().Marshal(&languagepb.DetectLanguageRequest{Processes: procs})
+	reqBytes, err := proto.Marshal(&languagepb.DetectLanguageRequest{Processes: procs})
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +255,20 @@ func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Lang
 		return nil, err
 	}
 
-	return langEncoding.GetUnmarshaller().Unmarshal(resBody)
+	var resProto languagepb.DetectLanguageResponse
+	err = proto.Unmarshal(resBody, &resProto)
+	if err != nil {
+		return nil, err
+	}
+
+	langs := make([]languagemodels.Language, len(pids))
+	for i, lang := range resProto.Languages {
+		langs[i] = languagemodels.Language{
+			Name:    languagemodels.LanguageName(lang.Name),
+			Version: lang.Version,
+		}
+	}
+	return langs, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {
