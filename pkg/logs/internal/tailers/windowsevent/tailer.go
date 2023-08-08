@@ -142,7 +142,7 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) { //nolint:u
 	}
 	jsonEvent = replaceTextKeyToValue(jsonEvent)
 	log.Debug("Sending JSON:", string(jsonEvent))
-	return message.NewMessageWithSource(jsonEvent, message.StatusInfo, t.source, time.Now().UnixNano()), nil
+	return message.NewMessageWithSourceAndNoId(jsonEvent, message.StatusInfo, t.source, time.Now().UnixNano()), nil
 }
 
 // EventID sometimes comes in like <EventID>7036</EventID>

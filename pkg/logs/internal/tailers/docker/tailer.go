@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
@@ -310,6 +311,7 @@ func (t *Tailer) forwardMessages() {
 		// the decoder has successfully been flushed
 		t.done <- struct{}{}
 	}()
+	r := util.NewRand()
 	for output := range t.decoder.OutputChan {
 		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.Source)
@@ -317,7 +319,7 @@ func (t *Tailer) forwardMessages() {
 			t.setLastSince(output.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.tagProvider.GetTags())
-			t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp)
+			t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp, util.GenID(r))
 		}
 	}
 }

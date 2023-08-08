@@ -21,7 +21,7 @@ import (
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Payload {
 	return &message.Payload{
-		Messages: []*message.Message{message.NewMessageWithSource(content, status, source, 0)},
+		Messages: []*message.Message{message.NewMessageWithSource(content, status, source, 0, "")},
 		Encoded:  content,
 		Encoding: "identity",
 	}

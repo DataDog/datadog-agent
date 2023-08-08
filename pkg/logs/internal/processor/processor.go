@@ -9,12 +9,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A Processor updates messages from an inputChan and pushes
@@ -27,10 +27,12 @@ type Processor struct {
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
+	processorId               string
 }
 
 // New returns an initialized Processor.
 func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver) *Processor {
+
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan,
@@ -38,6 +40,7 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
+		processorId:               util.GenGlobalId(),
 	}
 }
 
@@ -76,7 +79,9 @@ func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
+
 	for msg := range p.inputChan {
+		msg.AgentProcessorId = p.processorId
 		p.processMessage(msg)
 		p.mu.Lock() // block here if we're trying to flush synchronously
 		//nolint:staticcheck

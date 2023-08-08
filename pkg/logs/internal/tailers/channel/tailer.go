@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -64,6 +65,7 @@ func (t *Tailer) run() {
 		t.done <- true
 	}()
 
+	r := util.NewRand()
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
 		origin := message.NewOrigin(t.source)
@@ -81,11 +83,11 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
-		t.outputChan <- buildMessage(logline, origin)
+		t.outputChan <- buildMessage(logline, origin, util.GenID(r))
 	}
 }
 
-func buildMessage(logline *config.ChannelMessage, origin *message.Origin) *message.Message {
+func buildMessage(logline *config.ChannelMessage, origin *message.Origin, msgId string) *message.Message {
 	status := message.StatusInfo
 	if logline.IsError {
 		status = message.StatusError
@@ -94,7 +96,7 @@ func buildMessage(logline *config.ChannelMessage, origin *message.Origin) *messa
 	if logline.Lambda != nil {
 		return message.NewMessageFromLambda(logline.Content, origin, status, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
 	}
-	return message.NewMessage(logline.Content, origin, status, time.Now().UnixNano())
+	return message.NewMessage(logline.Content, origin, status, time.Now().UnixNano(), msgId)
 }
 
 func getServiceName() string {

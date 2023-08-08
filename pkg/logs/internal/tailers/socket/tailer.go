@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -64,9 +65,10 @@ func (t *Tailer) forwardMessages() {
 		// the decoder has successfully been flushed
 		t.done <- struct{}{}
 	}()
+	r := util.NewRand()
 	for output := range t.decoder.OutputChan {
 		if len(output.Content) > 0 {
-			t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source, output.IngestionTimestamp)
+			t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source, output.IngestionTimestamp, util.GenID(r))
 		}
 	}
 }
