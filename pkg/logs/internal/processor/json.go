@@ -22,13 +22,15 @@ type jsonEncoder struct{}
 
 // JSON representation of a message.
 type jsonPayload struct {
-	Message   string `json:"message"`
-	Status    string `json:"status"`
-	Timestamp int64  `json:"timestamp"`
-	Hostname  string `json:"hostname"`
-	Service   string `json:"service"`
-	Source    string `json:"ddsource"`
-	Tags      string `json:"ddtags"`
+	Message                 string `json:"message"`
+	Status                  string `json:"status"`
+	Timestamp               int64  `json:"timestamp"`
+	Hostname                string `json:"hostname"`
+	Service                 string `json:"service"`
+	Source                  string `json:"ddsource"`
+	Tags                    string `json:"ddtags"`
+	AgentIngestionTimestamp int64  `json:"agentingestiontimestamp"`
+	AgentTimestamp          int64  `json:"agenttimestamp"`
 }
 
 // Encode encodes a message into a JSON byte array.
@@ -38,12 +40,14 @@ func (j *jsonEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, 
 		ts = msg.Timestamp
 	}
 	return json.Marshal(jsonPayload{
-		Message:   toValidUtf8(redactedMsg),
-		Status:    msg.GetStatus(),
-		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  msg.GetHostname(),
-		Service:   msg.Origin.Service(),
-		Source:    msg.Origin.Source(),
-		Tags:      msg.Origin.TagsToString(),
+		Message:                 toValidUtf8(redactedMsg),
+		Status:                  msg.GetStatus(),
+		Timestamp:               ts.UnixNano() / nanoToMillis,
+		Hostname:                msg.GetHostname(),
+		Service:                 msg.Origin.Service(),
+		Source:                  msg.Origin.Source(),
+		Tags:                    msg.Origin.TagsToString(),
+		AgentIngestionTimestamp: msg.IngestionTimestamp / nanoToMillis,
+		AgentTimestamp:          msg.Timestamp.UnixNano() / nanoToMillis,
 	})
 }
