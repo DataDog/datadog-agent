@@ -104,6 +104,7 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
+echo "stage: $stage"
 
 function remove_stack() {
     echo "Removing stack"
@@ -111,7 +112,7 @@ function remove_stack() {
 }
 
 # always remove the stack before exiting, no matter what
-trap remove_stack EXIT
+# trap remove_stack EXIT
 
 # a bug in opentelemetry instrumentation makes it impossible to define a
 # handler inside of a directory
@@ -142,23 +143,23 @@ metric_functions=(
     "error-csharp"
     "error-proxy"
 )
-log_functions=(
-    "log-node"
-    "log-python"
-    "log-java"
-    "log-go"
-    "log-csharp"
-    "log-proxy"
-)
-trace_functions=(
-    "trace-node"
-    "trace-python"
-    "trace-java"
-    "trace-go"
-    "trace-csharp"
-    "trace-proxy"
-    "otlp-python"
-)
+# log_functions=(
+#     "log-node"
+#     "log-python"
+#     "log-java"
+#     "log-go"
+#     "log-csharp"
+#     "log-proxy"
+# )
+# trace_functions=(
+#     "trace-node"
+#     "trace-python"
+#     "trace-java"
+#     "trace-go"
+#     "trace-csharp"
+#     "trace-proxy"
+#     "otlp-python"
+# )
 
 all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
 
