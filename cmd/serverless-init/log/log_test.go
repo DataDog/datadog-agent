@@ -69,7 +69,7 @@ func TestCustomWriterShouldBuffer(t *testing.T) {
 	assert.Equal(t, 1, numMessages)
 }
 
-func TestCustomWriterShoudBufferOverflow(t *testing.T) {
+func TestCustomWriterPreventBufferOverflow(t *testing.T) {
 	testMaxBufferSize := 5
 
 	testContentChunk1 := []byte(strings.Repeat("a", testMaxBufferSize))
@@ -109,7 +109,7 @@ func TestCustomWriterShoudBufferOverflow(t *testing.T) {
 	assert.Equal(t, []byte("b\n"), messages[1])
 }
 
-func TestCustomWriterMaxBufferSize(t *testing.T) {
+func TestCustomWriterLogChunkTruncation(t *testing.T) {
 	testMaxBufferSize := 5
 
 	testContent := []byte(strings.Repeat("a", testMaxBufferSize+1))
