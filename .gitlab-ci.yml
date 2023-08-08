@@ -83,7 +83,7 @@ stages:
   - choco_build
   - choco_deploy
   - internal_image_deploy
-  - install_script_testing 
+  - install_script_testing
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
@@ -166,7 +166,7 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18317357-9fd9ee0
-  DATADOG_AGENT_BUILDERS: v16852259-65c480c
+  DATADOG_AGENT_BUILDERS: v18668212-10ef72b
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: b26f1d056477
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
