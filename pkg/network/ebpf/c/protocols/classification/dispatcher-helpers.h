@@ -97,8 +97,8 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     }
 
     bool tcp_termination = is_tcp_termination(&skb_info);
-    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets, nor ACK only packets.
-    if (!is_tcp(&skb_tup) || is_tcp_ack(&skb_info) || (is_payload_empty(skb, &skb_info) && !tcp_termination)) {
+    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
+    if (!is_tcp(&skb_tup) || (is_payload_empty(skb, &skb_info) && !tcp_termination)) {
         return;
     }
 
