@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 
@@ -34,7 +33,6 @@ def create_stack(ctx, stack=None):
         raise Exit(f"Stack {stack} already exists")
 
     ctx.run(f"mkdir {stack_dir}")
-
 
 def find_ssh_key(ssh_key):
     user = getpass.getuser()

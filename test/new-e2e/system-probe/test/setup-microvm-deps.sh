@@ -4,8 +4,10 @@ set -eo xtrace
 
 STACK=$1
 USER_ID=$2
+GROUP_ID=$3
+ARCH=$4
 
-DD_AGENT_TESTING_DIR=/root/datadog-agent
+DD_AGENT_TESTING_DIR=/datadog-agent
 ROOT_DIR=kmt-deps
 DEPENDENCIES=$ROOT_DIR/$STACK/dependencies
 ARCHIVE_NAME=dependencies-x86_64.tar.gz
@@ -18,13 +20,14 @@ EMBEDDED_BIN=opt/datadog-agent/embedded/bin
 EMBEDDED_INC=opt/datadog-agent/embedded/include
 SYSTEM_PROBE_TESTS=/opt/system-probe-tests
 
-[ -f $TEST2JSON ] || cp $(go env GOTOOLDIR)/test2json $TEST2JSON
+[ -f $TEST2JSON ] || sudo cp $(go env GOTOOLDIR)/test2json $TEST2JSON
 
 rm -rf $DEPENDENCIES
 mkdir -p $DEPENDENCIES
+
 pushd $DEPENDENCIES
 mkdir -p $EMBEDDED_BIN
-mkdir -p $SYSTEM_PROBE_TESTS
+sudo install -d -m 0777 -o $USER_ID -g $GROUP_ID $SYSTEM_PROBE_TESTS
 cp $CLANG_BPF $EMBEDDED_BIN
 cp $LLC_BPF $EMBEDDED_BIN
 mkdir -p $EMBEDDED_INC
@@ -35,6 +38,10 @@ mkdir junit
 mkdir testjson
 mkdir pkgjson
 cp $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh ./
+
+GOOS=linux go build -o ./test-runner $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test-runner/main.go
+GOOS=linux go build -o ./test-json-review $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test-json-review/main.go
+
 popd
 
 ls -la $DEPENDENCIES
@@ -42,5 +49,3 @@ pushd $ROOT_DIR/$STACK
 tar czvf $ARCHIVE_NAME dependencies
 popd
 
-find $DD_AGENT_TESTING_DIR -type d -user root -exec chown -R $USER_ID:$USER_ID {} \;
-find $DD_AGENT_TESTING_DIR -type f -user root -exec chown $USER_ID:$USER_ID {} \;

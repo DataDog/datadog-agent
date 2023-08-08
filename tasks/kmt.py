@@ -4,7 +4,6 @@ import platform
 from glob import glob
 
 from invoke import task
-
 from .kernel_matrix_testing import stacks, vmconfig
 from .kernel_matrix_testing.download import revert_kernel_packages, revert_rootfs, update_kernel_packages, update_rootfs
 from .kernel_matrix_testing.init_kmt import (
@@ -28,7 +27,6 @@ except ImportError:
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 
-DOCKER_EXEC = "docker exec -i kmt-compiler bash -c"
 
 @task
 def create_stack(ctx, stack=None):
@@ -56,8 +54,8 @@ def launch_stack(ctx, stack=None, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_am
 
 @task
 def destroy_stack(ctx, stack=None, force=False, ssh_key=""):
+    clean(ctx, stack)
     stacks.destroy_stack(ctx, stack, force, ssh_key)
-
 
 @task
 def pause_stack(stack=None):
@@ -89,7 +87,7 @@ def init(ctx, lite=False):
 
 
 @task
-def update_resources(ctx):
+def update_resources(ctx, backup=True):
     warn("Updating resource dependencies will delete all running stacks.")
     if ask("are you sure you want to continue? (Y/n)") != "Y":
         raise Exit("[-] Update aborted")
@@ -97,8 +95,8 @@ def update_resources(ctx):
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
         destroy_stack(ctx, stack=stack, force=True)
 
-    update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
-    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
+    update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR, backup)
+    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR, backup)
 
 
 @task
@@ -127,18 +125,10 @@ def get_vm_ip(stack, version, arch):
             return arch, match.group(0).split(' ')[0], match.group(0).split(' ')[1]
 
 
-def get_instance_ip(stack, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
-        entries = f.readlines()
-        for entry in entries:
-            if f"{arch}-instance-ip" in entry.split(' ')[0]:
-                return entry.split()[0], entry.split()[1].strip('\n')
-
 def build_target_set(stack, vms, ssh_key):
     vm_types = vms.split(',')
     if len(vm_types) == 0:
         raise Exit("No VMs to lookup")
-
 
     possible = vmconfig.list_possible()
     target_vms = list()
@@ -151,18 +141,37 @@ def build_target_set(stack, vms, ssh_key):
 
     return target_vms
 
-def sync_source(ctx, vm_ls, source, target):
+
+def get_instance_ip(stack, arch):
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+        entries = f.readlines()
+        for entry in entries:
+            if f"{arch}-instance-ip" in entry.split(' ')[0]:
+                return entry.split()[0], entry.split()[1].strip('\n')
+
+
+def ssh_key_to_path(ssh_key):
+    ssh_key_path = ""
+    if ssh_key != "":
+        ssh_key.rstrip(".pem")
+        ssh_key_path = stacks.find_ssh_key(ssh_key)
+
+    return ssh_key_path
+
+def sync_source(ctx, vm_ls, source, target, ssh_key):
+    ssh_key_path = ssh_key_to_path(ssh_key)
+
     for arch, _, ip in vm_ls:
         vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:{target}"
         if arch == "local":
             ctx.run(
-                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{ip}:{target}"
+                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{ip}:{target}"
             )
         elif arch == "x86_64" or arch == "arm64":
             instance_name, instance_ip = get_instance_ip(stack, arch)
             info(f"[*] Instance {instance_name} has ip {instance_ip}")
             ctx.run(
-                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key_path}\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance_ip}:/home/ubuntu/datadog-agent"
+                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key_path}\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance_ip}:/home/ubuntu/datadog-agent"
             )
             ctx.run(
                 f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no ubuntu@{instance_ip} \"cd /home/ubuntu/datadog-agent && {vm_copy}\""
@@ -189,25 +198,42 @@ def sync(ctx, stack=None, vms="", ssh_key=""):
 
     info("[*] Beginning sync...")
 
-    if ssh_key != "":
-        ssh_key_path = f"~/.ssh/{ssh_key}.pem"
+    sync_source(ctx, target_vms, "./", "/datadog-agent", ssh_key)
 
-    sync_source(ctx, target_vms, "./", "/root/datadog-agent")
 
 def compiler_built(ctx):
     res = ctx.run("docker images kmt:compile | grep -v REPOSITORY | grep kmt", warn=True)
     return res.ok
 
+
 @task
 def build_compiler(ctx):
     ctx.run("docker build -f ../datadog-agent-buildimages/system-probe_x64/Dockerfile -t kmt:compile .")
+
+
+def docker_exec(ctx, cmd, user="root"):
+    ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"")
+
 
 @task
 def start_compiler(ctx):
     if not compiler_built(ctx):
         build_compiler(ctx)
 
-    ctx.run("docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/root/datadog-agent kmt:compile sleep \"infinity\"")
+    if not compiler_running(ctx):
+        ctx.run(
+            "docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/datadog-agent kmt:compile sleep \"infinity\""
+        )
+
+    uid = ctx.run("getent passwd $USER | cut -d ':' -f 3").stdout.rstrip()
+    gid = ctx.run("getent group $USER | cut -d ':' -f 3").stdout.rstrip()
+    docker_exec(ctx, f"getent group {gid} || groupadd -f -g {gid} compiler")
+    docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler")
+    docker_exec(ctx, f"chown {uid}:{gid} /datadog-agent && chown -R {uid}:{gid} /datadog-agent")
+    docker_exec(ctx, "apt install sudo")
+    docker_exec(ctx, "usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers")
+    docker_exec(ctx, f"install -d -m 0777 -o {uid} -g {uid} /go")
+
 
 def compiler_running(ctx):
     res = ctx.run("docker ps -aqf \"name=kmt-compiler\"")
@@ -215,26 +241,70 @@ def compiler_running(ctx):
         return res.stdout.rstrip() != ""
     return False
 
+
 def download_gotestsum(ctx):
     if platform.machine() == "x86_64":
-        url = "https://github.com/gotestyourself/gotestsum/releases/download/v1.10.0/gotestsum_1.10.0_linux_amd64.tar.gz"
+        url = (
+            "https://github.com/gotestyourself/gotestsum/releases/download/v1.10.0/gotestsum_1.10.0_linux_amd64.tar.gz"
+        )
     else:
-        url = "https://github.com/gotestyourself/gotestsum/releases/download/v1.10.0/gotestsum_1.10.0_linux_arm64.tar.gz"
-        
+        url = (
+            "https://github.com/gotestyourself/gotestsum/releases/download/v1.10.0/gotestsum_1.10.0_linux_arm64.tar.gz"
+        )
+
     fgotestsum = "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/gotestsum"
     if os.path.isfile(fgotestsum):
-        return 
+        return
 
     ctx.run(f"wget {url} -O /tmp/gotestsum.tar.gz")
     ctx.run("tar xzvf /tmp/gotestsum.tar.gz -C /tmp")
     ctx.run(f"cp /tmp/gotestsum {fgotestsum}")
 
 
+def run_cmd_vms(ctx, stack, cmd, vms, ssh_key, allow_fail=False):
+    ssh_key_path = ssh_key_to_path(ssh_key)
+
+    for arch, _, ip in vms:
+        if arch != "local" and ssh_key == "":
+            raise Exit("`ssh_key` is required when syncing VMs on remote instance")
+        if arch == "local":
+            run_cmd_local(ctx, cmd, ip, allow_fail)
+        else:
+            run_cmd_remote(ctx, stack, cmd, arch, ip, ssh_key_path)
+
+
+def run_cmd_local(ctx, cmd, ip, allow_fail):
+    ctx.run(f"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'", warn=allow_fail)
+
+def run_cmd_remote(ctx, stack, cmd, arch, ip, ssh_key):
+    _, remote_ip = get_instance_ip(stack, arch)
+    ctx.run(f"ssh -o StrictHostKeyChecking=no -i {ssh_key} ubuntu@{remote_ip} \"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'\"")
+
+def copy_dependencies(ctx, stack, vms, ssh_key):
+    local_cp = False
+    ssh_key_path = ssh_key_to_path(ssh_key)
+    
+    for arch, _, ip in vms:
+        if arch == "local":
+            local_cp = True
+            continue
+        if ssh_key == "":
+            raise Exit("`ssh_key` is required when syncing VMs on remote instance")
+
+        _, remote_ip = get_instance_ip(stack, arch)
+        ctx.run(f"scp -o StrictHostKeyChecking=no -i {ssh_key_path} kmt-deps/{stack}/dependencies-{arch}.tar.gz ubuntu@{remote_ip}:/opt/kernel-version-testing/")
+
+    if local_cp:
+        ctx.run(f"cp kmt-deps/{stack}/dependencies-{platform.machine()}.tar.gz /opt/kernel-version-testing")
+
 @task
-def prepare(ctx, stack=None, arch=None, vms="", ssh_key=""):
+def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    if vms == "":
+        raise Exit("No vms specified to sync with")
 
     if not arch:
         arch = platform.machine()
@@ -244,22 +314,48 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key=""):
 
     download_gotestsum(ctx)
 
-    ctx.run(f"{DOCKER_EXEC} \"cd /root/datadog-agent && git config --global --add safe.directory /root/datadog-agent && inv -e system-probe.kitchen-prepare --ci\"")
-    if not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz"):
-        ctx.run(f"{DOCKER_EXEC} \"cd /root/datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()}\"")
-
     target_vms = build_target_set(stack, vms, ssh_key)
-    sync_source(ctx, target_vms, "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg", "/opt/system-probe-tests")
 
-#    target_vms = build_target_set(stack, vms, ssh_key)
+    docker_exec(
+        ctx,
+        "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci",
+        user="compiler",
+    )
+    if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz"):
+        docker_exec(
+            ctx,
+            f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            user="compiler",
+        )
+        copy_dependencies(ctx, stack, target_vms, ssh_key)
+        run_cmd_vms(ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True)
 
-#@task
-#def test(ctx, stack=None, packages=None, run=None):
-#    stack = check_and_get_stack(stack)
-#    if not stacks.stack_exists(stack):
-#        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-#
-#    prepare(ctx, stack, packages)
+    run_cmd_vms(ctx, stack, f"apt install rsync", target_vms, ssh_key)
+    run_cmd_vms(ctx, stack, "update-alternatives --set iptables /usr/sbin/iptables-legacy", target_vms, ssh_key)
+
+    sync_source(
+        ctx,
+        target_vms,
+        "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
+        "/opt/system-probe-tests",
+        ssh_key,
+    )
+
+
+@task
+def test(ctx, stack=None, packages=None, run=None, retry=1, rebuild_deps=False, vms="", ssh_key=""):
+   stack = check_and_get_stack(stack)
+   if not stacks.stack_exists(stack):
+       raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+   prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps)
+
+   target_vms = build_target_set(stack, vms, ssh_key)
+   args = [
+           f"-include-packages {packages}" if packages else "",
+           f"-run-tests {run}" if run else "",
+           ]
+   run_cmd_vms(ctx, stack, f"bash /micro-vm-init.sh 1.19 {retry} {platform.machine()} {' '.join(args)}", target_vms, "", allow_fail=True)
 
 
 @task
@@ -268,8 +364,5 @@ def clean(ctx, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    # delete all leftover artifacts from docker build
-    ctx.run(f"{DOCKER_EXEC} \"find /root/datadog-agent -type f -user root -exec rm -f {{}} \\; \"")
-    ctx.run(f"{DOCKER_EXEC} \"find /root/datadog-agent -type d -user root -exec rm -rf {{}} \\; \"")
-
-    ctx.run(f"rm -rf kmt-deps/{stack}")
+    ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
+    ctx.run(f"rm {KMT_SHARED_DIR}/*.tar.gz", warn=True)

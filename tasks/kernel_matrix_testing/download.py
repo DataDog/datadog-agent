@@ -192,7 +192,7 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
         raise Exit(f"failed to copy kernel headers to shared dir {kernel_headers_dir}")
 
 
-def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir):
+def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, backup):
     arch = archs_mapping[platform.machine()]
     kernel_packages_sum = f"kernel-packages-{arch}.sum"
     kernel_packages_tar = f"kernel-packages-{arch}.tar"
@@ -207,13 +207,14 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
         return
 
     # backup kernel-packges
-    karch = karch_mapping[archs_mapping[platform.machine()]]
-    ctx.run(
-        f"find {kernel_packages_dir} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
-    )
-    ctx.run(f"cd {kernel_packages_dir} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
-    ctx.run(f"cp {kernel_packages_dir}/{kernel_packages_tar} {backup_dir}")
-    info("[+] Backed up current kernel packages")
+    if backup:
+        karch = karch_mapping[archs_mapping[platform.machine()]]
+        ctx.run(
+            f"find {kernel_packages_dir} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
+        )
+        ctx.run(f"cd {kernel_packages_dir} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
+        ctx.run(f"cp {kernel_packages_dir}/{kernel_packages_tar} {backup_dir}")
+        info("[+] Backed up current kernel packages")
 
     # clean kernel packages directory
     ctx.run(f"rm -rf {kernel_packages_dir}/*")
@@ -228,10 +229,11 @@ def revert_rootfs(ctx, rootfs_dir, backup_dir):
     ctx.run(f"find {backup_dir} -name *qcow2 -type f -exec mv {{}} {rootfs_dir}/ \\;")
 
 
-def update_rootfs(ctx, rootfs_dir, backup_dir):
+def update_rootfs(ctx, rootfs_dir, backup_dir, backup):
     # backup rootfs
-    ctx.run(f"find {rootfs_dir} -name *qcow2 -type f -exec cp {{}} {backup_dir}/ \\;")
-    info("[+] Backed up rootfs")
+    if backup:
+        ctx.run(f"find {rootfs_dir} -name *qcow2 -type f -exec cp {{}} {backup_dir}/ \\;")
+        info("[+] Backed up rootfs")
 
     download_rootfs(ctx, rootfs_dir, backup_dir, revert=True)
 
