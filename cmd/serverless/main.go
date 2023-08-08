@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"

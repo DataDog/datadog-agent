@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

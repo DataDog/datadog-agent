@@ -20,7 +20,7 @@ type Message struct {
 	Status string
 
 	// Timestamp is the message timestamp from the source, if any, as an
-	// ISO-8601-formatted string (./pkg/logs/config.DateFormat).  Log sources
+	// ISO-8601-formatted string (./comp/logs/agent/config.DateFormat).  Log sources
 	// which do not contain a timestamp (such as files) leave this set to "".
 	Timestamp string
 
