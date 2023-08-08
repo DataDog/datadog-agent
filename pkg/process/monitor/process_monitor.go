@@ -8,6 +8,7 @@
 package monitor
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -47,8 +48,9 @@ type ProcessMonitor struct {
 	// An atomic counter to know how much instances do we have in any given time. Used to ensure when to clean up all
 	// resources.
 	refcount atomic.Int32
-	// A channel to mark the main routines to halt.
-	done chan struct{}
+	// A conte to mark the main routines to halt.
+	doneCtx    context.Context
+	doneCancel func()
 
 	// netlink channels for process event monitor.
 	netlinkEventsChannel chan netlink.ProcEvent
@@ -178,7 +180,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 
 	for {
 		select {
-		case <-pm.done:
+		case <-pm.doneCtx.Done():
 			return
 		case event, ok := <-pm.netlinkEventsChannel:
 			if !ok {
@@ -238,7 +240,7 @@ func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			pm.done = make(chan struct{})
+			pm.doneCtx, pm.doneCancel = context.WithCancel(context.Background())
 			pm.initCallbackRunner()
 
 			pm.processMonitorWG.Add(1)
@@ -315,16 +317,12 @@ func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) func() {
 // Stop decreasing the refcount, and if we reach 0 we terminate the main event loop.
 func (pm *ProcessMonitor) Stop() {
 	if pm.refcount.Dec() != 0 {
-		if pm.refcount.Load() < 0 {
-			pm.refcount.Swap(0)
-		}
 		return
 	}
 
 	// We can get here only once, if the refcount is zero.
-	if pm.done != nil {
-		close(pm.done)
-		pm.done = nil
+	if pm.doneCancel != nil {
+		pm.doneCancel()
 		pm.processMonitorWG.Wait()
 	}
 
