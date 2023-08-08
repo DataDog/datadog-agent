@@ -10,7 +10,6 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/consumer"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
@@ -49,8 +48,6 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 	exporter, err := exporterhelper.NewMetricsExporter(ctx, params, cfg, newExp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithTimeout(cfg.TimeoutSettings),
-		// the metrics remapping code mutates data
-		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
 	)
 	if err != nil {
 		return nil, err
