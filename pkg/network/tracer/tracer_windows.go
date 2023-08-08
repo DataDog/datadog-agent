@@ -153,8 +153,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	conns := network.NewConnections()
-	_, err := t.driverInterface.GetOpenConnectionStats(conns.Buffer(), func(c *network.ConnectionStats) bool {
+	defer func() {
+		t.activeBuffer.Reset()
+		t.closedBuffer.Reset()
+	}()
+
+	_, err := t.driverInterface.GetOpenConnectionStats(t.activeBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
@@ -166,6 +170,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
+	activeConnStats := t.activeBuffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
@@ -175,12 +180,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	var delta network.Delta
 	if t.usmMonitor != nil { //nolint
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), conns.Buffer(), t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), network.NewLocalResolver(t.config))
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), network.LocalResolver{})
 	} else {
-		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), conns.Buffer(), t.reverseDNS.GetDNSStats(), nil, network.NewLocalResolver(t.config))
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil, network.LocalResolver{})
 	}
 
-	t.closedBuffer.Reset()
+	t.activeBuffer = network.NewConnectionBufferFromSlice(delta.Conns)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {
@@ -189,12 +194,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	names := t.reverseDNS.Resolve(ips)
 	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
-	conns.Conns = delta.Conns
-	conns.HTTP = delta.HTTP
-	conns.DNS = names
-	conns.DNSStats = delta.DNSStats
-	conns.ConnTelemetry = telemetryDelta
-	return conns, nil
+	return &network.Connections{
+		Conns:         delta.Conns,
+		HTTP:          delta.HTTP,
+		DNS:           names,
+		DNSStats:      delta.DNSStats,
+		ConnTelemetry: telemetryDelta,
+	}, nil
 }
 
 // RegisterClient registers the client
