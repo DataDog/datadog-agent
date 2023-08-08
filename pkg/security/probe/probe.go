@@ -23,9 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// TODO: figure out if using IsEventMonitorConsumer() or Type()
+//const EventHandlerTypeConsumer = "eventMonitorConsumer"
+
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
-	HandleEvent(event *model.Event)
+	HandleEvent(event model.EventInterface)
+	IsEventMonitorConsumer() bool
 }
 
 // CustomEventHandler represents an handler for the custom events sent by the probe

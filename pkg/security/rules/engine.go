@@ -12,6 +12,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -424,7 +425,13 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.EvaluationSet, e
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
-func (e *RuleEngine) HandleEvent(event *model.Event) {
+func (e *RuleEngine) HandleEvent(incomingEvent model.EventInterface) {
+	event, ok := incomingEvent.(*model.Event)
+
+	if !ok {
+		log.Fatal("Rule engine received unknown object")
+	}
+
 	// event already marked with an error, skip it
 	if event.Error != nil {
 		return
@@ -444,6 +451,11 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
+}
+
+// IsEventMonitorConsumer returns if the Event Handler is an Event Monitor Consumer
+func (e *RuleEngine) IsEventMonitorConsumer() bool {
+	return false
 }
 
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {

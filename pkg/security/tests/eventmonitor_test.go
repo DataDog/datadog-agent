@@ -80,6 +80,11 @@ func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
 	}
 }
 
+// IsEventMonitorConsumer returns if the Event Handler is an Event Monitor Consumer
+func (fc *FakeEventConsumer) IsEventMonitorConsumer() bool {
+	return true
+}
+
 func TestEventMonitor(t *testing.T) {
 	var fc *FakeEventConsumer
 	test, err := newTestModule(t, nil, nil, testOpts{
