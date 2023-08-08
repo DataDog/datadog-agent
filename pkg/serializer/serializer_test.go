@@ -193,10 +193,9 @@ func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string) bool {
 	for _, compressedPayload := range payloads {
 		if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 			return false
-		} else {
-			if strings.HasPrefix(string(payload), prefix) {
-				return true
-			}
+		}
+		if strings.HasPrefix(string(payload), prefix) {
+			return true
 		}
 	}
 	return false
@@ -213,17 +212,15 @@ func createProtoscopeMatcher(protoscopeDef string) interface{} {
 		for _, compressedPayload := range payloads {
 			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 				return false
-			} else {
-				res, err := protoscope.NewScanner(protoscopeDef).Exec()
-				if err != nil {
-					return false
-				}
-				if reflect.DeepEqual(res, payload) {
-					return true
-				} else {
-					fmt.Printf("Did not match. Payload was\n%x and protoscope compilation was\n%x\n", payload, res)
-				}
 			}
+			res, err := protoscope.NewScanner(protoscopeDef).Exec()
+			if err != nil {
+				return false
+			}
+			if reflect.DeepEqual(res, payload) {
+				return true
+			}
+			fmt.Printf("Did not match. Payload was\n%x and protoscope compilation was\n%x\n", payload, res)
 		}
 		return false
 	})

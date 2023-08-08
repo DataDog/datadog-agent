@@ -205,9 +205,8 @@ func (b *Builder) GenerateStores(
 func (b *Builder) getCustomResourceClient(resourceName string) interface{} {
 	if client, ok := b.customResourceClients[resourceName]; ok {
 		return client
-	} else {
-		return b.kubeClient
 	}
+	return b.kubeClient
 }
 
 // GenerateCustomResourceStoresFunc use to generate new Metrics Store for Metrics Families

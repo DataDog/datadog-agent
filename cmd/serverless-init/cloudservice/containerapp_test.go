@@ -82,9 +82,8 @@ func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 	err := cmd.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 		return
-	} else {
-		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_SUBSCRIPTION_ID")
 	}
+	assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_SUBSCRIPTION_ID")
 }
 
 func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
@@ -106,7 +105,6 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	err := cmd.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 		return
-	} else {
-		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
 	}
+	assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
 }

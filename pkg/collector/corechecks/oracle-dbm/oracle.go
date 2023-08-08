@@ -141,9 +141,8 @@ func (c *Check) Run() error {
 				log.Errorf("Error closing connection %s", errClosing)
 			}
 			return fmt.Errorf("failed to collect os stats %w", err)
-		} else {
-			handleServiceCheck(c, nil)
 		}
+		handleServiceCheck(c, nil)
 
 		if c.config.SysMetrics.Enabled {
 			log.Trace("Entered sysmetrics")
@@ -445,12 +444,11 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 			Tables:         strings.Split(obfuscatedStatement.Metadata.TablesCSV, ","),
 			Comments:       obfuscatedStatement.Metadata.Comments,
 		}, nil
-	} else {
-		if c.config.InstanceConfig.LogUnobfuscatedQueries {
-			log.Error(fmt.Sprintf("Obfuscation error for SQL: %s", statement))
-		}
-		return common.ObfuscatedStatement{Statement: statement}, err
 	}
+	if c.config.InstanceConfig.LogUnobfuscatedQueries {
+		log.Error(fmt.Sprintf("Obfuscation error for SQL: %s", statement))
+	}
+	return common.ObfuscatedStatement{Statement: statement}, err
 }
 
 func (c *Check) getFullPDBName(pdb string) string {

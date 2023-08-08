@@ -338,15 +338,14 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		d.lastRetryError = err
 
 		return true
-	} else {
-		d.nbErrors = d.backoff.DecError(d.nbErrors)
-		if isRetrying != nil && d.lastRetryError != nil {
-			isRetrying <- false
-		}
-		d.lastRetryError = nil
-
-		return false
 	}
+	d.nbErrors = d.backoff.DecError(d.nbErrors)
+	if isRetrying != nil && d.lastRetryError != nil {
+		isRetrying <- false
+	}
+	d.lastRetryError = nil
+
+	return false
 }
 
 func httpClientFactory(timeout time.Duration) func() *http.Client {

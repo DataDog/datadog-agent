@@ -391,9 +391,8 @@ func printKomponentCode(komp *komponent) string {
 		case "*K8sConfigFileMeta":
 			if komp.name == "kubelet" && c.flagName == "config" {
 				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
-			} else {
-				return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
 			}
+			return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sKubeletConfigFileMeta":
 			return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sAdmissionConfigFileMeta":

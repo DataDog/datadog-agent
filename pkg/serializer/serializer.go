@@ -365,15 +365,14 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 		}
 
 		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
-	} else {
-		compress := true
-		splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %s", err)
-		}
-
-		return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
 	}
+	compress := true
+	splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
+	if err != nil {
+		return fmt.Errorf("dropping sketch payload: %s", err)
+	}
+
+	return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

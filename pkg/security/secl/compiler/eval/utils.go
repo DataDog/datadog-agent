@@ -21,9 +21,8 @@ func NotOfValue(value interface{}) (interface{}, error) {
 		// ensure the not value is different
 		if v == "" {
 			return "<NOT>", nil
-		} else {
-			return "", nil
 		}
+		return "", nil
 	case bool:
 		return !v, nil
 	}

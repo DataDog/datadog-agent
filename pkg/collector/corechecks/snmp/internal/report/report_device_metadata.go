@@ -434,11 +434,10 @@ func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) st
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
 	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
 		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
-	} else {
-		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
-		return "" // Note if this is the case this won't pass the backend check and will generate the error
-		// "deviceIP cannot be empty (except when interface id_type is mac_address)"
 	}
+	// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
+	return "" // Note if this is the case this won't pass the backend check and will generate the error
+	// "deviceIP cannot be empty (except when interface id_type is mac_address)"
 
 }
 

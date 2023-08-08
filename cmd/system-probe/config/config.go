@@ -93,12 +93,10 @@ func newSysprobeConfig(configPath string) (*Config, error) {
 			// special-case permission-denied with a clearer error message
 			if runtime.GOOS == "windows" {
 				return nil, fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
-			} else {
-				return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
-		} else {
-			return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
+			return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 		}
+		return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
 	}
 	return load()
 }
