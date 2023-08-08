@@ -121,7 +121,6 @@ func BuildEndpointsWithConfig(coreConfig pkgConfig.ConfigReader, logsConfig *Log
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints(coreConfig pkgConfig.ConfigReader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
-	// pkgConfig.SanitizeAPIKeyConfig(coreConfig, "logs_config.api_key") Don't think this is needed
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
 }
 
