@@ -93,11 +93,11 @@ func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status 
 // WaitForReady blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
-func (a *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
+func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		statusOutput, err := a.executeAgentCmdWithError([]string{"status"})
+		statusOutput, err := agent.executeAgentCmdWithError([]string{"status"})
 		if err != nil {
 			return err
 		}

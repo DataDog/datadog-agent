@@ -24,14 +24,14 @@ func (l *LambdaLogsAPIServer) Close() {
 }
 
 // ServeHTTP - see type LambdaLogsCollector comment.
-func (c *LambdaLogsAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (l *LambdaLogsAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
 		w.WriteHeader(400)
 	} else {
-		c.out <- messages
+		l.out <- messages
 		w.WriteHeader(200)
 	}
 }

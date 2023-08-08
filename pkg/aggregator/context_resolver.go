@@ -139,10 +139,10 @@ func (cr *contextResolver) removeOverLimit(keep func(ckey.ContextKey) bool) {
 	}
 }
 
-func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
+func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}
-	for _, cx := range c.contextsByKey {
+	for _, cx := range cr.contextsByKey {
 		perOrigin[cx.taggerTags]++
 	}
 
@@ -169,9 +169,9 @@ func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.
 	}
 }
 
-func (c *contextResolver) sendLimiterTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
-	c.contextsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
-	c.tagsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
+func (cr *contextResolver) sendLimiterTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
+	cr.contextsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
+	cr.tagsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
 }
 
 // timestampContextResolver allows tracking and expiring contexts based on time.

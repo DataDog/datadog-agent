@@ -441,39 +441,39 @@ func (e *Event) GetWorkloadID() string {
 }
 
 // Retain the event
-func (ev *Event) Retain() Event {
-	if ev.ProcessCacheEntry != nil {
-		ev.ProcessCacheEntry.Retain()
+func (e *Event) Retain() Event {
+	if e.ProcessCacheEntry != nil {
+		e.ProcessCacheEntry.Retain()
 	}
-	return *ev
+	return *e
 }
 
 // Release the event
-func (ev *Event) Release() {
-	if ev.ProcessCacheEntry != nil {
-		ev.ProcessCacheEntry.Release()
+func (e *Event) Release() {
+	if e.ProcessCacheEntry != nil {
+		e.ProcessCacheEntry.Release()
 	}
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
-func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
+func (e *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
-	ev.Error = err
+	e.Error = err
 }
 
 // ResolveProcessCacheEntry uses the field handler
-func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
+func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(ev)
 }
 
 // ResolveEventTime uses the field handler
-func (ev *Event) ResolveEventTime() time.Time {
-	return ev.FieldHandlers.ResolveEventTime(ev)
+func (e *Event) ResolveEventTime() time.Time {
+	return e.FieldHandlers.ResolveEventTime(ev)
 }
 
 // GetProcessService uses the field handler
-func (ev *Event) GetProcessService() string {
-	return ev.FieldHandlers.GetProcessService(ev)
+func (e *Event) GetProcessService() string {
+	return e.FieldHandlers.GetProcessService(ev)
 }
 
 // MatchedRules contains the identification of one rule that has match

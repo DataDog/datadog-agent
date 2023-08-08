@@ -32,6 +32,6 @@ func NewIDProvider(_ string) IDProvider {
 	return &idProvider{}
 }
 
-func (_ *idProvider) GetContainerID(_ context.Context, h http.Header) string {
+func (*idProvider) GetContainerID(_ context.Context, h http.Header) string {
 	return h.Get(header.ContainerID)
 }

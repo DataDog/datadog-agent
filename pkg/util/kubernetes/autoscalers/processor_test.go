@@ -719,5 +719,5 @@ func (m *mockGauge) Delete(tagsValue ...string) {
 	delete(m.values, strings.Join(tagsValue, ","))
 }
 
-func (g *mockGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge  { return nil }
-func (g *mockGauge) WithTags(tags map[string]string) telemetryComponent.SimpleGauge { return nil }
+func (m *mockGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge  { return nil }
+func (m *mockGauge) WithTags(tags map[string]string) telemetryComponent.SimpleGauge { return nil }

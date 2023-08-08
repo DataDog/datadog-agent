@@ -29,29 +29,29 @@ func TestE2ESuite(t *testing.T) {
 	suite.Run(t, e2eSuite)
 }
 
-func (s *e2eSuite) Test1_DefaultEnv() {
-	s.Env() // create the env if it doesn't exist
-	s.Require().Equal("default", s.stackName)
-	s.Require().Equal(1, s.runFctCallCount)
+func (suite *e2eSuite) Test1_DefaultEnv() {
+	suite.Env() // create the env if it doesn't exist
+	suite.Require().Equal("default", s.stackName)
+	suite.Require().Equal(1, s.runFctCallCount)
 }
 
-func (s *e2eSuite) Test2_UpdateEnv() {
-	s.UpdateEnv(s.updateEnvStack)
-	s.Env() // create the env if it doesn't exist
-	s.Require().Equal("updateEnvStack", s.stackName)
-	s.Require().Equal(2, s.runFctCallCount)
+func (suite *e2eSuite) Test2_UpdateEnv() {
+	suite.UpdateEnv(s.updateEnvStack)
+	suite.Env() // create the env if it doesn't exist
+	suite.Require().Equal("updateEnvStack", suite.stackName)
+	suite.Require().Equal(2, suite.runFctCallCount)
 }
 
-func (s *e2eSuite) Test3_UpdateEnv() {
+func (suite *e2eSuite) Test3_UpdateEnv() {
 	// As the env is the same as before this function does nothing
 	// and runFctCallCount is not increment
-	s.UpdateEnv(s.updateEnvStack)
-	s.Env() // create the env if it doesn't exist
-	s.Require().Equal("updateEnvStack", s.stackName)
-	s.Require().Equal(2, s.runFctCallCount)
+	suite.UpdateEnv(s.updateEnvStack)
+	suite.Env() // create the env if it doesn't exist
+	suite.Require().Equal("updateEnvStack", suite.stackName)
+	suite.Require().Equal(2, suite.runFctCallCount)
 
-	s.UpdateEnv(s.updateEnvStack)
-	s.Require().Equal(2, s.runFctCallCount)
+	suite.UpdateEnv(suite.updateEnvStack)
+	suite.Require().Equal(2, suite.runFctCallCount)
 }
 
 func (suite *e2eSuite) createStack(stackName string) *StackDefinition[struct{}] {
@@ -78,17 +78,17 @@ func E2ESuiteSkipDeleteOnFailure(t *testing.T) {
 	require.Equal(t, []string{"Test1"}, e2e2Suite.testsRun)
 }
 
-func (s *skipDeleteOnFailureSuite) Test1() {
-	s.UpdateEnv(s.updateStack("Test1"))
+func (suite *skipDeleteOnFailureSuite) Test1() {
+	suite.UpdateEnv(s.updateStack("Test1"))
 }
 
-func (s *skipDeleteOnFailureSuite) Test2() {
-	s.Assert().Fail("Simulate a failure")
-	s.UpdateEnv(s.updateStack("Test2"))
+func (suite *skipDeleteOnFailureSuite) Test2() {
+	suite.Assert().Fail("Simulate a failure")
+	suite.UpdateEnv(suite.updateStack("Test2"))
 }
 
-func (s *skipDeleteOnFailureSuite) Test3() {
-	s.UpdateEnv(s.updateStack("Test3"))
+func (suite *skipDeleteOnFailureSuite) Test3() {
+	suite.UpdateEnv(s.updateStack("Test3"))
 }
 
 func (suite *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {
