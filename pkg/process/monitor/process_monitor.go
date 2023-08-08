@@ -325,8 +325,9 @@ func (pm *ProcessMonitor) Stop() {
 	if pm.done != nil {
 		close(pm.done)
 		pm.done = nil
+		pm.processMonitorWG.Wait()
 	}
-	pm.processMonitorWG.Wait()
+
 	// that's being done for testing purposes.
 	// As tests are running altogether, initOne and processMonitor are being created only once per compilation unit
 	// thus, the first test works without an issue, but the second test has troubles.
