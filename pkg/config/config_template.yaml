@@ -1737,6 +1737,18 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+  ## @param langauge_detection - custom object - optional
+  ## Enter specific configurations for language detection
+  ## Uncomment this parameter and the one below to enable them.
+  #
+  # language_detection:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED - bool - optional - default: false
+    ## [Beta] Enables language detection via binary analysis in the system probe.
+    #
+    # enabled: false
+
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

@@ -189,6 +189,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
 
+	cfg.BindEnvAndSetDefault(join(spNS, "language_detection.enabled"), false)
+
 	// network_config namespace only
 
 	// For backward compatibility
@@ -384,7 +386,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 
-	cfg.BindEnvAndSetDefault("language_detection.enabled", false)
 }
 
 func join(pieces ...string) string {
