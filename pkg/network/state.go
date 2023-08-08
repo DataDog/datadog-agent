@@ -1121,7 +1121,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	aggrConns, ok := a.conns[key]
 	if !ok {
 		a.conns[key] = []*aggregateConnection{
-			&aggregateConnection{
+			{
 				ConnectionStats: c,
 				rttSum:          uint64(c.RTT),
 				rttVarSum:       uint64(c.RTTVar),
