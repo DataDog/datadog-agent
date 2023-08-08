@@ -30,7 +30,7 @@ import (
 
 const (
 	deleteDelayTime                      = 5 * time.Second
-	numAllowedMountIDsToResolvePerPeriod = 75
+	numAllowedMountIDsToResolvePerPeriod = 1
 	fallbackLimiterPeriod                = 5 * time.Second
 	redemptionTime                       = 5 * time.Second
 )
@@ -72,7 +72,7 @@ type Resolver struct {
 	devices         map[uint32]map[uint32]*model.Mount
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
-	fallbackLimiter *utils.Limiter[uint32]
+	fallbackLimiter *utils.Limiter[uint64]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -99,7 +99,7 @@ func (mr *Resolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	err := mr.syncCache(pid)
+	err := mr.syncPid(pid)
 
 	// store the minimal mount ID found to use it as a reference
 	if pid == 1 {
@@ -132,10 +132,15 @@ func (mr *Resolver) syncPid(pid uint32) error {
 }
 
 // syncCache update cache with the first working pid
-func (mr *Resolver) syncCache(pids ...uint32) error {
+func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 	var err error
 
 	for _, pid := range pids {
+		key := uint64(mountID)<<32 | uint64(pid)
+		if !mr.fallbackLimiter.Allow(key) {
+			continue
+		}
+
 		if err = mr.syncPid(pid); err == nil {
 			return nil
 		}
@@ -373,17 +378,13 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.Allow(mountID) {
-		return "", &ErrMountNotFound{MountID: mountID}
-	}
-
 	if workloadExists {
 		pids = append(pids, workload.GetPIDs()...)
 	} else if len(containerID) == 0 && pid != 1 {
 		pids = append(pids, 1)
 	}
 
-	if err := mr.syncCache(pids...); err != nil {
+	if err := mr.syncCache(mountID, pids); err != nil {
 		mr.syncCacheMiss(mountID)
 		return "", err
 	}
@@ -428,17 +429,13 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.Allow(mountID) {
-		return nil, &ErrMountNotFound{MountID: mountID}
-	}
-
 	if workloadExists {
 		pids = append(pids, workload.GetPIDs()...)
 	} else if len(containerID) == 0 {
 		pids = append(pids, 1)
 	}
 
-	if err := mr.syncCache(pids...); err != nil {
+	if err := mr.syncCache(mountID, pids); err != nil {
 		mr.syncCacheMiss(mountID)
 		return nil, err
 	}
@@ -577,7 +574,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 
 	// create a rate limiter that allows for 64 mount IDs
-	limiter, err := utils.NewLimiter[uint32](64, numAllowedMountIDsToResolvePerPeriod, fallbackLimiterPeriod)
+	limiter, err := utils.NewLimiter[uint64](64, numAllowedMountIDsToResolvePerPeriod, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
