@@ -81,6 +81,7 @@ type networkTracer struct {
 	done         chan struct{}
 	restartTimer *time.Timer
 
+	// Intended to ensure (in compile time) we're implementing the SystemProbeServer interface
 	connectionserver.UnsafeSystemProbeServer
 	maxConnsPerMessage int
 }
@@ -90,6 +91,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 	return stats
 }
 
+// getConnectionsFromMarshaler returns buf that representing the connections after modeling and marshaling
 func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
@@ -100,19 +102,19 @@ func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Conne
 	return buf, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
+// GetConnections function that establishes a streaming RPC connection to retrieve and continuously stream information
+// about the current connections in the system.
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
-	start := time.Now()
-
 	runCounter := atomic.NewUint64(0)
+	start := time.Now()
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
+	if err != nil {
+		return err
+	}
+
+	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
+	conns, err := getConnectionsFromMarshaler(marshaler, cs)
 	if err != nil {
 		return err
 	}
@@ -120,35 +122,10 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
-
 	count := runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
 
-	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	connections := &connectionserver.Connection{}
-
-	defer network.Reclaim(cs)
-
-	for len(cs.Conns) > 0 {
-		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
-		rest := cs.Conns[finalBatchSize:]
-		cs.Conns = cs.Conns[:finalBatchSize]
-
-		conns, err := getConnectionsFromMarshaler(marshaler, cs)
-		if err != nil {
-			return err
-		}
-
-		connections.Data = conns
-		err = s2.Send(connections)
-		if err != nil {
-			log.Errorf("unable to send current connection batch due to: %v", err)
-		}
-
-		cs.Conns = rest
-	}
-
-	return nil
+	return s2.Send(&connectionserver.Connection{Data: conns})
 }
 
 // RegisterGRPC register system probe grpc server

@@ -166,23 +166,16 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 func (c *ConnectionsCheck) Cleanup() {}
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
-	if c.syscfg.GRPCServerEnabled {
-		tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.GRPCSocketFilePath)
-		if err != nil {
-			if c.notInitializedLogLimit.ShouldLog() {
-				log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
-			}
-			return nil, ErrTracerStillNotInitialized
+	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
+	if err != nil {
+		if c.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
 		}
+		return nil, ErrTracerStillNotInitialized
+	}
+	if c.syscfg.GRPCServerEnabled {
 		return tu.GetConnectionsGRPC(c.tracerClientID, c.syscfg.GRPCSocketFilePath)
 	} else {
-		tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
-		if err != nil {
-			if c.notInitializedLogLimit.ShouldLog() {
-				log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
-			}
-			return nil, ErrTracerStillNotInitialized
-		}
 		return tu.GetConnections(c.tracerClientID)
 	}
 }

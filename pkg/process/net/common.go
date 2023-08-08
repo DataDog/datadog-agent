@@ -184,11 +184,7 @@ func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*mod
 		return nil, err
 	}
 
-	conns, err := netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
-	if err != nil {
-		return nil, err
-	}
-	return conns, nil
+	return netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf).Unmarshal(res.Data)
 }
 
 // GetStats returns the expvar stats of the system probe

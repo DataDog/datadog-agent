@@ -46,7 +46,8 @@ type loader struct {
 // Register a set of modules, which involves:
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
-func Register(cfg *config.Config, httpMux *mux.Router, server *grpc.Server, factories []Factory) error {
+// * Register the gRPC server;
+func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
 	if err := driver.Init(cfg); err != nil {
 		log.Warnf("Failed to load driver subsystem %v", err)
 	}
@@ -80,8 +81,8 @@ func Register(cfg *config.Config, httpMux *mux.Router, server *grpc.Server, fact
 			continue
 		}
 
-		if server != nil {
-			if err = module.RegisterGRPC(server); err != nil {
+		if grpcServer != nil {
+			if err = module.RegisterGRPC(grpcServer); err != nil {
 				l.errors[factory.Name] = err
 				log.Errorf("error registering grpc endpoints for module %s: %s", factory.Name, err)
 				continue

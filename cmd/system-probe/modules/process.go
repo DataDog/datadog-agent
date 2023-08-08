@@ -9,7 +9,6 @@ package modules
 
 import (
 	"errors"
-
 	"io"
 	"net/http"
 	"os"
