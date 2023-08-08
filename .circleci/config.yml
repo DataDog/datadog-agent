@@ -83,6 +83,10 @@ jobs:
           name: install go tooling
           command: |
             inv -e install-tools
+      - run:
+          name: install go tooling
+          command: |            
+            go env GOCACHE
       - save_cache:
           <<: *save_deps
           paths:
