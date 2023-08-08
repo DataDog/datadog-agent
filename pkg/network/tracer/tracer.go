@@ -70,7 +70,7 @@ var tracerTelemetry = struct {
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
-	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id"}, "Gauge measuring the number of connections in the system-probe payload"),
+	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -373,15 +373,25 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 
 	delta := t.state.GetDelta(clientID, latestTime, buffer.Connections(), t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), network.NewLocalResolver(t.config))
-	buffer = network.NewConnectionBufferFromSlice(delta.Conns)
-
-	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
-	for _, conn := range delta.Conns {
+	var udpConns, tcpConns int
+	for i := range delta.Conns {
+		conn := &delta.Conns[i]
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
+		switch conn.Type {
+		case network.UDP:
+			udpConns++
+		case network.TCP:
+			tcpConns++
+		}
 	}
+
+	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, "udp")
+	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, "tcp")
+
+	buffer = network.NewConnectionBufferFromSlice(delta.Conns)
 	conns := network.NewConnections(&network.PooledConnectionBuffer{
 		ConnectionBuffer: buffer,
 		Pool:             &connectionBufferPool,
