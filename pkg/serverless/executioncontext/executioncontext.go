@@ -110,6 +110,12 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 		// is greater than 10, we're in a proactive_initialization
 		// not a cold start
 
+		firstInvocationContext := FirstInvocationContext{
+			RequestID:        requestID,
+			WasColdStart:     false,
+			WasProactiveInit: false,
+		}
+
 		// TODO Astuyve - refactor this to use initTime
 		// from TelemetryAPI
 		if time.Now().Sub(ec.initTime) > 10*time.Second {
