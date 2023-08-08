@@ -290,7 +290,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
         .mode = syscall->open.mode,
     };
 
-    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
+    fill_file_metadata(syscall->open.dentry, &event.file.metadata, NULL);
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
         entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);

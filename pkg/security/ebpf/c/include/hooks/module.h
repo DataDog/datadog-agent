@@ -111,7 +111,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
     }
 
     if (syscall->init_module.dentry != NULL) {
-        fill_file_metadata(syscall->init_module.dentry, &event.file.metadata);
+        fill_file_metadata(syscall->init_module.dentry, &event.file.metadata, NULL);
     }
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

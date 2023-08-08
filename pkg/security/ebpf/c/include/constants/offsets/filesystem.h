@@ -156,6 +156,15 @@ struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file)
     return file_dentry;
 }
 
+u32  __attribute__((always_inline)) get_dentry_nlink(struct dentry* dentry) {
+    struct inode *d_inode = get_dentry_inode(dentry);
+
+    int nlink = 0;
+    bpf_probe_read(&nlink, sizeof(nlink), (void *)&d_inode->i_nlink);
+
+    return nlink;
+}
+
 struct dentry* __attribute__((always_inline)) get_path_dentry(struct path *path) {
     struct dentry *dentry;
     bpf_probe_read(&dentry, sizeof(dentry), &path->dentry);

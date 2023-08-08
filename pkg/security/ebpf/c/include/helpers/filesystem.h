@@ -134,16 +134,22 @@ int __attribute__((always_inline)) is_pipefs_mount_id(u32 id) {
     return (pipefs_id == id);
 }
 
-void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {
+void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* metadata, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
-    bpf_probe_read(&file->nlink, sizeof(file->nlink), (void *)&d_inode->i_nlink);
-    bpf_probe_read(&file->mode, sizeof(file->mode), &d_inode->i_mode);
-    bpf_probe_read(&file->uid, sizeof(file->uid), &d_inode->i_uid);
-    bpf_probe_read(&file->gid, sizeof(file->gid), &d_inode->i_gid);
+    if (file && file->metadata.nlink > 1) {
+        metadata->nlink = file->metadata.nlink;
+    } else {
+        bpf_probe_read(&metadata->nlink, sizeof(metadata->nlink), (void *)&d_inode->i_nlink);
+    }
 
-    bpf_probe_read(&file->ctime, sizeof(file->ctime), &d_inode->i_ctime);
-    bpf_probe_read(&file->mtime, sizeof(file->mtime), &d_inode->i_mtime);
+    bpf_probe_read(&metadata->mode, sizeof(metadata->mode), &d_inode->i_mode);
+    bpf_probe_read(&metadata->uid, sizeof(metadata->uid), &d_inode->i_uid);
+    bpf_probe_read(&metadata->gid, sizeof(metadata->gid), &d_inode->i_gid);
+
+    bpf_probe_read(&metadata->ctime, sizeof(metadata->ctime), &d_inode->i_ctime);
+    bpf_probe_read(&metadata->mtime, sizeof(metadata->mtime), &d_inode->i_mtime);
+
 }
 
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }

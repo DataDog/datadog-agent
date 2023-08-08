@@ -1757,22 +1757,22 @@ func TestProcessExit(t *testing.T) {
 	})
 }
 
-func TestProcessBusybox(t *testing.T) {
+func TestProcessBusyboxSymlink(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_busybox_1",
+			ID:         "test_busybox_symlink_1",
 			Expression: `exec.file.path == "/usr/bin/whoami"`,
 		},
 		{
-			ID:         "test_busybox_2",
+			ID:         "test_busybox_symlink_2",
 			Expression: `exec.file.path == "/bin/sync"`,
 		},
 		{
-			ID:         "test_busybox_3",
+			ID:         "test_busybox_symlink_3",
 			Expression: `exec.file.name == "df"`,
 		},
 		{
-			ID:         "test_busybox_4",
+			ID:         "test_busybox_symlink_4",
 			Expression: `open.file.path == "/tmp/busybox-test" && process.file.name == "touch"`,
 		},
 	}
@@ -1783,13 +1783,14 @@ func TestProcessBusybox(t *testing.T) {
 	}
 	defer test.Close()
 
+	// alpine uses symlinks
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine")
 	if err != nil {
 		t.Skip("docker no available")
 		return
 	}
 
-	wrapper.Run(t, "busybox-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	wrapper.Run(t, "symlink-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/usr/bin/whoami", nil, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1797,11 +1798,11 @@ func TestProcessBusybox(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_busybox_1", rule.ID, "wrong rule triggered")
+			assert.Equal(t, "test_busybox_symlink_1", rule.ID, "wrong rule triggered")
 		})
 	})
 
-	wrapper.Run(t, "busybox-2", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	wrapper.Run(t, "symlink-2", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/sync", nil, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1809,11 +1810,11 @@ func TestProcessBusybox(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_busybox_2", rule.ID, "wrong rule triggered")
+			assert.Equal(t, "test_busybox_symlink_2", rule.ID, "wrong rule triggered")
 		})
 	})
 
-	wrapper.Run(t, "busybox-3", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	wrapper.Run(t, "symlink-3", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/df", nil, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1821,11 +1822,11 @@ func TestProcessBusybox(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_busybox_3", rule.ID, "wrong rule triggered")
+			assert.Equal(t, "test_busybox_symlink_3", rule.ID, "wrong rule triggered")
 		})
 	})
 
-	wrapper.Run(t, "busybox-4", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	wrapper.Run(t, "symlink-4", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/touch", []string{"/tmp/busybox-test"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -1833,7 +1834,58 @@ func TestProcessBusybox(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_busybox_4", rule.ID, "wrong rule triggered")
+			assert.Equal(t, "test_busybox_symlink_4", rule.ID, "wrong rule triggered")
+		})
+	})
+}
+
+func TestProcessBusyboxHardlink(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_busybox_hardlink_1",
+			Expression: `exec.file.path == "/bin/whoami"`,
+		},
+		{
+			ID:         "test_busybox_hardlink_2",
+			Expression: `exec.file.path == "/bin/date"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// busybox uses hardlinks
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox")
+	if err != nil {
+		t.Skip("docker no available")
+		return
+	}
+
+	wrapper.Run(t, "hardlink-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/whoami", nil, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_1", rule.ID, "wrong rule triggered")
+			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), "wrong nlink")
+		})
+
+		// check that the cache is not used (having the same path_key)
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/date", nil, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered")
+			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), "wrong nlink")
 		})
 	})
 }

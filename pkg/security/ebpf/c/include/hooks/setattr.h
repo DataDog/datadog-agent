@@ -29,7 +29,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
         iattr = (struct iattr *)param2;
     }
 
-    fill_file_metadata(dentry, &syscall->setattr.file.metadata);
+    fill_file_metadata(dentry, &syscall->setattr.file.metadata, NULL);
 
     if (iattr != NULL) {
         int valid;

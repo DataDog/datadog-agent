@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"gotest.tools/assert"
 )
 
 func runHardlinkTests(t *testing.T, opts testOpts) {
@@ -53,6 +54,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
+			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(1), "wrong nlink")
 		})
 
 		testNewExecutable, _, err := test.Path("my-touch")
@@ -71,6 +73,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
+			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
 		})
 	})
 
@@ -91,6 +94,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
+			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
 		})
 
 		test.WaitSignal(t, func() error {
@@ -98,6 +102,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
+			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
 		})
 	})
 }
