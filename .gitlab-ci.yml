@@ -85,6 +85,7 @@ stages:
   - internal_image_deploy
   - install_script_testing 
   - e2e
+  - e2e_cleanup
   - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test

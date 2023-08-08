@@ -195,3 +195,13 @@ new-e2e-agent-subcommands-main:
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
+
+new-e2e-cleanup:
+  stage: e2e_cleanup
+  when: always
+  extends: .new_e2e_template
+  script:
+    - set +x
+    - export PULUMI_CONFIG_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.pulumi_password --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    - invoke -e new-e2e-tests.clean-ci --pipeline-id 18669780

@@ -120,6 +120,24 @@ def run(
         raise Exit(code=1)
 
 
+@task
+def clean_ci(ctx, pipeline_id):
+    """
+    Destroy all the resources and remove all the stacks that contain the pipeline ID in their name
+    """
+    if not pipeline_id:
+        raise Exit("You must specify a pipeline ID", 1)
+
+    stacks = _get_existing_stacks(ctx)
+    n_removed = 0
+
+    for stack_name in stacks:
+        if pipeline_id in stack_name and "kernel-matrix-testing" not in stack_name:
+            _destroy_stack(ctx, stack_name, cancel=True)
+            n_removed += 1
+    print(f"Removed {n_removed} stacks")
+
+
 @task(
     help={
         'locks': 'Cleans up lock files, default True',
@@ -166,10 +184,16 @@ def _clean_stacks(ctx: Context):
         _remove_stack(ctx, stack)
 
 
+def _destroy_stack(ctx: Context, stack_name: str, cancel: bool):
+    if cancel:
+        ctx.run(f"pulumi cancel --stack {stack_name} --yes")
+    ctx.run(f"pulumi destroy --stack {stack_name} --remove --yes --skip-preview --refresh")
+
+
 def _get_existing_stacks(ctx: Context) -> List[str]:
     # ensure we deal with local stacks
     with ctx.cd(tempfile.gettempdir()):
-        output = ctx.run("pulumi stack ls --all", pty=True)
+        output = ctx.run("pulumi stack ls --all")
         if output is None or not output:
             return []
         lines = output.stdout.splitlines()
