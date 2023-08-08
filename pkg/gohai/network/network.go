@@ -8,73 +8,104 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
-var ErrAddressNotFound = errors.New("address not found for the network interface")
+// ErrAddressNotFound means no such address could be found
+var ErrAddressNotFound = errors.New("address not found")
 
-// Network holds network metadata about the host
-type Network struct {
-	// IpAddress is the ipv4 address for the host
-	IpAddress string
-	// IpAddressv6 is the ipv6 address for the host
-	IpAddressv6 string
-	// MacAddress is the macaddress for the host
-	MacAddress string
-
-	// TODO: the collect method also returns metadata about interfaces. They should be added to this struct.
-	// Since it would require even more cleanup we'll do it in another PR when needed.
-}
-
+// Interface holds information about a specific interface
 type Interface struct {
-	IPv6Network utils.Value[string] `json:"ipv6-network"`
+	// Name is the name of the interface
+	Name string `json:"name"`
+	// IPv4Network is the ipv4 address for the host
 	IPv4Network utils.Value[string] `json:"ipv4-network"`
-	MacAddress  utils.Value[string] `json:"macaddress"`
-	IPv4        []string            `json:"ipv4"`
-	IPv6        []string            `json:"ipv6"`
-	Name        string              `json:"name"`
+	// IPv6Network is the ipv6 address for the host
+	IPv6Network utils.Value[string] `json:"ipv6-network"`
+	// MacAddress is the mac address for the host
+	MacAddress utils.Value[string] `json:"macaddress"`
+	// IPv4 is the list of IPv4 addresses for the interface
+	IPv4 []string `json:"ipv4"`
+	// IPv4 is the list of IPv6 addresses for the interface
+	IPv6 []string `json:"ipv6"`
 }
 
+// Info holds network metadata about the host
 type Info struct {
-	// interfaces utils.Value[]
+	// Interfaces is the list of interfaces which are up
+	Interfaces []Interface `json:"interfaces"`
+	// MacAddress is a mac address of the host
+	MacAddress string `json:"macaddress"`
+	// IPAddress is an IPv4 address of the host
+	IPAddress string `json:"ipaddress"`
+	// IPAddressV6 is an IPv6 address of the host
+	IPAddressV6 utils.Value[string] `json:"ipaddressv6"`
 }
 
-// Collect collects the Network information.
-// Returns an object which can be converted to a JSON or an error if nothing could be collected.
-// Tries to collect as much information as possible.
-func (network *Network) Collect() (result interface{}, err error) {
-	result, err = getNetworkInfo()
+// CollectInfo collects the network information.
+func CollectInfo() (*Info, error) {
+	info := &Info{}
+	err := fillNetworkInfo(info)
 	if err != nil {
-		return
+		return info, err
 	}
 
 	interfaces, err := getMultiNetworkInfo()
 	if err == nil && len(interfaces) > 0 {
-		interfaceMap, ok := result.(map[string]interface{})
-		if !ok {
-			return
-		}
-		interfaceMap["interfaces"] = interfaces
+		info.Interfaces = interfaces
 	}
-	return
+	return info, err
 }
 
-// Get returns a Network struct already initialized, a list of warnings and an error. The method will try to collect as much
-// metadata as possible, an error is returned if nothing could be collected. The list of warnings contains errors if
-// some metadata could not be collected.
-func Get() (*Network, []string, error) {
-	networkInfo, err := getNetworkInfo()
-	if err != nil {
-		return nil, nil, err
+func ifacesToJSON(ifaces []Interface) (interface{}, []string) {
+	ret := make([]interface{}, len(ifaces))
+	warnings := []string{}
+
+	for idx, iface := range ifaces {
+		ifaceJSON := map[string]interface{}{
+			"name": iface.Name,
+			"ipv4": iface.IPv4,
+			"ipv6": iface.IPv6,
+		}
+
+		values := map[string]utils.Value[string]{
+			"ipv4-network": iface.IPv4Network,
+			"ipv6-network": iface.IPv6Network,
+			"macaddress":   iface.MacAddress,
+		}
+		for key, value := range values {
+			if val, err := value.Value(); err == nil {
+				ifaceJSON[key] = val
+			} else {
+				warnings = append(warnings, fmt.Sprintf("%s: %s: %v", iface.Name, key, err))
+			}
+		}
+
+		ret[idx] = ifaceJSON
 	}
 
-	return &Network{
-		IpAddress:   utils.GetStringInterface(networkInfo, "ipaddress"),
-		IpAddressv6: utils.GetStringInterface(networkInfo, "ipaddressv6"),
-		MacAddress:  utils.GetStringInterface(networkInfo, "macaddress"),
-	}, nil, nil
+	return ret, warnings
+}
+
+// AsJSON returns an interface which can be marshalled to a JSON and contains the value of non-errored fields.
+func (netInfo *Info) AsJSON() (interface{}, []string, error) {
+	interfaces, warnings := ifacesToJSON(netInfo.Interfaces)
+	ret := map[string]interface{}{
+		"macaddress": netInfo.MacAddress,
+		"ipaddress":  netInfo.IPAddress,
+		"interfaces": interfaces,
+	}
+
+	if ipv6, err := netInfo.IPAddressV6.Value(); err == nil {
+		ret["ipaddressv6"] = ipv6
+	} else {
+		warnings = append(warnings, err.Error())
+	}
+
+	return ret, warnings, nil
 }
 
 func getMultiNetworkInfo() ([]Interface, error) {
@@ -85,10 +116,11 @@ func getMultiNetworkInfo() ([]Interface, error) {
 	}
 
 	for _, iface := range ifaces {
+		defaultAddrErr := fmt.Errorf("%s: %w", iface.Name, ErrAddressNotFound)
 		_iface := Interface{
-			IPv6Network: utils.NewErrorValue[string](ErrAddressNotFound),
-			IPv4Network: utils.NewErrorValue[string](ErrAddressNotFound),
-			MacAddress:  utils.NewErrorValue[string](ErrAddressNotFound),
+			IPv6Network: utils.NewErrorValue[string](defaultAddrErr),
+			IPv4Network: utils.NewErrorValue[string](defaultAddrErr),
+			MacAddress:  utils.NewErrorValue[string](defaultAddrErr),
 			IPv4:        []string{},
 			IPv6:        []string{},
 			Name:        iface.Name,
@@ -237,29 +269,29 @@ func macAddress() (string, error) {
 	return "", errors.New("not connected to the network")
 }
 
-func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
-	networkInfo = make(map[string]interface{})
-
+func fillNetworkInfo(networkInfo *Info) error {
 	macaddress, err := macAddress()
 	if err != nil {
-		return networkInfo, err
+		return err
 	}
-	networkInfo["macaddress"] = macaddress
+	networkInfo.MacAddress = macaddress
 
 	ipAddress, err := externalIPAddress()
 	if err != nil {
-		return networkInfo, err
+		return err
 	}
-	networkInfo["ipaddress"] = ipAddress
+	networkInfo.IPAddress = ipAddress
 
 	ipAddressV6, err := externalIpv6Address()
 	if err != nil {
-		return networkInfo, err
+		return err
 	}
 	// We append an IPv6 address to the payload only if IPv6 is enabled
 	if ipAddressV6 != "" {
-		networkInfo["ipaddressv6"] = ipAddressV6
+		networkInfo.IPAddressV6 = utils.NewValue(ipAddressV6)
+	} else {
+		networkInfo.IPAddressV6 = utils.NewErrorValue[string](ErrAddressNotFound)
 	}
 
-	return
+	return nil
 }
