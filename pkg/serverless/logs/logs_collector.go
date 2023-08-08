@@ -6,6 +6,7 @@
 package logs
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -237,6 +238,14 @@ func (lc *LambdaLogsCollector) processMessage(
 			}
 		}
 		if message.logType == logTypePlatformReport {
+			fmt.Println("-----------------------")
+			fmt.Println(("processing platform report logs"))
+			state := lc.executionContext.GetCurrentState()
+			out, _ := json.Marshal(state)
+			fmt.Println("current state: " + string(out))
+			fmt.Println("LC cold start id: " + lc.coldstartRequestID)
+			fmt.Println("LC request ID: " + lc.lastRequestID)
+			fmt.Println("-----------------------")
 			memorySize := message.objectRecord.reportLogItem.memorySizeMB
 			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
 			status := message.objectRecord.status
