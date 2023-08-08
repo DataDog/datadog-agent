@@ -11,13 +11,22 @@ import (
 	"runtime"
 )
 
-var ErrNoFieldCollected = errors.New("no field was collected")
-var ErrArgNotStruct = errors.New("argument is not a struct")
-var ErrNotCollectable = fmt.Errorf("cannot be collected on %s %s", runtime.GOOS, runtime.GOARCH)
-var ErrNotExported = errors.New("field not exported by the struct")
-var ErrCannotRender = errors.New("field inner type cannot be rendered")
-var ErrNoValueMethod = errors.New("field doesn't have the expected Value method")
-var ErrNoJSONTag = errors.New("field doesn't have a json tag")
+var (
+	// ErrNoFieldCollected means no field could be collected
+	ErrNoFieldCollected = errors.New("no field was collected")
+	// ErrArgNotStruct means the argument should be a struct but wasn't
+	ErrArgNotStruct = errors.New("argument is not a struct")
+	// ErrNotCollectable means the value can't be collected on the given platform
+	ErrNotCollectable = fmt.Errorf("cannot be collected on %s %s", runtime.GOOS, runtime.GOARCH)
+	// ErrNotExported means the struct has an unexported field
+	ErrNotExported = errors.New("field not exported by the struct")
+	// ErrCannotRender means a field which cannot be rendered
+	ErrCannotRender = errors.New("field inner type cannot be rendered")
+	// ErrNoValueMethod means a field doesn't have a Value method
+	ErrNoValueMethod = errors.New("field doesn't have the expected Value method")
+	// ErrNoJSONTag means a field doesn't have a json tag
+	ErrNoJSONTag = errors.New("field doesn't have a json tag")
+)
 
 // canBeRendered returns whether the given type can be converted to a string properly
 func canBeRendered(ty reflect.Kind) bool {

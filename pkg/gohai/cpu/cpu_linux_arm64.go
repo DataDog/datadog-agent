@@ -78,7 +78,7 @@ func (cpuInfo *Info) fillFirstCPUInfo(firstCPU map[string]string) {
 }
 
 func (cpuInfo *Info) fillProcCPUInfo() {
-	procCPU, err := readProcCpuInfo()
+	procCPU, err := readProcCPUInfo()
 	if err != nil {
 		cpuInfo.fillProcCPUErr(err)
 		return
@@ -101,18 +101,18 @@ func (cpuInfo *Info) fillProcCPUInfo() {
 			continue
 		}
 
-		if coreID, ok := sysCpuInt(fmt.Sprintf("cpu%d/topology/core_id", procID)); ok {
+		if coreID, ok := sysCPUInt(fmt.Sprintf("cpu%d/topology/core_id", procID)); ok {
 			cores[coreID] = struct{}{}
 		}
 
-		if pkgID, ok := sysCpuInt(fmt.Sprintf("cpu%d/topology/physical_package_id", procID)); ok {
+		if pkgID, ok := sysCPUInt(fmt.Sprintf("cpu%d/topology/physical_package_id", procID)); ok {
 			packages[pkgID] = struct{}{}
 		}
 
 		// iterate over each cache this CPU can use
 		i := 0
 		for {
-			if sharedList, ok := sysCpuList(fmt.Sprintf("cpu%d/cache/index%d/shared_cpu_list", procID, i)); ok {
+			if sharedList, ok := sysCPUList(fmt.Sprintf("cpu%d/cache/index%d/shared_cpu_list", procID, i)); ok {
 				// we are scanning CPUs in order, so only count this cache if it's not shared with a
 				// CPU that has already been scanned
 				shared := false
@@ -124,8 +124,8 @@ func (cpuInfo *Info) fillProcCPUInfo() {
 				}
 
 				if !shared {
-					if level, ok := sysCpuInt(fmt.Sprintf("cpu%d/cache/index%d/level", procID, i)); ok {
-						if size, ok := sysCpuSize(fmt.Sprintf("cpu%d/cache/index%d/size", procID, i)); ok {
+					if level, ok := sysCPUInt(fmt.Sprintf("cpu%d/cache/index%d/level", procID, i)); ok {
+						if size, ok := sysCPUSize(fmt.Sprintf("cpu%d/cache/index%d/size", procID, i)); ok {
 							cacheSizes[level] += size
 						}
 					}

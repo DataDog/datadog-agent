@@ -218,6 +218,7 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		}
 
 		cmdline := p.getCmdline(pathForPID)
+		comm := p.getCommandName(pathForPID)
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
 
@@ -246,6 +247,7 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			Pid:     pid,                                       // /proc/[pid]
 			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
 			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
+			Comm:    comm,                                      // /proc/[pid]/comm
 			Name:    statusInfo.name,                           // /proc/[pid]/status
 			Uids:    statusInfo.uids,                           // /proc/[pid]/status
 			Gids:    statusInfo.gids,                           // /proc/[pid]/status
@@ -362,6 +364,20 @@ func (p *probe) getCmdline(pidPath string) []string {
 	}
 
 	return trimAndSplitBytes(cmdline)
+}
+
+// getCommandName retrieves the command name from "comm" file for a process in procfs
+func (p *probe) getCommandName(pidPath string) string {
+	comm, err := os.ReadFile(filepath.Join(pidPath, "comm"))
+	if err != nil {
+		log.Debugf("Unable to read process command name from %s: %s", pidPath, err)
+		return ""
+	}
+
+	if len(comm) == 0 {
+		return ""
+	}
+	return string(bytes.Trim(comm, "\x00\t\n\v\f\r "))
 }
 
 // parseIO retrieves io info from "io" file for a process in procfs

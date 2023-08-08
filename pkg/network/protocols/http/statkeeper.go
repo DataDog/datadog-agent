@@ -85,7 +85,7 @@ func (h *StatKeeper) Close() {
 func (h *StatKeeper) add(tx Transaction) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
-		h.telemetry.malformed.Add(1)
+		h.telemetry.emptyPath.Add(1)
 		return
 	}
 	path, rejected := h.processHTTPPath(tx, rawPath)
@@ -94,7 +94,7 @@ func (h *StatKeeper) add(tx Transaction) {
 	}
 
 	if tx.Method() == MethodUnknown {
-		h.telemetry.malformed.Add(1)
+		h.telemetry.unknownMethod.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
 		}
@@ -103,7 +103,7 @@ func (h *StatKeeper) add(tx Transaction) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
-		h.telemetry.malformed.Add(1)
+		h.telemetry.invalidLatency.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
 		}
@@ -166,7 +166,7 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr strin
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).ConnectionKey, tx.String())
 		}
-		h.telemetry.malformed.Add(1)
+		h.telemetry.nonPrintableCharacters.Add(1)
 		return "", true
 	}
 	return h.intern(path), false

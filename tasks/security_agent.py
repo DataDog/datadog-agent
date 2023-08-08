@@ -109,24 +109,7 @@ def gen_mocks(ctx):
     """
     Generate mocks.
     """
-
-    interfaces = {
-        "./pkg/security/proto/api": [
-            "SecurityModuleServer",
-            "SecurityModuleClient",
-        ],
-        "./pkg/eventmonitor/proto/api": [
-            "EventMonitoringModuleServer",
-            "EventMonitoringModuleClient",
-            "EventMonitoringModule_GetProcessEventsClient",
-        ],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
+    ctx.run("mockery")
 
 
 @task
@@ -289,12 +272,14 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
+    debug=False,
 ):
     build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
+        debug=debug,
     )
 
     build_embed_syscall_tester(ctx)
@@ -704,6 +689,7 @@ def kitchen_prepare(ctx, skip_linters=False):
         ctx,
         bundle_ebpf=False,
         race=True,
+        debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
     )
@@ -761,6 +747,10 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
 
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:

@@ -11,6 +11,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	// Minimum value for runtime_security_config.activity_dump.max_dump_size
+	// ADMinMaxDumSize represents the minimum value for runtime_security_config.activity_dump.max_dump_size
 	ADMinMaxDumSize = 100
 )
 
@@ -218,6 +219,7 @@ func NewConfig() (*Config, error) {
 	}, nil
 }
 
+// NewRuntimeSecurityConfig returns the runtime security (CWS) config, build from the system probe one
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	sysconfig.Adjust(coreconfig.SystemProbe)
 
@@ -332,7 +334,7 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
-	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
+	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(coreconfig.Datadog, true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}

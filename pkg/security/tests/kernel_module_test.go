@@ -101,7 +101,9 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 }
 
 func TestLoadModule(t *testing.T) {
-	t.Skip("TestLoadModule is known to be flacky")
+	if os.Getenv("CI") == "true" {
+		t.Skip("TestLoadModule is known to be flaky")
+	}
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")

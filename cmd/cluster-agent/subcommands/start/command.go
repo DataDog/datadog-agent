@@ -379,23 +379,23 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 
 // initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
 func initRuntimeSettings() error {
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
 		return err
 	}
 
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeMutexProfileFraction()); err != nil {
 		return err
 	}
 
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeBlockProfileRate()); err != nil {
 		return err
 	}
 
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingGoroutines()); err != nil {
 		return err
 	}
 
-	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-cluster-agent"})
+	return commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"))
 }
 
 func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {

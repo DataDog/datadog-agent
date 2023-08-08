@@ -58,6 +58,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -288,6 +289,22 @@ func getSharedFxOption() fx.Option {
 		}),
 		dogstatsd.Bundle,
 		rcclient.Module,
+
+		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
+		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
+		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
+		fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// Main context passed to components
+					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
+
+					// create and setup the Autoconfig instance
+					common.LoadComponents(common.MainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
+					return nil
+				},
+			})
+		}),
 		logs.Bundle,
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
@@ -330,9 +347,6 @@ func startAgent(
 ) error {
 
 	var err error
-
-	// Main context passed to components
-	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Setup logger
 	syslogURI := pkgconfig.GetSyslogURI()
@@ -448,8 +462,6 @@ func startAgent(
 		}
 	}
 
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
 		logsAgent.AddScheduler(adScheduler.New(common.AC))
@@ -528,9 +540,14 @@ func startAgent(
 	// Start OTLP intake
 	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
 	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
-	if logsAgent, ok := logsAgent.Get(); otlpEnabled && ok {
+
+	var pipelineChan chan *message.Message
+	if logsAgent, ok := logsAgent.Get(); ok {
+		pipelineChan = logsAgent.GetPipelineProvider().NextPipelineChan()
+	}
+	if otlpEnabled {
 		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, logsAgent.GetPipelineProvider().NextPipelineChan())
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, pipelineChan)
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		} else {

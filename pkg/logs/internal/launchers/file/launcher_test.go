@@ -162,7 +162,9 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	_, err = suite.testFile.WriteString("third\n")
 	suite.Nil(err)
 
+	suite.Nil(suite.testFile.Sync())
 	s.scan()
+
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer)
 
