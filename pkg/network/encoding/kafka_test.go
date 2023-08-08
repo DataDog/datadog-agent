@@ -114,7 +114,7 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 		},
 	}
 
-	encoder := newKafkaEncoder(in)
+	encoder := newKafkaEncoder(in.Kafka)
 	t.Cleanup(encoder.Close)
 
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
@@ -164,7 +164,7 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 		},
 	}
 
-	encoder := newKafkaEncoder(in)
+	encoder := newKafkaEncoder(in.Kafka)
 	t.Cleanup(encoder.Close)
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
 
@@ -219,7 +219,7 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 		},
 	}
 
-	encoder := newKafkaEncoder(in)
+	encoder := newKafkaEncoder(in.Kafka)
 	t.Cleanup(encoder.Close)
 
 	// assert that both ends (client:server, server:client) of the connection
@@ -280,7 +280,7 @@ func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
 	b.ReportAllocs()
 	var h *kafkaEncoder
 	for i := 0; i < b.N; i++ {
-		h = newKafkaEncoder(&payload)
+		h = newKafkaEncoder(payload.Kafka)
 		h.GetKafkaAggregations(payload.Conns[0])
 		h.Close()
 	}

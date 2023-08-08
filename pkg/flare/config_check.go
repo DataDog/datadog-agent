@@ -171,6 +171,6 @@ func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {
 	}
 
 	if msg != "" {
-		fmt.Fprintln(w, fmt.Sprintf("%s", color.BlueString(msg)))
+		fmt.Fprintln(w, color.BlueString(msg))
 	}
 }

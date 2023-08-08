@@ -254,6 +254,9 @@ func InitSystemProbeConfig(cfg Config) {
 	// process module
 	// nested within system_probe_config to not conflict with process-agent's process_config
 	cfg.BindEnvAndSetDefault(join(spNS, "process_config.enabled"), false, "DD_SYSTEM_PROBE_PROCESS_ENABLED")
+	// ebpf module
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join("ebpf_check", "kernel_bpf_stats"), false)
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
@@ -310,6 +313,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.per_rule_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")

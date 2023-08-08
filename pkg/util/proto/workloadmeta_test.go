@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )

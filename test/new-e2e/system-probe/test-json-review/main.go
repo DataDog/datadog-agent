@@ -72,7 +72,7 @@ func reviewTests(jsonFile string) (string, error) {
 		if err := json.Unmarshal(data, &ev); err != nil {
 			return "", fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
 		}
-		if ev.Test == "" {
+		if ev.Test == "" || (ev.Action != "pass" && ev.Action != "fail") {
 			continue
 		}
 		if res, ok := testResults[testKey(ev.Test, ev.Package)]; ok {
@@ -80,6 +80,9 @@ func reviewTests(jsonFile string) (string, error) {
 			// eventually succeeded.
 			if res.Action == "pass" {
 				continue
+			}
+			if res.Action == "fail" {
+				fmt.Printf("re-ran %s %s: %s\n", ev.Package, ev.Test, ev.Action)
 			}
 			if res.Action == "fail" && ev.Action == "pass" {
 				testResults[testKey(ev.Test, ev.Package)] = ev

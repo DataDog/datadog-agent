@@ -32,12 +32,12 @@ var bpfProbes = []*manager.Probe{
 	},
 }
 
-func getBPFProbes() []*manager.Probe {
+func getBPFProbes(fentry bool) []*manager.Probe {
 	bpfProbes = append(bpfProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "bpf",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return bpfProbes
 }

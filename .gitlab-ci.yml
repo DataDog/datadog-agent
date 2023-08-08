@@ -13,14 +13,16 @@ include:
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
+  - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/dev_container_deploy.yml
   - /.gitlab/deploy_common.yml
-  - /.gitlab/deploy_6.yml
-  - /.gitlab/deploy_7.yml
+  - /.gitlab/deploy_containers.yml
+  - /.gitlab/deploy_packages.yml
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
@@ -68,18 +70,20 @@ stages:
   - package_build
   - kitchen_deploy
   - kitchen_testing
+  - kitchen_tests_upload
   - pkg_metrics
   - container_build
   - container_scan
   - check_deploy
   - dev_container_deploy
-  - deploy6
-  - deploy7
+  - deploy_containers
+  - deploy_packages
   - trigger_release
   - deploy_dca
   - choco_build
   - choco_deploy
   - internal_image_deploy
+  - install_script_testing
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
@@ -118,13 +122,13 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
+  BUCKET_BRANCH: nightly # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
+  DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -149,21 +153,21 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_BUILDIMAGES: v18619612-163f3d1
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_WINBUILDIMAGES: v18619612-163f3d1
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_ARMBUILDIMAGES: v18619612-163f3d1
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18619612-163f3d1
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v14597610-8d767dd
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18619612-163f3d1
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18619612-163f3d1
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17432894-4fdacd4
-  DATADOG_AGENT_BUILDERS: v16852259-65c480c
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d44e03d53b06
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_BUILDERS: v18668212-10ef72b
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: b26f1d056477
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -186,8 +190,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-08d9716d20480186e"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-044d1c0f7ab0e3537"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-098ea4991ff2d244c"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-04493daab2918046c"
 
 #
 # Condition mixins for simplification of rules
@@ -839,32 +843,39 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
   - changes:
-      - pkg/ebpf/**/*
-      - pkg/security/**/*
-      - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-      - test/kitchen/test/integration/security-agent-test/**/*
-      - test/kitchen/test/integration/security-agent-stress/**/*
-      - .gitlab/functional_test/security_agent.yml
+      paths:
+        - pkg/ebpf/**/*
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+        - test/kitchen/test/integration/security-agent-test/**/*
+        - test/kitchen/test/integration/security-agent-stress/**/*
+        - .gitlab/functional_test/security_agent.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
 
 .on_system_probe_changes_or_manual:
+  - <<: *if_main_branch
   - changes:
-      - pkg/collector/corechecks/ebpf/**/*
-      - pkg/ebpf/**/*
-      - pkg/network/**/*
-      - pkg/util/kernel/**/*
-      - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-      - test/kitchen/test/integration/system-probe-test/**/*
-      - test/kitchen/test/integration/win-sysprobe-test/**/*
-      - .gitlab/functional_test/system_probe.yml
-      - .gitlab/kernel_version_testing/system_probe.yml
-      - test/new-e2e/system-probe/**/*
-      - test/new-e2e/scenarios/system-probe/**/*
-      - test/new-e2e/runner/**/*
-      - test/new-e2e-utils/**/*
-      - test/new-e2e/go.mod
+      paths:
+        - pkg/collector/corechecks/ebpf/**/*
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+        - pkg/util/kernel/**/*
+        - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+        - test/kitchen/test/integration/system-probe-test/**/*
+        - test/kitchen/test/integration/win-sysprobe-test/**/*
+        - .gitlab/functional_test/system_probe.yml
+        - .gitlab/kernel_version_testing/system_probe.yml
+        - test/new-e2e/system-probe/**/*
+        - test/new-e2e/scenarios/system-probe/**/*
+        - test/new-e2e/runner/**/*
+        - test/new-e2e-utils/**/*
+        - test/new-e2e/go.mod
+        - tasks/system_probe.py
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
