@@ -89,7 +89,8 @@ func (ms *MovingSum) dropOldBuckets() {
 
 // InfoKey returns a string representing the key for the moving sum.
 func (ms *MovingSum) InfoKey() string {
-	return "24h Moving Sum (bytes): "
+	hours := ms.timeWindow.Hours() //timeWindow return hh:mm:ss
+	return fmt.Sprintf("%.0fh Moving Sum (bytes)", hours)
 }
 
 // Info returns the moving sum as a formatted string slice.
