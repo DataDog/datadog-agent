@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    OTLP ingest pipeline panics will no longer stop the Datadog Agent and instead 
+    OTLP ingest pipeline panics no longer stop the Datadog Agent and instead 
     only shutdown this pipeline. The panic is now available in the OTLP status section.
