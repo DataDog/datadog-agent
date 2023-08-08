@@ -17,11 +17,11 @@ import (
 )
 
 type vmSuiteEx5 struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx5{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &vmSuiteEx5{}, e2e.FakeIntakeStackDef(nil))
 }
 
 func (v *vmSuiteEx5) Test1_FakeIntakeReceivesMetrics() {

@@ -44,6 +44,7 @@ type RuntimeSecurityAgent struct {
 	storage *dump.ActivityDumpStorageManager
 }
 
+// RSAOptions represents the runtime security agent options
 type RSAOptions struct {
 	LogProfiledWorkloads    bool
 	IgnoreDDAgentContainers bool

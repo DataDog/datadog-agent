@@ -51,23 +51,23 @@ var (
 	}
 )
 
-func cpuMock() (*cpu.Cpu, []string, error) {
-	return &cpu.Cpu{
-		CpuCores:             6,
-		CpuLogicalProcessors: 6,
-		VendorId:             "GenuineIntel",
-		ModelName:            "Intel_i7-8750H",
-		Model:                "158",
-		Family:               "6",
-		Stepping:             "10",
-		Mhz:                  2208.006,
-		CacheSizeBytes:       9437184,
-		CpuPkgs:              6,
-		CpuNumaNodes:         6,
-		CacheSizeL1Bytes:     1234,
-		CacheSizeL2Bytes:     1234,
-		CacheSizeL3Bytes:     1234,
-	}, nil, nil
+func cpuMock() *cpu.Info {
+	return &cpu.Info{
+		CPUCores:             gohaiutils.NewValue[uint64](6),
+		CPULogicalProcessors: gohaiutils.NewValue[uint64](6),
+		VendorID:             gohaiutils.NewValue("GenuineIntel"),
+		ModelName:            gohaiutils.NewValue("Intel_i7-8750H"),
+		Model:                gohaiutils.NewValue("158"),
+		Family:               gohaiutils.NewValue("6"),
+		Stepping:             gohaiutils.NewValue("10"),
+		Mhz:                  gohaiutils.NewValue(2208.006),
+		CacheSizeKB:          gohaiutils.NewValue[uint64](9216),
+		CPUPkgs:              gohaiutils.NewValue[uint64](6),
+		CPUNumaNodes:         gohaiutils.NewValue[uint64](6),
+		CacheSizeL1Bytes:     gohaiutils.NewValue[uint64](1234),
+		CacheSizeL2Bytes:     gohaiutils.NewValue[uint64](1234),
+		CacheSizeL3Bytes:     gohaiutils.NewValue[uint64](1234),
+	}
 }
 
 func memoryMock() *memory.Info {
@@ -104,7 +104,7 @@ func platformMock() *platform.Info {
 
 func setupHostMetadataMock(t *testing.T) {
 	t.Cleanup(func() {
-		cpuGet = cpu.Get
+		cpuGet = cpu.CollectInfo
 		memoryGet = memory.CollectInfo
 		networkGet = network.CollectInfo
 		platformGet = platform.CollectInfo
@@ -132,14 +132,14 @@ func TestGetHostMetadata(t *testing.T) {
 	assert.Equal(t, expectedMetadata, m)
 }
 
-func cpuErrorMock() (*cpu.Cpu, []string, error) { return nil, nil, fmt.Errorf("err") }
-func memoryErrorMock() *memory.Info             { return &memory.Info{} }
-func networkErrorMock() (*network.Info, error)  { return nil, fmt.Errorf("err") }
-func platformErrorMock() *platform.Info         { return &platform.Info{} }
+func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
+func memoryErrorMock() *memory.Info            { return &memory.Info{} }
+func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
+func platformErrorMock() *platform.Info        { return &platform.Info{} }
 
 func setupHostMetadataErrorMock(t *testing.T) {
 	t.Cleanup(func() {
-		cpuGet = cpu.Get
+		cpuGet = cpu.CollectInfo
 		memoryGet = memory.CollectInfo
 		networkGet = network.CollectInfo
 		platformGet = platform.CollectInfo

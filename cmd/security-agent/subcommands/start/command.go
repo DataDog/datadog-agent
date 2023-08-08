@@ -290,7 +290,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 }
 
 func initRuntimeSettings() error {
-	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
+	return settings.RegisterRuntimeSetting(settings.NewLogLevelRuntimeSetting())
 }
 
 // StopAgent stops the API server and clean up resources
@@ -351,6 +351,7 @@ func setupInternalProfiling(config config.Component) error {
 			MutexProfileFraction: config.GetInt(secAgentKey("internal_profiling.mutex_profile_fraction")),
 			BlockProfileRate:     config.GetInt(secAgentKey("internal_profiling.block_profile_rate")),
 			WithGoroutineProfile: config.GetBool(secAgentKey("internal_profiling.enable_goroutine_stacktraces")),
+			WithDeltaProfiles:    config.GetBool(secAgentKey("internal_profiling.delta_profiles")),
 			Tags:                 []string{fmt.Sprintf("version:%v", v)},
 		}
 

@@ -142,6 +142,7 @@ func resetPackageVars() {
 	secretBackendTimeout = 5
 	scrubberAddReplacer = scrubber.AddStrippedKeys
 	removeTrailingLinebreak = false
+	SecretBackendOutputMaxSize = 1024 * 1024
 }
 
 func TestIsEnc(t *testing.T) {
