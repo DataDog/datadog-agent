@@ -52,7 +52,7 @@ func TestConfigEndpoint(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
-			grpc := agentGRPCConfigFetcher{}
+			grpc := AgentGRPCConfigFetcher{}
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
 			mux := http.NewServeMux()
 			cfg := &config.AgentConfig{}
@@ -127,7 +127,7 @@ func TestUpstreamRequest(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
-			grpc := agentGRPCConfigFetcher{}
+			grpc := AgentGRPCConfigFetcher{}
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, telemetry.NewNoopCollector())
 
 			var request pbgo.ClientGetConfigsRequest
@@ -153,12 +153,12 @@ func TestUpstreamRequest(t *testing.T) {
 	}
 }
 
-type agentGRPCConfigFetcher struct {
+type AgentGRPCConfigFetcher struct {
 	pbgo.AgentSecureClient
 	mock.Mock
 }
 
-func (a *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, in *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (a *AgentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, in *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	args := a.Called(ctx, in)
 	return args.Get(0).(*pbgo.ClientGetConfigsResponse), args.Error(1)
 }

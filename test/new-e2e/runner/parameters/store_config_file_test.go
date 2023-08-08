@@ -21,7 +21,7 @@ var config_with_stackparams []byte
 var config_no_aws_account []byte
 
 func Test_parseConfigFileContent(t *testing.T) {
-	store := configFileValueStore{}
+	store := ConfigFileValueStore{}
 	store.parseConfigFileContent(config_with_stackparams)
 	assert.Equal(t, "totoro", store.config.ConfigParams.AWS.KeyPairName)
 	assert.Equal(t, "/Users/totoro/.ssh/id_rsa.pub", store.config.ConfigParams.AWS.PublicKeyPath)
@@ -42,7 +42,7 @@ func Test_parseConfigFileContent(t *testing.T) {
 }
 
 func Test_parseConfigFileStoreContent(t *testing.T) {
-	valueStore := configFileValueStore{}
+	valueStore := ConfigFileValueStore{}
 	valueStore.parseConfigFileContent(config_with_stackparams)
 	store := NewCascadingStore(valueStore)
 
@@ -68,7 +68,7 @@ func Test_parseConfigFileStoreContent(t *testing.T) {
 }
 
 func Test_parseConfigFileStoreContentNoAWSAccount(t *testing.T) {
-	valueStore := configFileValueStore{}
+	valueStore := ConfigFileValueStore{}
 	valueStore.parseConfigFileContent(config_no_aws_account)
 	store := NewCascadingStore(valueStore)
 

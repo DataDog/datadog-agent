@@ -45,15 +45,15 @@ type Agent struct {
 	APPKey string `yaml:"appKey"`
 }
 
-var _ valueStore = &configFileValueStore{}
+var _ valueStore = &ConfigFileValueStore{}
 
-type configFileValueStore struct {
+type ConfigFileValueStore struct {
 	config          Config
 	stackParamsJson string
 }
 
-func NewConfigFileValueStore(path string) (configFileValueStore, error) {
-	store := configFileValueStore{}
+func NewConfigFileValueStore(path string) (ConfigFileValueStore, error) {
+	store := ConfigFileValueStore{}
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return store, err
@@ -64,7 +64,7 @@ func NewConfigFileValueStore(path string) (configFileValueStore, error) {
 	return store, err
 }
 
-func (s *configFileValueStore) parseConfigFileContent(content []byte) error {
+func (s *ConfigFileValueStore) parseConfigFileContent(content []byte) error {
 	err := yaml.Unmarshal(content, &s.config)
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func (s *configFileValueStore) parseConfigFileContent(content []byte) error {
 }
 
 // Get returns parameter value.
-func (s configFileValueStore) get(key StoreKey) (string, error) {
+func (s ConfigFileValueStore) get(key StoreKey) (string, error) {
 	var value string
 
 	switch key {

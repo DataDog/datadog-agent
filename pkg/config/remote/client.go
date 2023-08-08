@@ -77,14 +77,14 @@ type Client struct {
 	listeners map[string][]func(update map[string]state.RawConfig)
 }
 
-// agentGRPCConfigFetcher defines how to retrieve config updates over a
+// AgentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
-type agentGRPCConfigFetcher struct {
+type AgentGRPCConfigFetcher struct {
 	client pbgo.AgentSecureClient
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
+func NewAgentGRPCConfigFetcher() (*AgentGRPCConfigFetcher, error) {
 	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
@@ -92,13 +92,13 @@ func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
 		return nil, err
 	}
 
-	return &agentGRPCConfigFetcher{
+	return &AgentGRPCConfigFetcher{
 		client: c,
 	}, nil
 }
 
-// ClientGetConfigs implements the ConfigUpdater interface for agentGRPCConfigFetcher
-func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+// ClientGetConfigs implements the ConfigUpdater interface for AgentGRPCConfigFetcher
+func (g *AgentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	// When communicating with the core service via grpc, the auth token is handled
 	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
 	// or that if it restarts that the auth token remains the same. Thus we need to do this every request.

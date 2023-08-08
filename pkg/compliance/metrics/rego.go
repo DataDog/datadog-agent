@@ -21,8 +21,8 @@ var (
 	registeredCounters   map[string]telemetry.Counter
 )
 
-func NewRegoTelemetry() *regoTelemetry {
-	return &regoTelemetry{
+func NewRegoTelemetry() *RegoTelemetry {
+	return &RegoTelemetry{
 		inner:      opametrics.New(),
 		counters:   make(map[string]*regoCounter),
 		timers:     make(map[string]*regoTimer),
@@ -125,7 +125,7 @@ func (t *regoTimer) Stop() int64 {
 	return delta
 }
 
-type regoTelemetry struct {
+type RegoTelemetry struct {
 	sync.Mutex
 	inner      opametrics.Metrics
 	counters   map[string]*regoCounter
@@ -133,11 +133,11 @@ type regoTelemetry struct {
 	histograms map[string]*regoHistogram
 }
 
-func (m *regoTelemetry) Info() opametrics.Info {
+func (m *RegoTelemetry) Info() opametrics.Info {
 	return m.inner.Info()
 }
 
-func (m *regoTelemetry) Timer(name string) opametrics.Timer {
+func (m *RegoTelemetry) Timer(name string) opametrics.Timer {
 	m.Lock()
 	defer m.Unlock()
 	t, ok := m.timers[name]
@@ -152,7 +152,7 @@ func (m *regoTelemetry) Timer(name string) opametrics.Timer {
 	return t
 }
 
-func (m *regoTelemetry) Histogram(name string) opametrics.Histogram {
+func (m *RegoTelemetry) Histogram(name string) opametrics.Histogram {
 	m.Lock()
 	defer m.Unlock()
 	h, ok := m.histograms[name]
@@ -167,7 +167,7 @@ func (m *regoTelemetry) Histogram(name string) opametrics.Histogram {
 	return h
 }
 
-func (m *regoTelemetry) Counter(name string) opametrics.Counter {
+func (m *RegoTelemetry) Counter(name string) opametrics.Counter {
 	m.Lock()
 	defer m.Unlock()
 	c, ok := m.counters[name]
@@ -182,14 +182,14 @@ func (m *regoTelemetry) Counter(name string) opametrics.Counter {
 	return c
 }
 
-func (m *regoTelemetry) All() map[string]interface{} {
+func (m *RegoTelemetry) All() map[string]interface{} {
 	return m.inner.All()
 }
 
-func (m *regoTelemetry) Clear() {
+func (m *RegoTelemetry) Clear() {
 	m.inner.Clear()
 }
 
-func (m *regoTelemetry) MarshalJSON() ([]byte, error) {
+func (m *RegoTelemetry) MarshalJSON() ([]byte, error) {
 	return m.inner.MarshalJSON()
 }
