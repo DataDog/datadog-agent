@@ -177,8 +177,8 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 			scrubber.ScrubLine(err.Error()), noResponseHints(err)), err
 	}
 
-	var verifyReport string = ""
-	var newErr error = nil
+	var verifyReport string
+	var newErr error
 	if statusCode >= 400 {
 		newErr = fmt.Errorf("Bad Request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))

@@ -22,7 +22,7 @@ const (
 	AdminStatus_Testing IfAdminStatus = 3
 )
 
-var adminStatus_StringMap map[IfAdminStatus]string = map[IfAdminStatus]string{
+var adminStatus_StringMap = map[IfAdminStatus]string{
 	AdminStatus_Up:      "up",
 	AdminStatus_Down:    "down",
 	AdminStatus_Testing: "testing",
@@ -48,7 +48,7 @@ const (
 	OperStatus_LowerLayerDown IfOperStatus = 7
 )
 
-var operStatus_StringMap map[IfOperStatus]string = map[IfOperStatus]string{
+var operStatus_StringMap = map[IfOperStatus]string{
 	OperStatus_Up:             "up",
 	OperStatus_Down:           "down",
 	OperStatus_Testing:        "testing",

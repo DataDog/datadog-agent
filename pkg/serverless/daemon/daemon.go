@@ -27,7 +27,7 @@ import (
 // ShutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-var ShutdownDelay time.Duration = 1 * time.Second
+var ShutdownDelay = 1 * time.Second
 
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second

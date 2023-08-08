@@ -34,7 +34,7 @@ type SimpleThrottler struct {
 }
 
 // changed to a mocked clock in unit tests
-var timeNow func() time.Time = time.Now
+var timeNow = time.Now
 
 // NewSimpleThrottler creates and returns a SimpleThrottler.
 func NewSimpleThrottler(execLimit uint32, pauseDuration time.Duration, throttlingMessage string) SimpleThrottler {
