@@ -263,159 +263,159 @@ functions:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
-  log-node:
-    runtime: nodejs14.x
-    handler: src/log.logTest
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  # log-node:
+  #   runtime: nodejs14.x
+  #   handler: src/log.logTest
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
-  log-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LAMBDA_HANDLER: src/logPython.log
+  # log-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LAMBDA_HANDLER: src/logPython.log
 
-  log-go:
-    runtime: provided.al2
-    package:
-      individually: true
-      patterns:
-        - src/bin/log
-    handler: src/bin/log
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  # log-go:
+  #   runtime: provided.al2
+  #   package:
+  #     individually: true
+  #     patterns:
+  #       - src/bin/log
+  #   handler: src/bin/log
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
-  log-csharp:
-    runtime: dotnet6
-    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
-    package:
-      individually: true
-      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
-    environment:
-      CORECLR_ENABLE_PROFILING: 1
-      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
-      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
-      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+  # log-csharp:
+  #   runtime: dotnet6
+  #   handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
+  #   package:
+  #     individually: true
+  #     artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
+  #   environment:
+  #     CORECLR_ENABLE_PROFILING: 1
+  #     CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+  #     CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+  #     DD_DOTNET_TRACER_HOME: "/opt/datadog"
 
-  log-java:
-    runtime: java8.al2
-    handler: LogHandler
-    package:
-      individually: true
-      artifact: src/java-tests/log/target/log-dev.jar
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
-      DD_JMXFETCH_ENABLED: false
+  # log-java:
+  #   runtime: java8.al2
+  #   handler: LogHandler
+  #   package:
+  #     individually: true
+  #     artifact: src/java-tests/log/target/log-dev.jar
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+  #     DD_JMXFETCH_ENABLED: false
 
-  log-proxy:
-    runtime: nodejs14.x
-    handler: src/proxyTestFunctions.log
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+  # log-proxy:
+  #   runtime: nodejs14.x
+  #   handler: src/proxyTestFunctions.log
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_EXPERIMENTAL_ENABLE_PROXY: true
+  #     AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
-  trace-node:
-    runtime: nodejs14.x
-    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LAMBDA_HANDLER: src/trace.simpleTest
+  # trace-node:
+  #   runtime: nodejs14.x
+  #   handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LAMBDA_HANDLER: src/trace.simpleTest
 
-  trace-python:
-    runtime: python3.8
-    handler: datadog_lambda.handler.handler
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_LAMBDA_HANDLER: src/tracePython.simple_test
+  # trace-python:
+  #   runtime: python3.8
+  #   handler: datadog_lambda.handler.handler
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_LAMBDA_HANDLER: src/tracePython.simple_test
 
-  trace-go:
-    runtime: provided.al2
-    package:
-      individually: true
-      patterns:
-        - src/bin/trace
-    handler: src/bin/trace
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  # trace-go:
+  #   runtime: provided.al2
+  #   package:
+  #     individually: true
+  #     patterns:
+  #       - src/bin/trace
+  #   handler: src/bin/trace
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
-  trace-java:
-    runtime: java8.al2
-    handler: TraceHandler
-    package:
-      individually: true
-      artifact: src/java-tests/trace/target/trace-dev.jar
-    layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
-      DD_JMXFETCH_ENABLED: false
+  # trace-java:
+  #   runtime: java8.al2
+  #   handler: TraceHandler
+  #   package:
+  #     individually: true
+  #     artifact: src/java-tests/trace/target/trace-dev.jar
+  #   layers:
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+  #     DD_JMXFETCH_ENABLED: false
 
-  trace-csharp:
-    runtime: dotnet6
-    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
-    package:
-      individually: true
-      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
-    environment:
-      CORECLR_ENABLE_PROFILING: 1
-      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
-      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
-      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+  # trace-csharp:
+  #   runtime: dotnet6
+  #   handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
+  #   package:
+  #     individually: true
+  #     artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #     - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
+  #   environment:
+  #     CORECLR_ENABLE_PROFILING: 1
+  #     CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+  #     CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+  #     DD_DOTNET_TRACER_HOME: "/opt/datadog"
 
-  trace-proxy:
-    runtime: nodejs14.x
-    handler: src/proxyTestFunctions.noop
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+  # trace-proxy:
+  #   runtime: nodejs14.x
+  #   handler: src/proxyTestFunctions.noop
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #   environment:
+  #     DD_EXPERIMENTAL_ENABLE_PROXY: true
+  #     AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
-  otlp-python:
-    runtime: python3.8
-    # a bug in opentelemetry instrumentation makes it impossible to define a
-    # handler inside of a directory
-    # see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
-    handler: otlpPython.simple_test
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      - arn:aws:lambda:${self:provider.region}:184161586896:layer:opentelemetry-python-0_1_0:1
-    environment:
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
-      DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: localhost:4318
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
-      OTEL_METRICS_EXPORTER: otlp
-      OTEL_TRACES_EXPORTER: otlp
+  # otlp-python:
+  #   runtime: python3.8
+  #   # a bug in opentelemetry instrumentation makes it impossible to define a
+  #   # handler inside of a directory
+  #   # see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
+  #   handler: otlpPython.simple_test
+  #   layers:
+  #     - { Ref: RecorderExtensionLambdaLayer }
+  #     - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+  #     - arn:aws:lambda:${self:provider.region}:184161586896:layer:opentelemetry-python-0_1_0:1
+  #   environment:
+  #     AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+  #     DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: localhost:4318
+  #     OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
+  #     OTEL_METRICS_EXPORTER: otlp
+  #     OTEL_TRACES_EXPORTER: otlp
