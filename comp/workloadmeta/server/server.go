@@ -10,12 +10,12 @@ package server
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 const (
@@ -24,15 +24,15 @@ const (
 )
 
 // NewServer returns a new Server
-func NewServer(store workloadmeta.Store) *Server {
+func NewServer(store workloadmeta.Component) *Server {
 	return &Server{
-		store: store,
+		wmeta: store,
 	}
 }
 
 // Server is a grpc server that streams workloadmeta entities
 type Server struct {
-	store workloadmeta.Store
+	wmeta workloadmeta.Component
 }
 
 // StreamEntities streams entities from the workloadmeta store applying the given filter
@@ -42,8 +42,8 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 		return err
 	}
 
-	workloadmetaEventsChannel := s.store.Subscribe("stream-client", workloadmeta.NormalPriority, filter)
-	defer s.store.Unsubscribe(workloadmetaEventsChannel)
+	workloadmetaEventsChannel := s.wmeta.Subscribe("stream-client", workloadmeta.NormalPriority, filter)
+	defer s.wmeta.Unsubscribe(workloadmetaEventsChannel)
 
 	ticker := time.NewTicker(workloadmetaKeepAliveInterval)
 	defer ticker.Stop()

@@ -28,13 +28,13 @@ import (
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const defaultWaitInterval = time.Second
@@ -51,11 +51,12 @@ type dependencies struct {
 
 	CliParams *cliParams
 
-	Config   config.Component
-	Syscfg   sysprobeconfig.Component
-	Log      log.Component
-	Hostinfo hostinfo.Component
-	Checks   []types.CheckComponent `group:"check"`
+	Config       config.Component
+	Syscfg       sysprobeconfig.Component
+	Log          log.Component
+	Hostinfo     hostinfo.Component
+	WorkloadMeta workloadmeta.Component
+	Checks       []types.CheckComponent `group:"check"`
 }
 
 func nextGroupID() func() int32 {
@@ -114,14 +115,17 @@ func runCheckCmd(deps dependencies) error {
 
 	// Start workload metadata store before tagger (used for containerCollection)
 	// TODO: (Components) Add to dependencies once workloadmeta is migrated to components
-	var workloadmetaCollectors workloadmeta.CollectorCatalog
-	if deps.Config.GetBool("process_config.remote_workloadmeta") {
-		workloadmetaCollectors = workloadmeta.RemoteCatalog
-	} else {
-		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
-	}
-	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
-	store.Start(ctx)
+	//       WIP (Components) the code commented below should be tackled in
+	//                        the workoadmeta Init.
+	//
+	// var workloadmetaCollectors workloadmeta.CollectorCatalog
+	// if deps.Config.GetBool("process_config.remote_workloadmeta") {
+	// 	workloadmetaCollectors = workloadmeta.RemoteCatalog
+	// } else {
+	// 	workloadmetaCollectors = workloadmeta.NodeAgentCatalog
+	// }
+	// store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
+	// store.Start(ctx)
 
 	// Tagger must be initialized after agent config has been setup
 	// TODO: (Components) Add to dependencies once tagger is migrated to components
@@ -134,7 +138,7 @@ func runCheckCmd(deps dependencies) error {
 			t = remote.NewTagger(options)
 		}
 	} else {
-		t = local.NewTagger(store)
+		t = local.NewTagger(deps.WorkloadMeta)
 	}
 
 	tagger.SetDefaultTagger(t)

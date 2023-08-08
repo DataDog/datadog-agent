@@ -41,7 +41,7 @@ func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
 }
 
 // Dump implements Store#Dump
-func (s *store) Dump(verbose bool) WorkloadDumpResponse {
+func (w *workloadmeta) Dump(verbose bool) WorkloadDumpResponse {
 	workloadList := WorkloadDumpResponse{
 		Entities: make(map[string]WorkloadEntity),
 	}
@@ -70,10 +70,10 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 		return info, nil
 	}
 
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
 
-	for kind, store := range s.store {
+	for kind, store := range w.store {
 		entities := WorkloadEntity{Infos: make(map[string]string)}
 		for id, cachedEntity := range store {
 			if verbose && len(cachedEntity.sources) > 1 {

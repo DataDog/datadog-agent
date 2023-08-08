@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
@@ -210,7 +210,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := workloadmeta.GetGlobalStore().Dump(verbose)
+	response := workloadmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)

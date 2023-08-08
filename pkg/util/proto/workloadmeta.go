@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var emptyTimestampUnix = new(time.Time).Unix()

@@ -21,10 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-var (
-	globalStore workloademeta
-)
-
 const (
 	retryCollectorInitialInterval = 1 * time.Second
 	retryCollectorMaxInterval     = 30 * time.Second
@@ -41,46 +37,16 @@ type subscriber struct {
 	filter   *Filter
 }
 
-// store is a central storage of metadata about workloads. A workload is any
-// unit of work being done by a piece of software, like a process, a container,
-// a kubernetes pod, or a task in any cloud provider.
-type store struct {
-}
-
-var _ workloademeta = &store{}
-
-// NewStore creates a new workload metadata store, building a new instance of
-// each collector in the catalog. Call Start to start the store and its
-// collectors.
-func NewStore(catalog CollectorList) Component {
-	return newStore(catalog)
-}
-
-func newStore(catalog CollectorList) *store {
-	candidates := make(map[string]Collector)
-	for _, c := range catalog {
-		candidates[c.GetID()] = c
-	}
-
-	return &store{
-		store:        make(map[Kind]map[string]*cachedEntity),
-		candidates:   candidates,
-		collectors:   make(map[string]Collector),
-		eventCh:      make(chan []CollectorEvent, eventChBufferSize),
-		ongoingPulls: make(map[string]time.Time),
-	}
-}
-
 // Start starts the workload metadata store.
-func (s *store) Start(ctx context.Context) {
+func (w *workloadmeta) Start(ctx context.Context) {
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
 			select {
 			case <-health.C:
 
-			case evs := <-s.eventCh:
-				s.handleEvents(evs)
+			case evs := <-w.eventCh:
+				w.handleEvents(evs)
 
 			case <-ctx.Done():
 				err := health.Deregister()
@@ -99,14 +65,14 @@ func (s *store) Start(ctx context.Context) {
 
 		// Start a pull immediately to fill the store without waiting for the
 		// next tick.
-		s.pull(ctx)
+		w.pull(ctx)
 
 		for {
 			select {
 			case <-health.C:
 
 			case <-pullTicker.C:
-				s.pull(ctx)
+				w.pull(ctx)
 
 			case <-ctx.Done():
 				pullTicker.Stop()
@@ -116,7 +82,7 @@ func (s *store) Start(ctx context.Context) {
 					log.Warnf("error de-registering health check: %s", err)
 				}
 
-				s.unsubscribeAll()
+				w.unsubscribeAll()
 
 				log.Infof("stopped workloadmeta store")
 
@@ -126,7 +92,7 @@ func (s *store) Start(ctx context.Context) {
 	}()
 
 	go func() {
-		if err := s.startCandidatesWithRetry(ctx); err != nil {
+		if err := w.startCandidatesWithRetry(ctx); err != nil {
 			log.Errorf("error starting collectors: %s", err)
 		}
 	}()
@@ -138,7 +104,7 @@ func (s *store) Start(ctx context.Context) {
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter, unless the
 // filter type is EventTypeUnset.
-func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
+func (w *workloadmeta) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
 	// unbuffered, it'll deadlock.
@@ -155,11 +121,11 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	// otherwise the subscriber can lose events. adding the subscriber
 	// before locking the store can cause deadlocks if the store sends
 	// events before this function returns.
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
 
 	if filter == nil || (filter != nil && filter.EventType() != EventTypeUnset) {
-		for kind, entitiesOfKind := range s.store {
+		for kind, entitiesOfKind := range w.store {
 			if !sub.filter.MatchKind(kind) {
 				continue
 			}
@@ -192,12 +158,12 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	// the subscriber is not ready to receive events yet
 	s.notifyChannel(sub.name, sub.ch, events, false)
 
-	s.subscribersMut.Lock()
-	defer s.subscribersMut.Unlock()
+	w.subscribersMut.Lock()
+	defer w.subscribersMut.Unlock()
 
-	s.subscribers = append(s.subscribers, sub)
-	sort.SliceStable(s.subscribers, func(i, j int) bool {
-		return s.subscribers[i].priority < s.subscribers[j].priority
+	w.subscribers = append(w.subscribers, sub)
+	sort.SliceStable(w.subscribers, func(i, j int) bool {
+		return w.subscribers[i].priority < w.subscribers[j].priority
 	})
 
 	telemetry.Subscribers.Inc()
@@ -206,13 +172,13 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 }
 
 // Unsubscribe ends a subscription to entity events and closes its channel.
-func (s *store) Unsubscribe(ch chan EventBundle) {
-	s.subscribersMut.Lock()
-	defer s.subscribersMut.Unlock()
+func (w *workloadmeta) Unsubscribe(ch chan EventBundle) {
+	w.subscribersMut.Lock()
+	defer w.subscribersMut.Unlock()
 
-	for i, sub := range s.subscribers {
+	for i, sub := range w.subscribers {
 		if sub.ch == ch {
-			s.subscribers = append(s.subscribers[:i], s.subscribers[i+1:]...)
+			w.subscribers = append(w.subscribers[:i], w.subscribers[i+1:]...)
 			telemetry.Subscribers.Dec()
 			close(ch)
 			return
@@ -221,8 +187,8 @@ func (s *store) Unsubscribe(ch chan EventBundle) {
 }
 
 // GetContainer implements Store#GetContainer.
-func (s *store) GetContainer(id string) (*Container, error) {
-	entity, err := s.getEntityByKind(KindContainer, id)
+func (w *workloadmeta) GetContainer(id string) (*Container, error) {
+	entity, err := w.getEntityByKind(KindContainer, id)
 	if err != nil {
 		return nil, err
 	}
@@ -231,13 +197,13 @@ func (s *store) GetContainer(id string) (*Container, error) {
 }
 
 // ListContainers implements Store#ListContainers.
-func (s *store) ListContainers() []*Container {
-	return s.ListContainersWithFilter(nil)
+func (w *workloadmeta) ListContainers() []*Container {
+	return w.ListContainersWithFilter(nil)
 }
 
 // ListContainersWithFilter implements Store#ListContainersWithFilter
-func (s *store) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
-	entities := s.listEntitiesByKind(KindContainer)
+func (w *workloadmeta) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
+	entities := w.listEntitiesByKind(KindContainer)
 
 	// Not very efficient
 	containers := make([]*Container, 0, len(entities))
@@ -253,8 +219,8 @@ func (s *store) ListContainersWithFilter(filter ContainerFilterFunc) []*Containe
 }
 
 // GetKubernetesPod implements Store#GetKubernetesPod
-func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
-	entity, err := s.getEntityByKind(KindKubernetesPod, id)
+func (w *workloadmeta) GetKubernetesPod(id string) (*KubernetesPod, error) {
+	entity, err := w.getEntityByKind(KindKubernetesPod, id)
 	if err != nil {
 		return nil, err
 	}
@@ -281,10 +247,10 @@ func (s *store) GetKubernetesPodByName(podName, podNamespace string) (*Kubernete
 }
 
 // GetProcess implements Store#GetProcess.
-func (s *store) GetProcess(pid int32) (*Process, error) {
+func (w *workloadmeta) GetProcess(pid int32) (*Process, error) {
 	id := strconv.Itoa(int(pid))
 
-	entity, err := s.getEntityByKind(KindProcess, id)
+	entity, err := w.getEntityByKind(KindProcess, id)
 	if err != nil {
 		return nil, err
 	}
@@ -293,8 +259,8 @@ func (s *store) GetProcess(pid int32) (*Process, error) {
 }
 
 // ListProcesses implements Store#ListProcesses.
-func (s *store) ListProcesses() []*Process {
-	entities := s.listEntitiesByKind(KindProcess)
+func (w *workloadmeta) ListProcesses() []*Process {
+	entities := w.listEntitiesByKind(KindProcess)
 
 	processes := make([]*Process, 0, len(entities))
 	for i := range entities {
@@ -305,8 +271,8 @@ func (s *store) ListProcesses() []*Process {
 }
 
 // ListProcessesWithFilter implements Store#ListProcessesWithFilter
-func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
-	entities := s.listEntitiesByKind(KindProcess)
+func (w *workloadmeta) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
+	entities := w.listEntitiesByKind(KindProcess)
 
 	processes := make([]*Process, 0, len(entities))
 	for i := range entities {
@@ -321,11 +287,11 @@ func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 }
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
-func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
+func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
 
-	containerEntities, ok := s.store[KindContainer]
+	containerEntities, ok := w.store[KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
@@ -340,7 +306,7 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	podEntities, ok := s.store[KindKubernetesPod]
+	podEntities, ok := w.store[KindKubernetesPod]
 	if !ok {
 		return nil, errors.NewNotFound(container.Owner.ID)
 	}
@@ -354,8 +320,8 @@ func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 }
 
 // GetKubernetesNode implements Store#GetKubernetesNode
-func (s *store) GetKubernetesNode(id string) (*KubernetesNode, error) {
-	entity, err := s.getEntityByKind(KindKubernetesNode, id)
+func (w *workloadmeta) GetKubernetesNode(id string) (*KubernetesNode, error) {
+	entity, err := w.getEntityByKind(KindKubernetesNode, id)
 	if err != nil {
 		return nil, err
 	}
@@ -374,8 +340,8 @@ func (s *store) GetKubernetesDeployment(id string) (*KubernetesDeployment, error
 }
 
 // GetECSTask implements Store#GetECSTask
-func (s *store) GetECSTask(id string) (*ECSTask, error) {
-	entity, err := s.getEntityByKind(KindECSTask, id)
+func (w *workloadmeta) GetECSTask(id string) (*ECSTask, error) {
+	entity, err := w.getEntityByKind(KindECSTask, id)
 	if err != nil {
 		return nil, err
 	}
@@ -384,8 +350,8 @@ func (s *store) GetECSTask(id string) (*ECSTask, error) {
 }
 
 // ListImages implements Store#ListImages
-func (s *store) ListImages() []*ContainerImageMetadata {
-	entities := s.listEntitiesByKind(KindContainerImageMetadata)
+func (w *workloadmeta) ListImages() []*ContainerImageMetadata {
+	entities := w.listEntitiesByKind(KindContainerImageMetadata)
 
 	images := make([]*ContainerImageMetadata, 0, len(entities))
 	for _, entity := range entities {
@@ -397,8 +363,8 @@ func (s *store) ListImages() []*ContainerImageMetadata {
 }
 
 // GetImage implements Store#GetImage
-func (s *store) GetImage(id string) (*ContainerImageMetadata, error) {
-	entity, err := s.getEntityByKind(KindContainerImageMetadata, id)
+func (w *workloadmeta) GetImage(id string) (*ContainerImageMetadata, error) {
+	entity, err := w.getEntityByKind(KindContainerImageMetadata, id)
 	if err != nil {
 		return nil, err
 	}
@@ -407,21 +373,21 @@ func (s *store) GetImage(id string) (*ContainerImageMetadata, error) {
 }
 
 // Notify implements Store#Notify
-func (s *store) Notify(events []CollectorEvent) {
+func (w *workloadmeta) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
-		s.eventCh <- events
+		w.eventCh <- events
 	}
 }
 
 // ResetProcesses implements Store#ResetProcesses
-func (s *store) ResetProcesses(newProcesses []Entity, source Source) {
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
+func (w *workloadmeta) ResetProcesses(newProcesses []Entity, source Source) {
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
 
 	var events []CollectorEvent
 	newProcessEntities := classifyByKindAndID(newProcesses)[KindProcess]
 
-	processStore := s.store[KindProcess]
+	processStore := w.store[KindProcess]
 	// Remove outdated stored processes
 	for ID, storedProcess := range processStore {
 		if newP, found := newProcessEntities[ID]; !found || storedProcess.cached != newP {
@@ -442,13 +408,13 @@ func (s *store) ResetProcesses(newProcesses []Entity, source Source) {
 		})
 	}
 
-	s.Notify(events)
+	w.Notify(events)
 }
 
 // Reset implements Store#Reset
-func (s *store) Reset(newEntities []Entity, source Source) {
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
+func (w *workloadmeta) Reset(newEntities []Entity, source Source) {
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
 
 	var events []CollectorEvent
 
@@ -465,7 +431,7 @@ func (s *store) Reset(newEntities []Entity, source Source) {
 
 	// Create an "unset" event for each entity that needs to be deleted
 	newEntitiesByKindAndID := classifyByKindAndID(newEntities)
-	for kind, storedEntitiesOfKind := range s.store {
+	for kind, storedEntitiesOfKind := range w.store {
 		initialEntitiesOfKind, found := newEntitiesByKindAndID[kind]
 		if !found {
 			initialEntitiesOfKind = make(map[string]Entity)
@@ -482,10 +448,10 @@ func (s *store) Reset(newEntities []Entity, source Source) {
 		}
 	}
 
-	s.Notify(events)
+	w.Notify(events)
 }
 
-func (s *store) startCandidatesWithRetry(ctx context.Context) error {
+func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = retryCollectorInitialInterval
 	expBackoff.MaxInterval = retryCollectorMaxInterval
@@ -498,7 +464,7 @@ func (s *store) startCandidatesWithRetry(ctx context.Context) error {
 		default:
 		}
 
-		if s.startCandidates(ctx) {
+		if w.startCandidates(ctx) {
 			return nil
 		}
 
@@ -506,12 +472,12 @@ func (s *store) startCandidatesWithRetry(ctx context.Context) error {
 	}, expBackoff)
 }
 
-func (s *store) startCandidates(ctx context.Context) bool {
-	s.collectorMut.Lock()
-	defer s.collectorMut.Unlock()
+func (w *workloadmeta) startCandidates(ctx context.Context) bool {
+	w.collectorMut.Lock()
+	defer w.collectorMut.Unlock()
 
-	for id, c := range s.candidates {
-		err := c.Start(ctx, s)
+	for id, c := range w.candidates {
+		err := c.Start(ctx, w)
 
 		// Leave candidates that returned a retriable error to be
 		// re-started in the next tick
@@ -523,7 +489,7 @@ func (s *store) startCandidates(ctx context.Context) bool {
 		// Store successfully started collectors for future reference
 		if err == nil {
 			log.Infof("workloadmeta collector %q started successfully", id)
-			s.collectors[id] = c
+			w.collectors[id] = c
 		} else {
 			log.Infof("workloadmeta collector %q could not start. error: %s", id, err)
 		}
@@ -531,19 +497,19 @@ func (s *store) startCandidates(ctx context.Context) bool {
 		// Remove non-retriable and successfully started collectors
 		// from the list of candidates so they're not retried in the
 		// next tick
-		delete(s.candidates, id)
+		delete(w.candidates, id)
 	}
 
-	return len(s.candidates) == 0
+	return len(w.candidates) == 0
 }
 
-func (s *store) pull(ctx context.Context) {
-	s.collectorMut.RLock()
-	defer s.collectorMut.RUnlock()
+func (w *workloadmeta) pull(ctx context.Context) {
+	w.collectorMut.RLock()
+	defer w.collectorMut.RUnlock()
 
-	for id, c := range s.collectors {
-		s.ongoingPullsMut.Lock()
-		ongoingPullStartTime := s.ongoingPulls[id]
+	for id, c := range w.collectors {
+		w.ongoingPullsMut.Lock()
+		ongoingPullStartTime := w.ongoingPulls[id]
 		alreadyRunning := !ongoingPullStartTime.IsZero()
 		if alreadyRunning {
 			timeRunning := time.Since(ongoingPullStartTime)
@@ -552,11 +518,11 @@ func (s *store) pull(ctx context.Context) {
 			} else {
 				log.Debugf("collector %q is still running. Will not pull again for now", id)
 			}
-			s.ongoingPullsMut.Unlock()
+			w.ongoingPullsMut.Unlock()
 			continue
 		} else {
-			s.ongoingPulls[id] = time.Now()
-			s.ongoingPullsMut.Unlock()
+			w.ongoingPulls[id] = time.Now()
+			w.ongoingPullsMut.Unlock()
 		}
 
 		// Run each pull in its own separate goroutine to reduce
@@ -574,18 +540,18 @@ func (s *store) pull(ctx context.Context) {
 			s.ongoingPullsMut.Lock()
 			pullDuration := time.Since(s.ongoingPulls[id])
 			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
-			s.ongoingPulls[id] = time.Time{}
-			s.ongoingPullsMut.Unlock()
+			w.ongoingPulls[id] = time.Time{}
+			w.ongoingPullsMut.Unlock()
 		}(id, c)
 	}
 }
 
-func (s *store) handleEvents(evs []CollectorEvent) {
-	s.storeMut.Lock()
-	s.subscribersMut.RLock()
+func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
+	w.storeMut.Lock()
+	w.subscribersMut.RLock()
 
-	filteredEvents := make(map[subscriber][]Event, len(s.subscribers))
-	for _, sub := range s.subscribers {
+	filteredEvents := make(map[subscriber][]Event, len(w.subscribers))
+	for _, sub := range w.subscribers {
 		filteredEvents[sub] = make([]Event, 0, len(evs))
 	}
 
@@ -594,10 +560,10 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 		telemetry.EventsReceived.Inc(string(entityID.Kind), string(ev.Source))
 
-		entitiesOfKind, ok := s.store[entityID.Kind]
+		entitiesOfKind, ok := w.store[entityID.Kind]
 		if !ok {
-			s.store[entityID.Kind] = make(map[string]*cachedEntity)
-			entitiesOfKind = s.store[entityID.Kind]
+			w.store[entityID.Kind] = make(map[string]*cachedEntity)
+			entitiesOfKind = w.store[entityID.Kind]
 		}
 
 		cachedEntity, ok := entitiesOfKind[entityID.ID]
@@ -657,7 +623,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
 		}
 
-		for _, sub := range s.subscribers {
+		for _, sub := range w.subscribers {
 			filter := sub.filter
 			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
 				// event should be filtered out because it
@@ -696,12 +662,12 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 		}
 	}
 
-	s.subscribersMut.RUnlock()
+	w.subscribersMut.RUnlock()
 
 	// unlock the store before notifying subscribers, as they might need to
 	// read it for related entities (such as a pod's containers) while they
 	// process an event.
-	s.storeMut.Unlock()
+	w.storeMut.Unlock()
 
 	for sub, evs := range filteredEvents {
 		if len(evs) == 0 {
@@ -712,11 +678,11 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 	}
 }
 
-func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
+func (w *workloadmeta) getEntityByKind(kind Kind, id string) (Entity, error) {
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
 
-	entitiesOfKind, ok := s.store[kind]
+	entitiesOfKind, ok := w.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(string(kind))
 	}
@@ -729,11 +695,11 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	return entity.cached, nil
 }
 
-func (s *store) listEntitiesByKind(kind Kind) []Entity {
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
+func (w *workloadmeta) listEntitiesByKind(kind Kind) []Entity {
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
 
-	entitiesOfKind, ok := s.store[kind]
+	entitiesOfKind, ok := w.store[kind]
 	if !ok {
 		return nil
 	}
@@ -746,15 +712,15 @@ func (s *store) listEntitiesByKind(kind Kind) []Entity {
 	return entities
 }
 
-func (s *store) unsubscribeAll() {
-	s.subscribersMut.Lock()
-	defer s.subscribersMut.Unlock()
+func (w *workloadmeta) unsubscribeAll() {
+	w.subscribersMut.Lock()
+	defer w.subscribersMut.Unlock()
 
-	for _, sub := range s.subscribers {
+	for _, sub := range w.subscribers {
 		close(sub.ch)
 	}
 
-	s.subscribers = nil
+	w.subscribers = nil
 
 	telemetry.Subscribers.Set(0)
 }
@@ -803,20 +769,7 @@ func classifyByKindAndID(entities []Entity) map[Kind]map[string]Entity {
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalStore(catalog CollectorList) Store {
-	if globalStore != nil {
-		panic("global workloadmeta store already set, should only happen once")
-	}
-
-	globalStore = NewStore(catalog)
-
-	return globalStore
-}
-
-// GetGlobalStore returns a global instance of the workloadmeta store. It does
-// not create one if it's not already set (see CreateGlobalStore) and returns
-// nil in that case.
-func GetGlobalStore() Store {
-	return globalStore
+	return NewStore(catalog)
 }
 
 // ResetGlobalStore resets the global store back to nil. This is useful in lifecycle

@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -40,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type CLIParams struct {
@@ -51,6 +51,7 @@ type DogstatsdComponents struct {
 	DogstatsdServer dogstatsdServer.Component
 	DogstatsdStats  *http.Server
 	MetaScheduler   *pkgmetadata.Scheduler
+	WorkloadMeta    workloadmeta.Component
 }
 
 const (
@@ -125,12 +126,13 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
+func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, wmeta workloadmeta.Component, demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
 	components := &DogstatsdComponents{
 		DogstatsdServer: server,
+		WorkloadMeta:    wmeta,
 	}
 	defer StopAgent(cancel, components)
 

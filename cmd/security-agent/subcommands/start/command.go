@@ -52,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type cliParams struct {
@@ -245,14 +244,17 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
-	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
-	if config.GetBool("security_agent.remote_workloadmeta") {
-		workloadmetaCollectors = workloadmeta.RemoteCatalog
-	}
+	// TODO(components): This all will happen in the component instantiation
+	//                   code.
+	//
+	// workloadmetaCollectors := workloadmeta.NodeAgentCatalog
+	// if config.GetBool("security_agent.remote_workloadmeta") {
+	// 	workloadmetaCollectors = workloadmeta.RemoteCatalog
+	// }
 
-	// Start workloadmeta store
-	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
-	store.Start(ctx)
+	// // Start workloadmeta store
+	// store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
+	// store.Start(ctx)
 
 	// Initialize the remote tagger
 	if config.GetBool("security_agent.remote_tagger") {

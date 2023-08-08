@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -14,6 +15,9 @@ import (
 	"go.uber.org/fx"
 )
 
+// store is a central storage of metadata about workloads. A workload is any
+// unit of work being done by a piece of software, like a process, a container,
+// a kubernetes pod, or a task in any cloud provider.
 type workloadmeta struct {
 	log    log.Component
 	config config.Component
@@ -43,8 +47,29 @@ type dependencies struct {
 	Catalog CollectorList
 }
 
-func newWorkloadMeta(lc fx.Lifecycle, deps dependencies) Component {
+func newWorkloadMeta(lc fx.Lifecycle, ctx context.Context, deps dependencies) Component {
 
-	store := CreateGlobalStore(deps.Catalog)
-	store.Start(ctx)
+	candidates := make(map[string]Collector)
+	for _, c := range deps.Catalog {
+		candidates[c.GetID()] = c
+	}
+
+	wm := &workloadmeta{
+		store:        make(map[Kind]map[string]*cachedEntity),
+		candidates:   candidates,
+		collectors:   make(map[string]Collector),
+		eventCh:      make(chan []CollectorEvent, eventChBufferSize),
+		ongoingPulls: make(map[string]time.Time),
+	}
+
+	// TODO: we probably need something here
+	lc.Append(fx.Hook{OnStart: func(context.Context) error {
+		wm.Start(ctx)
+		return nil
+	}})
+	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		return nil
+	}})
+
+	return wm
 }

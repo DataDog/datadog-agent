@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -18,34 +19,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	// register all workloadmeta collectors
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/core-agent"
 )
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
+func LoadComponents(ctx context.Context, senderManager sender.SenderManager,
+	wmeta workloadmeta.Component, confdPath string) {
 	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 	if err != nil {
 		log.Errorf("failed to create SBOM scanner: %s", err)
 	} else if sbomScanner != nil {
 		sbomScanner.Start(ctx)
 	}
-
-	var catalog workloadmeta.CollectorCatalog
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		catalog = workloadmeta.ClusterAgentCatalog
-	} else {
-		catalog = workloadmeta.NodeAgentCatalog
-	}
-
-	store := workloadmeta.CreateGlobalStore(catalog)
-	store.Start(ctx)
 
 	var t tagger.Tagger
 
@@ -61,7 +47,7 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 			t = remote.NewTagger(options)
 		}
 	} else {
-		t = local.NewTagger(store)
+		t = local.NewTagger(wmeta)
 	}
 
 	tagger.SetDefaultTagger(t)
