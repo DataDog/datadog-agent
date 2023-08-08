@@ -12,6 +12,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -72,7 +73,7 @@ func isDrive(instance string) bool {
 
 // Configure the IOstats check
 func (c *IOCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.commonConfigure(integrationConfigDigest, data, initConfig, source)
+	err := c.commonConfigure(senderManager, integrationConfigDigest, data, initConfig, source)
 	if err != nil {
 		return err
 	}
