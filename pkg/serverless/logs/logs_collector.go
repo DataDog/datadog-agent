@@ -225,9 +225,9 @@ func (lc *LambdaLogsCollector) processMessage(
 		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
-			state := lc.executionContext.GetCurrentState()
-			proactiveInit = state.ProactiveInit
-			coldStart = state.Coldstart
+			firstInvocationContext := lc.executionContext.GetFirstInvocationContest()
+			proactiveInit = firstInvocationContext.WasProactiveInit
+			coldStart = firstInvocationContext.WasColdStart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		outOfMemoryRequestId := ""

@@ -15,37 +15,47 @@ import (
 
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
+// FirstInvocationContext represents the context of the very first invocation
+// of the Lambda sandbox.
+type FirstInvocationContext struct {
+	RequestID        string
+	WasColdStart     bool
+	WasProactiveInit bool
+}
+
 // ExecutionContext represents the execution context
 type ExecutionContext struct {
-	m                  sync.Mutex
-	arn                string
-	lastRequestID      string
-	coldstartRequestID string
-	lastLogRequestID   string
-	lastOOMRequestID   string
-	runtime            string
-	coldstart          bool
-	proactiveInit      bool
-	initTime           time.Time
-	startTime          time.Time
-	endTime            time.Time
+	m                      sync.Mutex
+	arn                    string
+	lastRequestID          string
+	coldstartRequestID     string
+	lastLogRequestID       string
+	lastOOMRequestID       string
+	runtime                string
+	coldstart              bool
+	proactiveInit          bool
+	firstInvocationContext FirstInvocationContext
+	initTime               time.Time
+	startTime              time.Time
+	endTime                time.Time
 
 	persistedStateFilePath string
 }
 
 // State represents the state of the execution context at a point in time
 type State struct {
-	ARN                string
-	LastRequestID      string
-	ColdstartRequestID string
-	LastLogRequestID   string
-	LastOOMRequestID   string
-	Runtime            string
-	Coldstart          bool
-	ProactiveInit      bool
-	InitTime           time.Time
-	StartTime          time.Time
-	EndTime            time.Time
+	ARN                    string
+	LastRequestID          string
+	ColdstartRequestID     string
+	LastLogRequestID       string
+	LastOOMRequestID       string
+	Runtime                string
+	Coldstart              bool
+	ProactiveInit          bool
+	firstInvocationContext FirstInvocationContext
+	InitTime               time.Time
+	StartTime              time.Time
+	EndTime                time.Time
 }
 
 // GetCurrentState gets the current state of the execution context
@@ -53,18 +63,27 @@ func (ec *ExecutionContext) GetCurrentState() State {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	return State{
-		ARN:                ec.arn,
-		LastRequestID:      ec.lastRequestID,
-		ColdstartRequestID: ec.coldstartRequestID,
-		LastLogRequestID:   ec.lastLogRequestID,
-		LastOOMRequestID:   ec.lastOOMRequestID,
-		Runtime:            ec.runtime,
-		Coldstart:          ec.coldstart,
-		ProactiveInit:      ec.proactiveInit,
-		InitTime:           ec.initTime,
-		StartTime:          ec.startTime,
-		EndTime:            ec.endTime,
+		ARN:                    ec.arn,
+		LastRequestID:          ec.lastRequestID,
+		ColdstartRequestID:     ec.coldstartRequestID,
+		LastLogRequestID:       ec.lastLogRequestID,
+		LastOOMRequestID:       ec.lastOOMRequestID,
+		Runtime:                ec.runtime,
+		Coldstart:              ec.coldstart,
+		ProactiveInit:          ec.proactiveInit,
+		firstInvocationContext: ec.firstInvocationContext,
+		InitTime:               ec.initTime,
+		StartTime:              ec.startTime,
+		EndTime:                ec.endTime,
 	}
+}
+
+// GetFirstInvocationContest gets the context of the first invocation of this
+// Lambda sandbox
+func (ec *ExecutionContext) GetFirstInvocationContest() FirstInvocationContext {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	return ec.firstInvocationContext
 }
 
 // LastRequestID return the last seen request identifier through the extension API.
@@ -88,13 +107,23 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 		// is greater than 10, we're in a proactive_initialization
 		// not a cold start
 
+		firstInvocationContext := FirstInvocationContext{
+			RequestID:        requestID,
+			WasColdStart:     false,
+			WasProactiveInit: false,
+		}
+
 		// TODO Astuyve - refactor this to use initTime
 		// from TelemetryAPI
 		if time.Now().Sub(ec.initTime) > 10*time.Second {
 			ec.proactiveInit = true
 			ec.coldstart = false
+
+			firstInvocationContext.WasProactiveInit = true
 		} else {
 			ec.coldstart = true
+
+			firstInvocationContext.WasColdStart = true
 		}
 		ec.coldstartRequestID = requestID
 	} else {
