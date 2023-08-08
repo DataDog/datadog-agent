@@ -2357,6 +2357,12 @@ api_key:
 #
 # jmx_statsd_telemetry_enabled: false
 
+## @param jmx_instance_telemetry_enabled - boolean - optional - default: false
+## @env DD_JMX_INSTANCE_TELEMETRY_ENABLED - boolean - optional - default: false
+## Specifies whether the JMXFetch instance telemetry is enabled.
+#
+# jmx_instance_telemetry_enabled: false
+
 {{ end -}}
 {{- if .Logging }}
 
