@@ -34,6 +34,8 @@ END_COLOR="\e[0m"
 
 set -e
 
+export PATH=$PATH:/opt/apache-maven/bin
+
 script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 
 if [ -z "$AWS_SECRET_ACCESS_KEY" ] && [ -z "$AWS_PROFILE" ]; then
