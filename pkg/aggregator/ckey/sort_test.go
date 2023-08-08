@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/util_sort"
 )
 
 // Helper function
@@ -45,7 +45,7 @@ func TestSortOK(t *testing.T) {
 			stdSort := make([]string, len(toSort))
 			copy(stdSort, toSort)
 
-			util.InsertionSort(selSort)
+			util_sort.InsertionSort(selSort)
 			sort.Strings(stdSort)
 
 			assert.Equal(t, stdSort, selSort)

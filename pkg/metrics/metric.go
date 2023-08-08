@@ -5,55 +5,19 @@
 
 package metrics
 
-import "fmt"
+import (
+	"github.com/DataDog/datadog-agent/pkg/metrics/model"
+)
 
 // APIMetricType represents an API metric type
-type APIMetricType int
+type APIMetricType = model.APIMetricType
 
 // Enumeration of the existing API metric types
 const (
-	APIGaugeType APIMetricType = iota
-	APIRateType
-	APICountType
+	APIGaugeType = model.APIGaugeType
+	APIRateType  = model.APIRateType
+	APICountType = model.APICountType
 )
-
-// String returns a string representation of APIMetricType
-func (a APIMetricType) String() string {
-	switch a {
-	case APIGaugeType:
-		return "gauge"
-	case APIRateType:
-		return "rate"
-	case APICountType:
-		return "count"
-	default:
-		return ""
-	}
-}
-
-// MarshalText implements the encoding.TextMarshal interface to marshal
-// an APIMetricType to a serialized byte slice
-func (a APIMetricType) MarshalText() ([]byte, error) {
-	str := a.String()
-	if str == "" {
-		return []byte{}, fmt.Errorf("Can't marshal unknown metric type %d", a)
-	}
-
-	return []byte(str), nil
-}
-
-// UnmarshalText is a custom unmarshaller for APIMetricType (used for testing)
-func (a *APIMetricType) UnmarshalText(buf []byte) error {
-	switch string(buf) {
-	case "gauge":
-		*a = APIGaugeType
-	case "rate":
-		*a = APIRateType
-	case "count":
-		*a = APICountType
-	}
-	return nil
-}
 
 // Metric is the interface of all metric types
 type Metric interface {
