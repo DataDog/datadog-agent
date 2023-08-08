@@ -1615,6 +1615,13 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
+	afBasedExcluder, err := newAvailableFunctionsBasedExcluder()
+	if err != nil {
+		return nil, err
+	}
+
+	p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
+
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
 
