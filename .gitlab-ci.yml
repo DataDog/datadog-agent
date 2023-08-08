@@ -83,7 +83,7 @@ stages:
   - choco_build
   - choco_deploy
   - internal_image_deploy
-  - install_script_testing 
+  - install_script_testing
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
@@ -863,6 +863,7 @@ workflow:
         - pkg/collector/corechecks/ebpf/**/*
         - pkg/ebpf/**/*
         - pkg/network/**/*
+        - pkg/process/monitor/*
         - pkg/util/kernel/**/*
         - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
         - test/kitchen/test/integration/system-probe-test/**/*
