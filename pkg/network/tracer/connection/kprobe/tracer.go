@@ -15,9 +15,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -326,11 +326,11 @@ func isCORETracerSupported() error {
 		return nil
 	}
 
-	hostInfo := host.GetStatusInformation()
+	platform := hostMetadataUtils.GetPlatformName()
 	// centos/redhat distributions we support
 	// can have kernel versions < 4, and
 	// CO-RE is supported there
-	if hostInfo.Platform == "centos" || hostInfo.Platform == "redhat" {
+	if platform == "centos" || platform == "redhat" {
 		return nil
 	}
 

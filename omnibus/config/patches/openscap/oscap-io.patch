@@ -40,7 +40,7 @@
 +endif()
 --- /dev/null
 +++ b/utils/oscap-io/oscap-io.c
-@@ -0,0 +1,219 @@
+@@ -0,0 +1,222 @@
 +#include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
@@ -73,7 +73,10 @@
 +
 +	n = xccdf_session_load(session);
 +	if (n != 0) {
-+		fprintf(stderr, "error: xccdf_session_load: %s\n", oscap_err_get_full_error());
++		char *err = oscap_err_get_full_error();
++		fprintf(stderr, "error: xccdf_session_load: %s\n", err);
++		free(err);
++		xccdf_session_free(session);
 +		return NULL;
 +	}
 +

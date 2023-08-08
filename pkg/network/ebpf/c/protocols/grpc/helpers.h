@@ -45,7 +45,7 @@ static __always_inline bool is_encoded_grpc_content_type(const char *content_typ
 
 static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     // We only care about indexed names
-    if (idx != kContentType) {
+    if (idx != HTTP2_CONTENT_TYPE_IDX) {
         return PAYLOAD_UNDETERMINED;
     }
 
@@ -94,7 +94,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
             // Having a literal, with an index pointing to a ":method" key means a
             // request method that is not POST or GET. gRPC only uses POST, so 
             // finding a :method here is an indicator of non-GRPC content.
-            if (idx.literal.index == kMethod) {
+            if (idx.literal.index == kGET || idx.literal.index == kPOST) {
                 status = PAYLOAD_NOT_GRPC;
                 break;
             }

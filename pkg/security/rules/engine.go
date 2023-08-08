@@ -446,6 +446,10 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 }
 
+func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
+	return e.GetRuleSet().StopEventCollector()
+}
+
 func logLoadingErrors(msg string, m *multierror.Error) {
 	var errorLevel bool
 	for _, err := range m.Errors {

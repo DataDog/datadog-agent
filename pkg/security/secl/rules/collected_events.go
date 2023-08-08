@@ -3,14 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package host
+package rules
 
-import (
-	"testing"
-)
-
-func TestFillOsVersion(t *testing.T) {
-	stats := &systemStats{}
-	info := getHostInfo()
-	fillOsVersion(stats, info)
+type CollectedEvent struct {
+	Type       string
+	EvalResult bool
+	Fields     map[string]interface{}
 }
