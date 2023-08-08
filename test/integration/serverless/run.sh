@@ -19,10 +19,10 @@
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 # ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
-DEFAULT_NODE_LAYER_VERSION=67
-DEFAULT_PYTHON_LAYER_VERSION=50
+DEFAULT_NODE_LAYER_VERSION=95
+DEFAULT_PYTHON_LAYER_VERSION=77
 DEFAULT_JAVA_TRACE_LAYER_VERSION=11
-DEFAULT_DOTNET_TRACE_LAYER_VERSION=3
+DEFAULT_DOTNET_TRACE_LAYER_VERSION=9
 DEFAULT_ARCHITECTURE=amd64
 
 # Text formatting constants
@@ -33,6 +33,8 @@ MAGENTA="\e[1;45m"
 END_COLOR="\e[0m"
 
 set -e
+
+export PATH=$PATH:/opt/apache-maven/bin
 
 script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 
