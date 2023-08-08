@@ -156,6 +156,10 @@ type SpanContext struct {
 	TraceID uint64 `field:"_" json:"-"`
 }
 
+type EventInterface interface {
+	GetType() string
+}
+
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
 	ID           string         `field:"-" event:"*"`
@@ -232,6 +236,61 @@ func (e *Event) Init() {
 func (e *Event) Zero() {
 	*e = eventZero
 	*e.BaseEvent.ContainerContext = containerContextZero
+}
+
+// ProcessEvent is a common interface for collected process events shared across multiple event listener implementations
+// Copied from pkg/process/events/model/model_common.go
+type ProcessEvent struct {
+	EventType      string    `json:"event_type" msg:"event_type"` // This field is different from the one in the process package
+	CollectionTime time.Time `json:"collection_time" msg:"collection_time"`
+	Pid            uint32    `json:"pid" msg:"pid"`
+	ContainerID    string    `json:"container_id" msg:"container_id"`
+	Ppid           uint32    `json:"ppid" msg:"ppid"`
+	UID            uint32    `json:"uid" msg:"uid"`
+	GID            uint32    `json:"gid" msg:"gid"`
+	Username       string    `json:"username" msg:"username"`
+	Group          string    `json:"group" msg:"group"`
+	Exe            string    `json:"exe" msg:"exe"`
+	Cmdline        []string  `json:"cmdline" msg:"cmdline"`
+	ForkTime       time.Time `json:"fork_time,omitempty" msg:"fork_time,omitempty"`
+	ExecTime       time.Time `json:"exec_time,omitempty" msg:"exec_time,omitempty"`
+	ExitTime       time.Time `json:"exit_time,omitempty" msg:"exit_time,omitempty"`
+	ExitCode       uint32    `json:"exit_code,omitempty" msg:"exit_code,omitempty"`
+}
+
+func (e *ProcessEvent) GetType() string {
+	return e.EventType
+}
+
+// Copy makes a copy of the event
+func (e *Event) Copy() EventInterface {
+	entry := e.ProcessContext
+
+	var cmdline []string
+	if entry.ArgsEntry != nil {
+		// ignore if the args have been truncated
+		cmdline = entry.ArgsEntry.Values
+	}
+
+	transformedEvent := &ProcessEvent{
+		EventType:      e.GetEventType().String(),
+		CollectionTime: e.Timestamp,
+		Pid:            entry.Pid,
+		ContainerID:    entry.ContainerID,
+		Ppid:           entry.PPid,
+		UID:            entry.UID,
+		GID:            entry.GID,
+		Username:       entry.User,
+		Group:          entry.Group,
+		Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
+		Cmdline:        cmdline,
+		ForkTime:       entry.ForkTime,
+		ExecTime:       entry.ExecTime,
+		ExitTime:       entry.ExitTime,
+		ExitCode:       e.Exit.Code,
+	}
+
+	return transformedEvent
 }
 
 // IsSavedByActivityDumps return whether saved by AD

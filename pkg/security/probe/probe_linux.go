@@ -364,9 +364,23 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
+
+	// For event monitor
+	// Force resolution of all event fields before exposing it through the API server
+	event.ResolveFields()
+	event.ResolveEventTime()
+	copiedEvent := event.Copy()
+
 	// send specific event
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
+		// network uses type HandlerFunc func(*model.ProcessContext)
+		// process uses
+
+		if handler.IsEventMonitorConsumer() {
+			handler.HandleEvent(copiedEvent)
+		} else {
+			handler.HandleEvent(event)
+		}
 	}
 
 	// handle anomaly detections
