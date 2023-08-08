@@ -103,7 +103,7 @@ func (cw *CustomWriter) writeWithMaxBufferSize(p []byte, maxBufferSize int) (n i
 	fmt.Print(string(p))
 
 	if len(p) > maxBufferSize {
-		log.Errorf("Received a log chunk over %d. Truncating", maxBufferSize)
+		log.Errorf("Received a log chunk over %d kb. Truncating", maxBufferSize)
 		p = p[:maxBufferSize]
 	}
 
@@ -115,7 +115,7 @@ func (cw *CustomWriter) writeWithMaxBufferSize(p []byte, maxBufferSize int) (n i
 	// Prevent buffer overflow, flush the buffer if writing the current chunk
 	// will exceed maxBufferSize
 	if cw.LineBuffer.Len()+len(p) > maxBufferSize {
-		log.Errorf("Log buffer exceeds %d. Flushing log buffer\n", maxBufferSize)
+		log.Errorf("Log buffer exceeds %d kb. Flushing log buffer\n", maxBufferSize)
 		Write(cw.LogConfig, getByteArrayClone(cw.LineBuffer.Bytes()), cw.IsError)
 		cw.LineBuffer.Reset()
 	}
