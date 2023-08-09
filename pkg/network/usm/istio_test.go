@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 
 func TestIsEnvoyProcess(t *testing.T) {
 	_ = createFakeProcFS(t)
-	monitor := newIstioMonitor(nil)
+	monitor := newIstioTestMonitor(t)
 
 	t.Run("an actual envoy process", func(t *testing.T) {
 		path, ok := monitor.isEnvoyProcess(uint32(1))
@@ -37,7 +38,7 @@ func TestIsEnvoyProcess(t *testing.T) {
 func TestIstioSync(t *testing.T) {
 	t.Run("calling sync for the first time", func(t *testing.T) {
 		procRoot := createFakeProcFS(t)
-		monitor := newIstioMonitor(nil)
+		monitor := newIstioTestMonitor(t)
 		registerRecorder := new(utils.CallbackRecorder)
 
 		// Setup test callbacks
@@ -60,7 +61,7 @@ func TestIstioSync(t *testing.T) {
 
 	t.Run("calling sync multiple times", func(t *testing.T) {
 		procRoot := createFakeProcFS(t)
-		monitor := newIstioMonitor(nil)
+		monitor := newIstioTestMonitor(t)
 		registerRecorder := new(utils.CallbackRecorder)
 
 		// Setup test callbacks
@@ -88,7 +89,7 @@ func TestIstioSync(t *testing.T) {
 
 	t.Run("detecting a dangling process", func(t *testing.T) {
 		procRoot := createFakeProcFS(t)
-		monitor := newIstioMonitor(nil)
+		monitor := newIstioTestMonitor(t)
 		registerRecorder := new(utils.CallbackRecorder)
 		unregisterRecorder := new(utils.CallbackRecorder)
 
@@ -193,4 +194,13 @@ func createFile(t *testing.T, path, data string) {
 	dir := filepath.Dir(path)
 	require.NoError(t, os.MkdirAll(dir, 0775))
 	require.NoError(t, os.WriteFile(path, []byte(data), 0775))
+}
+
+func newIstioTestMonitor(t *testing.T) *istioMonitor {
+	cfg := config.New()
+	cfg.EnableIstioMonitoring = true
+
+	monitor := newIstioMonitor(cfg, nil)
+	require.NotNil(t, monitor)
+	return monitor
 }

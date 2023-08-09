@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -55,7 +56,11 @@ type istioMonitor struct {
 	done chan struct{}
 }
 
-func newIstioMonitor(mgr *manager.Manager) *istioMonitor {
+func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
+	if !c.EnableIstioMonitoring {
+		return nil
+	}
+
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
 		procRoot: kernel.ProcFSRoot(),
@@ -68,6 +73,10 @@ func newIstioMonitor(mgr *manager.Manager) *istioMonitor {
 }
 
 func (m *istioMonitor) Start() {
+	if m == nil {
+		return
+	}
+
 	processMonitor := monitor.GetProcessMonitor()
 
 	// Subscribe to process events
@@ -110,6 +119,10 @@ func (m *istioMonitor) Start() {
 }
 
 func (m *istioMonitor) Stop() {
+	if m == nil {
+		return
+	}
+
 	close(m.done)
 	m.wg.Wait()
 }

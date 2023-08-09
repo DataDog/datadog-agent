@@ -386,7 +386,7 @@ type sslProgram struct {
 
 func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+		if (!c.EnableHTTPSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
 		}
 
@@ -415,7 +415,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 			cfg:          c,
 			watcher:      watcher,
 			sockFDMap:    sockFDMap,
-			istioMonitor: newIstioMonitor(m),
+			istioMonitor: newIstioMonitor(c, m),
 		}, nil
 	}
 }

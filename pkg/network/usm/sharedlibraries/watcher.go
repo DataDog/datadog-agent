@@ -19,6 +19,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -64,6 +65,10 @@ type Watcher struct {
 }
 
 func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
+	if !cfg.EnableHTTPSMonitoring || !http.HTTPSSupported(cfg) {
+		return nil, nil
+	}
+
 	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
 	err := ebpfProgram.Init()
 	if err != nil {
