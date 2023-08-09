@@ -8,6 +8,7 @@ package httpsec
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -228,6 +229,17 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
+
+		// Make sure to mark the service entry span with the appsec.event: true tag
+		value := os.Getenv("DD_APM_TRACING_ENABLED")
+		standalone := value != "true" && value != "1"
+		if standalone {
+			for _, sp := range chunk.Spans {
+				if sp.ParentID == 0 {
+					sp.Meta["appsec.event"] = "true"
+				}
+			}
+		}
 	}
 }
 

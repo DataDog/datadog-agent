@@ -70,6 +70,12 @@ func isEnabled() (enabled bool, set bool, err error) {
 	}
 }
 
+// IsStandalone returns whether appsec is used as a standalone product (without APM tracing) or not
+func IsStandalone() bool {
+	value := os.Getenv("DD_APM_TRACING_ENABLED")
+	return value != "true" && value != "1"
+}
+
 func newConfig() (*Config, error) {
 	rules, err := readRulesConfig()
 	if err != nil {

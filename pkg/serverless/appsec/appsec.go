@@ -61,6 +61,11 @@ func newAppSec() (*AppSec, error) {
 		return nil, nil
 	}
 
+	// Check if appsec is used as a standalone product (i.e with APM tracing)
+	if IsStandalone() {
+		log.Info("appsec: starting in standalone mode. APM tracing will be disabled for this service")
+	}
+
 	// Check if AppSec can actually run properly
 	if err := wafHealth(); err != nil {
 		return nil, err
