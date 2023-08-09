@@ -263,6 +263,9 @@ func AllBPFProbeWriteUserProgramFunctions() []string {
 		"kprobe_dentry_resolver_erpc_write_user",
 		"kprobe_dentry_resolver_parent_erpc_write_user",
 		"kprobe_dentry_resolver_segment_erpc_write_user",
+		"fentry_dentry_resolver_erpc_write_user",
+		"fentry_dentry_resolver_parent_erpc_write_user",
+		"fentry_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

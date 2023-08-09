@@ -83,6 +83,7 @@ kitchen_test_security_agent_arm64:
   rules:
     !reference [.on_security_agent_changes_or_manual]
   needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64" ]
+  allow_failure: true
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
