@@ -17,8 +17,19 @@ const ContentTypeProtobuf = "application/protobuf"
 
 type protoSerializer struct{}
 
-func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	payload := modelConnections(conns)
+func (p protoSerializer) Model(conns *network.Connections, modeler *Modeler) *model.Connections {
+	return modelConnections(conns, modeler.httpEncoder, modeler.http2Encoder, modeler.kafkaEncoder)
+}
+
+func (p protoSerializer) InitModeler(conns *network.Connections) *Modeler {
+	return &Modeler{
+		httpEncoder:  NewHTTPEncoder(conns.HTTP),
+		http2Encoder: NewHTTP2Encoder(conns.HTTP2),
+		kafkaEncoder: NewKafkaEncoder(conns.Kafka),
+	}
+}
+
+func (protoSerializer) Marshal(payload *model.Connections) ([]byte, error) {
 	buf, err := proto.Marshal(payload)
 	returnToPool(payload)
 	return buf, err

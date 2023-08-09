@@ -29,9 +29,17 @@ var (
 	agentCfg *model.AgentConfiguration
 )
 
+type Modeler struct {
+	httpEncoder  *httpEncoder
+	http2Encoder *http2Encoder
+	kafkaEncoder *kafkaEncoder
+}
+
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
-	Marshal(conns *network.Connections) ([]byte, error)
+	Marshal(conns *model.Connections) ([]byte, error)
+	Model(conns *network.Connections, modeler *Modeler) *model.Connections
+	InitModeler(conns *network.Connections) *Modeler
 	ContentType() string
 }
 
@@ -58,7 +66,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-func modelConnections(conns *network.Connections) *model.Connections {
+func modelConnections(conns *network.Connections, httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder) *model.Connections {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
@@ -69,12 +77,6 @@ func modelConnections(conns *network.Connections) *model.Connections {
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
-	httpEncoder := newHTTPEncoder(conns.HTTP)
-	defer httpEncoder.Close()
-	kafkaEncoder := newKafkaEncoder(conns.Kafka)
-	defer kafkaEncoder.Close()
-	http2Encoder := newHTTP2Encoder(conns.HTTP2)
-	defer http2Encoder.Close()
 
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)

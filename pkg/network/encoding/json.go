@@ -7,10 +7,9 @@ package encoding
 
 import (
 	"bytes"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/jsonpb"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
@@ -21,8 +20,19 @@ type jsonSerializer struct {
 	marshaller jsonpb.Marshaler
 }
 
-func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	payload := modelConnections(conns)
+func (j jsonSerializer) Model(conns *network.Connections, modeler *Modeler) *model.Connections {
+	return modelConnections(conns, modeler.httpEncoder, modeler.http2Encoder, modeler.kafkaEncoder)
+}
+
+func (j jsonSerializer) InitModeler(conns *network.Connections) *Modeler {
+	return &Modeler{
+		httpEncoder:  NewHTTPEncoder(conns.HTTP),
+		http2Encoder: NewHTTP2Encoder(conns.HTTP2),
+		kafkaEncoder: NewKafkaEncoder(conns.Kafka),
+	}
+}
+
+func (j jsonSerializer) Marshal(payload *model.Connections) ([]byte, error) {
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, payload)
 	returnToPool(payload)

@@ -31,7 +31,7 @@ type kafkaEncoder struct {
 	aggregations *model.DataStreamsAggregations
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
+func NewKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
 	if len(kafkaPayloads) == 0 {
 		return nil
 	}

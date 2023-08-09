@@ -49,7 +49,7 @@ type http2Encoder struct {
 	toRelease []*map[int32]*model.HTTPStats_Data
 }
 
-func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
+func NewHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
 	if len(http2Payloads) == 0 {
 		return nil
 	}

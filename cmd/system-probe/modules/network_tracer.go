@@ -20,6 +20,7 @@ import (
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
@@ -89,13 +90,13 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 	return stats
 }
 
-func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
-	buf, err := marshaler.Marshal(cs)
+func getConnectionsFromMarshler(marshaler encoding.Marshaler, payload *model.Connections) ([]byte, error) {
+	buf, err := marshaler.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Tracef("GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	log.Tracef("GetConnections: %d connections, %d bytes", len(payload.Conns), len(buf))
 	return buf, nil
 }
 
@@ -124,7 +125,12 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	count := runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
 
+	// creating a marshaler for the connections
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
+
+	modeler := marshaler.InitModeler(cs)
+	// modeling the current connections and returning it as a payload of connections for the marshaler
+	payload := marshaler.Model(cs, modeler)
 	connections := &connectionserver.Connection{}
 
 	defer network.Reclaim(cs)
@@ -134,7 +140,8 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		rest := cs.Conns[finalBatchSize:]
 		cs.Conns = cs.Conns[:finalBatchSize]
 
-		conns, err := getConnectionsFromMarshaler(marshaler, cs)
+		// get the conns for a batch by the marshaler
+		conns, err := getConnectionsFromMarshler(marshaler, payload)
 		if err != nil {
 			return err
 		}
@@ -360,7 +367,9 @@ func getClientID(req *http.Request) string {
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
-	buf, err := marshaler.Marshal(cs)
+	modeler := marshaler.InitModeler(cs)
+	payload := marshaler.Model(cs, modeler)
+	buf, err := marshaler.Marshal(payload)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
