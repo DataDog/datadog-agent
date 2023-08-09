@@ -119,9 +119,6 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 			ec.wasColdStart = true
 		}
 		ec.coldstartRequestID = requestID
-	} else {
-		ec.wasProactiveInit = false
-		ec.wasColdStart = false
 	}
 }
 
