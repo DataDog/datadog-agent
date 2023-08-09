@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -44,7 +45,7 @@ func TestStatus(t *testing.T) {
 		Date: float64(testTime.UnixNano()),
 		Core: util.CoreStatus{
 			Metadata: host.Payload{
-				Meta: &host.Meta{},
+				Meta: &hostMetadataUtils.Meta{},
 			},
 		},
 		Expvars: util.ProcessExpvars{},
