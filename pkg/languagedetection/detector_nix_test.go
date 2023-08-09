@@ -110,7 +110,7 @@ func TestDetectLanguage(t *testing.T) {
 			name:     "jruby",
 			cmdline:  []string{"java", "-Djruby.home=/usr/share/jruby", "-Djruby.lib=/usr/share/jruby/lib", "org.jruby.Main", "prog.rb"},
 			comm:     "java",
-			expected: languagemodels.Java, // TODO: not yet implemented
+			expected: languagemodels.Ruby,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
