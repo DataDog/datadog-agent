@@ -293,6 +293,7 @@
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
+/pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/secrets/                           @DataDog/agent-shared-components
