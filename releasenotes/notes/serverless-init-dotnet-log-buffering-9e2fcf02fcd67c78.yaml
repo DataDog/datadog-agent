@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix logs splitting with serverless-init on dotnet apps.
