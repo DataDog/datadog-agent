@@ -189,7 +189,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 	// prepare go runtime
 	cgsetprocs := agentrt.SetMaxProcs()
 	if !cgsetprocs {
-		procs := runtime.GOMAXPROCS(0)
 		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
 			log.Infof("GOMAXPROCS manually set to %v", mp)
 		} else if tracecfg.MaxCPU > 0 {
@@ -197,7 +196,7 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 			if allowedCores < 1 {
 				allowedCores = 1
 			}
-			if allowedCores < procs {
+			if allowedCores < runtime.GOMAXPROCS(0) {
 				log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, (allowedCores))
 				runtime.GOMAXPROCS(int(allowedCores))
 			}
@@ -217,17 +216,17 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 		if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
 			log.Infof("GOMEMLIMIT manually set to: %v", lim)
 		} else if tracecfg.MaxMemory > 0 {
-			// We have a apm_config.max_memory that's lower than the cgroup limit.
-			log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			// We have apm_config.max_memory, and no cgroup memory limit is in place.
+			//log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
 			finalmem := int64(tracecfg.MaxMemory * 0.9)
 			debug.SetMemoryLimit(finalmem)
-			log.Infof("Maximum memory available: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
+			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
 		} else {
 			// There are no memory constraints
 			log.Infof("GOMEMLIMIT unconstrained.")
 		}
 	} else {
-		log.Infof("Memory constrained by cgroup. Setting GOMEMLIMIT to: %vMiB", cgmem/(1024*1024))
+		log.Infof("Memory constrained by cgroup. GOMEMLIMIT is: %vMiB", cgmem/(1024*1024))
 	}
 
 	agnt := agent.NewAgent(ctx, tracecfg, telemetryCollector)
