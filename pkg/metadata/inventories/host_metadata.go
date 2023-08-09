@@ -142,11 +142,10 @@ func getHostMetadata() *HostMetadata {
 	if err != nil {
 		logErrorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 	} else {
-
 		logWarnings(warnings)
 
 		metadata.IPAddress = networkInfo.IPAddress
-		metadata.IPv6Address, _ = networkInfo.IPAddressV6.Value()
+		metadata.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
 		metadata.MacAddress = networkInfo.MacAddress
 	}
 
