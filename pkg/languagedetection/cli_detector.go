@@ -83,7 +83,7 @@ func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReade
 		}
 	}
 
-	if sysprobeConfig != nil && sysprobeConfig.GetBool("system_probe_config.language_detection.enabled") {
+	if privilegedLanguageDetectionEnabled(sysprobeConfig) {
 		log.Trace("[language detection] Requesting language from system probe")
 		util, err := net.GetRemoteSystemProbeUtil(
 			sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
