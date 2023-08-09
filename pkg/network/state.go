@@ -43,7 +43,7 @@ var stateTelemetry = struct {
 	dnsPidCollisions      *nettelemetry.StatCounterWrapper
 	udpDirectionFixes     telemetry.Counter
 }{
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{}, "Counter measuring the number of dropped closed connections"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
@@ -497,7 +497,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			}
 
 			if uint32(len(client.closedConnections)) >= ns.maxClosedConns {
-				stateTelemetry.closedConnDropped.Inc()
+				stateTelemetry.closedConnDropped.Inc(c.Type.String())
 				continue
 			}
 
