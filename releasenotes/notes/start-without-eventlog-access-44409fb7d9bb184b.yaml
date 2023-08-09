@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The agent will now start even if it cannot write events to the Application event log
