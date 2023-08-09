@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fixes incorrect cold_start tags on enhanced metrics generated from Lambda REPORT logs.
