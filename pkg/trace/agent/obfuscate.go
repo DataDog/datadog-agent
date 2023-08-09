@@ -104,7 +104,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 
 				cmdExec, cmdIndices, err := o.ObfuscateExecCommand(v)
 				if err != nil {
-					log.Errorf("Error obfuscating exec command %q: %v", v, err)
+					log.Debugf("Error obfuscating exec command %q: %v", v, err)
 					return
 				}
 
