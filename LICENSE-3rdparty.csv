@@ -1322,6 +1322,7 @@ core,github.com/secure-systems-lab/go-securesystemslib/dsse,MIT,Copyright (c) 20
 core,github.com/secure-systems-lab/go-securesystemslib/signerverifier,MIT,Copyright (c) 2021 NYU Secure Systems Lab
 core,github.com/sergi/go-diff/diffmatchpatch,MIT,Copyright (c) 2012-2016 The go-diff Authors. All rights reserved | Danny Yoo <dannyyoo@google.com> | James Kolb <jkolb@google.com> | Jonathan Amsterdam <jba@google.com> | Markus Zimmermann <markus.zimmermann@nethead.at> <markus.zimmermann@symflower.com> <zimmski@gmail.com> | Matt Kovars <akaskik@gmail.com> | Osman Masood <oamasood@gmail.com> | Robert Carlsen <rwcarlsen@gmail.com> | Rory Flynn <roryflynn@users.noreply.github.com> | Sergi Mansilla <sergi.mansilla@gmail.com> | Shatrugna Sadhu <ssadhu@apcera.com> | Shawn Smith <shawnpsmith@gmail.com> | Stas Maksimov <maksimov@gmail.com> | Tor Arvid Lund <torarvid@gmail.com> | Zac Bergquist <zbergquist99@gmail.com> | Örjan Persson <orjan@spotify.com>
 core,github.com/shibumi/go-pathspec,Apache-2.0,Copyright (c) 2012 The Go Authors. All rights reserved.
+core,github.com/shirou/gopsutil/v3/common,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/cpu,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/disk,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/host,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
@@ -1331,6 +1332,7 @@ core,github.com/shirou/gopsutil/v3/mem,BSD-3-Clause,"Copyright (c) 2009 The Go A
 core,github.com/shirou/gopsutil/v3/net,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/gopsutil/v3/process,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2014, WAKAYAMA Shirou"
 core,github.com/shirou/w32,BSD-3-Clause,Copyright (c) 2010-2012 The w32 Authors. All rights reserved.
+core,github.com/shoenig/go-m1cpu,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
 core,github.com/shopspring/decimal,MIT,"Copyright (c) 2013 Oguz Bilgic | Copyright (c) 2015 Spring, Inc"
 core,github.com/sigstore/rekor/pkg/generated/client,Apache-2.0,Copyright 2021 The Sigstore Authors
 core,github.com/sigstore/rekor/pkg/generated/client/entries,Apache-2.0,Copyright 2021 The Sigstore Authors
