@@ -378,12 +378,21 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, latestTime, buffer.Connections(), t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), network.NewLocalResolver(t.config))
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
+	var udpConns, tcpConns int
 	for i := range delta.Conns {
 		conn := &delta.Conns[i]
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
-		tracerTelemetry.payloadSizePerClient.Inc(clientID, conn.Type.String())
+		switch conn.Type {
+		case network.UDP:
+			udpConns++
+		case network.TCP:
+			tcpConns++
+		}
 	}
+
+	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
+	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
 
 	buffer = network.NewConnectionBufferFromSlice(delta.Conns)
 	conns := network.NewConnections(&network.PooledConnectionBuffer{
