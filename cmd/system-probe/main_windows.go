@@ -23,18 +23,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
-type service struct{}
+type service struct {
+	errChan <-chan error
+	ctxChan chan context.Context
+}
 
 func (s *service) Name() string {
 	return config.ServiceName
 }
 
 func (s *service) Init() error {
-	err := runsubcmd.StartSystemProbeWithDefaults()
-	if errors.Is(err, runsubcmd.ErrNotEnabled) {
-		return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+	s.ctxChan = make(chan context.Context)
+
+	errChan, err := runsubcmd.StartSystemProbeWithDefaults(s.ctxChan)
+	if err != nil {
+		if errors.Is(err, runsubcmd.ErrNotEnabled) {
+			return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+		}
+		return err
 	}
-	return err
+
+	s.errChan = errChan
+
+	return nil
 }
 
 func (s *service) Run(ctx context.Context) error {

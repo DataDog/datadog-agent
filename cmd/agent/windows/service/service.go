@@ -11,13 +11,12 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 type service struct {
-	server dogstatsdServer.Component
+	errChan <-chan error
+	ctxChan chan context.Context
 }
 
 func NewWindowsService() *service {
@@ -29,30 +28,24 @@ func (s *service) Name() string {
 }
 
 func (s *service) Init() error {
-	var server dogstatsdServer.Component
-
 	_ = common.CheckAndUpgradeConfig()
 	// ignore config upgrade error, continue running with what we have.
 
-	server, err := runcmd.StartAgentWithDefaults()
+	s.ctxChan = make(chan context.Context)
+
+	errChan, err := runcmd.StartAgentWithDefaults(s.ctxChan)
 	if err != nil {
 		return err
 	}
 
-	s.server = server
+	s.errChan = errChan
 
 	return nil
 }
 
 func (s *service) Run(ctx context.Context) error {
-	defer runcmd.StopAgentWithDefaults(s.server)
-
-	// Wait for stop signal
-	select {
-	case <-signals.Stopper:
-	case <-signals.ErrorStopper:
-	case <-ctx.Done():
-	}
-
-	return nil
+	// send context to background agent goroutine so we can stop the agent
+	s.ctxChan <- ctx
+	// wait for agent to stop
+	return <-s.errChan
 }
