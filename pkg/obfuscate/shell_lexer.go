@@ -32,18 +32,20 @@ const (
 var (
 	IFS         = " \n\r\t"
 	expressions = map[string]*regexp.Regexp{
-		"IFS":              regexp.MustCompile(` \n\r\t`), // FIXME use real IFS
-		"whiteSpace":       regexp.MustCompile(`[ \n\r\t]+`),
-		"doubleQuote":      regexp.MustCompile(`"`),
-		"singleQuote":      regexp.MustCompile(`'`),
-		"parenthesesOpen":  regexp.MustCompile(`\(`),
-		"parenthesesClose": regexp.MustCompile(`\)`),
-		"equal":            regexp.MustCompile(`=`),
-		"backticks":        regexp.MustCompile("`"),
-		"dollar":           regexp.MustCompile(`\$`),
-		"redirection":      regexp.MustCompile(`(&>)|(([0-9])?((>\|)|([<>]&[0-9\-]?)|([<>]?>)|(<(<(<)?(-)?)?)))`),
-		"anyToken":         regexp.MustCompile(`[` + IFS + "`" + `"'&|=$()<>;]`),
-		"control":          regexp.MustCompile(`([\n;|]|&[^>])+`),
+		"IFS":                  regexp.MustCompile(`^\s*` + IFS),
+		"whiteSpace":           regexp.MustCompile(`^\s*[ \n\r\t]+`),
+		"doubleQuoteScanUntil": regexp.MustCompile(`"`),
+		"doubleQuote":          regexp.MustCompile(`^"`),
+		"singleQuoteScanUntil": regexp.MustCompile(`'`),
+		"singleQuote":          regexp.MustCompile(`^'`),
+		"parenthesesOpen":      regexp.MustCompile(`^\s*\(`),
+		"parenthesesClose":     regexp.MustCompile(`^\s*\)`),
+		"equal":                regexp.MustCompile(`^\s*=`),
+		"backticks":            regexp.MustCompile("^\\s*`"),
+		"dollar":               regexp.MustCompile(`^\s*\$`),
+		"redirection":          regexp.MustCompile(`^\s*(&>)|(([0-9])?((>\|)|([<>]&[0-9\-]?)|([<>]?>)|(<(<(<)?(-)?)?)))`),
+		"anyToken":             regexp.MustCompile(`[` + IFS + "`" + `"'&|=$()<>;]`),
+		"control":              regexp.MustCompile(`^\s*([\n;|]|&[^>])+`),
 	} // Regex patterns
 )
 
@@ -81,11 +83,11 @@ func nextToken(scanner *ShellScanner, state struct{ current ShellTokenKind }) *S
 	var token *Match
 
 	if state.current != DoubleQuote && state.current != SingleQuote {
-		if token = scanner.Scan(expressions["control"]); token != nil {
-			return &ShellToken{Control, token.String(), pos, scanner.Index()}
-		}
 		if token = scanner.Scan(expressions["whiteSpace"]); token != nil {
 			return &ShellToken{WhiteSpace, token.String(), pos, scanner.Index()}
+		}
+		if token = scanner.Scan(expressions["control"]); token != nil {
+			return &ShellToken{Control, token.String(), pos, scanner.Index()}
 		}
 	}
 
@@ -97,7 +99,7 @@ func nextToken(scanner *ShellScanner, state struct{ current ShellTokenKind }) *S
 		var fullToken []string
 
 		for escaped := true; escaped; {
-			tokenStr := scanUntil(scanner, expressions["doubleQuote"])
+			tokenStr := scanUntil(scanner, expressions["doubleQuoteScanUntil"])
 			if tokenStr == nil {
 				return nil
 			}
@@ -128,7 +130,7 @@ func nextToken(scanner *ShellScanner, state struct{ current ShellTokenKind }) *S
 		return &ShellToken{SingleQuote, token.String(), pos, scanner.Index()}
 	}
 	if state.current == SingleQuote {
-		tokenString := scanUntil(scanner, expressions["singleQuote"])
+		tokenString := scanUntil(scanner, expressions["singleQuoteScanUntil"])
 		if tokenString != nil {
 			return &ShellToken{Field, *tokenString, pos, scanner.Index()}
 		}
@@ -158,6 +160,10 @@ func nextToken(scanner *ShellScanner, state struct{ current ShellTokenKind }) *S
 
 	if token = scanner.Scan(expressions["backticks"]); token != nil {
 		return &ShellToken{Backticks, token.String(), pos, scanner.Index()}
+	}
+
+	if token = scanner.Scan(expressions["whiteSpace"]); token != nil {
+		return &ShellToken{WhiteSpace, token.String(), pos, scanner.Index()}
 	}
 
 	tokenString := scanUntil(scanner, expressions["anyToken"])
