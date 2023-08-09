@@ -1041,6 +1041,8 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledU
 		return string(c.ByteKey(a.buf)), false, false
 	}
 
+	log.TraceFunc(func() string { return fmt.Sprintf("rolling up connection %+v ", c) })
+
 	if ephemeralSport {
 		sport := c.SPort
 		c.SPort = 0
