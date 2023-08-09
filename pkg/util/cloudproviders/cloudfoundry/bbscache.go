@@ -5,6 +5,7 @@
 
 //go:build clusterchecks
 
+// Package cloudfoundry TODO comment
 package cloudfoundry
 
 import (

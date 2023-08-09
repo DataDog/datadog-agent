@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package customresources TODO comment
 package customresources
 
 import (

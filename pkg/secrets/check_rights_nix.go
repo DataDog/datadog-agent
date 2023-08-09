@@ -5,6 +5,7 @@
 
 //go:build secrets && !windows
 
+// Package secrets TODO comment
 package secrets
 
 import (

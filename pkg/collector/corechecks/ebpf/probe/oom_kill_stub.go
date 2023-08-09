@@ -5,6 +5,7 @@
 
 //go:build !linux_bpf
 
+// Package probe TODO comment
 package probe
 
 import (

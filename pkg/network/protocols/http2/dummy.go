@@ -5,5 +5,5 @@
 
 //go:build !linux_bpf
 
-// On Windows/mac the package his empty, so having a dummy file to ensure the package is not invalid on Windows/mac.
+// Package http2 On Windows/mac the package his empty, so having a dummy file to ensure the package is not invalid on Windows/mac.
 package http2

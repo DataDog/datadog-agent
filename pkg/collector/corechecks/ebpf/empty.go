@@ -5,6 +5,7 @@
 
 //go:build !linux || !cgo
 
+// Package ebpf TODO comment
 package ebpf
 
 // Avoid the following error on non-supported platforms:

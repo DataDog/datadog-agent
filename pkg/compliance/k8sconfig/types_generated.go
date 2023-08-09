@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package k8sconfig TODO
 // !!!
 // This is a generated file: regenerate with go run ./pkg/compliance/tools/k8s_types_generator.go
 // !!!

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package header defines HTTP headers known convention used by the Trace Agent and Datadog's APM intake.
+// Package header defines HTTP headers known convention used by the Trace Agent and Datadog's APM intake.
 package header
 
 const (

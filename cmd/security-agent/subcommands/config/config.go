@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package config TODO comment
 package config
 
 import (

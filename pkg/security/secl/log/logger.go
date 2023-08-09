@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package log TODO comment
 package log
 
 // Logger interface used to remove the dependency of this package to the logger of the agent

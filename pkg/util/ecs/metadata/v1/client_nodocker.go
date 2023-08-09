@@ -5,6 +5,7 @@
 
 //go:build !docker
 
+// Package v1 TODO comment
 package v1
 
 // Client represents a client for a metadata v1 API endpoint.

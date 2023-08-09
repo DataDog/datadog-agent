@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package custommetrics TODO comment
 package custommetrics
 
 import (

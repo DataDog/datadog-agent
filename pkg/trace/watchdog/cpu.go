@@ -5,6 +5,7 @@
 
 //go:build !windows && !aix
 
+// Package watchdog TODO comment
 package watchdog
 
 import (

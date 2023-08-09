@@ -5,7 +5,7 @@
 
 //go:build !windows && kubeapiserver
 
-// Package secrethelper implements 'cluster-agent secret-helper'.
+// Package diagnose implements 'cluster-agent secret-helper'.
 package diagnose
 
 import (

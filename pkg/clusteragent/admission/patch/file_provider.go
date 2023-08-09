@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package patch TODO comment
 package patch
 
 import (

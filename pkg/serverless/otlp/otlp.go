@@ -5,6 +5,7 @@
 
 //go:build otlp
 
+// Package otlp TODO comment
 package otlp
 
 import (

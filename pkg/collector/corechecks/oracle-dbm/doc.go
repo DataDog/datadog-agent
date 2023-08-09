@@ -4,6 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 /*
-Package systemd provides core checks for oracle
+Package oracle provides core checks for oracle
 */
 package oracle

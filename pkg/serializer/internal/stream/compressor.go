@@ -5,6 +5,7 @@
 
 //go:build zlib
 
+// Package stream TODO comment
 package stream
 
 import (

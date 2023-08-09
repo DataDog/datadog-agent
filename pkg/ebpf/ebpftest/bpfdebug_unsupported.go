@@ -5,6 +5,7 @@
 
 //go:build !linux
 
+// Package ebpftest TODO comment
 package ebpftest
 
 import "testing"

@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
 
+// Package disk TODO comment
 package disk
 
 import (

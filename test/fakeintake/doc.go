@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Module fakeintake provides a dummy [Server] implementation of Datadog intake, meant to be used with integration and e2e tests.
+// Package fakeintake provides a dummy [Server] implementation of Datadog intake, meant to be used with integration and e2e tests.
 // Package [Client] implements an API to interact with a fakeintake server from go tests
 // fakeintake server is available as a [docker container]
 //

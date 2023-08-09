@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package lldp TODO comment
 package lldp
 
 // ChassisIDSubtypeMap mapping to translate into human-readable value for LldpChassisIdSubtype

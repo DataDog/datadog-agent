@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package winkmem TODO comment
 package winkmem
 
 // Avoid the following error on non-supported platforms:

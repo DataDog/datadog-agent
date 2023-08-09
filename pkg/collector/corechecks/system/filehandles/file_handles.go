@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows && !freebsd
 
+// Package filehandles TODO comment
 package filehandles
 
 import (

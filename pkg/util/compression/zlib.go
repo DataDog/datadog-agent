@@ -5,6 +5,7 @@
 
 //go:build zlib
 
+// Package compression TODO comment
 package compression
 
 import (

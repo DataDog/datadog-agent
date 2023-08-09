@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && orchestrator
 
+// Package discovery TODO comment
 package discovery
 
 import (

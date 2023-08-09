@@ -5,6 +5,7 @@
 
 //go:build 386 || amd64 || amd64p32 || arm || arm64 || mipsle || mips64le || mips64p32le || ppc64le || riscv64
 
+// Package native TODO comment
 package native
 
 import "encoding/binary"

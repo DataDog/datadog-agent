@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package hostinfo TODO comment
 package hostinfo
 
 import (

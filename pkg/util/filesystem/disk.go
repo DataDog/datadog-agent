@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
 
+// Package filesystem TODO comment
 package filesystem
 
 import "github.com/shirou/gopsutil/v3/disk"

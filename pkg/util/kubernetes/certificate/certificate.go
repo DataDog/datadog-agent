@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package certificate TODO comment
 package certificate
 
 import (

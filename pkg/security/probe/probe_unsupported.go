@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+// Package probe TODO comment
 package probe
 
 // PlatformProbe represents the no-op platform probe on unsupported platforms

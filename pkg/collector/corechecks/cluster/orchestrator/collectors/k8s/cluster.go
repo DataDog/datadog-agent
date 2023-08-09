@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && orchestrator
 
+// Package k8s TODO comment
 package k8s
 
 import (

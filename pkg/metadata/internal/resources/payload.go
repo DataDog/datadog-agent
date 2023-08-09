@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package resources TODO comment
 package resources
 
 // Payload handles the JSON unmarshalling of the metadata payload

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package msgpgo TODO comment
 package msgpgo
 
 // RemoteConfigKey is a RemoteConfigKey

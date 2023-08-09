@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+// Package net TODO comment
 package net
 
 import (

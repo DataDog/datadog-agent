@@ -5,6 +5,7 @@
 
 //go:build oracle
 
+// Package config TODO comment
 package config
 
 import (

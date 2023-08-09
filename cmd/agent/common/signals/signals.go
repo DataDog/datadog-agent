@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package signals TODO comment
 package signals
 
 // This is a new package in order to avoid cyclical imports

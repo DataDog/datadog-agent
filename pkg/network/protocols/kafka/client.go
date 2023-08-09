@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package kafka TODO comment
 package kafka
 
 import (

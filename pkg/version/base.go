@@ -5,6 +5,7 @@
 
 // This module should be updated at every release
 
+// Package version TODO comment
 package version
 
 // AgentVersion contains the version of the Agent

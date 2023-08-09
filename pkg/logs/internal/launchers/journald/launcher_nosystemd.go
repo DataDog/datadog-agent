@@ -5,6 +5,7 @@
 
 //go:build !systemd
 
+// Package journald TODO comment
 package journald
 
 import (

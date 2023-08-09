@@ -5,6 +5,7 @@
 
 //go:build oracle
 
+// Package common TODO comment
 package common
 
 // IntegrationName is the name of the integration.

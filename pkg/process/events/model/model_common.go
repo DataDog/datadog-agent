@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/tinylib/msgp -tests=false
 
+// Package model TODO comment
 package model
 
 import (

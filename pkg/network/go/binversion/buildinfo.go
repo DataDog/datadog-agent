@@ -23,6 +23,7 @@
 // Build information is available for the currently running binary in
 // runtime/debug.ReadBuildInfo.
 
+// Package binversion TODO comment
 package binversion
 
 import (

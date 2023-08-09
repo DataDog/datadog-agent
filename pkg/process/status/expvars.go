@@ -5,6 +5,7 @@
 
 // This file provides methods to set various expvar values, which are then queried by the `status` command.
 
+// Package status TODO comment
 package status
 
 import (

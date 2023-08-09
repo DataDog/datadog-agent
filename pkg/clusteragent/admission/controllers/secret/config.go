@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package secret TODO comment
 package secret
 
 import "time"

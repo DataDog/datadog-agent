@@ -6,6 +6,7 @@
 // The code that follows has been copied from github.com/gocomply/scap,
 // which was originally released under the CC0 1.0 Universal license.
 
+// Package scap TODO comment
 package scap
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && orchestrator
 
+// Package collectors TODO comment
 package collectors
 
 import (

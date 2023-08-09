@@ -5,6 +5,7 @@
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
 
+// Package tracer TODO comment
 package tracer
 
 import (

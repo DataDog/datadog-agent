@@ -5,6 +5,7 @@
 
 //go:build kubelet
 
+// Package mock TODO comment
 package mock
 
 import (

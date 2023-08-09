@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package protocols TODO comment
 package protocols
 
 // below is copied from pkg/trace/stats/statsraw.go

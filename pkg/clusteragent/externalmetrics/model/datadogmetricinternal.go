@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package model TODO comment
 package model
 
 import (

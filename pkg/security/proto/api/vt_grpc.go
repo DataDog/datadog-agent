@@ -12,6 +12,7 @@
 // This implementation is based on
 // https://github.com/vitessio/vitess/blob/main/go/vt/servenv/grpc_codec.go
 
+// Package api TODO comment
 package api
 
 import (

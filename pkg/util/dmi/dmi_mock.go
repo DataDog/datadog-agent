@@ -5,6 +5,7 @@
 
 //go:build !windows && !serverless
 
+// Package dmi TODO comment
 package dmi
 
 import (

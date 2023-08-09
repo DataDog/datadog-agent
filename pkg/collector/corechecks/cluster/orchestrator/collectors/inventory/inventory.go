@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && orchestrator
 
+// Package inventory TODO comment
 package inventory
 
 import (

@@ -6,6 +6,7 @@
 //go:build !windows
 // +build !windows
 
+// Package main TODO comment
 package main
 
 import (

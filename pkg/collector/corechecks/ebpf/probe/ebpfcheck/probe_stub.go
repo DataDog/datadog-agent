@@ -5,6 +5,7 @@
 
 //go:build !linux_bpf
 
+// Package ebpfcheck TODO comment
 package ebpfcheck
 
 import (

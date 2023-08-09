@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package leaderelection TODO comment
 package leaderelection
 
 import (

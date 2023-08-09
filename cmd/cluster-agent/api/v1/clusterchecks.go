@@ -5,6 +5,7 @@
 
 //go:build clusterchecks
 
+// Package v1 TODO comment
 package v1
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build darwin
 
+// Package sysctl TODO comment
 package sysctl
 
 import (

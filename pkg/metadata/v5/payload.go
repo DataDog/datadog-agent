@@ -5,6 +5,7 @@
 
 //go:build linux || windows || darwin
 
+// Package v5 TODO comment
 package v5
 
 import (

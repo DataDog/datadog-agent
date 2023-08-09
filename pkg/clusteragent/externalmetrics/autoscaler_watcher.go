@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package externalmetrics TODO comment
 package externalmetrics
 
 import (

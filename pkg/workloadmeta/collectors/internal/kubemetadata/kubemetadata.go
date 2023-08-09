@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver && kubelet
 
+// Package kubemetadata TODO comment
 package kubemetadata
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package initcontainer TODO comment
 package initcontainer
 
 import (

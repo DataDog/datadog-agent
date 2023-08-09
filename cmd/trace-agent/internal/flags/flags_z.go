@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flags TODO comment
 package flags
 
 // Win holds a set of flags which will be populated only during the Windows build.

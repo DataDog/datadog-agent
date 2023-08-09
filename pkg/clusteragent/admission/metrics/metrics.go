@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package metrics TODO comment
 package metrics
 
 import (

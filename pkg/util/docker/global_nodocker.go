@@ -5,6 +5,7 @@
 
 //go:build !docker
 
+// Package docker TODO comment
 package docker
 
 import "context"

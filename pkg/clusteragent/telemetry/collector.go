@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package telemetry TODO comment
 package telemetry
 
 import (
