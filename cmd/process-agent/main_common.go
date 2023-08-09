@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/process"
 	_ "net/http/pprof"
 	"os"
 
@@ -33,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"

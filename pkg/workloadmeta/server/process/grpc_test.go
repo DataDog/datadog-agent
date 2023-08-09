@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+package process
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"sort"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ func TestStartStop(t *testing.T) {
 	cfg := config.Mock(t)
 	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
 
-	extractor := NewWorkloadMetaExtractor(cfg)
+	extractor := workloadmeta.NewExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
 	cfg.Set("process_config.language_detection.grpc_port", port)
@@ -77,14 +78,14 @@ func TestStartStop(t *testing.T) {
 
 func TestStreamServer(t *testing.T) {
 	var (
-		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
-		proc2 = testProc(Pid2, []string{"python", "myprogram.py"})
-		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
+		proc1 = workloadmeta.testProc(workloadmeta.Pid1, []string{"java", "mydatabase.jar"})
+		proc2 = workloadmeta.testProc(workloadmeta.Pid2, []string{"python", "myprogram.py"})
+		proc3 = workloadmeta.testProc(workloadmeta.Pid3, []string{"corrina", "--at-her-best"})
 	)
 
 	cfg := config.Mock(t)
 	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
-	extractor := NewWorkloadMetaExtractor(cfg)
+	extractor := workloadmeta.NewExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
 	cfg.Set("process_config.language_detection.grpc_port", port)
@@ -94,11 +95,11 @@ func TestStreamServer(t *testing.T) {
 	defer srv.Stop()
 
 	extractor.Extract(map[int32]*procutil.Process{
-		Pid1: proc1,
-		Pid2: proc2,
+		workloadmeta.Pid1: proc1,
+		workloadmeta.Pid2: proc2,
 	})
 	// Drop first cache diff before gRPC connection is created
-	<-extractor.ProcessCacheDiff()
+	<-extractor.Subscribe()
 
 	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
@@ -126,7 +127,7 @@ func TestStreamServer(t *testing.T) {
 	// Test that diffs are sent to the client
 	// proc1 and proc2 terminated
 	extractor.Extract(map[int32]*procutil.Process{
-		Pid3: proc3,
+		workloadmeta.Pid3: proc3,
 	})
 
 	msg, err = stream.Recv()
@@ -157,14 +158,14 @@ func TestStreamServer(t *testing.T) {
 
 func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	var (
-		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
-		proc2 = testProc(Pid2, []string{"python", "myprogram.py"})
-		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
+		proc1 = workloadmeta.testProc(workloadmeta.Pid1, []string{"java", "mydatabase.jar"})
+		proc2 = workloadmeta.testProc(workloadmeta.Pid2, []string{"python", "myprogram.py"})
+		proc3 = workloadmeta.testProc(workloadmeta.Pid3, []string{"corrina", "--at-her-best"})
 	)
 
 	cfg := config.Mock(t)
 	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
-	extractor := NewWorkloadMetaExtractor(cfg)
+	extractor := workloadmeta.NewExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
 	cfg.Set("process_config.language_detection.grpc_port", port)
@@ -174,8 +175,8 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	defer srv.Stop()
 
 	extractor.Extract(map[int32]*procutil.Process{
-		Pid1: proc1,
-		Pid2: proc2,
+		workloadmeta.Pid1: proc1,
+		workloadmeta.Pid2: proc2,
 	})
 
 	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -205,7 +206,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	// sent on the connection creation
 	// proc1 and proc2 terminated
 	extractor.Extract(map[int32]*procutil.Process{
-		Pid3: proc3,
+		workloadmeta.Pid3: proc3,
 	})
 
 	msg, err = stream.Recv()
@@ -228,12 +229,12 @@ func TestStreamVersioning(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, msg.EventID)
 
-	extractor.diffChan <- &ProcessCacheDiff{cacheVersion: 1} // Simulate a cache update
+	extractor.diffChan <- &CacheDiff{cacheVersion: 1} // Simulate a cache update
 	msg, err = stream.Recv()
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, msg.EventID)
 
-	extractor.diffChan <- &ProcessCacheDiff{cacheVersion: 3} // Simulate a missing message
+	extractor.diffChan <- &CacheDiff{cacheVersion: 3} // Simulate a missing message
 	_, err = stream.Recv()
 	assert.ErrorContains(t, err, "received version = 3; expected = 2")
 	assert.Equal(t, conn.GetState(), connectivity.Ready) // Assert the underlying connection is still open
@@ -249,12 +250,12 @@ func TestStreamVersioning(t *testing.T) {
 func TestProcessEntityToEventSet(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
-		process *ProcessEntity
+		process *Entity
 		event   *pbgo.ProcessEventSet
 	}{
 		{
 			desc: "process with detected language",
-			process: &ProcessEntity{
+			process: &Entity{
 				Pid:          40,
 				NsPid:        1,
 				CreationTime: 5311456,
@@ -271,7 +272,7 @@ func TestProcessEntityToEventSet(t *testing.T) {
 		},
 		{
 			desc: "process without detected language",
-			process: &ProcessEntity{
+			process: &Entity{
 				Pid:          40,
 				NsPid:        1,
 				CreationTime: 5311456,
@@ -303,7 +304,7 @@ func TestSingleStream(t *testing.T) {
 	_, err = originalStream.Recv()
 	assert.ErrorContains(t, err, DuplicateConnectionErr.Error())
 
-	ext.diffChan <- &ProcessCacheDiff{cacheVersion: 1}
+	ext.diffChan <- &CacheDiff{cacheVersion: 1}
 	_, err = newStream.Recv()
 	assert.NoError(t, err)
 
@@ -362,7 +363,7 @@ func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
 
 // setupGRPCTest a test extractor, server, and client connection.
 // Cleanup is handled automatically via T.Cleanup().
-func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
+func setupGRPCTest(t *testing.T) (*workloadmeta.Extractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
 	t.Helper()
 
 	cfg := config.Mock(t)
@@ -370,7 +371,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	require.NoError(t, err)
 	cfg.Set("process_config.language_detection.grpc_port", port)
 	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
-	extractor := NewWorkloadMetaExtractor(cfg)
+	extractor := workloadmeta.NewExtractor(cfg)
 
 	grpcServer := NewGRPCServer(cfg, extractor)
 	err = grpcServer.Start()

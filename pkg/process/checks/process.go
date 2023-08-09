@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/server/process"
 	"regexp"
 	"strings"
 	"time"
@@ -46,8 +47,8 @@ func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	}
 
 	if workloadmeta.Enabled(config) {
-		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
-		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
+		check.workloadMetaExtractor = workloadmeta.NewExtractor(config)
+		check.workloadMetaServer = process.NewGRPCServer(config, check.workloadMetaExtractor)
 	}
 
 	return check
@@ -106,8 +107,8 @@ type ProcessCheck struct {
 
 	extractors []metadata.Extractor
 
-	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
-	workloadMetaServer    *workloadmeta.GRPCServer
+	workloadMetaExtractor *workloadmeta.Extractor
+	workloadMetaServer    *process.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.

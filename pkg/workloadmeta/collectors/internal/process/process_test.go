@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package collector
+package process
 
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/server/process"
 	"testing"
 	"time"
 
@@ -73,8 +74,8 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	cfg.Set("process_config.language_detection.grpc_port", port)
 	cfg.Set("workloadmeta.remote_process_collector.enabled", true)
 
-	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(cfg)
-	grpcServer := workloadmetaExtractor.NewGRPCServer(cfg, wlmExtractor)
+	wlmExtractor := workloadmetaExtractor.NewExtractor(cfg)
+	grpcServer := process.NewGRPCServer(cfg, wlmExtractor)
 
 	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)

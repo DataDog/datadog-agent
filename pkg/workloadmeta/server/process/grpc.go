@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+package process
 
 import (
 	"context"
@@ -26,9 +26,9 @@ var DuplicateConnectionErr = errors.New("the stream was closed because another c
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
-	config    config.ConfigReader
-	extractor *WorkloadMetaExtractor
-	server    *grpc.Server
+	config       config.ConfigReader
+	entitySource Source
+	server       *grpc.Server
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
 	addr net.Addr
 
@@ -38,32 +38,34 @@ type GRPCServer struct {
 	closeExistingStream context.CancelFunc
 }
 
+const subsystem = "WorkloadMetaServer"
+
 var (
 	invalidVersionError = telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version.")
 	streamServerError   = telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent.")
 )
 
 // NewGRPCServer creates a new instance of a GRPCServer
-func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
+func NewGRPCServer(config config.ConfigReader, entitySource Source) *GRPCServer {
 	l := &GRPCServer{
-		config:      config,
-		extractor:   extractor,
-		server:      grpc.NewServer(),
-		streamMutex: &sync.Mutex{},
+		config:       config,
+		entitySource: entitySource,
+		server:       grpc.NewServer(),
+		streamMutex:  &sync.Mutex{},
 	}
 
 	pbgo.RegisterProcessEntityStreamServer(l.server, l)
 	return l
 }
 
-func (l *GRPCServer) consumeProcessDiff(diff *ProcessCacheDiff) ([]*pbgo.ProcessEventSet, []*pbgo.ProcessEventUnset) {
-	setEvents := make([]*pbgo.ProcessEventSet, len(diff.creation))
-	for i, proc := range diff.creation {
+func (l *GRPCServer) consumeProcessDiff(diff *CacheDiff) ([]*pbgo.ProcessEventSet, []*pbgo.ProcessEventUnset) {
+	setEvents := make([]*pbgo.ProcessEventSet, len(diff.Creation))
+	for i, proc := range diff.Creation {
 		setEvents[i] = processEntityToEventSet(proc)
 	}
 
-	unsetEvents := make([]*pbgo.ProcessEventUnset, len(diff.deletion))
-	for i, proc := range diff.deletion {
+	unsetEvents := make([]*pbgo.ProcessEventUnset, len(diff.Deletion))
+	for i, proc := range diff.Deletion {
 		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: proc.Pid}
 	}
 
@@ -110,7 +112,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	streamCtx := l.acquireStreamCtx()
 
 	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
-	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
+	procs, snapshotVersion := l.entitySource.ListProcesses()
 	setEvents := make([]*pbgo.ProcessEventSet, 0, len(procs))
 	for _, proc := range procs {
 		setEvents = append(setEvents, processEntityToEventSet(proc))
@@ -131,7 +133,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	// Once connection is established, only diffs (process creations/deletions) are sent to the client
 	for {
 		select {
-		case diff := <-l.extractor.ProcessCacheDiff():
+		case diff := <-l.entitySource.Subscribe():
 			// Ensure that if streamCtx.Done() is closed, we always choose that path.
 			select {
 			case <-streamCtx.Done():
@@ -140,23 +142,23 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			}
 
 			// Do not send diff if it has the same or older version of the cache snapshot sent on the connection creation
-			if diff.cacheVersion <= snapshotVersion {
+			if diff.CacheVersion <= snapshotVersion {
 				continue
 			}
 
 			// The diff received from the channel should be 1 + the previous version. Otherwise, we have lost data,
 			// and we should signal the client to resync by closing the stream.
-			log.Trace("[WorkloadMeta GRPCServer] expected diff version %d, actual %d", expectedVersion, diff.cacheVersion)
-			if diff.cacheVersion != expectedVersion {
+			log.Trace("[WorkloadMeta GRPCServer] expected diff version %d, actual %d", expectedVersion, diff.CacheVersion)
+			if diff.CacheVersion != expectedVersion {
 				invalidVersionError.Inc()
 				log.Debug("[WorkloadMeta GRPCServer] missing cache diff - dropping stream")
-				return fmt.Errorf("missing cache diff: received version = %d; expected = %d", diff.cacheVersion, expectedVersion)
+				return fmt.Errorf("missing cache diff: received version = %d; expected = %d", diff.CacheVersion, expectedVersion)
 			}
 			expectedVersion++
 
 			sets, unsets := l.consumeProcessDiff(diff)
 			msg := &pbgo.ProcessStreamResponse{
-				EventID:     diff.cacheVersion,
+				EventID:     diff.CacheVersion,
 				SetEvents:   sets,
 				UnsetEvents: unsets,
 			}
@@ -195,7 +197,7 @@ func getGRPCStreamPort(cfg config.ConfigReader) int {
 	return grpcPort
 }
 
-func processEntityToEventSet(proc *ProcessEntity) *pbgo.ProcessEventSet {
+func processEntityToEventSet(proc *Entity) *pbgo.ProcessEventSet {
 	var language *pbgo.Language
 	if proc.Language != nil {
 		language = &pbgo.Language{Name: string(proc.Language.Name)}

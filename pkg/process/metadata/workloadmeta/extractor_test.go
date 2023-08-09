@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/server/process"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 func TestExtractor(t *testing.T) {
 	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
 
-	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+	extractor := NewExtractor(config.Mock(t))
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
@@ -66,9 +67,9 @@ func TestExtractor(t *testing.T) {
 	})
 
 	// Extractor cache should have all processes
-	procs, cacheVersion := extractor.GetAllProcessEntities()
+	procs, cacheVersion := extractor.ListProcesses()
 	assert.Equal(t, int32(1), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*process.Entity{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
 			Pid:          proc1.Pid,
 			NsPid:        proc1.NsPid,
@@ -86,10 +87,10 @@ func TestExtractor(t *testing.T) {
 	}, procs)
 
 	// Diff should have creation events for all processes and 0 deletion event
-	diff := <-extractor.ProcessCacheDiff()
-	assert.Equal(t, int32(1), diff.cacheVersion)
+	diff := <-extractor.Subscribe()
+	assert.Equal(t, int32(1), diff.CacheVersion)
 	// Events are generated through map range which doesn't have a deterministic order
-	assert.ElementsMatch(t, []*ProcessEntity{
+	assert.ElementsMatch(t, []*process.Entity{
 		{
 			Pid:          proc1.Pid,
 			NsPid:        proc1.NsPid,
@@ -104,8 +105,8 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
-	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+	}, diff.Creation)
+	assert.ElementsMatch(t, []*process.Entity{}, diff.Deletion)
 
 	// Assert that if no process is created or terminated, the cache is not updated nor a diff generated
 	extractor.Extract(map[int32]*procutil.Process{
@@ -113,9 +114,9 @@ func TestExtractor(t *testing.T) {
 		Pid2: proc2,
 	})
 
-	procs, cacheVersion = extractor.GetAllProcessEntities()
+	procs, cacheVersion = extractor.ListProcesses()
 	assert.Equal(t, int32(1), cacheVersion) // cache version doesn't change
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*process.Entity{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
 			Pid:          proc1.Pid,
 			NsPid:        proc1.NsPid,
@@ -132,16 +133,16 @@ func TestExtractor(t *testing.T) {
 		},
 	}, procs)
 
-	assert.Len(t, extractor.ProcessCacheDiff(), 0)
+	assert.Len(t, extractor.Subscribe(), 0)
 
 	// Process deletion generates a cache update and diff event
 	extractor.Extract(map[int32]*procutil.Process{
 		Pid2: proc2,
 	})
 
-	procs, cacheVersion = extractor.GetAllProcessEntities()
+	procs, cacheVersion = extractor.ListProcesses()
 	assert.Equal(t, int32(2), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*process.Entity{
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
@@ -151,10 +152,10 @@ func TestExtractor(t *testing.T) {
 		},
 	}, procs)
 
-	diff = <-extractor.ProcessCacheDiff()
-	assert.Equal(t, int32(2), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	diff = <-extractor.Subscribe()
+	assert.Equal(t, int32(2), diff.CacheVersion)
+	assert.ElementsMatch(t, []*process.Entity{}, diff.Creation)
+	assert.ElementsMatch(t, []*process.Entity{
 		{
 			Pid:          Pid1,
 			NsPid:        proc1.NsPid,
@@ -162,7 +163,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
-	}, diff.deletion)
+	}, diff.Deletion)
 
 	// Process creation generates a cache update and diff event
 	extractor.Extract(map[int32]*procutil.Process{
@@ -170,9 +171,9 @@ func TestExtractor(t *testing.T) {
 		Pid3: proc3,
 	})
 
-	procs, cacheVersion = extractor.GetAllProcessEntities()
+	procs, cacheVersion = extractor.ListProcesses()
 	assert.Equal(t, int32(3), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*process.Entity{
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
@@ -189,9 +190,9 @@ func TestExtractor(t *testing.T) {
 		},
 	}, procs)
 
-	diff = <-extractor.ProcessCacheDiff()
-	assert.Equal(t, int32(3), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	diff = <-extractor.Subscribe()
+	assert.Equal(t, int32(3), diff.CacheVersion)
+	assert.ElementsMatch(t, []*process.Entity{
 		{
 			Pid:          Pid3,
 			NsPid:        proc3.NsPid,
@@ -199,8 +200,8 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
 			ContainerId:  ctrId1,
 		},
-	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+	}, diff.Creation)
+	assert.ElementsMatch(t, []*process.Entity{}, diff.Deletion)
 
 	// Process creation and deletion generate a cache update and diff event
 	extractor.Extract(map[int32]*procutil.Process{
@@ -208,9 +209,9 @@ func TestExtractor(t *testing.T) {
 		Pid4: proc4,
 	})
 
-	procs, cacheVersion = extractor.GetAllProcessEntities()
+	procs, cacheVersion = extractor.ListProcesses()
 	assert.Equal(t, int32(4), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*process.Entity{
 		hashProcess(Pid3, proc3.Stats.CreateTime): {
 			Pid:          proc3.Pid,
 			NsPid:        proc3.NsPid,
@@ -227,9 +228,9 @@ func TestExtractor(t *testing.T) {
 		},
 	}, procs)
 
-	diff = <-extractor.ProcessCacheDiff()
-	assert.Equal(t, int32(4), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	diff = <-extractor.Subscribe()
+	assert.Equal(t, int32(4), diff.CacheVersion)
+	assert.ElementsMatch(t, []*process.Entity{
 		{
 			Pid:          Pid4,
 			NsPid:        proc4.NsPid,
@@ -237,8 +238,8 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId2,
 		},
-	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	}, diff.Creation)
+	assert.ElementsMatch(t, []*process.Entity{
 		{
 			Pid:          Pid2,
 			NsPid:        proc2.NsPid,
@@ -246,7 +247,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
-	}, diff.deletion)
+	}, diff.Deletion)
 }
 
 func BenchmarkHashProcess(b *testing.B) {
@@ -272,7 +273,7 @@ func BenchmarkHashProcess(b *testing.B) {
 func TestLateContainerId(t *testing.T) {
 	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
 
-	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+	extractor := NewExtractor(config.Mock(t))
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
@@ -281,9 +282,9 @@ func TestLateContainerId(t *testing.T) {
 	extractor.Extract(map[int32]*procutil.Process{
 		Pid1: proc1,
 	})
-	assert.EqualValues(t, &ProcessCacheDiff{
-		cacheVersion: 1,
-		creation: []*ProcessEntity{
+	assert.EqualValues(t, &process.CacheDiff{
+		CacheVersion: 1,
+		Creation: []*process.Entity{
 			{
 				Pid:          proc1.Pid,
 				ContainerId:  "",
@@ -292,8 +293,8 @@ func TestLateContainerId(t *testing.T) {
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
-	}, <-extractor.ProcessCacheDiff())
+		Deletion: []*process.Entity{},
+	}, <-extractor.Subscribe())
 
 	var (
 		ctrId1 = "containers-are-awesome"
@@ -305,9 +306,9 @@ func TestLateContainerId(t *testing.T) {
 	extractor.Extract(map[int32]*procutil.Process{
 		Pid1: proc1,
 	})
-	assert.EqualValues(t, &ProcessCacheDiff{
-		cacheVersion: 2,
-		creation: []*ProcessEntity{
+	assert.EqualValues(t, &process.CacheDiff{
+		CacheVersion: 2,
+		Creation: []*process.Entity{
 			{
 				Pid:          proc1.Pid,
 				ContainerId:  ctrId1,
@@ -316,6 +317,6 @@ func TestLateContainerId(t *testing.T) {
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
-	}, <-extractor.ProcessCacheDiff())
+		Deletion: []*process.Entity{},
+	}, <-extractor.Subscribe())
 }

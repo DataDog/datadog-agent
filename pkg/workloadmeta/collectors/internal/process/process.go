@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package collector
+package process
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/server/process"
 
 	"github.com/benbjohnson/clock"
 
@@ -20,7 +21,7 @@ import (
 const collectorId = "local-process"
 
 func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
-	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
+	wlmExtractor := workloadmetaExtractor.NewExtractor(ddConfig)
 
 	processData := checks.NewProcessData(ddConfig)
 	processData.Register(wlmExtractor)
@@ -28,7 +29,7 @@ func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
 	return &Collector{
 		ddConfig:        ddConfig,
 		wlmExtractor:    wlmExtractor,
-		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
+		grpcServer:      process.NewGRPCServer(ddConfig, wlmExtractor),
 		processData:     processData,
 		collectionClock: clock.New(),
 		pidToCid:        make(map[int]string),
@@ -40,8 +41,8 @@ type Collector struct {
 
 	processData *checks.ProcessData
 
-	wlmExtractor *workloadmetaExtractor.WorkloadMetaExtractor
-	grpcServer   *workloadmetaExtractor.GRPCServer
+	wlmExtractor *workloadmetaExtractor.Extractor
+	grpcServer   *process.GRPCServer
 
 	pidToCid map[int]string
 
