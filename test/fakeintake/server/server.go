@@ -263,21 +263,21 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
-	} else {
-		payloads, payloadErr := fi.safeGetJsonPayloads(route)
-		if payloadErr != nil {
-			writeHttpResponse(w, httpResponse{
-				contentType: "text/plain",
-				statusCode:  http.StatusBadRequest,
-				body:        []byte("invalid route parameter"),
-			})
-			return
-		}
+	} else if fi.payloadParser.isValidRoute(route) {
+		payloads, _ := fi.safeGetJsonPayloads(route)
+		// If no payload for a valid route exist yet, payloads will be null
 		// build response
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
+	} else {
+		writeHttpResponse(w, httpResponse{
+			contentType: "text/plain",
+			statusCode:  http.StatusBadRequest,
+			body:        []byte("invalid route parameter"),
+		})
+		return
 	}
 
 	if err != nil {

@@ -14,9 +14,9 @@ type Payload struct {
 }
 
 type ParsedPayload struct {
-	Timestamp time.Time `json:"timestamp"`
-	Data      string    `json:"data"`
-	Encoding  string    `json:"encoding"`
+	Timestamp time.Time   `json:"timestamp"`
+	Data      interface{} `json:"data"`
+	Encoding  string      `json:"encoding"`
 }
 
 type APIFakeIntakePayloadsRawGETResponse struct {
