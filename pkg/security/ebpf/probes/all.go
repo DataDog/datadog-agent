@@ -72,7 +72,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getUnlinkProbes(fentry)...)
 	allProbes = append(allProbes, getXattrProbes(fentry)...)
 	allProbes = append(allProbes, getIoctlProbes()...)
-	allProbes = append(allProbes, getSELinuxProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes(fentry)...)
 	allProbes = append(allProbes, getBPFProbes(fentry)...)
 	allProbes = append(allProbes, getPTraceProbes(fentry)...)
 	allProbes = append(allProbes, getMMapProbes(fentry)...)
@@ -263,6 +263,9 @@ func AllBPFProbeWriteUserProgramFunctions() []string {
 		"kprobe_dentry_resolver_erpc_write_user",
 		"kprobe_dentry_resolver_parent_erpc_write_user",
 		"kprobe_dentry_resolver_segment_erpc_write_user",
+		"fentry_dentry_resolver_erpc_write_user",
+		"fentry_dentry_resolver_parent_erpc_write_user",
+		"fentry_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

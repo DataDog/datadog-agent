@@ -44,7 +44,7 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
+int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
@@ -52,10 +52,10 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
 #ifdef DEBUG
-    bpf_printk("interpreter file: %llx\n", file);
-    bpf_printk("interpreter inode: %u\n", syscall->exec.linux_binprm.interpreter.ino);
-    bpf_printk("interpreter mount id: %u %u %u\n", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
-    bpf_printk("interpreter path id: %u\n", syscall->exec.linux_binprm.interpreter.path_id);
+    bpf_printk("interpreter file: %llx", file);
+    bpf_printk("interpreter inode: %u", syscall->exec.linux_binprm.interpreter.ino);
+    bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
+    bpf_printk("interpreter path id: %u", syscall->exec.linux_binprm.interpreter.path_id);
 #endif
 
     // Add interpreter path to map/pathnames, which is used by the dentry resolver.
@@ -67,7 +67,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_current_or_impersonated_exec_syscall();
@@ -292,6 +292,9 @@ int hook_do_exit(ctx_t *ctx) {
         cleanup_traced_state(tgid);
     }
 
+    // cleanup any remaining syscall cache entry for this pid_tgid
+    pop_syscall(EVENT_ANY);
+
     return 0;
 }
 
@@ -509,7 +512,7 @@ int tail_call_target_parse_args_envs(void *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
+int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -523,24 +526,24 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
     bpf_probe_read(&interpreter, sizeof(interpreter), (char *)bprm + binprm_file_offset);
 
 #ifdef DEBUG
-    bpf_printk("binprm_file_offset: %d\n", binprm_file_offset);
+    bpf_printk("binprm_file_offset: %d", binprm_file_offset);
 
-    bpf_printk("interpreter file: %llx\n", interpreter);
+    bpf_printk("interpreter file: %llx", interpreter);
 
     const char *s;
     bpf_probe_read(&s, sizeof(s), &bprm->filename);
-    bpf_printk("*filename from binprm: %s\n", s);
+    bpf_printk("*filename from binprm: %s", s);
 
     bpf_probe_read(&s, sizeof(s), &bprm->interp);
-    bpf_printk("*interp from binprm: %s\n", s);
+    bpf_printk("*interp from binprm: %s", s);
 #endif
 
     return handle_interpreted_exec_event(ctx, syscall, interpreter);
 }
 
-SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
-    struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
+HOOK_ENTRY("setup_new_exec")
+int hook_setup_new_exec_interp(ctx_t *ctx) {
+    struct linux_binprm *bprm = (struct linux_binprm *) CTX_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 

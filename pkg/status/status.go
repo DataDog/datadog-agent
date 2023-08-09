@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -57,7 +58,7 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 
 	pythonVersion := host.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	stats["hostinfo"] = host.GetStatusInformation()
+	stats["hostinfo"] = hostMetadataUtils.GetInformation()
 
 	stats["JMXStatus"] = GetJMXStatus()
 	stats["JMXStartupError"] = GetJMXStartupError()

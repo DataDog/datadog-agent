@@ -45,6 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/logs"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -56,8 +58,8 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -175,6 +177,7 @@ func run(log log.Component,
 	demux *aggregator.AgentDemultiplexer,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
+	logsAgent util.Optional[logsAgent.Component],
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -216,7 +219,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder, sharedSerializer); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer); err != nil {
 		return err
 	}
 
@@ -240,12 +243,13 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		capture replay.Component,
 		rcclient rcclient.Component,
 		forwarder defaultforwarder.Component,
+		logsAgent util.Optional[logsAgent.Component],
 		metadataRunner runner.Component,
 		sharedSerializer serializer.MetricSerializer,
 	) error {
 		dsdServer = server
 
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder, sharedSerializer)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -285,6 +289,23 @@ func getSharedFxOption() fx.Option {
 		}),
 		dogstatsd.Bundle,
 		rcclient.Module,
+
+		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
+		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
+		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
+		fx.Invoke(func(lc fx.Lifecycle) {
+			lc.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					// Main context passed to components
+					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
+
+					// create and setup the Autoconfig instance
+					common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
+					return nil
+				},
+			})
+		}),
+		logs.Bundle,
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
@@ -320,14 +341,12 @@ func startAgent(
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	rcclient rcclient.Component,
+	logsAgent util.Optional[logsAgent.Component],
 	sharedForwarder defaultforwarder.Component,
 	sharedSerializer serializer.MetricSerializer,
 ) error {
 
 	var err error
-
-	// Main context passed to components
-	common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 	// Setup logger
 	syslogURI := pkgconfig.GetSyslogURI()
@@ -443,8 +462,10 @@ func startAgent(
 		}
 	}
 
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
+	if logsAgent, ok := logsAgent.Get(); ok {
+		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
+		logsAgent.AddScheduler(adScheduler.New(common.AC))
+	}
 
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
@@ -457,7 +478,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server, capture, serverDebug); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -516,28 +537,17 @@ func startAgent(
 		}
 	}
 
-	var logsAgentChannel chan *message.Message
-
-	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
-	if pkgconfig.Datadog.GetBool("logs_enabled") || pkgconfig.Datadog.GetBool("log_enabled") {
-		if pkgconfig.Datadog.GetBool("log_enabled") {
-			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
-		}
-		if logsAgent, err := logs.Start(common.AC); err != nil {
-			log.Error("Could not start logs-agent: ", err)
-		} else {
-			logsAgentChannel = logsAgent.GetPipelineProvider().NextPipelineChan()
-		}
-	} else {
-		log.Info("logs-agent disabled")
-	}
-
 	// Start OTLP intake
 	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
 	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
+
+	var pipelineChan chan *message.Message
+	if logsAgent, ok := logsAgent.Get(); ok {
+		pipelineChan = logsAgent.GetPipelineProvider().NextPipelineChan()
+	}
 	if otlpEnabled {
 		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, logsAgentChannel)
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, pipelineChan)
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		} else {
@@ -617,7 +627,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 		demux.Stop(true)
 	}
 
-	logs.Stop()
 	gui.StopGUIServer()
 	profiler.Stop()
 

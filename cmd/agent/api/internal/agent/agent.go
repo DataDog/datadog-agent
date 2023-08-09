@@ -27,11 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,13 +49,19 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
+func SetupHandlers(
+	r *mux.Router,
+	flareComp flare.Component,
+	server dogstatsdServer.Component,
+	serverDebug dogstatsdDebug.Component,
+	logsAgent util.Optional[logsAgent.Component],
+) *mux.Router {
+
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/stream-logs", streamLogs()).Methods("POST")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -75,6 +82,10 @@ func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdSer
 	// Some agent subcommands do not provide these dependencies (such as JMX)
 	if server != nil && serverDebug != nil {
 		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
+	}
+
+	if logsAgent, ok := logsAgent.Get(); ok {
+		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
 	}
 
 	return r
@@ -192,8 +203,8 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-func streamLogs() func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(logs.GetMessageReceiver, "logs", "logs agent")
+func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(logsAgent.GetMessageReceiver, "logs", "logs agent")
 }
 
 func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {

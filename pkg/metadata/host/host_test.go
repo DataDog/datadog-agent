@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -63,15 +62,6 @@ func TestGetCPUInfo(t *testing.T) {
 	cache.Cache.Set(key, fakeInfo, cache.NoExpiration)
 	info := getCPUInfo()
 	assert.Equal(t, int32(42), info.Cores)
-}
-
-func TestGetHostInfo(t *testing.T) {
-	assert.NotNil(t, getHostInfo())
-	fakeInfo := &host.InfoStat{HostID: "FOOBAR"}
-	key := buildKey("hostInfo")
-	cache.Cache.Set(key, fakeInfo, cache.NoExpiration)
-	info := getHostInfo()
-	assert.Equal(t, "FOOBAR", info.HostID)
 }
 
 func TestGetMeta(t *testing.T) {

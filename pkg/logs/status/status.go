@@ -12,9 +12,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
 // Transport is the transport used by logs-agent, i.e TCP or HTTP

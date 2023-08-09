@@ -53,10 +53,10 @@ func NewErrorValue[T any](err error) Value[T] {
 func (value *Value[T]) Value() (T, error) {
 	if value.initialized {
 		return value.value, value.err
-	} else {
-		var def T
-		return def, errors.New("value not initialized")
 	}
+
+	var def T
+	return def, errors.New("value not initialized")
 }
 
 // Error returns the error stored in the Value[T], or nil if it doesn't contain an error.
@@ -71,8 +71,8 @@ func (value *Value[T]) ValueOrDefault() T {
 	val, err := value.Value()
 	if err == nil {
 		return val
-	} else {
-		var def T
-		return def
 	}
+
+	var def T
+	return def
 }

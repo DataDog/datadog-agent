@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/model"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -35,14 +34,28 @@ var (
 	DistributionMetricTypes = model.DistributionMetricTypes
 )
 
-// MetricSampleContext allows to access a sample context data
-type (
-	MetricSampleContext model.MetricSampleContext
-	MetricSample        model.MetricSample
-)
+type EnrichTagsfn = model.EnrichTagsfn
 
-// GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
-	metricBuffer.Append(m.Tags...)
-	tagger.EnrichTags(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
+// MetricSampleContext allows to access a sample context data
+type MetricSampleContext interface {
+	GetName() string
+	GetHost() string
+
+	// GetTags extracts metric tags for context tracking.
+	//
+	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
+	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
+	// should be appended to the metricBuffer.
+	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn)
+
+	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
+	GetMetricType() MetricType
+
+	// IsNoIndex returns true if the metric must not be indexed.
+	IsNoIndex() bool
+
+	// GetMetricSource returns the metric source for this metric. This is used to define the Origin
+	GetSource() MetricSource
 }
+
+type MetricSample = model.MetricSample

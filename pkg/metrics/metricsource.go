@@ -8,7 +8,7 @@ package metrics
 import "github.com/DataDog/datadog-agent/pkg/metrics/model"
 
 // MetricSource represents how this metric made it into the Agent
-type MetricSource model.MetricSource
+type MetricSource = model.MetricSource
 
 // Enumeration of the currently supported MetricSources
 const (

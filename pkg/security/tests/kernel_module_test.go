@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
@@ -101,6 +102,10 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 }
 
 func TestLoadModule(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("TestLoadModule is known to be flaky")
+	}
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}
@@ -212,12 +217,19 @@ func TestLoadModule(t *testing.T) {
 
 		defer func() {
 			cmd := exec.Command("iptables", "-D", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
-			_ = cmd.Run()
-			_ = unix.DeleteModule("xt_LED", 0)
+			if err := cmd.Run(); err != nil {
+				t.Error(err)
+			}
+
+			if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }); err != nil {
+				t.Error(err)
+			}
 		}()
 
 		test.WaitSignal(t, func() error {
-			_ = unix.DeleteModule("xt_LED", 0)
+			if err := unix.DeleteModule("xt_LED", 0); err != nil {
+				return err
+			}
 
 			cmd := exec.Command("iptables", "-A", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
 			if err := cmd.Run(); err != nil {

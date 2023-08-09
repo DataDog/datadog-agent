@@ -14,7 +14,7 @@ var mmapProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_fget",
+			EBPFFuncName: "rethook_fget",
 		},
 	},
 	{
