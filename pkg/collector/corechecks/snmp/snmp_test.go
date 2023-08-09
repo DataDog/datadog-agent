@@ -1662,6 +1662,14 @@ tags:
 	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
 }
 
+func TestFakeTest(t *testing.T) {
+	for i := 1; i < 5; i++ {
+		TestDiscovery(t)
+		TestDiscovery_CheckError(t)
+		TestDiscoveryDeviceIDAsHostname(t)
+	}
+}
+
 func TestDiscovery(t *testing.T) {
 	deps := createDeps(t)
 	timeNow = common.MockTimeNow
