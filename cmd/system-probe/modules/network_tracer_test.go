@@ -72,14 +72,14 @@ func TestDecode(t *testing.T) {
 
 }
 
-type connTag = uint64
+//type connTag = uint64
 
-// ConnTag constant must be the same for all platform
-const (
-	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
-	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
-	tagTLS     connTag = 0x10 // network.ConnTagTLS
-)
+//// ConnTag constant must be the same for all platform
+//const (
+//	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
+//	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
+//	tagTLS     connTag = 0x10 // network.ConnTagTLS
+//)
 
 //func TestDecode2(t *testing.T) {
 //	rec := httptest.NewRecorder()
