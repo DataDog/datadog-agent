@@ -8,6 +8,10 @@ package logs
 import (
 	"io"
 	"net/http"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/valyala/fasthttp"
 )
 
 // LambdaLogsAPI implements the AWS Lambda Logs API callback
@@ -33,5 +37,26 @@ func (c *LambdaLogsAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	} else {
 		c.out <- messages
 		w.WriteHeader(200)
+	}
+}
+
+// FastRouter - fast
+func (c *LambdaLogsAPIServer) FastRouter(ctx *fasthttp.RequestCtx) {
+	switch string(ctx.Path()) {
+	// case "/lambda/logs":
+	// 	messages, _ := parseLogsAPIPayload(ctx.PostBody())
+	// 	c.out <- messages
+	default:
+		body := string(ctx.PostBody())
+		if strings.Contains(body, "logsDropped") {
+			log.Error("Log dropped")
+		}
+		// messages, _ := parseLogsAPIPayload(ctx.PostBody())
+		// for _, message := range messages {
+		// 	if strings.Contains(message.stringRecord, "logsDropped") {
+		// 		log.Error("Log dropped")
+		// 	}
+		// }
+		// c.out <- messages
 	}
 }
