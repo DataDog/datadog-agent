@@ -69,6 +69,7 @@ func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
 func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReader) []*languagemodels.Language {
+	log.Trace("[language detection] Running language detection")
 	langs := make([]*languagemodels.Language, len(procs))
 	unknownPids := make([]int32, 0, len(procs))
 	langsToModify := make(map[int32]*languagemodels.Language, len(procs))
@@ -82,17 +83,18 @@ func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReade
 	}
 
 	if sysprobeConfig != nil && sysprobeConfig.GetBool("system_probe_config.language_detection.enabled") {
+		log.Trace("[language detection] Requesting language from system probe")
 		util, err := net.GetRemoteSystemProbeUtil(
 			sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
 		)
 		if err != nil {
-			log.Warn("Failed to request language:", err)
+			log.Warn("[language detection] Failed to request language:", err)
 			return langs
 		}
 
 		privilegedLangs, err := util.DetectLanguage(unknownPids)
 		if err != nil {
-			log.Warn("Failed to request language:", err)
+			log.Warn("[language detection] Failed to request language:", err)
 			return langs
 		}
 
