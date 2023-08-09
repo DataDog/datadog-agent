@@ -31,7 +31,7 @@ func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg 
 
 	ts := time.Now().UTC()
 	// TODO(remy): should we consider renaming the "Timestamp: %s" to mention
-	// it's only concerning the logs agent?
+	// it's only concerning the serverless agent?
 	if !m.ServerlessExtra.Timestamp.IsZero() {
 		ts = m.ServerlessExtra.Timestamp
 	}

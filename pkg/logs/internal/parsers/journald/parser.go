@@ -20,7 +20,8 @@ func New() parsers.Parser {
 }
 
 func (p *journaldParser) Parse(msg *message.Message) (*message.Message, error) {
-	return msg, nil // TODO(remy): implement me
+	// parsing is done before-hand in the journald tailers
+	return msg, nil
 }
 
 func (p *journaldParser) SupportsPartialLine() bool {
