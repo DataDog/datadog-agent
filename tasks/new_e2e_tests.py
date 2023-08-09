@@ -132,7 +132,7 @@ def clean_ci(ctx, pipeline_id):
     n_removed = 0
 
     for stack_name in stacks:
-        if pipeline_id in stack_name and "kernel-matrix-testing" not in stack_name:
+        if pipeline_id in stack_name:
             _destroy_stack(ctx, stack_name, cancel=True)
             n_removed += 1
     print(f"Removed {n_removed} stacks")
