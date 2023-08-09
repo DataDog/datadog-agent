@@ -140,7 +140,7 @@ Examples:
 
 Examples:
 * `T=8` and `width=8` both are in *args_options* for the command `ls -T 8 --width=8`
-* `exec.args_options ~= [ “s=.*\’” ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
+* `exec.args_options in [ ~"s=.*\'" ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
 
 ### File rights
 
