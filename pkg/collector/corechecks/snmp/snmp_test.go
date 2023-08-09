@@ -1663,7 +1663,7 @@ tags:
 }
 
 func TestFakeTest(t *testing.T) {
-	for i := 1; i < 5; i++ {
+	for i := 1; i < 100; i++ {
 		TestDiscovery(t)
 		TestDiscovery_CheckError(t)
 		TestDiscoveryDeviceIDAsHostname(t)
