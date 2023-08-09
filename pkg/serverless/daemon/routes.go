@@ -102,7 +102,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
 		RequestID:          ecs.LastRequestID,
 		ResponseRawPayload: responseBody,
-		Coldstart:          coldStartTags.IsColdStart,
+		Coldstart:          coldStartTags.IsColdstart,
 		ProactiveInit:      coldStartTags.IsProactiveInit,
 		Runtime:            ecs.Runtime,
 	}
