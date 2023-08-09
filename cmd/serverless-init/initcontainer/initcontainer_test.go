@@ -56,3 +56,7 @@ func TestFlushTimeout(t *testing.T) {
 	flush(100*time.Millisecond, metricAgent, traceAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
 }
+
+func TestCalculateShouldBufferDotnet(t *testing.T) {
+	assert.Equal(t, true, calculateShouldBuffer("dotnet"))
+}

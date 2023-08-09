@@ -51,6 +51,9 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 	AutoInstrumentTracer(fs)
 
 	cmd := exec.Command(commandName, commandArgs...)
+
+	shouldBuffer := calculateShouldBuffer(commandName)
+
 	cmd.Stdout = &serverlessLog.CustomWriter{
 		LogConfig:  config,
 		LineBuffer: bytes.Buffer{},
@@ -58,12 +61,12 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 		// This happens regardless of logging library (and happens with Console.WriteLine).
 		// ShouldBuffer tells the CustomWriter to buffer all log chunks that don't end in a newline,
 		// fixing log splitting in this scenario.
-		ShouldBuffer: commandName == "dotnet",
+		ShouldBuffer: shouldBuffer,
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
 		LogConfig:    config,
 		LineBuffer:   bytes.Buffer{},
-		ShouldBuffer: commandName == "dotnet",
+		ShouldBuffer: shouldBuffer,
 		IsError:      true,
 	}
 	err := cmd.Start()
@@ -74,6 +77,10 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 	err = cmd.Wait()
 	flush(config.FlushTimeout, metricAgent, traceAgent)
 	return err
+}
+
+func calculateShouldBuffer(commandName string) bool {
+	return commandName == "dotnet"
 }
 
 func buildCommandParam(cmdArg []string) (string, []string) {
