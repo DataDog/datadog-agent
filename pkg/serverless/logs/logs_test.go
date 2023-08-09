@@ -1017,6 +1017,13 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -1037,6 +1044,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
@@ -1097,6 +1105,13 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -1117,6 +1132,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
