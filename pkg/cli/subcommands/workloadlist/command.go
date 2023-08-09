@@ -32,6 +32,7 @@ type cliParams struct {
 	verboseList bool
 }
 
+// GlobalParams exported type should have comment or be unexported
 type GlobalParams struct {
 	ConfFilePath string
 	ConfigName   string

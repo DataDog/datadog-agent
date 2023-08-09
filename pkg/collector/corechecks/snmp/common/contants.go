@@ -15,9 +15,11 @@ const SnmpIntegrationName = "snmp"
 // SnmpExternalTagsSourceType is the source id used for external tags
 const SnmpExternalTagsSourceType = "snmp"
 
+// IfAdminStatus exported type should have comment or be unexported
 type IfAdminStatus int
 
 const (
+// AdminStatus_Up exported const should have comment (or a comment on this block) or be unexported
 	AdminStatus_Up      IfAdminStatus = 1
 	AdminStatus_Down    IfAdminStatus = 2
 	AdminStatus_Testing IfAdminStatus = 3
@@ -29,6 +31,7 @@ var adminStatus_StringMap = map[IfAdminStatus]string{
 	AdminStatus_Testing: "testing",
 }
 
+// AsString exported method should have comment or be unexported
 func (i IfAdminStatus) AsString() string {
 	status, ok := adminStatus_StringMap[i]
 	if !ok {
@@ -37,9 +40,11 @@ func (i IfAdminStatus) AsString() string {
 	return status
 }
 
+// IfOperStatus exported type should have comment or be unexported
 type IfOperStatus int
 
 const (
+// OperStatus_Up exported const should have comment (or a comment on this block) or be unexported
 	OperStatus_Up             IfOperStatus = 1
 	OperStatus_Down           IfOperStatus = 2
 	OperStatus_Testing        IfOperStatus = 3
@@ -59,6 +64,7 @@ var operStatus_StringMap = map[IfOperStatus]string{
 	OperStatus_LowerLayerDown: "lower_layer_down",
 }
 
+// AsString exported method should have comment or be unexported
 func (i IfOperStatus) AsString() string {
 	status, ok := operStatus_StringMap[i]
 	if !ok {
@@ -67,9 +73,11 @@ func (i IfOperStatus) AsString() string {
 	return status
 }
 
+// InterfaceStatus exported type should have comment or be unexported
 type InterfaceStatus string
 
 const (
+// InterfaceStatus_Up exported const should have comment (or a comment on this block) or be unexported
 	InterfaceStatus_Up      InterfaceStatus = "up"
 	InterfaceStatus_Down    InterfaceStatus = "down"
 	InterfaceStatus_Warning InterfaceStatus = "warning"

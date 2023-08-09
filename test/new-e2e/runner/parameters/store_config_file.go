@@ -24,15 +24,18 @@ import (
 //   ddinfra:
 //     aws/someVariable: "ponyo"
 
+// Config exported type should have comment or be unexported
 type Config struct {
 	ConfigParams ConfigParams                 `yaml:"configParams"`
 	StackParams  map[string]map[string]string `yaml:"stackParams"`
 }
 
+// ConfigParams exported type should have comment or be unexported
 type ConfigParams struct {
 	AWS   AWS   `yaml:"aws"`
 	Agent Agent `yaml:"agent"`
 }
+// AWS exported type should have comment or be unexported
 type AWS struct {
 	Account       string `yaml:"account"`
 	KeyPairName   string `yaml:"keyPairName"`
@@ -40,6 +43,7 @@ type AWS struct {
 	TeamTag       string `yaml:"teamTag"`
 }
 
+// Agent exported type should have comment or be unexported
 type Agent struct {
 	APIKey string `yaml:"apiKey"`
 	APPKey string `yaml:"appKey"`
@@ -47,11 +51,13 @@ type Agent struct {
 
 var _ valueStore = &ConfigFileValueStore{}
 
+// ConfigFileValueStore exported type should have comment or be unexported
 type ConfigFileValueStore struct {
 	config          Config
 	stackParamsJson string
 }
 
+// NewConfigFileValueStore exported function should have comment or be unexported
 func NewConfigFileValueStore(path string) (ConfigFileValueStore, error) {
 	store := ConfigFileValueStore{}
 	content, err := os.ReadFile(path)

@@ -66,6 +66,7 @@ func getSSHClient(user, host string, privateKey []byte) (*ssh.Client, *ssh.Sessi
 	return client, session, nil
 }
 
+// ExecuteCommand exported function should have comment or be unexported
 func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {

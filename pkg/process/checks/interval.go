@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// This const block should have a comment or be unexported
 const (
 	ProcessCheckDefaultInterval          = 10 * time.Second
 	RTProcessCheckDefaultInterval        = 2 * time.Second

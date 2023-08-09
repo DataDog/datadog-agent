@@ -39,6 +39,7 @@ const (
 
 var appServicesTags map[string]string
 
+// GetAppServicesTags exported function should have comment or be unexported
 func GetAppServicesTags() map[string]string {
 	if appServicesTags != nil {
 		return appServicesTags

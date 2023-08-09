@@ -35,6 +35,7 @@ const (
 
 var functionName = os.Getenv(functionNameEnvVar)
 
+// ColdStartSpanCreator exported type should have comment or be unexported
 type ColdStartSpanCreator struct {
 	TraceAgent            *ServerlessTraceAgent
 	createSpan            sync.Once
@@ -48,6 +49,7 @@ type ColdStartSpanCreator struct {
 	initStartTime         time.Time
 }
 
+// Run exported method should have comment or be unexported
 func (c *ColdStartSpanCreator) Run() {
 	go func() {
 		for {
@@ -65,6 +67,7 @@ func (c *ColdStartSpanCreator) Run() {
 	}()
 }
 
+// Stop exported method should have comment or be unexported
 func (c *ColdStartSpanCreator) Stop() {
 	log.Debugf("[ColdStartCreator] - sending shutdown msg")
 	c.StopChan <- struct{}{}

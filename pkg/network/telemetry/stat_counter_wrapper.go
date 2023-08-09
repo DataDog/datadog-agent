@@ -18,25 +18,30 @@ type StatCounterWrapper struct {
 	counter telemetry.Counter
 }
 
+// Inc exported method should have comment or be unexported
 func (sgw *StatCounterWrapper) Inc() {
 	sgw.stat.Inc()
 	sgw.counter.Inc()
 }
 
+// Delete exported method should have comment or be unexported
 func (sgw *StatCounterWrapper) Delete() {
 	sgw.stat.Store(0)
 	sgw.counter.Delete()
 }
 
+// Add exported method should have comment or be unexported
 func (sgw *StatCounterWrapper) Add(v int64) {
 	sgw.stat.Add(v)
 	sgw.counter.Add(float64(v))
 }
 
+// Load exported method should have comment or be unexported
 func (sgw *StatCounterWrapper) Load() int64 {
 	return sgw.stat.Load()
 }
 
+// NewStatCounterWrapper exported function should have comment or be unexported
 func NewStatCounterWrapper(subsystem string, statName string, tags []string, description string) *StatCounterWrapper {
 	return &StatCounterWrapper{
 		stat:    atomic.NewInt64(0),

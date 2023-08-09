@@ -13,6 +13,7 @@ import (
 	"testing"
 )
 
+// PatternScanner exported type should have comment or be unexported
 type PatternScanner struct {
 	// The log pattern to match on
 	pattern *regexp.Regexp
@@ -27,6 +28,7 @@ type PatternScanner struct {
 	buffers []string
 }
 
+// NewScanner exported function should have comment or be unexported
 func NewScanner(pattern *regexp.Regexp, doneChan chan struct{}) *PatternScanner {
 	return &PatternScanner{
 		pattern:  pattern,
@@ -53,6 +55,7 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	return
 }
 
+// PrintLogs exported method should have comment or be unexported
 func (ps *PatternScanner) PrintLogs(t testing.TB) {
 	t.Log(strings.Join(ps.buffers, ""))
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
+// PGA_QUERY exported const should have comment or be unexported
 const PGA_QUERY = `SELECT 
 	name pdb_name, 
 	pid, 
@@ -27,6 +28,7 @@ const PGA_QUERY = `SELECT
   WHERE
   	c.con_id(+) = p.con_id`
 
+// ProcessesRowDB exported type should have comment or be unexported
 type ProcessesRowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	PID            uint64         `db:"PID"`
@@ -37,6 +39,7 @@ type ProcessesRowDB struct {
 	PGAMaxMem      float64        `db:"PGA_MAX_MEM"`
 }
 
+// ProcessMemory exported method should have comment or be unexported
 func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
 	err := selectWrapper(c, &rows, PGA_QUERY)

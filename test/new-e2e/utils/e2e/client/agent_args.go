@@ -11,6 +11,7 @@ type agentArgs struct {
 	Args []string
 }
 
+// AgentArgsOption exported type should have comment or be unexported
 type AgentArgsOption = func(*agentArgs)
 
 // WithArgs sets the Agent arguments

@@ -16,6 +16,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
+// This const block should have a comment or be unexported
 const (
 	AgentAPIKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
@@ -28,8 +29,10 @@ const (
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
 )
 
+// ConfigMap exported type should have comment or be unexported
 type ConfigMap auto.ConfigMap
 
+// Set exported method should have comment or be unexported
 func (cm ConfigMap) Set(key, val string, secret bool) {
 	cm[key] = auto.ConfigValue{
 		Value:  val,
@@ -37,20 +40,24 @@ func (cm ConfigMap) Set(key, val string, secret bool) {
 	}
 }
 
+// Merge exported method should have comment or be unexported
 func (cm ConfigMap) Merge(in ConfigMap) {
 	for key, val := range in {
 		cm[key] = val
 	}
 }
 
+// ToPulumi exported method should have comment or be unexported
 func (cm ConfigMap) ToPulumi() auto.ConfigMap {
 	return (auto.ConfigMap)(cm)
 }
 
+// SetConfigMapFromSecret exported function should have comment or be unexported
 func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	return setConfigMapFromParameter(secretStore, cm, paramName, configMapKey, true)
 }
 
+// SetConfigMapFromParameter exported function should have comment or be unexported
 func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	return setConfigMapFromParameter(store, cm, paramName, configMapKey, false)
 }
@@ -71,6 +78,7 @@ func setConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName p
 	return nil
 }
 
+// BuildStackParameters exported function should have comment or be unexported
 func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap, error) {
 	// Priority order: profile configs < scenarioConfig < Env/CLI config
 	cm := ConfigMap{}

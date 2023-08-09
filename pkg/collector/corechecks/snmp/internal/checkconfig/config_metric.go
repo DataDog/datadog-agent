@@ -12,8 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ProfileMetricType exported type should have comment or be unexported
 type ProfileMetricType string
 
+// This const block should have a comment or be unexported
 const (
 	ProfileMetricTypeGauge                 ProfileMetricType = "gauge"
 	ProfileMetricTypeMonotonicCount        ProfileMetricType = "monotonic_count"

@@ -74,16 +74,19 @@ type ConfigReader interface {
 	Object() ConfigReader
 }
 
+// ConfigWriter exported type should have comment or be unexported
 type ConfigWriter interface {
 	Set(key string, value interface{})
 	CopyConfig(cfg Config)
 }
 
+// ConfigReaderWriter exported type should have comment or be unexported
 type ConfigReaderWriter interface {
 	ConfigReader
 	ConfigWriter
 }
 
+// ConfigLoader exported type should have comment or be unexported
 type ConfigLoader interface {
 	// API implemented by viper.Viper
 

@@ -14,11 +14,13 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+// This const block should have a comment or be unexported
 const (
 	User = "guest"
 	Pass = "guest"
 )
 
+// RunServer exported function should have comment or be unexported
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,

@@ -29,6 +29,7 @@ import (
 	"github.com/benbjohnson/clock"
 )
 
+// Server exported type should have comment or be unexported
 type Server struct {
 	mu     sync.RWMutex
 	server http.Server
@@ -93,6 +94,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 	}
 }
 
+// WithClock exported function should have comment or be unexported
 func WithClock(clock clock.Clock) func(*Server) {
 	return func(fi *Server) {
 		if fi.URL() != "" {
@@ -141,6 +143,7 @@ func (fi *Server) Start() {
 	}()
 }
 
+// URL exported method should have comment or be unexported
 func (fi *Server) URL() string {
 	return fi.url
 }

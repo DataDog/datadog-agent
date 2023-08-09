@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// LoggerName exported const should have comment or be unexported
 const LoggerName config.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
@@ -140,6 +141,7 @@ func SetHostMountEnv(logger logComponent.Component) {
 	}
 }
 
+// GetCoreBundleParamsForOneShot exported function should have comment or be unexported
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),

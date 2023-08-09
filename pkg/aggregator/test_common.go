@@ -20,6 +20,7 @@ func (s *senders) PeekSender(cid checkid.ID) (sender.Sender, error) {
 	return s.senderPool.getSender(cid)
 }
 
+// NewForwarderTest exported function should have comment or be unexported
 func NewForwarderTest(log log.Component) defaultforwarder.Forwarder {
 	return defaultforwarder.NewDefaultForwarder(config.Datadog, log, defaultforwarder.NewOptions(config.Datadog, log, nil))
 }

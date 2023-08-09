@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// PayloadItem exported type should have comment or be unexported
 type PayloadItem interface {
 	name() string
 	GetTags() []string
@@ -22,6 +23,7 @@ type PayloadItem interface {
 
 type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
 
+// Aggregator exported type should have comment or be unexported
 type Aggregator[P PayloadItem] struct {
 	payloadsByName map[string][]P
 	parse          parseFunc[P]
@@ -39,6 +41,7 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	}
 }
 
+// UnmarshallPayloads exported method should have comment or be unexported
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	// reset map
 	agg.Reset()
@@ -59,11 +62,13 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	return nil
 }
 
+// ContainsPayloadName exported method should have comment or be unexported
 func (agg *Aggregator[P]) ContainsPayloadName(name string) bool {
 	_, found := agg.payloadsByName[name]
 	return found
 }
 
+// ContainsPayloadNameAndTags exported method should have comment or be unexported
 func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string) bool {
 	payloads, found := agg.payloadsByName[name]
 	if !found {
@@ -79,6 +84,7 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	return false
 }
 
+// GetNames exported method should have comment or be unexported
 func (agg *Aggregator[P]) GetNames() []string {
 	names := []string{}
 	for name := range agg.payloadsByName {
@@ -113,14 +119,17 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 	return rc, err
 }
 
+// GetPayloadsByName exported method should have comment or be unexported
 func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
 	return agg.payloadsByName[name]
 }
 
+// Reset exported method should have comment or be unexported
 func (agg *Aggregator[P]) Reset() {
 	agg.payloadsByName = map[string][]P{}
 }
 
+// FilterByTags exported function should have comment or be unexported
 func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {
 	ret := []P{}
 	for _, p := range payloads {
@@ -131,6 +140,7 @@ func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {
 	return ret
 }
 
+// AreTagsSubsetOfOtherTags exported function should have comment or be unexported
 func AreTagsSubsetOfOtherTags(tags, otherTags []string) bool {
 	otherTagsSet := tagsToSet(otherTags)
 	for _, tag := range tags {

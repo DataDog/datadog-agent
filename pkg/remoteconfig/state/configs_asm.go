@@ -1,3 +1,6 @@
+// HasFeature exported method should have comment or be unexported
+// AppLogsTrace exported const should have comment or be unexported
+// exported comment on const RunZip should be of the form "RunZip ..."
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -94,6 +97,7 @@ func (r *Repository) ASMFeaturesConfigs() map[string]ASMFeaturesConfig {
 // they haven't applied it yet, or communicate any error that may have happened while doing so
 type ApplyState uint64
 
+// This const block should have a comment or be unexported
 const (
 	ApplyStateUnknown ApplyState = iota
 	ApplyStateUnacknowledged

@@ -132,6 +132,7 @@ func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[stri
 	return ret
 }
 
+// FormatCORETelemetry exported function should have comment or be unexported
 func FormatCORETelemetry(telByAsset map[string]int32) map[string]model.COREResult {
 	if telByAsset == nil {
 		return nil

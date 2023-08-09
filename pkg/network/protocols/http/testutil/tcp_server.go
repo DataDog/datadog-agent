@@ -7,11 +7,13 @@ package testutil
 
 import "net"
 
+// TCPServer exported type should have comment or be unexported
 type TCPServer struct {
 	address   string
 	onMessage func(c net.Conn)
 }
 
+// NewTCPServer exported function should have comment or be unexported
 func NewTCPServer(addr string, onMessage func(c net.Conn)) *TCPServer {
 	return &TCPServer{
 		address:   addr,
@@ -19,6 +21,7 @@ func NewTCPServer(addr string, onMessage func(c net.Conn)) *TCPServer {
 	}
 }
 
+// Run exported method should have comment or be unexported
 func (s *TCPServer) Run(done chan struct{}) error {
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {

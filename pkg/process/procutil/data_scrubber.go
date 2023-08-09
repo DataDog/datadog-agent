@@ -27,6 +27,7 @@ const (
 	defaultCacheMaxCycles = 25
 )
 
+// DataScrubberPattern exported type should have comment or be unexported
 type DataScrubberPattern struct {
 	FastCheck string
 	Re        *regexp.Regexp

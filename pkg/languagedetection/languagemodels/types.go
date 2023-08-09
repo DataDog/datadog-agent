@@ -9,6 +9,7 @@ package languagemodels
 // LanguageName is a string enum that represents a detected language name.
 type LanguageName string
 
+// This const block should have a comment or be unexported
 const (
 	Node    LanguageName = "node"
 	Dotnet  LanguageName = "dotnet"

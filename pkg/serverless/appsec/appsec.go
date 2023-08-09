@@ -22,6 +22,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// New exported function should have comment or be unexported
 func New() (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
@@ -63,6 +64,7 @@ func New() (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, e
 	}
 }
 
+// AppSec exported type should have comment or be unexported
 type AppSec struct {
 	cfg *Config
 	// WAF handle instance of the appsec event rules.

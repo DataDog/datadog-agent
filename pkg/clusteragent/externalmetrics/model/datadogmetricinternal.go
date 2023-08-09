@@ -138,6 +138,7 @@ func NewDatadogMetricInternalFromExternalMetric(id, query, metricName, autoscale
 	}
 }
 
+// exported comment on method DatadogMetricInternal.Query should be of the form "Query ..."
 // query returns the query that should be used to fetch metrics
 func (d *DatadogMetricInternal) Query() string {
 	if d.resolvedQuery != nil {

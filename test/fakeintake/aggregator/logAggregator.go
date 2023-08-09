@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// Log exported type should have comment or be unexported
 type Log struct {
 	Message   string   `json:"message"`
 	Status    string   `json:"status"`
@@ -25,6 +26,7 @@ func (l *Log) name() string {
 	return l.Service
 }
 
+// GetTags exported method should have comment or be unexported
 func (l *Log) GetTags() []string {
 	return l.Tags
 }
@@ -46,10 +48,12 @@ func parseLogPayload(payload api.Payload) (logs []*Log, err error) {
 	return logs, err
 }
 
+// LogAggregator exported type should have comment or be unexported
 type LogAggregator struct {
 	Aggregator[*Log]
 }
 
+// NewLogAggregator exported function should have comment or be unexported
 func NewLogAggregator() LogAggregator {
 	return LogAggregator{
 		Aggregator: newAggregator(parseLogPayload),

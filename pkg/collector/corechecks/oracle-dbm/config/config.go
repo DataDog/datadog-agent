@@ -25,10 +25,12 @@ type InitConfig struct {
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 }
 
+// QuerySamplesConfig exported type should have comment or be unexported
 type QuerySamplesConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// QueryMetricsConfig exported type should have comment or be unexported
 type QueryMetricsConfig struct {
 	Enabled            bool  `yaml:"enabled"`
 	CollectionInterval int64 `yaml:"collection_interval"`
@@ -37,26 +39,32 @@ type QueryMetricsConfig struct {
 	DisableLastActive  bool  `yaml:"disable_last_active"`
 }
 
+// SysMetricsConfig exported type should have comment or be unexported
 type SysMetricsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// TablespacesConfig exported type should have comment or be unexported
 type TablespacesConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// ProcessMemoryConfig exported type should have comment or be unexported
 type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// SharedMemoryConfig exported type should have comment or be unexported
 type SharedMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// ExecutionPlansConfig exported type should have comment or be unexported
 type ExecutionPlansConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// AgentSQLTrace exported type should have comment or be unexported
 type AgentSQLTrace struct {
 	Enabled    bool `yaml:"enabled"`
 	Binds      bool `yaml:"binds"`
@@ -64,11 +72,13 @@ type AgentSQLTrace struct {
 	TracedRuns int  `yaml:"traced_runs"`
 }
 
+// CustomQueryColumns exported type should have comment or be unexported
 type CustomQueryColumns struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
 }
 
+// CustomQuery exported type should have comment or be unexported
 type CustomQuery struct {
 	MetricPrefix string               `yaml:"metric_prefix"`
 	Pdb          string               `yaml:"pdb"`

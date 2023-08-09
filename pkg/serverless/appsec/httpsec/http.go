@@ -43,6 +43,7 @@ func NewInvocationSubProcessor(appsec Monitorer) *InvocationSubProcessor {
 	}
 }
 
+// OnInvokeStart exported method should have comment or be unexported
 func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.InvocationStartDetails, _ *invocationlifecycle.RequestHandler) {
 	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 
@@ -54,6 +55,7 @@ func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.Invocation
 	}
 }
 
+// OnInvokeEnd exported method should have comment or be unexported
 func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails, invocCtx *invocationlifecycle.RequestHandler) {
 	if p == nil {
 		return

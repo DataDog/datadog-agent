@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// NewGoTLSClient exported function should have comment or be unexported
 func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
 	clientBin := buildGoTLSClientBin(t)
 	clientCmd := fmt.Sprintf("%s %s %d", clientBin, serverAddr, numRequests)

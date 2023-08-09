@@ -17,6 +17,7 @@ import (
 )
 
 const (
+// DefaultTimeout exported const should have comment (or a comment on this block) or be unexported
 	DefaultTimeout = time.Minute
 )
 

@@ -228,6 +228,7 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
+// StatCookie exported type should have comment or be unexported
 type StatCookie = uint64
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned

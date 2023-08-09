@@ -35,6 +35,7 @@ type USMConnectionData[K comparable, V any] struct {
 	claimed bool
 }
 
+// USMKeyValue exported type should have comment or be unexported
 type USMKeyValue[K comparable, V any] struct {
 	Key   K
 	Value V

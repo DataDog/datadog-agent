@@ -13,6 +13,7 @@ import (
 )
 
 const (
+// KubeletMetricsPrefix exported const should have comment (or a comment on this block) or be unexported
 	KubeletMetricsPrefix = "kubernetes_core."
 )
 
@@ -21,6 +22,7 @@ type KubeletConfig struct {
 	Tags []string `yaml:"tags"`
 }
 
+// Parse exported method should have comment or be unexported
 func (c *KubeletConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }

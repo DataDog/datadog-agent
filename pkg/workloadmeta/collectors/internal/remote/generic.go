@@ -33,16 +33,19 @@ const (
 
 var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not started")
 
+// RemoteGrpcClient exported type should have comment or be unexported
 type RemoteGrpcClient interface {
 	// StreamEntites establishes the stream between the client and the remote gRPC server.
 	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
 }
 
+// Stream exported type should have comment or be unexported
 type Stream interface {
 	// Recv returns a response of the gRPC server
 	Recv() (interface{}, error)
 }
 
+// StreamHandler exported type should have comment or be unexported
 type StreamHandler interface {
 	// Port returns the targeted port
 	Port() int
@@ -76,6 +79,7 @@ type GenericCollector struct {
 	Insecure bool // for testing
 }
 
+// Start exported method should have comment or be unexported
 func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !c.StreamHandler.IsEnabled() {
 		return fmt.Errorf("collector %s is not enabled", c.CollectorID)
@@ -121,6 +125,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 	return nil
 }
 
+// Pull exported method should have comment or be unexported
 func (c *GenericCollector) Pull(context.Context) error {
 	return nil
 }
@@ -167,6 +172,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	}, expBackoff)
 }
 
+// Run exported method should have comment or be unexported
 func (c *GenericCollector) Run() {
 	for {
 		select {

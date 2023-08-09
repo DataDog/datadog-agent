@@ -97,6 +97,7 @@ func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)
 }
 
+// SetNoIndex exported method should have comment or be unexported
 func (m *MockSender) SetNoIndex(noIndex bool) {
 	m.Called(noIndex)
 }

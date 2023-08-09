@@ -12,14 +12,17 @@ import (
 
 var _ valueStore = &EnvValueStore{}
 
+// EnvValueStore exported type should have comment or be unexported
 type EnvValueStore struct {
 	prefix string
 }
 
+// NewEnvStore exported function should have comment or be unexported
 func NewEnvStore(prefix string) Store {
 	return newStore(NewEnvValueStore(prefix))
 }
 
+// NewEnvValueStore exported function should have comment or be unexported
 func NewEnvValueStore(prefix string) EnvValueStore {
 	return EnvValueStore{
 		prefix: prefix,

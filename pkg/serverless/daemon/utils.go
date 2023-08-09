@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// LocalTestEnvVar exported const should have comment or be unexported
 const LocalTestEnvVar = "DD_LOCAL_TEST"
 
 // waitWithTimeout waits for a WaitGroup with a specified max timeout.

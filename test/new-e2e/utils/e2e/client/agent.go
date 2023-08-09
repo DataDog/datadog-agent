@@ -28,6 +28,7 @@ type Agent struct {
 	vmClient *vmClient
 }
 
+// exported comment on function NewAgent should be of the form "NewAgent ..."
 // Create a new instance of an Agent connected to an [agent.Installer].
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer

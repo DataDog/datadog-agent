@@ -94,10 +94,12 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
+// SetEnabled exported method should have comment or be unexported
 func (e *RareSampler) SetEnabled(enabled bool) {
 	e.enabled.Store(enabled)
 }
 
+// IsEnabled exported method should have comment or be unexported
 func (e *RareSampler) IsEnabled() bool {
 	return e.enabled.Load()
 }

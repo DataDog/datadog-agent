@@ -46,6 +46,7 @@ type Source struct {
 	Info          map[string][]string    `json:"info"`
 }
 
+// Tailer exported type should have comment or be unexported
 type Tailer struct {
 	Id   string              `json:"id"`
 	Type string              `json:"type"`

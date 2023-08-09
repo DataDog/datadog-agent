@@ -1,3 +1,4 @@
+// InAzureAppServices exported function should have comment or be unexported
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -39,8 +40,9 @@ type Endpoint struct {
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
-// App Services env vars
+// RunZip App Services env vars
 const RunZip = "APPSVC_RUN_ZIP"
+// AppLogsTrace exported const should have comment or be unexported
 const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
@@ -589,11 +591,13 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
+// HasFeature exported method should have comment or be unexported
 func (c *AgentConfig) HasFeature(feat string) bool {
 	_, ok := c.Features[feat]
 	return ok
 }
 
+// AllFeatures exported method should have comment or be unexported
 func (c *AgentConfig) AllFeatures() []string {
 	feats := []string{}
 	for feat := range c.Features {
@@ -602,6 +606,7 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
+// InAzureAppServices exported function should have comment or be unexported
 func InAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv(RunZip)
 	_, existsWin := os.LookupEnv(AppLogsTrace)

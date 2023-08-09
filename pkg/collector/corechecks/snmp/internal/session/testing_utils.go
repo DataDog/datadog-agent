@@ -70,6 +70,7 @@ func NewMockSession(config *checkconfig.CheckConfig) (Session, error) {
 	return CreateMockSession(), nil
 }
 
+// CreateGetNextPacket exported function should have comment or be unexported
 func CreateGetNextPacket(oid string, varType gosnmp.Asn1BER, value interface{}) *gosnmp.SnmpPacket {
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{

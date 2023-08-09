@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// NewReleaseLock exported function should have comment or be unexported
 func NewReleaseLock(lockType string, ns string, name string, coreClient corev1.CoreV1Interface, coordinationClient clientcoord.CoordinationV1Interface, rlc rl.ResourceLockConfig) (rl.Interface, error) {
 	if lockType == configmaplock.ConfigMapsResourceLock {
 		return &configmaplock.ConfigMapLock{
@@ -85,6 +86,7 @@ func (le *LeaderEngine) getCurrentLeader() (string, error) {
 	return le.getCurrentLeaderConfigMap()
 }
 
+// CreateLeaderTokenIfNotExists exported method should have comment or be unexported
 func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
 	if le.lockType == rl.LeasesResourceLock {
 		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})

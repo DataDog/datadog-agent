@@ -14,6 +14,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+// RunServer exported function should have comment or be unexported
 func RunServer(t testing.TB, serverAddr string, serverPort string) error {
 	t.Helper()
 

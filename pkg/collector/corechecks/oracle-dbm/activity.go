@@ -31,6 +31,7 @@ type ActivitySnapshot struct {
 	OracleActivityRows []OracleActivityRow `json:"oracle_activity,omitempty"`
 }
 
+// ACTIVITY_QUERY exported const should have comment or be unexported
 const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	SYSDATE as now,
 	sid,
@@ -103,6 +104,7 @@ WHERE
 	)
 	AND status = 'ACTIVE'`
 
+// ACTIVITY_QUERY_DIRECT exported const should have comment or be unexported
 const ACTIVITY_QUERY_DIRECT = `SELECT /* DD_ACTIVITY_SAMPLING */
 s.sid,
 s.serial#,
@@ -184,6 +186,7 @@ AND status = 'ACTIVE'
 AND s.con_id = c.con_id(+)
 AND s.command = comm.command_type(+)`
 
+// RowMetadata exported type should have comment or be unexported
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
 	Tables         []string `json:"dd_tables,omitempty"`
@@ -200,6 +203,7 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
+// OracleSQLRow exported type should have comment or be unexported
 type OracleSQLRow struct {
 	SQLID                  string `json:"sql_id,omitempty"`
 	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
@@ -207,6 +211,7 @@ type OracleSQLRow struct {
 	SQLExecStart           string `json:"sql_exec_start,omitempty"`
 }
 
+// OracleActivityRow exported type should have comment or be unexported
 type OracleActivityRow struct {
 	Now           string `json:"now"`
 	SessionID     uint64 `json:"sid,omitempty"`
@@ -242,6 +247,7 @@ type OracleActivityRow struct {
 	RowMetadata
 }
 
+// OracleActivityRowDB exported type should have comment or be unexported
 type OracleActivityRowDB struct {
 	Now                        string         `db:"NOW"`
 	SessionID                  uint64         `db:"SID"`
@@ -311,6 +317,7 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	return SQLRow, nil
 }
 
+// SampleSession exported method should have comment or be unexported
 func (c *Check) SampleSession() error {
 	start := time.Now()
 

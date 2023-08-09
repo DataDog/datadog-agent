@@ -115,6 +115,7 @@ type CollectorRunResult struct {
 	ResourcesProcessed int
 }
 
+// NewProcessorContext exported function should have comment or be unexported
 func NewProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.ProcessorContext {
 	return &processors.ProcessorContext{
 		APIClient:          rcfg.APIClient,

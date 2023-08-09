@@ -50,6 +50,7 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
+// Params exported type should have comment or be unexported
 type Params struct {
 	DefaultLogFile string
 }

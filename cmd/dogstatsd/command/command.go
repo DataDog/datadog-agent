@@ -20,6 +20,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
+// MakeRootCommand exported function should have comment or be unexported
 func MakeRootCommand(defaultLogFile string) *cobra.Command {
 	// dogstatsdCmd is the root command
 	dogstatsdCmd := &cobra.Command{

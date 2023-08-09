@@ -34,6 +34,7 @@ var netflow9pcapng []byte
 //go:embed pcap_recordings/sflow.pcapng
 var sflowpcapng []byte
 
+// SendUDPPacket exported function should have comment or be unexported
 func SendUDPPacket(port uint16, data []byte) error {
 	udpConn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
@@ -44,6 +45,7 @@ func SendUDPPacket(port uint16, data []byte) error {
 	return err
 }
 
+// ExpectNetflow5Payloads exported function should have comment or be unexported
 func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEventPlatformForwarder) {
 	events := [][]byte{
 		[]byte(`
@@ -154,6 +156,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 	}
 }
 
+// GetPacketFromPcap exported function should have comment or be unexported
 func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int) ([]byte, error) {
 	reader := bytes.NewReader(pcapdata)
 
@@ -178,14 +181,17 @@ func GetPacketFromPcap(pcapdata []byte, layer gopacket.Decoder, packetIndex int)
 	}
 }
 
+// GetNetFlow5Packet exported function should have comment or be unexported
 func GetNetFlow5Packet() ([]byte, error) {
 	return GetPacketFromPcap(netflow5pcapng, layers.LayerTypeLoopback, 0)
 }
 
+// GetNetFlow9Packet exported function should have comment or be unexported
 func GetNetFlow9Packet() ([]byte, error) {
 	return GetPacketFromPcap(netflow9pcapng, layers.LayerTypeLoopback, 0)
 }
 
+// GetSFlow5Packet exported function should have comment or be unexported
 func GetSFlow5Packet() ([]byte, error) {
 	return GetPacketFromPcap(sflowpcapng, layers.LayerTypeEthernet, 1)
 }

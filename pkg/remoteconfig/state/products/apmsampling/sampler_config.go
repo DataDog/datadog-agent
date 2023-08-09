@@ -6,17 +6,20 @@
 // Package apmsampling TODO comment
 package apmsampling
 
+// SamplerConfig exported type should have comment or be unexported
 type SamplerConfig struct {
 	AllEnvs SamplerEnvConfig `json:"all_envs"`
 	ByEnv   []EnvAndConfig   `json:"by_env"`
 }
 
+// SamplerEnvConfig exported type should have comment or be unexported
 type SamplerEnvConfig struct {
 	PrioritySamplerTargetTPS *float64 `json:"priority_sampler_target_TPS"`
 	ErrorsSamplerTargetTPS   *float64 `json:"errors_sampler_target_TPS"`
 	RareSamplerEnabled       *bool    `json:"rare_sampler_enabled"`
 }
 
+// EnvAndConfig exported type should have comment or be unexported
 type EnvAndConfig struct {
 	Env    string           `json:"env"`
 	Config SamplerEnvConfig `json:"config"`

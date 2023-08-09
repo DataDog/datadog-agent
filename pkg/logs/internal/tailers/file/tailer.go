@@ -384,14 +384,17 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
+// GetId exported method should have comment or be unexported
 func (t *Tailer) GetId() string {
 	return t.file.GetScanKey()
 }
 
+// GetType exported method should have comment or be unexported
 func (t *Tailer) GetType() string {
 	return "file"
 }
 
+// GetInfo exported method should have comment or be unexported
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
 }

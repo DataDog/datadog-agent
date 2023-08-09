@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// This const block should have a comment or be unexported
 const (
 	ConfigName      = "datadog-cluster"
 	LoggerName      = "CLUSTER"

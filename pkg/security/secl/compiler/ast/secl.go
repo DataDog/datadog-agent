@@ -17,11 +17,13 @@ import (
 	"github.com/alecthomas/participle/lexer/ebnf"
 )
 
+// ParsingContext exported type should have comment or be unexported
 type ParsingContext struct {
 	ruleParser  *participle.Parser
 	macroParser *participle.Parser
 }
 
+// NewParsingContext exported function should have comment or be unexported
 func NewParsingContext() *ParsingContext {
 	seclLexer := lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
@@ -172,6 +174,7 @@ type BitOperation struct {
 	Next  *BitOperation `parser:"@@ ]"`
 }
 
+// ArithmeticOperation exported type should have comment or be unexported
 type ArithmeticOperation struct {
 	Pos lexer.Position
 
@@ -179,6 +182,7 @@ type ArithmeticOperation struct {
 	Rest  []*ArithmeticElement `parser:"[ @@ { @@ } ]"`
 }
 
+// ArithmeticElement exported type should have comment or be unexported
 type ArithmeticElement struct {
 	Op      string        `parser:"@( \"+\" | \"-\" )"`
 	Operand *BitOperation `parser:"@@"`

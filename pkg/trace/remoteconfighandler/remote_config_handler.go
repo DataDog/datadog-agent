@@ -46,6 +46,7 @@ type RemoteConfigHandler struct {
 	configSetEndpointFormatString string
 }
 
+// New exported function should have comment or be unexported
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
 		return nil
@@ -72,6 +73,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 	}
 }
 
+// Start exported method should have comment or be unexported
 func (h *RemoteConfigHandler) Start() {
 	if h == nil {
 		return

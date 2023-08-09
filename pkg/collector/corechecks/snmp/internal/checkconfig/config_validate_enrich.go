@@ -36,8 +36,10 @@ var validMetadataResources = map[string]map[string]bool{
 	},
 }
 
+// SymbolContext exported type should have comment or be unexported
 type SymbolContext int64
 
+// This const block should have a comment or be unexported
 const (
 	ScalarSymbol SymbolContext = iota
 	ColumnSymbol

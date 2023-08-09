@@ -16,6 +16,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
+// Options exported type should have comment or be unexported
 type Options struct {
 	ServerAddress string
 	Username      string
@@ -23,6 +24,7 @@ type Options struct {
 	Dialer        *net.Dialer
 }
 
+// Client exported type should have comment or be unexported
 type Client struct {
 	opts           Options
 	PublishConn    *amqp.Connection
@@ -31,6 +33,7 @@ type Client struct {
 	ConsumeChannel *amqp.Channel
 }
 
+// NewClient exported function should have comment or be unexported
 func NewClient(opts Options) (*Client, error) {
 	if opts.Username == "" {
 		opts.Username = User
@@ -70,10 +73,12 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
+// Queue exported type should have comment or be unexported
 type Queue struct {
 	Name string
 }
 
+// DeleteQueues exported method should have comment or be unexported
 func (c *Client) DeleteQueues() error {
 	host, _, _ := net.SplitHostPort(c.opts.ServerAddress)
 	manager := fmt.Sprintf("http://%s:15672/api/queues/", host)
@@ -101,6 +106,7 @@ func (c *Client) DeleteQueues() error {
 	return nil
 }
 
+// Terminate exported method should have comment or be unexported
 func (c *Client) Terminate() {
 	c.PublishChannel.Close()
 	c.ConsumeChannel.Close()
@@ -108,6 +114,7 @@ func (c *Client) Terminate() {
 	c.ConsumeConn.Close()
 }
 
+// DeclareQueue exported method should have comment or be unexported
 func (c *Client) DeclareQueue(name string, ch *amqp.Channel) error {
 	_, err := ch.QueueDeclare(
 		name,  // name
@@ -120,6 +127,7 @@ func (c *Client) DeclareQueue(name string, ch *amqp.Channel) error {
 	return err
 }
 
+// Publish exported method should have comment or be unexported
 func (c *Client) Publish(queue, body string) error {
 	return c.PublishChannel.Publish(
 		"",    // exchange
@@ -132,6 +140,7 @@ func (c *Client) Publish(queue, body string) error {
 		})
 }
 
+// Consume exported method should have comment or be unexported
 func (c *Client) Consume(queue string, numberOfMessages int) ([]string, error) {
 	msgs, err := c.ConsumeChannel.Consume(
 		queue,

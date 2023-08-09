@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/runtime/protoiface"
 )
 
+// PbToStringSlice exported function should have comment or be unexported
 func PbToStringSlice(s []protoiface.MessageV1) []string {
 	slice := []string{}
 	for _, s := range s {

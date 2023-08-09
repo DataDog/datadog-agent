@@ -21,6 +21,7 @@ import (
 	"github.com/fatih/color"
 )
 
+// TestJSONOut exported const should have comment or be unexported
 const TestJSONOut = "/ci-visibility/testjson/out.json"
 
 func init() {

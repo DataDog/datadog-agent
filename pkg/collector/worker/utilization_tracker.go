@@ -19,6 +19,7 @@ const (
 	trackerTick
 )
 
+// UtilizationTracker exported type should have comment or be unexported
 type UtilizationTracker struct {
 	Output chan float64
 

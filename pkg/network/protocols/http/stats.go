@@ -119,11 +119,13 @@ func (r *RequestStat) initSketch() (err error) {
 	return
 }
 
+// RequestStats exported type should have comment or be unexported
 type RequestStats struct {
 	aggregateByStatusCode bool
 	Data                  map[uint16]*RequestStat
 }
 
+// NewRequestStats exported function should have comment or be unexported
 func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	return &RequestStats{
 		aggregateByStatusCode: aggregateByStatusCode,
@@ -131,6 +133,7 @@ func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	}
 }
 
+// NormalizeStatusCode exported method should have comment or be unexported
 func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
 	if r.aggregateByStatusCode {
 		return status

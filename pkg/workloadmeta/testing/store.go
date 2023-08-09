@@ -245,6 +245,7 @@ func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Sou
 	panic("not implemented")
 }
 
+// ResetProcesses exported method should have comment or be unexported
 func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
 	panic("not implemented")
 }

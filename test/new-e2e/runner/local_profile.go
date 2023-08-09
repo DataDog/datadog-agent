@@ -19,6 +19,7 @@ const (
 	defaultLocalEnvironments string = "aws/agent-sandbox"
 )
 
+// NewLocalProfile exported function should have comment or be unexported
 func NewLocalProfile() (Profile, error) {
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)

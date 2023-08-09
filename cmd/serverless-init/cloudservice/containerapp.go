@@ -18,6 +18,7 @@ type ContainerApp struct {
 	ResourceGroup  string
 }
 
+// This const block should have a comment or be unexported
 const (
 	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
 	ContainerAppDNSSuffix  = "CONTAINER_APP_ENV_DNS_SUFFIX"

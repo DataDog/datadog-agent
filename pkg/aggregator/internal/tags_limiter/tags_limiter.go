@@ -17,11 +17,13 @@ type entry struct {
 	tags  []string
 }
 
+// Limiter exported type should have comment or be unexported
 type Limiter struct {
 	limit   int
 	dropped map[ckey.TagsKey]*entry
 }
 
+// New exported function should have comment or be unexported
 func New(limit int) *Limiter {
 	if limit <= 0 {
 		return nil
@@ -33,6 +35,7 @@ func New(limit int) *Limiter {
 	}
 }
 
+// Check exported method should have comment or be unexported
 func (l *Limiter) Check(taggerKey ckey.TagsKey, taggerTags, metricTags []string) bool {
 	if l == nil {
 		return true
@@ -55,6 +58,7 @@ func (l *Limiter) Check(taggerKey ckey.TagsKey, taggerTags, metricTags []string)
 	return true
 }
 
+// SendTelemetry exported method should have comment or be unexported
 func (l *Limiter) SendTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	if l == nil {
 		return

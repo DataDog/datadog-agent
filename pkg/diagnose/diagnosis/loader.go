@@ -12,13 +12,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// exported comment on type MetadataAvailDiagnose should be of the form "MetadataAvailDiagnose ..." (with optional leading article)
 // --------------------------------
 // Diagnose (Metadata availability subcommand)
 type MetadataAvailDiagnose func() error
+// MetadataAvailDiagnoseCatalog exported type should have comment or be unexported
 type MetadataAvailDiagnoseCatalog map[string]MetadataAvailDiagnose
 
+// MetadataAvailCatalog exported var should have comment or be unexported
 var MetadataAvailCatalog = make(MetadataAvailDiagnoseCatalog)
 
+// RegisterMetadataAvail exported function should have comment or be unexported
 func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 	if _, ok := MetadataAvailCatalog[name]; ok {
 		log.Warnf("Diagnosis %s already registered, overriding it", name)
@@ -32,15 +36,18 @@ func RegisterMetadataAvail(name string, d MetadataAvailDiagnose) {
 // Diagnose interface function
 type Diagnose func(Config) []Diagnosis
 
+// exported comment on var Catalog should be of the form "Catalog ..."
 // Global list of registered Diagnose functions
 var Catalog = make([]Suite, 0)
 
+// exported comment on type Suite should be of the form "Suite ..." (with optional leading article)
 // Diagnose suite information
 type Suite struct {
 	SuitName string
 	Diagnose Diagnose
 }
 
+// exported comment on type Config should be of the form "Config ..." (with optional leading article)
 // Diagnose configuration
 type Config struct {
 	Verbose        bool
@@ -50,6 +57,7 @@ type Config struct {
 	Exclude        []*regexp.Regexp
 }
 
+// Result exported type should have comment or be unexported
 type Result int
 
 // Use explicit constant instead of iota because the same numbers are used
@@ -58,6 +66,7 @@ type Result int
 //    datadog-agent\rtloader\include\rtloader_types.h
 //    integrations-core\datadog_checks_base\datadog_checks\base\utils\diagnose.py
 
+// This const block should have a comment or be unexported
 const (
 	DiagnosisSuccess         Result = 0
 	DiagnosisFail            Result = 1
@@ -67,6 +76,7 @@ const (
 	DiagnosisResultMAX              = DiagnosisUnexpectedError
 )
 
+// exported comment on type Diagnosis should be of the form "Diagnosis ..." (with optional leading article)
 // Diagnose result (diagnosis)
 type Diagnosis struct {
 	// --------------------------
@@ -92,11 +102,13 @@ type Diagnosis struct {
 	RawError error
 }
 
+// Diagnoses exported type should have comment or be unexported
 type Diagnoses struct {
 	SuiteName      string
 	SuiteDiagnoses []Diagnosis
 }
 
+// exported comment on function Register should be of the form "Register ..."
 // Add Diagnose suite
 func Register(suiteName string, diagnose Diagnose) {
 	Catalog = append(Catalog, Suite{

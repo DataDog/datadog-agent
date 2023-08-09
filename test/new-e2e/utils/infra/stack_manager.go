@@ -45,6 +45,7 @@ type StackManager struct {
 	lock   sync.RWMutex
 }
 
+// GetStackManager exported function should have comment or be unexported
 func GetStackManager() *StackManager {
 	initStackManager.Do(func() {
 		var err error
@@ -117,6 +118,7 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 	return stack, upResult, err
 }
 
+// DeleteStack exported method should have comment or be unexported
 func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
@@ -142,6 +144,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 	return sm.deleteStack(ctx, name, stack)
 }
 
+// Cleanup exported method should have comment or be unexported
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()

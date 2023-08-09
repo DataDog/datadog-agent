@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// This const block should have a comment or be unexported
 const (
 	ProduceAPIKey = 0
 	FetchAPIKey   = 1

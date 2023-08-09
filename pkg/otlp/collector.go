@@ -231,6 +231,7 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 	return p, nil
 }
 
+// NewPipelineFromAgentConfig exported function should have comment or be unexported
 func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {

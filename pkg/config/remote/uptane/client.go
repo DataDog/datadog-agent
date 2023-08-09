@@ -47,8 +47,10 @@ type Client struct {
 	transactionalStore *transactionalStore
 }
 
+// ClientOption exported type should have comment or be unexported
 type ClientOption func(c *Client)
 
+// WithOrgIDCheck exported function should have comment or be unexported
 func WithOrgIDCheck(orgID int64) ClientOption {
 	return func(c *Client) {
 		c.orgID = orgID

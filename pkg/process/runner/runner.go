@@ -48,6 +48,7 @@ type checkPayload struct {
 	headers http.Header
 }
 
+// Runner exported type should have comment or be unexported
 type Runner interface {
 }
 
@@ -86,6 +87,7 @@ type CheckRunner struct {
 	rtNotifierChan <-chan types.RTResponse
 }
 
+// RunRealTime exported method should have comment or be unexported
 func (l *CheckRunner) RunRealTime() bool {
 	return l.runRealTime
 }
@@ -247,6 +249,7 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
+// Run exported method should have comment or be unexported
 func (l *CheckRunner) Run() error {
 	realTimeAllowed := !l.config.GetBool("process_config.disable_realtime_checks")
 
@@ -383,6 +386,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 	}
 }
 
+// UpdateRTStatus exported method should have comment or be unexported
 func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	// If realtime mode is disabled in the config, do not change the real time status.
 	if !l.runRealTime {
@@ -430,6 +434,7 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
+// Stop exported method should have comment or be unexported
 func (l *CheckRunner) Stop() {
 	close(l.stop)
 	l.wg.Wait()
@@ -440,10 +445,12 @@ func (l *CheckRunner) Stop() {
 	}
 }
 
+// GetChecks exported method should have comment or be unexported
 func (l *CheckRunner) GetChecks() []checks.Check {
 	return l.enabledChecks
 }
 
+// IsRealTimeEnabled exported method should have comment or be unexported
 func (l *CheckRunner) IsRealTimeEnabled() bool {
 	return l.realTimeEnabled.Load()
 }

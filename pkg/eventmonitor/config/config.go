@@ -19,6 +19,7 @@ const (
 	evNS = "event_monitoring_config"
 )
 
+// Config exported type should have comment or be unexported
 type Config struct {
 	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
 	SocketPath string

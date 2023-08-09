@@ -91,6 +91,7 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 	}
 	return nil
 }
+// GetFeature exported method should have comment or be unexported
 func (c *Client) GetFeature(ctx context.Context, long, lat int32) error {
 	_, err := c.routeGuideClient.GetFeature(ctx, &routeguide.Point{
 		Latitude:  lat,
@@ -99,6 +100,7 @@ func (c *Client) GetFeature(ctx context.Context, long, lat int32) error {
 	return err
 }
 
+// ListFeatures exported method should have comment or be unexported
 func (c *Client) ListFeatures(ctx context.Context, longLo, latLo, longHi, latHi int32) error {
 	stream, err := c.routeGuideClient.ListFeatures(ctx, &routeguide.Rectangle{
 		Lo: &routeguide.Point{

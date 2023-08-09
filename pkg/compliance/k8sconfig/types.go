@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// K8sNodeConfig exported type should have comment or be unexported
 type K8sNodeConfig struct {
 	Version            string               `json:"version"`
 	ManagedEnvironment *K8sManagedEnvConfig `json:"managedEnvironment,omitempty"`
@@ -32,11 +33,13 @@ type K8sNodeConfig struct {
 	Errors []error `json:"errors,omitempty"`
 }
 
+// K8sManagedEnvConfig exported type should have comment or be unexported
 type K8sManagedEnvConfig struct {
 	Name     string      `json:"name"`
 	Metadata interface{} `json:"metadata"`
 }
 
+// K8sDirMeta exported type should have comment or be unexported
 type K8sDirMeta struct {
 	Path  string `json:"path"`
 	User  string `json:"user"`
@@ -44,6 +47,7 @@ type K8sDirMeta struct {
 	Mode  uint32 `json:"mode"`
 }
 
+// K8sConfigFileMeta exported type should have comment or be unexported
 type K8sConfigFileMeta struct {
 	Path    string      `json:"path"`
 	User    string      `json:"user"`
@@ -52,6 +56,7 @@ type K8sConfigFileMeta struct {
 	Content interface{} `json:"content" jsonschema:"type=object"`
 }
 
+// K8sTokenFileMeta exported type should have comment or be unexported
 type K8sTokenFileMeta struct {
 	Path  string `json:"path"`
 	User  string `json:"user"`
@@ -59,6 +64,7 @@ type K8sTokenFileMeta struct {
 	Mode  uint32 `json:"mode"`
 }
 
+// exported comment on type K8sAdmissionPluginConfigMeta should be of the form "K8sAdmissionPluginConfigMeta ..." (with optional leading article)
 // https://github.com/kubernetes/kubernetes/blob/6356023cb42d681b7ad0e6d14d1652247d75b797/staging/src/k8s.io/apiserver/pkg/apis/apiserver/types.go#L30
 type (
 	k8sAdmissionConfigSource struct {
@@ -83,6 +89,7 @@ type (
 	}
 )
 
+// K8sKubeconfigMeta exported type should have comment or be unexported
 type K8sKubeconfigMeta struct {
 	Path       string      `json:"path,omitempty"`
 	User       string      `json:"user,omitempty"`
@@ -91,6 +98,7 @@ type K8sKubeconfigMeta struct {
 	Kubeconfig interface{} `json:"kubeconfig"`
 }
 
+// K8sKeyFileMeta exported type should have comment or be unexported
 type K8sKeyFileMeta struct {
 	Path  string `json:"path,omitempty"`
 	User  string `json:"user,omitempty"`
@@ -98,6 +106,7 @@ type K8sKeyFileMeta struct {
 	Mode  uint32 `json:"mode,omitempty"`
 }
 
+// K8sCertFileMeta exported type should have comment or be unexported
 type K8sCertFileMeta struct {
 	Path        string `json:"path,omitempty"`
 	User        string `json:"user,omitempty"`
@@ -120,6 +129,7 @@ type K8sCertFileMeta struct {
 	} `json:"certificate"`
 }
 
+// exported comment on type K8SKubeconfig should be of the form "K8SKubeconfig ..." (with optional leading article)
 // k8SKubeconfigSource is used to parse the kubeconfig files. It is not
 // exported as-is, and used to build K8sKubeconfig.
 // https://github.com/kubernetes/kubernetes/blob/ad18954259eae3db51bac2274ed4ca7304b923c4/staging/src/k8s.io/client-go/tools/clientcmd/api/types.go#LL31C1-L55C2
@@ -204,6 +214,7 @@ type (
 	}
 )
 
+// exported comment on type K8sEncryptionProviderConfigFileMeta should be of the form "K8sEncryptionProviderConfigFileMeta ..." (with optional leading article)
 // https://github.com/kubernetes/kubernetes/blob/e1ad9bee5bba8fbe85a6bf6201379ce8b1a611b1/staging/src/k8s.io/apiserver/pkg/apis/config/types.go#L70
 type (
 	K8sEncryptionProviderConfigFileMeta struct {

@@ -159,6 +159,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 	a.Unlock()
 }
 
+// exported comment on function InitTestAgentDemultiplexerWithOpts should be of the form "InitTestAgentDemultiplexerWithOpts ..."
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
 func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)

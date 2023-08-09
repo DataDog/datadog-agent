@@ -22,6 +22,7 @@ import (
 )
 
 const (
+// KubeletCheckName exported const should have comment (or a comment on this block) or be unexported
 	KubeletCheckName = "kubelet_core"
 )
 
@@ -72,6 +73,7 @@ func KubeletFactory() check.Check {
 	return NewKubeletCheck(core.NewCheckBase(KubeletCheckName), &common.KubeletConfig{})
 }
 
+// Configure exported method should have comment or be unexported
 func (k *KubeletCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
@@ -86,6 +88,7 @@ func (k *KubeletCheck) Configure(integrationConfigDigest uint64, config, initCon
 	return nil
 }
 
+// Run exported method should have comment or be unexported
 func (k *KubeletCheck) Run() error {
 	sender, err := k.GetSender()
 	if err != nil {

@@ -75,10 +75,12 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
+// UpdateTargetTPS exported method should have comment or be unexported
 func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
 	s.sampler.updateTargetTPS(targetTPS)
 }
 
+// GetTargetTPS exported method should have comment or be unexported
 func (s *PrioritySampler) GetTargetTPS() float64 {
 	return s.sampler.targetTPS.Load()
 }

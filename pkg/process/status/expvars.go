@@ -69,6 +69,7 @@ func publishDockerSocket() interface{} {
 	return infoDockerSocket
 }
 
+// UpdateDockerSocket exported function should have comment or be unexported
 func UpdateDockerSocket(path string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -81,6 +82,7 @@ func publishLastCollectTime() interface{} {
 	return infoLastCollectTime
 }
 
+// UpdateLastCollectTime exported function should have comment or be unexported
 func UpdateLastCollectTime(t time.Time) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -99,6 +101,7 @@ func publishBool(v bool) expvar.Func {
 	}
 }
 
+// UpdateProcContainerCount exported function should have comment or be unexported
 func UpdateProcContainerCount(msgs []model.MessageBody) {
 	var procCount, containerCount int
 	for _, m := range msgs {
@@ -115,6 +118,7 @@ func UpdateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount.Store(int64(containerCount))
 }
 
+// QueueStats exported type should have comment or be unexported
 type QueueStats struct {
 	ProcessQueueSize      int
 	RtProcessQueueSize    int
@@ -128,6 +132,7 @@ type QueueStats struct {
 	PodQueueBytes         int64
 }
 
+// UpdateQueueStats exported function should have comment or be unexported
 func UpdateQueueStats(stats *QueueStats) {
 	infoProcessQueueSize.Store(int64(stats.ProcessQueueSize))
 	infoRTProcessQueueSize.Store(int64(stats.RtProcessQueueSize))
@@ -141,6 +146,7 @@ func UpdateQueueStats(stats *QueueStats) {
 	infoPodQueueBytes.Store(stats.PodQueueBytes)
 }
 
+// UpdateEnabledChecks exported function should have comment or be unexported
 func UpdateEnabledChecks(enabledChecks []string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -206,6 +212,7 @@ func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	return endpointsInfo
 }
 
+// UpdateDropCheckPayloads exported function should have comment or be unexported
 func UpdateDropCheckPayloads(drops []string) {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
@@ -249,6 +256,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
+// InitExpvars exported function should have comment or be unexported
 func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)

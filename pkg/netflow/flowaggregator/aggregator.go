@@ -53,12 +53,14 @@ type FlowAggregator struct {
 	lastSequencePerExporterMu sync.Mutex
 }
 
+// SequenceDeltaKey exported type should have comment or be unexported
 type SequenceDeltaKey struct {
 	Namespace  string
 	ExporterIP string
 	FlowType   common.FlowType
 }
 
+// SequenceDeltaValue exported type should have comment or be unexported
 type SequenceDeltaValue struct {
 	Delta        int64
 	LastSequence uint32

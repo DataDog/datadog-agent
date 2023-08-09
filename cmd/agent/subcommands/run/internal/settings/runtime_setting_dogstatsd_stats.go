@@ -18,6 +18,7 @@ type DsdStatsRuntimeSetting struct {
 	ServerDebug dogstatsdDebug.Component
 }
 
+// NewDsdStatsRuntimeSetting exported function should have comment or be unexported
 func NewDsdStatsRuntimeSetting(serverDebug dogstatsdDebug.Component) *DsdStatsRuntimeSetting {
 	return &DsdStatsRuntimeSetting{ServerDebug: serverDebug}
 }

@@ -7,6 +7,7 @@ package metadata
 
 import "time"
 
+// BatchPayloads exported function should have comment or be unexported
 func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata

@@ -74,6 +74,7 @@ func NewServiceExtractor(sysProbeConfig ddconfig.ConfigReader) *ServiceExtractor
 	}
 }
 
+// Extract exported method should have comment or be unexported
 func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	if !d.enabled {
 		return
@@ -101,6 +102,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
+// GetServiceContext exported method should have comment or be unexported
 func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
 		return nil

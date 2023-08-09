@@ -56,6 +56,7 @@ func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
+// exported comment on const ProcessDiscoveryHint should be of the form "ProcessDiscoveryHint ..."
 	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 

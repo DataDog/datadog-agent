@@ -30,12 +30,14 @@ type Provider struct {
 	config *common.KubeletConfig
 }
 
+// NewProvider exported function should have comment or be unexported
 func NewProvider(config *common.KubeletConfig) *Provider {
 	return &Provider{
 		config: config,
 	}
 }
 
+// Provide exported method should have comment or be unexported
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	nodeSpecRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/spec/")

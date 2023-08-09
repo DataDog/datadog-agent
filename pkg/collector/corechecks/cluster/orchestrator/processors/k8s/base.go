@@ -13,18 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 )
 
+// BaseHandlers exported type should have comment or be unexported
 type BaseHandlers struct{}
 
+// BeforeCacheCheck exported method should have comment or be unexported
 func (BaseHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
+// BeforeMarshalling exported method should have comment or be unexported
 func (BaseHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
+// ScrubBeforeMarshalling exported method should have comment or be unexported
 func (BaseHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {}
 
+// BuildManifestMessageBody exported method should have comment or be unexported
 func (BaseHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	return ExtractModelManifests(ctx, resourceManifests, groupSize)
 }

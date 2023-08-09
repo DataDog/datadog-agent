@@ -15,14 +15,17 @@ import (
 	"strings"
 )
 
+// OSSTATS_QUERY exported const should have comment or be unexported
 const OSSTATS_QUERY = `SELECT stat_name, value
   FROM v$osstat WHERE stat_name in ('NUM_CPUS','PHYSICAL_MEMORY_BYTES')`
 
+// OSStatsRowDB exported type should have comment or be unexported
 type OSStatsRowDB struct {
 	StatName string  `db:"STAT_NAME"`
 	Value    float64 `db:"VALUE"`
 }
 
+// OS_Stats exported method should have comment or be unexported
 func (c *Check) OS_Stats() error {
 	s, err := c.GetSender()
 	if err != nil {

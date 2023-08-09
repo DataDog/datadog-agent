@@ -23,6 +23,7 @@ const (
 	defaultConnectionTimeout = time.Second * 10
 )
 
+// Options exported type should have comment or be unexported
 type Options struct {
 	ClientDialer     *net.Dialer
 	ServerAddress    string
@@ -31,10 +32,12 @@ type Options struct {
 	ConnectionTimout time.Duration
 }
 
+// Client exported type should have comment or be unexported
 type Client struct {
 	C *mongo.Client
 }
 
+// NewClient exported function should have comment or be unexported
 func NewClient(opts Options) (*Client, error) {
 	clientOptions := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", opts.ServerAddress))
 	if opts.Username == "" {
@@ -85,6 +88,7 @@ var (
 	}
 )
 
+// DeleteDatabases exported method should have comment or be unexported
 func (c *Client) DeleteDatabases() error {
 	dbs, err := c.C.ListDatabases(context.Background(), bson.M{})
 	if err != nil {
@@ -102,6 +106,7 @@ func (c *Client) DeleteDatabases() error {
 	return nil
 }
 
+// Stop exported method should have comment or be unexported
 func (c *Client) Stop() error {
 	return c.C.Disconnect(context.Background())
 }

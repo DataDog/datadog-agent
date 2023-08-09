@@ -74,10 +74,12 @@ type RunResult interface {
 // StandardRunResult is a run result containing payloads for standard run
 type StandardRunResult []model.MessageBody
 
+// Payloads exported method should have comment or be unexported
 func (p StandardRunResult) Payloads() []model.MessageBody {
 	return p
 }
 
+// RealtimePayloads exported method should have comment or be unexported
 func (p StandardRunResult) RealtimePayloads() []model.MessageBody {
 	return nil
 }
@@ -88,10 +90,12 @@ type CombinedRunResult struct {
 	Realtime []model.MessageBody
 }
 
+// Payloads exported method should have comment or be unexported
 func (p CombinedRunResult) Payloads() []model.MessageBody {
 	return p.Standard
 }
 
+// RealtimePayloads exported method should have comment or be unexported
 func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 	return p.Realtime
 }

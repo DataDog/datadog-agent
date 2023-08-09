@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// RunParams exported type should have comment or be unexported
 type RunParams struct {
 	*subcommands.GlobalParams
 
@@ -32,6 +33,7 @@ type RunParams struct {
 
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
 
+// Start exported function should have comment or be unexported
 func Start(cliParams *RunParams, config config.Component) error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 

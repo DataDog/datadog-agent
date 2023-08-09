@@ -1,3 +1,7 @@
+// APIFakeIntakeRouteStatsGETResponse exported type should have comment or be unexported
+// RouteStat exported type should have comment or be unexported
+// APIFakeIntakePayloadsGETResponse exported type should have comment or be unexported
+// Payload exported type should have comment or be unexported
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -46,6 +50,7 @@ import (
 	"regexp"
 	"strings"
 
+// Client exported type should have comment or be unexported
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -210,6 +215,7 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 			}
 		}
 		// TODO return similarity error score
+// exported comment on function WithMetricValueHigherThan should be of the form "WithMetricValueHigherThan ..."
 		return false, nil
 	}
 }
@@ -231,6 +237,7 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	err := c.getLogs()
 	if err != nil {
 		return nil, err
+// exported comment on method Client.GetLogServiceNames should be of the form "GetLogServiceNames ..."
 	}
 	return c.logAggregator.GetPayloadsByName(service), nil
 }
@@ -309,6 +316,7 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 	return c.checkRunAggregator.GetNames(), nil
 }
 
+// exported comment on method Client.GetCheckRun should be of the form "GetCheckRun ..."
 // FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {

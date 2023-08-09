@@ -7,11 +7,13 @@ package scap
 
 import "fmt"
 
+// SystemCharacteristics exported type should have comment or be unexported
 type SystemCharacteristics struct {
 	SystemInfo SystemInfo `json:"system_info"`
 	Objects    []Object   `json:"objects,omitempty"`
 }
 
+// SystemInfo exported type should have comment or be unexported
 type SystemInfo struct {
 	OsName          string `json:"os_name"`
 	OsVersion       string `json:"os_version"`
@@ -19,16 +21,19 @@ type SystemInfo struct {
 	PrimaryHostName string `json:"primary_host_name"`
 }
 
+// Object exported type should have comment or be unexported
 type Object struct {
 	ID    string `json:"id"`
 	Items []Item `json:"items,omitempty"`
 }
 
+// Item exported type should have comment or be unexported
 type Item struct {
 	ID       string            `json:"id"`
 	Messages map[string]string `json:"messages"`
 }
 
+// SysChar exported function should have comment or be unexported
 func SysChar(doc *Document) (*SystemCharacteristics, error) {
 	if doc.OvalSystemCharacteristics == nil {
 		return nil, fmt.Errorf("OvalSystemCharacteristics is nil")

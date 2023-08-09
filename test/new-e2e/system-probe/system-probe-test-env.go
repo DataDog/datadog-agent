@@ -1,3 +1,5 @@
+// WithClock exported function should have comment or be unexported
+// Server exported type should have comment or be unexported
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -33,6 +35,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// This block should have a comment or export nothing
 const (
 	AgentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
 	AgentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
@@ -51,6 +54,7 @@ var availabilityZones = map[string][]string{
 	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
 }
 
+// SystemProbeEnvOpts exported type should have comment or be unexported
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
 	ArmAmiID              string
@@ -65,6 +69,7 @@ type SystemProbeEnvOpts struct {
 	Local                 bool
 }
 
+// TestEnv exported type should have comment or be unexported
 type TestEnv struct {
 	context context.Context
 	name    string
@@ -75,6 +80,7 @@ type TestEnv struct {
 }
 
 var (
+	// MicroVMsDependenciesPath exported var should have comment or be unexported
 	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
 	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
 
@@ -100,6 +106,7 @@ func outputsToFile(output auto.OutputMap) error {
 	return f.Sync()
 }
 
+// GetEnv exported function should have comment or be unexported
 func GetEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
@@ -137,6 +144,7 @@ func getAvailabilityZone(env string, azIndx int) string {
 	return ""
 }
 
+// NewTestEnv exported function should have comment or be unexported
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
@@ -241,6 +249,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	return systemProbeTestEnv, nil
 }
 
+// Destroy exported function should have comment or be unexported
 func Destroy(name string) error {
 	return infra.GetStackManager().DeleteStack(context.Background(), name)
 }

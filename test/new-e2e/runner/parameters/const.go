@@ -5,8 +5,10 @@
 
 package parameters
 
+// StoreKey exported type should have comment or be unexported
 type StoreKey string
 
+// This const block should have a comment or be unexported
 const (
 	APIKey              StoreKey = "api_key"
 	APPKey              StoreKey = "app_key"

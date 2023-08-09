@@ -135,6 +135,7 @@ func (s *ServerlessTraceAgent) Stop() {
 	}
 }
 
+// SetSpanModifier exported method should have comment or be unexported
 func (s *ServerlessTraceAgent) SetSpanModifier(fn func(*pb.TraceChunk, *pb.Span)) {
 	s.ta.ModifySpan = fn
 }

@@ -29,27 +29,34 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
+// MAX_OPEN_CONNECTIONS exported var should have comment or be unexported
 var MAX_OPEN_CONNECTIONS = 10
+// DEFAULT_SQL_TRACED_RUNS exported var should have comment or be unexported
 var DEFAULT_SQL_TRACED_RUNS = 10
+// DB_TIMEOUT exported var should have comment or be unexported
 var DB_TIMEOUT = "20000"
 
+// exported comment on type StatementsFilter should be of the form "StatementsFilter ..." (with optional leading article)
 // The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
 	SQLIDs                  map[string]int
 	ForceMatchingSignatures map[string]int
 }
 
+// StatementsCacheData exported type should have comment or be unexported
 type StatementsCacheData struct {
 	statement      string
 	querySignature string
 	tables         []string
 	commands       []string
 }
+// StatementsCache exported type should have comment or be unexported
 type StatementsCache struct {
 	SQLIDs                  map[string]StatementsCacheData
 	forceMatchingSignatures map[string]StatementsCacheData
 }
 
+// Check exported type should have comment or be unexported
 type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
@@ -364,6 +371,7 @@ func (c *Check) Teardown() {
 	c.planEmitted = nil
 }
 
+// CloseDatabaseConnection exported function should have comment or be unexported
 func CloseDatabaseConnection(db *sqlx.DB) error {
 	if db != nil {
 		if err := db.Close(); err != nil {
@@ -434,6 +442,7 @@ func init() {
 	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
+// GetObfuscatedStatement exported method should have comment or be unexported
 func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string) (common.ObfuscatedStatement, error) {
 	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
 	if err == nil {

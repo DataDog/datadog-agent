@@ -54,6 +54,7 @@ finally:
 `
 )
 
+// HTTPPythonServer exported function should have comment or be unexported
 func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {

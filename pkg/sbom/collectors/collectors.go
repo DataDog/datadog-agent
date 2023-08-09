@@ -13,14 +13,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 )
 
+// Collector exported type should have comment or be unexported
 type Collector interface {
 	CleanCache() error
 	Init(config.Config) error
 	Scan(context.Context, sbom.ScanRequest, sbom.ScanOptions) sbom.ScanResult
 }
 
+// Collectors exported var should have comment or be unexported
 var Collectors map[string]Collector
 
+// RegisterCollector exported function should have comment or be unexported
 func RegisterCollector(name string, collector Collector) {
 	Collectors[name] = collector
 }

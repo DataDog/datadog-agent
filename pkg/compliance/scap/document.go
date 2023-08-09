@@ -34,6 +34,7 @@ const (
 	ocilOcilElement                  = "ocil"
 )
 
+// Document exported type should have comment or be unexported
 type Document struct {
 	Type constants.DocumentType `json:"-"`
 	*cdf.Benchmark
@@ -45,6 +46,7 @@ type Document struct {
 	*inter.Ocil
 }
 
+// ReadDocument exported function should have comment or be unexported
 func ReadDocument(r io.Reader) (*Document, error) {
 	d := xml.NewDecoder(r)
 	for {

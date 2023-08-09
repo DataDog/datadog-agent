@@ -6,6 +6,7 @@
 // Package params TODO comment
 package params
 
+// Params exported type should have comment or be unexported
 type Params struct {
 	StackName string
 
@@ -16,6 +17,7 @@ type Params struct {
 	SkipDeleteOnFailure bool
 }
 
+// Option exported type should have comment or be unexported
 type Option = func(*Params)
 
 // WithStackName overrides the default stack name.

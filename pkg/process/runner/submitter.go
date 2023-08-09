@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// Submitter exported type should have comment or be unexported
 type Submitter interface {
 	Submit(start time.Time, name string, messages *types.Payload)
 	Start() error
@@ -46,6 +47,7 @@ type Submitter interface {
 
 var _ Submitter = &CheckSubmitter{}
 
+// CheckSubmitter exported type should have comment or be unexported
 type CheckSubmitter struct {
 	log log.Component
 	// Per-check Weighted Queues
@@ -80,6 +82,7 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 }
 
+// NewSubmitter exported function should have comment or be unexported
 func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
@@ -185,6 +188,7 @@ func printStartMessage(log log.Component, hostname string, processAPIEndpoints, 
 	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
 }
 
+// Submit exported method should have comment or be unexported
 func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
 	results := s.resultsQueueForCheck(name)
 	if name == checks.PodCheckName {
@@ -198,6 +202,7 @@ func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Pa
 	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
 
+// Start exported method should have comment or be unexported
 func (s *CheckSubmitter) Start() error {
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
@@ -295,6 +300,7 @@ func (s *CheckSubmitter) Start() error {
 	return nil
 }
 
+// Stop exported method should have comment or be unexported
 func (s *CheckSubmitter) Stop() {
 	close(s.exit)
 
@@ -315,6 +321,7 @@ func (s *CheckSubmitter) Stop() {
 	close(s.rtNotifierChan)
 }
 
+// GetRTNotifierChan exported method should have comment or be unexported
 func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
 	return s.rtNotifierChan
 }

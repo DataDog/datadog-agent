@@ -202,10 +202,12 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
+// SetOTLPAgent exported method should have comment or be unexported
 func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
 	d.OTLPAgent = otlpAgent
 }
 
+// SetColdStartSpanCreator exported method should have comment or be unexported
 func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
 	d.ColdStartCreator = creator
 }

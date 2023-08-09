@@ -69,6 +69,7 @@ func (s *serieSourceMock) Count() uint64 {
 	return uint64(len(s.series))
 }
 
+// CreateSerieSource exported function should have comment or be unexported
 func CreateSerieSource(series metrics.Series) metrics.SerieSource {
 	return &serieSourceMock{
 		series: series,

@@ -136,12 +136,14 @@ func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder
 	return demux
 }
 
+// AggregatorTestDeps exported type should have comment or be unexported
 type AggregatorTestDeps struct {
 	fx.In
 	Log             log.Component
 	SharedForwarder defaultforwarder.Component
 }
 
+// InitAndStartAgentDemultiplexerForTest exported function should have comment or be unexported
 func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname)
 }

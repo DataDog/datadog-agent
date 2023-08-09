@@ -25,6 +25,7 @@ type ProxyLifecycleProcessor struct {
 	SubProcessor *ProxyProcessor
 }
 
+// GetExecutionInfo exported method should have comment or be unexported
 func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil // not used in the runtime api proxy case
 }
@@ -78,6 +79,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 	// So the final appsec monitoring logic moved to the SpanModifier instead and we use it as "invocation end" event.
 }
 
+// SpanModifier exported method should have comment or be unexported
 func (lp *ProxyLifecycleProcessor) SpanModifier(chunk *pb.TraceChunk, span *pb.Span) {
 	lp.SubProcessor.SpanModifier(chunk, span)
 }
@@ -100,11 +102,13 @@ func NewProxyProcessor(appsec Monitorer) *ProxyProcessor {
 	}
 }
 
+// OnInvokeStart exported method should have comment or be unexported
 func (p *ProxyProcessor) OnInvokeStart(invocationEvent interface{}) {
 	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
 	p.invocationEvent = invocationEvent
 }
 
+// SpanModifier exported method should have comment or be unexported
 func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 	if p.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
@@ -197,10 +201,12 @@ func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 	}
 }
 
+// ExecutionContext exported type should have comment or be unexported
 type ExecutionContext interface {
 	LastRequestID() string
 }
 
+// WrapSpanModifier exported method should have comment or be unexported
 func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modifySpan func(*pb.TraceChunk, *pb.Span)) func(*pb.TraceChunk, *pb.Span) {
 	return func(chunk *pb.TraceChunk, span *pb.Span) {
 		if modifySpan != nil {

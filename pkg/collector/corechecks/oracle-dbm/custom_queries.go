@@ -15,6 +15,7 @@ import (
 	"strconv"
 )
 
+// Method exported type should have comment or be unexported
 type Method func(string, float64, string, []string)
 
 type metricRow struct {
@@ -31,6 +32,7 @@ func logTypeError(prefix string, expectedType string, column string, value inter
 	)
 }
 
+// CustomQueries exported method should have comment or be unexported
 func (c *Check) CustomQueries() error {
 	/*
 	 * We are creating a dedicated DB connection for custom queries. Custom queries is

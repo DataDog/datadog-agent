@@ -14,6 +14,7 @@ type valueStore interface {
 	get(key StoreKey) (string, error)
 }
 
+// Store exported type should have comment or be unexported
 type Store struct {
 	vs valueStore
 }
@@ -24,18 +25,22 @@ func newStore(vs valueStore) Store {
 	}
 }
 
+// Get exported method should have comment or be unexported
 func (s Store) Get(key StoreKey) (string, error) {
 	return getAndConvert(s.vs, key, func(s string) (string, error) { return s, nil })
 }
 
+// GetWithDefault exported method should have comment or be unexported
 func (s Store) GetWithDefault(key StoreKey, def string) (string, error) {
 	return getWithDefault(key, s.Get, def)
 }
 
+// GetBool exported method should have comment or be unexported
 func (s Store) GetBool(key StoreKey) (bool, error) {
 	return getAndConvert(s.vs, key, strconv.ParseBool)
 }
 
+// GetBoolWithDefault exported method should have comment or be unexported
 func (s Store) GetBoolWithDefault(key StoreKey, def bool) (bool, error) {
 	return getWithDefault(key, s.GetBool, def)
 }

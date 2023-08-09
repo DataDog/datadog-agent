@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
+// SYSMETRICS_QUERY exported const should have comment or be unexported
 const SYSMETRICS_QUERY = `SELECT 
 	metric_name,
 	value, 
@@ -25,9 +26,11 @@ const SYSMETRICS_QUERY = `SELECT
   WHERE s.con_id = c.con_id(+)`
 
 const (
+// Count exported const should have comment (or a comment on this block) or be unexported
 	Count int = 0
 )
 
+// SysmetricsRowDB exported type should have comment or be unexported
 type SysmetricsRowDB struct {
 	MetricName string         `db:"METRIC_NAME"`
 	Value      float64        `db:"VALUE"`
@@ -40,6 +43,7 @@ type sysMetricsDefinition struct {
 	DBM      bool
 }
 
+// SYSMETRICS_COLS exported var should have comment or be unexported
 var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Average Active Sessions":                       {DDmetric: "active_sessions"},
 	"Average Synchronous Single-Block Read Latency": {DDmetric: "avg_synchronous_single_block_read_latency", DBM: true},
@@ -124,6 +128,7 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 	}
 }
 
+// SysMetrics exported method should have comment or be unexported
 func (c *Check) SysMetrics() error {
 	sender, err := c.GetSender()
 	if err != nil {

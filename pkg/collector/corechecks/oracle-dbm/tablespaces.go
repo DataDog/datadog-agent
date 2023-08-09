@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
+// QUERY exported const should have comment or be unexported
 const QUERY = `SELECT
   c.name pdb_name,
   t.tablespace_name tablespace_name,
@@ -26,6 +27,7 @@ FROM
 WHERE
   m.tablespace_name(+) = t.tablespace_name and c.con_id(+) = t.con_id`
 
+// RowDB exported type should have comment or be unexported
 type RowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	TablespaceName string         `db:"TABLESPACE_NAME"`
@@ -35,6 +37,7 @@ type RowDB struct {
 	Offline        float64        `db:"OFFLINE_"`
 }
 
+// Tablespaces exported method should have comment or be unexported
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
 	err := selectWrapper(c, &rows, QUERY)

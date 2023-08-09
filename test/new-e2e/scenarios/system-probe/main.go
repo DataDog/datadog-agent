@@ -19,6 +19,7 @@ import (
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
+// DD_AGENT_TESTING_DIR exported var should have comment or be unexported
 var DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 

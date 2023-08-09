@@ -14,12 +14,14 @@ import (
 	"testing"
 )
 
+// SetupConf exported function should have comment or be unexported
 func SetupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	InitConfig(conf)
 	return conf
 }
 
+// SetupConfFromYAML exported function should have comment or be unexported
 func SetupConfFromYAML(yamlConfig string) Config {
 	conf := SetupConf()
 	conf.SetConfigType("yaml")

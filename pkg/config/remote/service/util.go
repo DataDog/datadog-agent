@@ -27,6 +27,7 @@ import (
 const metaBucket = "meta"
 const metaFile = "meta.json"
 
+// AgentMetadata exported type should have comment or be unexported
 type AgentMetadata struct {
 	Version string `json:"version"`
 }

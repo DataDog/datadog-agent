@@ -71,6 +71,7 @@ func validateValue(val *int, range_ *configValueRange) {
 	}
 }
 
+// Parse exported method should have comment or be unexported
 func (c *Config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err

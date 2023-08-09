@@ -194,6 +194,7 @@ func GenerateStores[T any](
 	return stores
 }
 
+// GenerateStores exported method should have comment or be unexported
 func (b *Builder) GenerateStores(
 	metricFamilies []generator.FamilyGenerator,
 	expectedType interface{},

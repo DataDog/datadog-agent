@@ -15,6 +15,7 @@ import (
 	"syscall"
 )
 
+// GetFileUser exported function should have comment or be unexported
 func GetFileUser(fi os.FileInfo) string {
 	if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
 		u := strconv.Itoa(int(statt.Uid))
@@ -25,6 +26,7 @@ func GetFileUser(fi os.FileInfo) string {
 	return ""
 }
 
+// GetFileGroup exported function should have comment or be unexported
 func GetFileGroup(fi os.FileInfo) string {
 	if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
 		g := strconv.Itoa(int(statt.Gid))

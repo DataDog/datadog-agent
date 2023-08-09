@@ -22,6 +22,7 @@ type awsStore struct {
 	prefix string
 }
 
+// NewAWSStore exported function should have comment or be unexported
 func NewAWSStore(prefix string) Store {
 	return newStore(newCachingStore(awsStore{
 		prefix: prefix,

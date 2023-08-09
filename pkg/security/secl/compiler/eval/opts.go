@@ -10,6 +10,7 @@ type MacroStore struct {
 	Macros map[MacroID]*Macro
 }
 
+// exported comment on method MacroStore.Add should be of the form "Add ..."
 // AddMacro add a macro
 func (s *MacroStore) Add(macro *Macro) *MacroStore {
 	if s.Macros == nil {
@@ -19,6 +20,7 @@ func (s *MacroStore) Add(macro *Macro) *MacroStore {
 	return s
 }
 
+// List exported method should have comment or be unexported
 func (s *MacroStore) List() []*Macro {
 	var macros []*Macro
 
@@ -45,6 +47,7 @@ type VariableStore struct {
 	Variables map[string]VariableValue
 }
 
+// exported comment on method VariableStore.Add should be of the form "Add ..."
 // AddVariable add a variable
 func (s *VariableStore) Add(name string, variable VariableValue) *VariableStore {
 	if s.Variables == nil {

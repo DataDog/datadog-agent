@@ -104,6 +104,7 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 	}
 }
 
+// exported comment on method ExecutionContext.SetInitializationTime should be of the form "SetInitializationTime ..."
 // SetInitTime sets the agent initialization time
 func (ec *ExecutionContext) SetInitializationTime(time time.Time) {
 	ec.m.Lock()

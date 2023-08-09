@@ -61,12 +61,14 @@ type Tagger struct {
 	telemetryTicker *time.Ticker
 }
 
+// Options exported type should have comment or be unexported
 type Options struct {
 	Target       string
 	TokenFetcher func() (string, error)
 	Disabled     bool
 }
 
+// NodeAgentOptions exported function should have comment or be unexported
 func NodeAgentOptions() (Options, error) {
 	return Options{
 		Target:       fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
@@ -74,6 +76,7 @@ func NodeAgentOptions() (Options, error) {
 	}, nil
 }
 
+// CLCRunnerOptions exported function should have comment or be unexported
 func CLCRunnerOptions() (Options, error) {
 	opts := Options{
 		Disabled: !config.Datadog.GetBool("clc_runner_remote_tagger_enabled"),

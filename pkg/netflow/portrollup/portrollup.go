@@ -129,6 +129,7 @@ func (prs *EndpointPairPortRollupStore) IsEphemeral(sourceAddr []byte, destAddr 
 	return prs.IsEphemeralFromKeys(srcToDestKey, destToSrcKey)
 }
 
+// IsEphemeralFromKeys exported method should have comment or be unexported
 func (prs *EndpointPairPortRollupStore) IsEphemeralFromKeys(srcToDestKey string, destToSrcKey string) IsEphemeralStatus {
 	prs.storeMu.RLock()
 	sourceToDestPortCount := len(prs.curStore[srcToDestKey])

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LookupIdProbe exported type should have comment or be unexported
 type LookupIdProbe struct {
 	config config.ConfigReader
 
@@ -24,6 +25,7 @@ type LookupIdProbe struct {
 	lookupId      func(uid string) (*user.User, error)
 }
 
+// NewLookupIdProbe exported function should have comment or be unexported
 func NewLookupIdProbe(coreConfig config.ConfigReader) *LookupIdProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
 		log.Debug("Using cached calls to `user.LookupID`")
@@ -60,6 +62,7 @@ func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
 	}
 }
 
+// LookupId exported method should have comment or be unexported
 func (p *LookupIdProbe) LookupId(uid string) (*user.User, error) {
 	if p.config.GetBool("process_config.cache_lookupid") {
 		return p.lookupIdWithCache(uid)

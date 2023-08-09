@@ -48,6 +48,7 @@ type Provider struct {
 	config *common.KubeletConfig
 }
 
+// NewProvider exported function should have comment or be unexported
 func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provider {
 	return &Provider{
 		filter: filter,
@@ -55,6 +56,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provi
 	}
 }
 
+// Provide exported method should have comment or be unexported
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	pods, err := kc.GetLocalPodListWithMetadata(context.TODO())

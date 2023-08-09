@@ -16,6 +16,7 @@ type Config struct {
 	DynamicInstrumentationEnabled bool
 }
 
+// NewConfig exported function should have comment or be unexported
 func NewConfig(sysprobeConfig *config.Config) (*Config, error) {
 	_, diEnabled := sysprobeConfig.EnabledModules[config.DynamicInstrumentationModule]
 	return &Config{

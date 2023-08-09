@@ -33,6 +33,7 @@ func (cr *CRHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 	return nil
 }
 
+// BuildManifestMessageBody exported method should have comment or be unexported
 func (cr *CRHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCR{

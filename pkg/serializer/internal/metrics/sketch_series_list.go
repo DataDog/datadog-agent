@@ -330,6 +330,7 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	return sketches.SplitPayload(times)
 }
 
+// SketchSeriesSlice exported type should have comment or be unexported
 type SketchSeriesSlice []*metrics.SketchSeries
 
 // SplitPayload breaks the payload into times number of pieces

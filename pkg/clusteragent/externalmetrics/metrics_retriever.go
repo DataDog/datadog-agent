@@ -205,6 +205,7 @@ func incrementRetries(metricsInternal *model.DatadogMetricInternal) {
 	metricsInternal.RetryAfter = timeNow.Add(backoffDuration)
 }
 
+// MaybeAdjustTimeWindowForQuery exported function should have comment or be unexported
 func MaybeAdjustTimeWindowForQuery(timeWindow time.Duration) time.Duration {
 	configMaxAge := autoscalers.GetDefaultMaxAge()
 	if configMaxAge > timeWindow {

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
+// QUERY_SHM exported const should have comment or be unexported
 const QUERY_SHM = `SELECT 
     c.name pdb_name, s.name, ROUND(bytes/1024/1024,2) size_
   FROM v$sgainfo s, v$containers c
@@ -23,12 +24,14 @@ const QUERY_SHM = `SELECT
     AND s.name NOT IN ('Maximum SGA Size','Startup overhead in Shared Pool','Granule Size','Shared IO Pool Size')
 `
 
+// SHMRow exported type should have comment or be unexported
 type SHMRow struct {
 	PdbName sql.NullString `db:"PDB_NAME"`
 	Memory  string         `db:"NAME"`
 	Size    float64        `db:"SIZE_"`
 }
 
+// SharedMemory exported method should have comment or be unexported
 func (c *Check) SharedMemory() error {
 	rows := []SHMRow{}
 	err := c.db.Select(&rows, QUERY_SHM)

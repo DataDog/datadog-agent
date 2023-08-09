@@ -50,6 +50,7 @@ func StartServerless() (*Agent, error) {
 	return CreateAgent()
 }
 
+// CreateAgent exported function should have comment or be unexported
 func CreateAgent() (*Agent, error) {
 	if IsAgentRunning() {
 		return agent, nil

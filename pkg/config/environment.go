@@ -44,6 +44,7 @@ func IsKubernetes() bool {
 	return false
 }
 
+// IsECS exported function should have comment or be unexported
 func IsECS() bool {
 	if os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_EC2" {
 		return true

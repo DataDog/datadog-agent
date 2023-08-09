@@ -21,6 +21,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
+// exported comment on const QUERY_FMS_RANDOM should be of the form "QUERY_FMS_RANDOM ..."
 /*
  * We are selecting from sql_fulltext instead of sql_text because sql_text doesn't preserve the new lines.
  * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
@@ -67,6 +68,7 @@ GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value
 HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
+// QUERY_FMS_LAST_ACTIVE exported const should have comment or be unexported
 const QUERY_FMS_LAST_ACTIVE = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
@@ -115,6 +117,7 @@ WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching
 GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
 FETCH FIRST :limit ROWS ONLY`
 
+// QUERY_SQLID exported const should have comment or be unexported
 const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length (sql_fulltext) sql_text_length, 
 	parse_calls,
 	disk_reads,
@@ -154,6 +157,7 @@ FROM v$sqlstats s, v$containers c
 WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature = 0
 FETCH FIRST :limit ROWS ONLY`
 
+// exported comment on const PLAN_QUERY should be of the form "PLAN_QUERY ..."
 // including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
 	timestamp,
@@ -195,6 +199,7 @@ WHERE
   sql_id = :1 AND plan_hash_value = :2 AND con_id = :3
 ORDER BY id, position`
 
+// StatementMetricsKeyDB exported type should have comment or be unexported
 type StatementMetricsKeyDB struct {
 	ConID                  int    `db:"CON_ID"`
 	PDBName                string `db:"PDB_NAME"`
@@ -203,6 +208,7 @@ type StatementMetricsKeyDB struct {
 	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
 }
 
+// StatementMetricsMonotonicCountDB exported type should have comment or be unexported
 type StatementMetricsMonotonicCountDB struct {
 	ParseCalls                 float64 `db:"PARSE_CALLS"`
 	DiskReads                  float64 `db:"DISK_READS"`
@@ -238,12 +244,14 @@ type StatementMetricsMonotonicCountDB struct {
 	AvoidedExecutions          float64 `db:"AVOIDED_EXECUTIONS"`
 }
 
+// StatementMetricsGaugeDB exported type should have comment or be unexported
 type StatementMetricsGaugeDB struct {
 	VersionCount float64 `db:"VERSION_COUNT"`
 	SharableMem  float64 `db:"SHARABLE_MEM"`
 	TypecheckMem float64 `db:"TYPECHECK_MEM"`
 }
 
+// StatementMetricsDB exported type should have comment or be unexported
 type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
@@ -253,6 +261,7 @@ type StatementMetricsDB struct {
 	StatementMetricsGaugeDB
 }
 
+// QueryRow exported type should have comment or be unexported
 type QueryRow struct {
 	QuerySignature string   `json:"query_signature,omitempty" dbm:"query_signature,primary"`
 	Tables         []string `json:"dd_tables,omitempty" dbm:"table,tag"`
@@ -260,6 +269,7 @@ type QueryRow struct {
 	Comments       []string `json:"dd_comments,omitempty" dbm:"comments,tag"`
 }
 
+// OracleRowMonotonicCount exported type should have comment or be unexported
 type OracleRowMonotonicCount struct {
 	ParseCalls                 float64 `json:"parse_calls,omitempty"`
 	DiskReads                  float64 `json:"disk_reads,omitempty"`
@@ -295,6 +305,7 @@ type OracleRowMonotonicCount struct {
 	AvoidedExecutions          float64 `json:"avoided_executions,omitempty"`
 }
 
+// OracleRowGauge exported type should have comment or be unexported
 type OracleRowGauge struct {
 	VersionCount float64 `json:"version_count,omitempty"`
 	SharableMem  float64 `json:"sharable_mem,omitempty"`
@@ -318,6 +329,7 @@ type OracleRow struct {
 	OracleRowGauge
 }
 
+// MetricsPayload exported type should have comment or be unexported
 type MetricsPayload struct {
 	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
 	Timestamp             float64  `json:"timestamp,omitempty"`
@@ -330,11 +342,13 @@ type MetricsPayload struct {
 	OracleVersion string      `json:"oracle_version,omitempty"`
 }
 
+// FQTDBMetadata exported type should have comment or be unexported
 type FQTDBMetadata struct {
 	Tables   []string `json:"dd_tables"`
 	Commands []string `json:"dd_commands"`
 }
 
+// FQTDB exported type should have comment or be unexported
 type FQTDB struct {
 	Instance       string        `json:"instance"`
 	QuerySignature string        `json:"query_signature"`
@@ -342,10 +356,12 @@ type FQTDB struct {
 	FQTDBMetadata  FQTDBMetadata `json:"metadata"`
 }
 
+// FQTDBOracle exported type should have comment or be unexported
 type FQTDBOracle struct {
 	CDBName string `json:"cdb_name,omitempty"`
 }
 
+// FQTPayload exported type should have comment or be unexported
 type FQTPayload struct {
 	Timestamp    float64     `json:"timestamp,omitempty"`
 	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
@@ -357,6 +373,7 @@ type FQTPayload struct {
 	FQTDBOracle  FQTDBOracle `json:"oracle"`
 }
 
+// OraclePlan exported type should have comment or be unexported
 type OraclePlan struct {
 	PlanHashValue          uint64  `json:"plan_hash_value,omitempty"`
 	SQLID                  string  `json:"sql_id,omitempty"`
@@ -369,12 +386,14 @@ type OraclePlan struct {
 	ForceMatchingSignature string  `json:"force_matching_signature,omitempty"`
 }
 
+// PlanStatementMetadata exported type should have comment or be unexported
 type PlanStatementMetadata struct {
 	Tables   []string `json:"tables"`
 	Commands []string `json:"commands"`
 	Comments []string `json:"comments"`
 }
 
+// PlanDefinition exported type should have comment or be unexported
 type PlanDefinition struct {
 	Operation        string  `json:"operation,omitempty"`
 	Options          string  `json:"options,omitempty"`
@@ -409,11 +428,13 @@ type PlanDefinition struct {
 	LastTempsegSize  uint64  `json:"actual_tempseg_size,omitempty"`
 }
 
+// PlanPlanDB exported type should have comment or be unexported
 type PlanPlanDB struct {
 	Definition []PlanDefinition `json:"definition"`
 	Signature  string           `json:"signature"`
 }
 
+// PlanDB exported type should have comment or be unexported
 type PlanDB struct {
 	Instance       string                `json:"instance,omitempty"`
 	Plan           PlanPlanDB            `json:"plan,omitempty"`
@@ -422,6 +443,7 @@ type PlanDB struct {
 	Metadata       PlanStatementMetadata `json:"metadata,omitempty"`
 }
 
+// PlanPayload exported type should have comment or be unexported
 type PlanPayload struct {
 	Timestamp    float64    `json:"timestamp,omitempty"`
 	Host         string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
@@ -433,6 +455,7 @@ type PlanPayload struct {
 	OraclePlan   OraclePlan `json:"oracle"`
 }
 
+// PlanGlobalRow exported type should have comment or be unexported
 type PlanGlobalRow struct {
 	SQLID         string         `db:"SQL_ID"`
 	ChildNumber   sql.NullInt64  `db:"CHILD_NUMBER"`
@@ -442,6 +465,7 @@ type PlanGlobalRow struct {
 	Executions    sql.NullString `db:"EXECUTIONS"`
 	PDBName       sql.NullString `db:"PDB_NAME"`
 }
+// PlanStepRows exported type should have comment or be unexported
 type PlanStepRows struct {
 	Operation        sql.NullString  `db:"OPERATION"`
 	Options          sql.NullString  `db:"OPTIONS"`
@@ -475,6 +499,7 @@ type PlanStepRows struct {
 	LastDegree       *uint64         `db:"LAST_DEGREE"`
 	LastTempsegSize  *uint64         `db:"LAST_TEMPSEG_SIZE"`
 }
+// PlanRows exported type should have comment or be unexported
 type PlanRows struct {
 	PlanGlobalRow
 	PlanStepRows
@@ -487,6 +512,7 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 	}
 }
 
+// StatementMetrics exported method should have comment or be unexported
 func (c *Check) StatementMetrics() (int, error) {
 	if !checkIntervalExpired(&c.statementsLastRun, c.config.QueryMetrics.CollectionInterval) {
 		return 0, nil

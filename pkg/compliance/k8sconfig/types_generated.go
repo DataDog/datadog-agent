@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// K8sKubeApiserverConfig exported type should have comment or be unexported
 type K8sKubeApiserverConfig struct {
 	AdmissionControlConfigFile      *K8sAdmissionConfigFileMeta          `json:"admission-control-config-file"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AllowPrivileged                 bool                                 `json:"allow-privileged"`                   // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -254,6 +255,7 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	return &res
 }
 
+// K8sKubeSchedulerConfig exported type should have comment or be unexported
 type K8sKubeSchedulerConfig struct {
 	AuthenticationKubeconfig        *K8sKubeconfigMeta `json:"authentication-kubeconfig"`          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuthorizationKubeconfig         string             `json:"authorization-kubeconfig"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -366,6 +368,7 @@ func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSche
 	return &res
 }
 
+// K8sKubeControllerManagerConfig exported type should have comment or be unexported
 type K8sKubeControllerManagerConfig struct {
 	AuthenticationKubeconfig        *K8sKubeconfigMeta `json:"authentication-kubeconfig"`          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuthorizationKubeconfig         string             `json:"authorization-kubeconfig"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -510,6 +513,7 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	return &res
 }
 
+// K8sKubeProxyConfig exported type should have comment or be unexported
 type K8sKubeProxyConfig struct {
 	BindAddress      string             `json:"bind-address"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Config           *K8sConfigFileMeta `json:"config"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -557,6 +561,7 @@ func (l *loader) newK8sKubeProxyConfig(flags map[string]string) *K8sKubeProxyCon
 	return &res
 }
 
+// K8sKubeletConfig exported type should have comment or be unexported
 type K8sKubeletConfig struct {
 	Address                        string             `json:"address"`                           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AnonymousAuth                  bool               `json:"anonymous-auth"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -707,6 +712,7 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	return &res
 }
 
+// K8sEtcdConfig exported type should have comment or be unexported
 type K8sEtcdConfig struct {
 	AutoTls            bool              `json:"auto-tls"`              // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
 	CertFile           *K8sCertFileMeta  `json:"cert-file"`             // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32

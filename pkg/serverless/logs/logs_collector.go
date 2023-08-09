@@ -31,6 +31,7 @@ type Tags struct {
 	Tags []string
 }
 
+// LambdaInitMetric exported type should have comment or be unexported
 type LambdaInitMetric struct {
 	InitDurationTelemetry float64
 	InitStartTime         time.Time
@@ -61,6 +62,7 @@ type LambdaLogsCollector struct {
 	handleRuntimeDone func()
 }
 
+// NewLambdaLogCollector exported function should have comment or be unexported
 func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{

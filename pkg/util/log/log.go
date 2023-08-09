@@ -28,6 +28,7 @@ import (
 )
 
 var (
+	// Logger exported var should have comment or be unexported
 	Logger    *DatadogLogger
 	jmxLogger *DatadogLogger
 

@@ -30,12 +30,14 @@ func init() {
 	color.NoColor = false
 }
 
+// TestConfig exported type should have comment or be unexported
 type TestConfig struct {
 	retryCount      int
 	includePackages []string
 	excludePackages []string
 }
 
+// This const block should have comment or be unexported
 const (
 	Testsuite   = "testsuite"
 	TestDirRoot = "/opt/system-probe-tests"
@@ -47,6 +49,7 @@ const (
 	CIVisibility = "/ci-visibility"
 )
 
+// BaseEnv exported var should have comment or be unexported
 var BaseEnv = map[string]interface{}{
 	"GITLAB_CI":                "true", // force color output support to be detected
 	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),

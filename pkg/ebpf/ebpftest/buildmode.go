@@ -24,6 +24,7 @@ func init() {
 	Fentry = fentry{}
 }
 
+// BuildMode exported type should have comment or be unexported
 type BuildMode interface {
 	fmt.Stringer
 	Env() map[string]string

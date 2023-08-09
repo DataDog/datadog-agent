@@ -21,6 +21,7 @@ import (
 )
 
 const (
+// exported comment on const FakeConfigHash should be of the form "FakeConfigHash ..."
 	// Used in unit tests
 	FakeConfigHash = 1
 )
@@ -363,6 +364,7 @@ func (c *Config) Digest() string {
 	return strconv.FormatUint(c.IntDigest(), 16)
 }
 
+// IntDigest exported method should have comment or be unexported
 func (c *Config) IntDigest() uint64 {
 	h := murmur3.New64()
 	_, _ = h.Write([]byte(c.Name))

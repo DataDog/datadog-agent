@@ -15,6 +15,7 @@ type mockStore struct {
 	values map[StoreKey]string
 }
 
+// NewMockStore exported function should have comment or be unexported
 func NewMockStore(values map[StoreKey]string) Store {
 	return newStore(mockStore{values: values})
 }

@@ -1,3 +1,4 @@
+// Logger exported var should have comment or be unexported
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -20,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+// TestEnv exported type should have comment or be unexported
 
 type TestEnv struct {
 	context context.Context
@@ -38,6 +40,7 @@ var snmpConfig string
 const (
 	composeDataPath = "compose/data"
 )
+// NewTestEnv exported function should have comment or be unexported
 
 func NewTestEnv() (*TestEnv, error) {
 	snmpTestEnv := &TestEnv{
@@ -118,6 +121,7 @@ func NewTestEnv() (*TestEnv, error) {
 	return snmpTestEnv, nil
 }
 
+// Destroy exported method should have comment or be unexported
 func (testEnv *TestEnv) Destroy() error {
 	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name)
 }

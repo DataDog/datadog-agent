@@ -39,10 +39,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+// CLIParams exported type should have comment or be unexported
 type CLIParams struct {
 	confPath string
 }
 
+// DogstatsdComponents exported type should have comment or be unexported
 type DogstatsdComponents struct {
 	DogstatsdServer dogstatsdServer.Component
 	DogstatsdStats  *http.Server
@@ -76,10 +78,12 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 	return startCmd
 }
 
+// Params exported type should have comment or be unexported
 type Params struct {
 	DefaultLogFile string
 }
 
+// RunDogstatsdFct exported function should have comment or be unexported
 func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
 	params := &Params{
 		DefaultLogFile: defaultLogFile,
@@ -129,6 +133,7 @@ func start(cliParams *CLIParams, config config.Component, log log.Component, par
 	return nil
 }
 
+// RunAgent exported function should have comment or be unexported
 func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
@@ -257,6 +262,7 @@ func handleSignals(stopCh chan struct{}) {
 	}
 }
 
+// StopAgent exported function should have comment or be unexported
 func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking

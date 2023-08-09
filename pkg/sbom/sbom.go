@@ -14,15 +14,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+// This const block should have a comment or be unexported
 const (
 	ScanFilesystemType = "filesystem"
 	ScanDaemonType     = "daemon"
 )
 
+// Report exported type should have comment or be unexported
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
 }
 
+// ScanOptions exported type should have comment or be unexported
 type ScanOptions struct {
 	Analyzers        []string
 	CheckDiskUsage   bool
@@ -50,12 +53,14 @@ func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOpt
 	return
 }
 
+// ScanRequest exported type should have comment or be unexported
 type ScanRequest interface {
 	Collector() string
 	Type() string
 	ID() string
 }
 
+// ScanResult exported type should have comment or be unexported
 type ScanResult struct {
 	Error     error
 	Report    Report

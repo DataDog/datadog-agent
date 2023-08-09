@@ -22,8 +22,10 @@ const (
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
+// IDType exported type should have comment or be unexported
 type IDType string
 
+// This const block should have a comment or be unexported
 const (
 	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
 	IDTypeMacAddress     = "mac_address"

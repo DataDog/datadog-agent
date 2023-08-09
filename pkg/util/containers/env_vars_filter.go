@@ -36,6 +36,7 @@ var (
 	envFilterFromConfig EnvFilter
 )
 
+// EnvVarFilterFromConfig exported function should have comment or be unexported
 func EnvVarFilterFromConfig() EnvFilter {
 	envFilterOnce.Do(func() {
 		configEnvVars := make([]string, 0)
@@ -55,6 +56,7 @@ func EnvVarFilterFromConfig() EnvFilter {
 	return envFilterFromConfig
 }
 
+// EnvFilter exported type should have comment or be unexported
 type EnvFilter struct {
 	includeVars map[string]struct{}
 }
@@ -75,6 +77,7 @@ func newEnvFilter(includeVars []string) EnvFilter {
 	return filter
 }
 
+// IsIncluded exported method should have comment or be unexported
 func (f EnvFilter) IsIncluded(envVarName string) bool {
 	_, found := f.includeVars[strings.ToUpper(envVarName)]
 	return found

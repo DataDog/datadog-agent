@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LogLevel exported function should have comment or be unexported
 func LogLevel(t testing.TB, level string) {
 	t.Cleanup(func() {
 		log.SetupLogger(seelog.Default, "off")

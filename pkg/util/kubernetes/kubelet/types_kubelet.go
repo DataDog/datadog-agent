@@ -71,6 +71,7 @@ type ContainerSpec struct {
 	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
 }
 
+// ContainerResourcesSpec exported type should have comment or be unexported
 type ContainerResourcesSpec struct {
 	Requests map[string]string `json:"requests,omitempty"`
 	Limits   map[string]string `json:"limits,omitempty"`
@@ -105,6 +106,7 @@ type CapabilitiesSpec struct {
 // SeccompProfileType is used for unmarshalling Pod.Spec.Containers.SecurityContext.SeccompProfile.Type
 type SeccompProfileType string
 
+// This const block should have a comment or be unexported
 const (
 	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
 	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"

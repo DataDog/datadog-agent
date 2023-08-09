@@ -16,6 +16,7 @@ var prometheusDelta deltaCalculator
 var prometheusMux sync.Mutex
 var prometheusMetrics map[string]any
 
+// ReportPrometheus exported function should have comment or be unexported
 func ReportPrometheus() {
 	prometheusMux.Lock()
 	defer prometheusMux.Unlock()

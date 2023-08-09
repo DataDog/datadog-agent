@@ -1512,6 +1512,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
+// LoadDatadogCustom exported function should have comment or be unexported
 func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
@@ -1974,6 +1975,7 @@ func GetBindHost() string {
 	return GetBindHostFromConfig(Datadog)
 }
 
+// GetBindHostFromConfig exported function should have comment or be unexported
 func GetBindHostFromConfig(cfg ConfigReader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")

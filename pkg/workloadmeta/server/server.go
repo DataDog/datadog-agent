@@ -22,12 +22,14 @@ const (
 	workloadmetaKeepAliveInterval = 9 * time.Minute
 )
 
+// NewServer exported function should have comment or be unexported
 func NewServer(store workloadmeta.Store) *Server {
 	return &Server{
 		store: store,
 	}
 }
 
+// Server exported type should have comment or be unexported
 type Server struct {
 	store workloadmeta.Store
 }

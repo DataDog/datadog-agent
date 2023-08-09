@@ -163,10 +163,12 @@ func (s *StatsTracker) dropOldPoints(now int64) {
 	}
 }
 
+// InfoKey exported method should have comment or be unexported
 func (s *StatsTracker) InfoKey() string {
 	return "Pipeline Latency"
 }
 
+// Info exported method should have comment or be unexported
 func (s *StatsTracker) Info() []string {
 	AllTimeAvgLatency := s.AllTimeAvg() / int64(time.Millisecond)
 	AllTimePeakLatency := s.AllTimePeak() / int64(time.Millisecond)

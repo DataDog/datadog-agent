@@ -26,6 +26,7 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
+// InitType exported const should have comment (or a comment on this block) or be unexported
 	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
@@ -121,6 +122,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
+// ArrayToMap exported function should have comment or be unexported
 func ArrayToMap(tagArray []string) map[string]string {
 	tagMap := make(map[string]string)
 	for _, tag := range tagArray {
@@ -132,6 +134,7 @@ func ArrayToMap(tagArray []string) map[string]string {
 	return tagMap
 }
 
+// MapToArray exported function should have comment or be unexported
 func MapToArray(tagsMap map[string]string) []string {
 	tagsArray := make([]string, 0, len(tagsMap))
 	for key, value := range tagsMap {
@@ -140,6 +143,7 @@ func MapToArray(tagsMap map[string]string) []string {
 	return tagsArray
 }
 
+// MergeWithOverwrite exported function should have comment or be unexported
 func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
 	merged := make(map[string]string)
 	for k, v := range tags {

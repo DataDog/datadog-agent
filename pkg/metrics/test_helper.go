@@ -151,41 +151,50 @@ type tHelper interface {
 
 var _ SketchesSource = (*SketchesSourceTest)(nil)
 
+// SketchesSourceTest exported type should have comment or be unexported
 type SketchesSourceTest struct {
 	values       SketchSeriesList
 	currentIndex int
 }
 
+// NewSketchesSourceTest exported function should have comment or be unexported
 func NewSketchesSourceTest() *SketchesSourceTest {
 	return &SketchesSourceTest{
 		currentIndex: -1,
 	}
 }
 
+// MoveNext exported method should have comment or be unexported
 func (s *SketchesSourceTest) MoveNext() bool {
 	s.currentIndex++
 	return s.currentIndex < len(s.values)
 }
 
+// Current exported method should have comment or be unexported
 func (s *SketchesSourceTest) Current() *SketchSeries {
 	return s.values[s.currentIndex]
 }
+// Count exported method should have comment or be unexported
 func (s *SketchesSourceTest) Count() uint64 {
 	return uint64(len(s.values))
 }
 
+// Append exported method should have comment or be unexported
 func (s *SketchesSourceTest) Append(sketches *SketchSeries) {
 	s.values = append(s.values, sketches)
 }
 
+// Get exported method should have comment or be unexported
 func (s *SketchesSourceTest) Get(index int) *SketchSeries {
 	return s.values[index]
 }
 
+// Reset exported method should have comment or be unexported
 func (s *SketchesSourceTest) Reset() {
 	s.currentIndex = -1
 }
 
+// WaitForValue exported method should have comment or be unexported
 func (s *SketchesSourceTest) WaitForValue() bool {
 	return true
 }

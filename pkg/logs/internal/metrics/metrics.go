@@ -59,8 +59,10 @@ var (
 		nil, "Histogram of http sender latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// DestinationExpVars a map of sender utilization metrics for each http destination
 	DestinationExpVars = expvar.Map{}
+// exported comment on var DestinationHttpRespByStatusAndUrl should be of the form "DestinationHttpRespByStatusAndUrl ..."
 	// TODO: Add LogsCollected for the total number of collected logs.
 	DestinationHttpRespByStatusAndUrl    = expvar.Map{}
+// TlmDestinationHttpRespByStatusAndUrl exported var should have comment or be unexported
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 )
 

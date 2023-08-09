@@ -517,6 +517,7 @@ type ContainerSecurityContext struct {
 	SeccompProfile *SeccompProfile
 }
 
+// Capabilities exported type should have comment or be unexported
 type Capabilities struct {
 	Add  []string
 	Drop []string
@@ -525,12 +526,14 @@ type Capabilities struct {
 // SeccompProfileType is the type of seccomp profile used
 type SeccompProfileType string
 
+// This const block should have a comment or be unexported
 const (
 	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
 	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
 	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
 )
 
+// exported comment on type SeccompProfile should be of the form "SeccompProfile ..." (with optional leading article)
 // SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
 type SeccompProfile struct {
 	Type             SeccompProfileType
@@ -878,6 +881,7 @@ func printHistory(out io.Writer, history v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
+// Process exported type should have comment or be unexported
 type Process struct {
 	EntityID // EntityID is the PID for now
 	EntityMeta

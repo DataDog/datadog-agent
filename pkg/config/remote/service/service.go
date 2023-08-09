@@ -327,6 +327,7 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop exported method should have comment or be unexported
 func (s *Service) Stop() error {
 	if s.cancel != nil {
 		s.cancel()

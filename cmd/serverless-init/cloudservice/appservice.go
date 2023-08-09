@@ -15,6 +15,7 @@ import (
 // AppService has helper functions for getting specific Azure Container App data
 type AppService struct{}
 
+// This const block should have a comment or be unexported
 const (
 	WebsiteName  = "WEBSITE_SITE_NAME"
 	RegionName   = "REGION_NAME"

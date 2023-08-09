@@ -23,12 +23,14 @@ type ProcessData struct {
 	extractors []metadata.Extractor
 }
 
+// NewProcessData exported function should have comment or be unexported
 func NewProcessData(cfg config.ConfigReader) *ProcessData {
 	return &ProcessData{
 		probe: newProcessProbe(cfg),
 	}
 }
 
+// NewProcessDataWithMockProbe exported function should have comment or be unexported
 func NewProcessDataWithMockProbe(t *testing.T) (*ProcessData, *mocks.Probe) {
 	probe := mocks.NewProbe(t)
 	return &ProcessData{

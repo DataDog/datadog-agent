@@ -50,19 +50,23 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 	return output
 }
 
+// Version exported method should have comment or be unexported
 func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("version", commandArgs...)
 }
 
+// Hostname exported method should have comment or be unexported
 func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string {
 	output := agent.executeCommand("hostname", commandArgs...)
 	return strings.Trim(output, "\n")
 }
 
+// Config exported method should have comment or be unexported
 func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+// ConfigCheck exported method should have comment or be unexported
 func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("configcheck", commandArgs...)
 }
@@ -73,6 +77,7 @@ func (a *Agent) IsReady() (bool, error) {
 	return a.Status().isReady()
 }
 
+// Status exported type should have comment or be unexported
 type Status struct {
 	Content string
 }
@@ -86,6 +91,7 @@ func (s *Status) isReady() (bool, error) {
 	return regexp.MatchString("={15}\nAgent \\(v6|7\\.\\d{2}\\..*\n={15}", s.Content)
 }
 
+// Status exported method should have comment or be unexported
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
 	return newStatus(agent.executeCommand("status", commandArgs...))
 }

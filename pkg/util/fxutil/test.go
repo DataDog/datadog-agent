@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx/fxtest"
 )
 
+// NoDependencies exported type should have comment or be unexported
 type NoDependencies struct {
 	fx.In
 }

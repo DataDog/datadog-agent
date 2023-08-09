@@ -7,6 +7,7 @@ package parameters
 
 import "fmt"
 
+// ParameterNotFoundError exported type should have comment or be unexported
 type ParameterNotFoundError struct {
 	key StoreKey
 }

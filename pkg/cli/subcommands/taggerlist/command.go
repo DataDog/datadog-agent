@@ -29,6 +29,7 @@ type cliParams struct {
 	GlobalParams
 }
 
+// GlobalParams exported type should have comment or be unexported
 type GlobalParams struct {
 	ConfFilePath string
 	ConfigName   string

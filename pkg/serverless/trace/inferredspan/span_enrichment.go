@@ -19,6 +19,7 @@ import (
 // Define and initialize serviceMapping as a global variable.
 var serviceMapping map[string]string
 
+// CreateServiceMapping exported function should have comment or be unexported
 func CreateServiceMapping(val string) map[string]string {
 	newServiceMapping := make(map[string]string)
 
@@ -45,11 +46,13 @@ func SetServiceMapping(newServiceMapping map[string]string) {
 	serviceMapping = newServiceMapping
 }
 
+// exported comment on function GetServiceMapping should be of the form "GetServiceMapping ..."
 // This function gets a snapshot of the current service mapping without modifying it.
 func GetServiceMapping() map[string]string {
 	return serviceMapping
 }
 
+// DetermineServiceName exported function should have comment or be unexported
 func DetermineServiceName(serviceMapping map[string]string, specificKey string, genericKey string, defaultValue string) string {
 	var serviceName string
 	if val, ok := serviceMapping[specificKey]; ok {

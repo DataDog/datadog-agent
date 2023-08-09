@@ -52,22 +52,26 @@ func LoadConfig(path string) (config.Config, error) {
 type JSONLogs []map[string]any
 
 var (
+// TestLogTime exported var should have comment or be unexported
 	TestLogTime      = time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC)
 	TestLogTimestamp = pcommon.NewTimestampFromTime(TestLogTime)
 )
 
+// GenerateLogsOneEmptyResourceLogs exported function should have comment or be unexported
 func GenerateLogsOneEmptyResourceLogs() plog.Logs {
 	ld := plog.NewLogs()
 	ld.ResourceLogs().AppendEmpty()
 	return ld
 }
 
+// GenerateLogsNoLogRecords exported function should have comment or be unexported
 func GenerateLogsNoLogRecords() plog.Logs {
 	ld := GenerateLogsOneEmptyResourceLogs()
 	ld.ResourceLogs().At(0).Resource().Attributes().PutStr("resource-attr", "resource-attr-val-1")
 	return ld
 }
 
+// GenerateLogsOneEmptyLogRecord exported function should have comment or be unexported
 func GenerateLogsOneEmptyLogRecord() plog.Logs {
 	ld := GenerateLogsNoLogRecords()
 	rs0 := ld.ResourceLogs().At(0)
@@ -75,6 +79,7 @@ func GenerateLogsOneEmptyLogRecord() plog.Logs {
 	return ld
 }
 
+// GenerateLogsOneLogRecordNoResource exported function should have comment or be unexported
 func GenerateLogsOneLogRecordNoResource() plog.Logs {
 	ld := GenerateLogsOneEmptyResourceLogs()
 	rs0 := ld.ResourceLogs().At(0)
@@ -82,12 +87,14 @@ func GenerateLogsOneLogRecordNoResource() plog.Logs {
 	return ld
 }
 
+// GenerateLogsOneLogRecord exported function should have comment or be unexported
 func GenerateLogsOneLogRecord() plog.Logs {
 	ld := GenerateLogsOneEmptyLogRecord()
 	fillLogOne(ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0))
 	return ld
 }
 
+// GenerateLogsTwoLogRecordsSameResource exported function should have comment or be unexported
 func GenerateLogsTwoLogRecordsSameResource() plog.Logs {
 	ld := GenerateLogsOneEmptyLogRecord()
 	logs := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()

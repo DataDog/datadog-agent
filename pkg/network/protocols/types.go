@@ -5,8 +5,10 @@
 
 package protocols
 
+// ProtocolType exported type should have comment or be unexported
 type ProtocolType uint16
 
+// This const block should have a comment or be unexported
 const (
 	Unknown ProtocolType = iota
 	HTTP
@@ -48,12 +50,14 @@ func (p ProtocolType) String() string {
 	}
 }
 
+// Stack exported type should have comment or be unexported
 type Stack struct {
 	Api         ProtocolType
 	Application ProtocolType
 	Encryption  ProtocolType
 }
 
+// MergeWith exported method should have comment or be unexported
 func (s *Stack) MergeWith(other Stack) {
 	if s.Api == Unknown {
 		s.Api = other.Api
@@ -68,6 +72,7 @@ func (s *Stack) MergeWith(other Stack) {
 	}
 }
 
+// Contains exported method should have comment or be unexported
 func (s *Stack) Contains(proto ProtocolType) bool {
 	return s.Api == proto || s.Application == proto || s.Encryption == proto
 }

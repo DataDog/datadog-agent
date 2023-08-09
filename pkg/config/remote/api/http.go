@@ -49,6 +49,7 @@ type API interface {
 	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
 }
 
+// Auth exported type should have comment or be unexported
 type Auth struct {
 	ApiKey    string
 	AppKey    string

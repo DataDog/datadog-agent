@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// MetricSeries exported type should have comment or be unexported
 type MetricSeries struct {
 	// embed proto Metric Series struct
 	metricspb.MetricPayload_MetricSeries
@@ -19,6 +20,7 @@ func (mp *MetricSeries) name() string {
 	return mp.Metric
 }
 
+// GetTags exported method should have comment or be unexported
 func (mp *MetricSeries) GetTags() []string {
 	return mp.Tags
 }
@@ -42,10 +44,12 @@ func parseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error)
 	return metrics, err
 }
 
+// MetricAggregator exported type should have comment or be unexported
 type MetricAggregator struct {
 	Aggregator[*MetricSeries]
 }
 
+// NewMetricAggregator exported function should have comment or be unexported
 func NewMetricAggregator() MetricAggregator {
 	return MetricAggregator{
 		Aggregator: newAggregator(parseMetricSeries),

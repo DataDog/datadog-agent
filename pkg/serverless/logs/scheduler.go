@@ -38,6 +38,7 @@ func SetLogsTags(tags []string) {
 	}
 }
 
+// GetLogsTags exported function should have comment or be unexported
 func GetLogsTags() []string {
 	if logsScheduler != nil {
 		return logsScheduler.GetLogsTags()

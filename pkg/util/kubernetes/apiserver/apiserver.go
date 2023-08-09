@@ -686,6 +686,7 @@ func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.Metada
 	return output
 }
 
+// GetARandomNodeName exported method should have comment or be unexported
 func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 	nodeList, err := c.Cl.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 		Limit: 1,

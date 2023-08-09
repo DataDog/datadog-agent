@@ -102,6 +102,7 @@ var LegacyMetadataConfig = MetadataConfig{
 	},
 }
 
+// TopologyMetadataConfig exported var should have comment or be unexported
 var TopologyMetadataConfig = MetadataConfig{
 	"lldp_remote": {
 		Fields: map[string]MetadataField{

@@ -12,6 +12,7 @@ func GetStaticTags(staticTags uint64) (tags []string) {
 	return tags
 }
 
+// IsTLSTag exported function should have comment or be unexported
 func IsTLSTag(staticTags uint64) bool {
 	return false
 }

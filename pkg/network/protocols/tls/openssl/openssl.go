@@ -14,6 +14,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+// RunServerOpenssl exported function should have comment or be unexported
 func RunServerOpenssl(t *testing.T, serverPort string, args ...string) error {
 	env := []string{
 		"OPENSSL_PORT=" + serverPort,
@@ -27,6 +28,7 @@ func RunServerOpenssl(t *testing.T, serverPort string, args ...string) error {
 	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("exited with code"), protocolsUtils.DefaultTimeout)
 }
 
+// RunClientOpenssl exported function should have comment or be unexported
 func RunClientOpenssl(t *testing.T, addr string, port string, args string) bool {
 	command := []string{
 		"docker", "run", "--network=host", "menci/archlinuxarm:base",

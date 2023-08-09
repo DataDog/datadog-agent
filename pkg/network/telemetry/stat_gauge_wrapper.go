@@ -17,30 +17,36 @@ type StatGaugeWrapper struct {
 	gauge telemetry.Gauge
 }
 
+// Inc exported method should have comment or be unexported
 func (sgw *StatGaugeWrapper) Inc() {
 	sgw.stat.Inc()
 	sgw.gauge.Inc()
 }
 
+// Dec exported method should have comment or be unexported
 func (sgw *StatGaugeWrapper) Dec() {
 	sgw.stat.Dec()
 	sgw.gauge.Dec()
 }
 
+// Add exported method should have comment or be unexported
 func (sgw *StatGaugeWrapper) Add(v int64) {
 	sgw.stat.Add(v)
 	sgw.gauge.Add(float64(v))
 }
 
+// Set exported method should have comment or be unexported
 func (sgw *StatGaugeWrapper) Set(v int64) {
 	sgw.stat.Store(v)
 	sgw.gauge.Set(float64(v))
 }
 
+// Load exported method should have comment or be unexported
 func (sgw *StatGaugeWrapper) Load() int64 {
 	return sgw.stat.Load()
 }
 
+// NewStatGaugeWrapper exported function should have comment or be unexported
 func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) *StatGaugeWrapper {
 	return &StatGaugeWrapper{
 		stat:  atomic.NewInt64(0),

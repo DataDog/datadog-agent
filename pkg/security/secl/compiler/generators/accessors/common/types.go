@@ -22,6 +22,7 @@ func NewEventTypeMetada(fields ...string) *EventTypeMetadata {
 // Platform defines which platform a structure is associated with
 type Platform string
 
+// This const block should have a comment or be unexported
 const (
 	Unspecified Platform = "unspecified"
 	Linux       Platform = "linux"

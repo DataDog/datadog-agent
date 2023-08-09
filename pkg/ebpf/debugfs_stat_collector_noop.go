@@ -9,8 +9,10 @@ package ebpf
 
 import "github.com/prometheus/client_golang/prometheus"
 
+// DebugFsStatCollector exported type should have comment or be unexported
 type DebugFsStatCollector struct{}
 
+// NewDebugFsStatCollector exported function should have comment or be unexported
 func NewDebugFsStatCollector() *DebugFsStatCollector {
 	return &DebugFsStatCollector{}
 }

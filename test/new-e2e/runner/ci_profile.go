@@ -25,6 +25,7 @@ type ciProfile struct {
 	ciUniqueID string
 }
 
+// NewCIProfile exported function should have comment or be unexported
 func NewCIProfile() (Profile, error) {
 	// Create workspace directory
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {

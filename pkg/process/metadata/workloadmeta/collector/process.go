@@ -20,6 +20,7 @@ import (
 
 const collectorId = "local-process"
 
+// NewProcessCollector exported function should have comment or be unexported
 func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
 
@@ -36,6 +37,7 @@ func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
 	}
 }
 
+// Collector exported type should have comment or be unexported
 type Collector struct {
 	ddConfig config.ConfigReader
 
@@ -49,6 +51,7 @@ type Collector struct {
 	collectionClock clock.Clock
 }
 
+// Start exported method should have comment or be unexported
 func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	err := c.grpcServer.Start()
 	if err != nil {

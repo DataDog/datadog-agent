@@ -70,6 +70,7 @@ func getCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
 	return db, taskCtx
 }
 
+// RunAlterQuery exported function should have comment or be unexported
 func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -78,6 +79,7 @@ func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunCreateQuery exported function should have comment or be unexported
 func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -86,6 +88,7 @@ func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunDeleteQuery exported function should have comment or be unexported
 func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -94,6 +97,7 @@ func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunDropQuery exported function should have comment or be unexported
 func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -102,6 +106,7 @@ func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunInsertQuery exported function should have comment or be unexported
 func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -113,6 +118,7 @@ func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunSelectQuery exported function should have comment or be unexported
 func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -121,6 +127,7 @@ func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunUpdateQuery exported function should have comment or be unexported
 func RunUpdateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)

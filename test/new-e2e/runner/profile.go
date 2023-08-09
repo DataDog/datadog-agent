@@ -14,8 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
 
+// CloudProvider exported type should have comment or be unexported
 type CloudProvider string
 
+// This const block should have a comment or be unexported
 const (
 	AWS       CloudProvider = "aws"
 	Azure     CloudProvider = "az"
@@ -31,6 +33,7 @@ var (
 	initProfile     sync.Once
 )
 
+// Profile exported type should have comment or be unexported
 type Profile interface {
 	// EnvironmentName returns the environment names for cloud providers
 	EnvironmentNames() string
@@ -88,6 +91,7 @@ func (p baseProfile) SecretStore() parameters.Store {
 	return p.secretStore
 }
 
+// GetProfile exported function should have comment or be unexported
 func GetProfile() Profile {
 	initProfile.Do(func() {
 		var profileFunc = NewLocalProfile

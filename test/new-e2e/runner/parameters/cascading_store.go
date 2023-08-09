@@ -11,10 +11,12 @@ import (
 
 var _ valueStore = &CascadingValueStore{}
 
+// CascadingValueStore exported type should have comment or be unexported
 type CascadingValueStore struct {
 	valueStores []valueStore
 }
 
+// NewCascadingStore exported function should have comment or be unexported
 func NewCascadingStore(valueStores ...valueStore) Store {
 	return newStore(CascadingValueStore{
 		valueStores: valueStores,

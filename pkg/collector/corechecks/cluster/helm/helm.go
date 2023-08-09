@@ -168,6 +168,7 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
+// Cancel exported method should have comment or be unexported
 func (hc *HelmCheck) Cancel() {
 	close(hc.informersStopCh)
 }

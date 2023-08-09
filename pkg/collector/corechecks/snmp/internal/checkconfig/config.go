@@ -209,6 +209,7 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	return nil
 }
 
+// UpdateConfigMetadataMetricsAndTags exported method should have comment or be unexported
 func (c *CheckConfig) UpdateConfigMetadataMetricsAndTags(metadata MetadataConfig, metrics []MetricsConfig, metricTags []MetricTagConfig, collectTopology bool) {
 	c.Metadata = updateMetadataDefinitionWithDefaults(metadata, collectTopology)
 	c.Metrics = append(c.Metrics, metrics...)
@@ -225,6 +226,7 @@ func (c *CheckConfig) UpdateDeviceIDAndTags() {
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
+// AddUptimeMetric exported method should have comment or be unexported
 func (c *CheckConfig) AddUptimeMetric() {
 	c.Metrics = append(c.Metrics, uptimeMetricConfig)
 }

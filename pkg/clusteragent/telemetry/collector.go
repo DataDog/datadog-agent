@@ -28,9 +28,13 @@ const (
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
+  // Success exported const should have comment (or a comment on this block) or be unexported
 	Success                 = 0
+  // ConfigParseFailure exported const should have comment (or a comment on this block) or be unexported
 	ConfigParseFailure      = 1
+  // InvalidPatchRequest exported const should have comment (or a comment on this block) or be unexported
 	InvalidPatchRequest     = 2
+  // FailedToMutateConfig exported const should have comment (or a comment on this block) or be unexported
 	FailedToMutateConfig    = 3
 )
 

@@ -27,6 +27,7 @@ type CloudService interface {
 	Init() error
 }
 
+// LocalService exported type should have comment or be unexported
 type LocalService struct{}
 
 // GetTags is a default implementation that returns a local empty tag set
@@ -49,6 +50,7 @@ func (l *LocalService) Init() error {
 	return nil
 }
 
+// GetCloudServiceType exported function should have comment or be unexported
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		return &CloudRun{}

@@ -179,6 +179,7 @@ var (
 	conditionStatusesAPIServicesV1 = []apiregistrationv1.ConditionStatus{apiregistrationv1.ConditionTrue, apiregistrationv1.ConditionFalse, apiregistrationv1.ConditionUnknown}
 )
 
+// ConditionStatus exported type should have comment or be unexported
 type ConditionStatus interface {
 	v1.ConditionStatus | extension.ConditionStatus | apiregistrationv1.ConditionStatus
 }

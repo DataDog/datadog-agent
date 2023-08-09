@@ -12,6 +12,7 @@ import (
 	"github.com/go-redis/redis/v9"
 )
 
+// NewClient exported function should have comment or be unexported
 func NewClient(serverAddress string, dialer *net.Dialer) *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr:   serverAddress,

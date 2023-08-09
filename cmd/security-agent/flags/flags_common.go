@@ -6,23 +6,25 @@
 // Package flags TODO comment
 package flags
 
+// This const block should have a comment or be unexported
 const (
-	// Start Subcommand
 	// CfgPath defines the cfgpath flag
+	// Start Subcommand
 	CfgPath = "cfgpath"
 	NoColor = "no-color"
 	PidFile = "pidfile"
 
-	// Status Subcommand
+	// JSON Status Subcommand
 	JSON       = "json"
 	PrettyJSON = "pretty-json"
-	File       = "file" // Also for check subcommand
+	File       = "file" // File Also for check subcommand
 
-	// Flare Subcommand
+	// Email Flare Subcommand
 	Email = "email"
+  // Send exported const should have comment (or a comment on this block) or be unexported
 	Send  = "send"
 
-	// Runtime Subcommand
+	// PoliciesDir Runtime Subcommand
 	PoliciesDir        = "policies-dir"
 	EventFile          = "event-file"
 	Debug              = "debug"
@@ -30,18 +32,18 @@ const (
 	OutputPath         = "output-path"
 	WithArgs           = "with-args"
 	SnapshotInterfaces = "snapshot-interfaces"
-	RuleID             = "rule-id" // Also for compliance subcommand
+	RuleID             = "rule-id" // RuleID Also for compliance subcommand
 
-	// Runtime Policy Check Subcommand
+	// EvaluateLoadedPolicies Runtime Policy Check Subcommand
 	EvaluateLoadedPolicies = "loaded-policies"
 
-	// Runtime Activity Dump Subcommand
+	// Name Runtime Activity Dump Subcommand
 	Name              = "name"
 	ContainerID       = "containerID"
 	Comm              = "comm"
 	Timeout           = "timeout"
 	DifferentiateArgs = "differentiate-args"
-	Output            = "output" // TODO: unify with OutputPath
+	Output            = "output" // Output TODO: unify with OutputPath
 	Compression       = "compression"
 	Format            = "format"
 	RemoteCompression = "remote-compression"
@@ -51,13 +53,13 @@ const (
 	Origin            = "origin"
 	Target            = "target"
 
-	// Security Profile Subcommand
+	// SecurityProfileInput Security Profile Subcommand
 	SecurityProfileInput = "input"
 	IncludeCache         = "include-cache"
 	ImageName            = "name"
 	ImageTag             = "tag"
 
-	// Compliance Subcommand
+	// SourceType Compliance Subcommand
 	SourceType   = "source-type"
 	SourceName   = "source-name"
 	ResourceID   = "resource-id"
@@ -65,10 +67,10 @@ const (
 	Tags         = "tags"
 	Data         = "data"
 
-	// Check Subcommand
+	// Framework Check Subcommand
 	Framework         = "framework"
 	Verbose           = "verbose"
 	Report            = "report"
 	OverrideRegoInput = "override-rego-input"
-	DumpReports       = "dump-reports" // TODO: Unify with OutputPath
+	DumpReports       = "dump-reports" // DumpReports TODO: Unify with OutputPath
 )

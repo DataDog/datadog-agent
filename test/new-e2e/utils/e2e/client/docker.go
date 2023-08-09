@@ -22,6 +22,7 @@ import (
 
 var _ clientService[docker.ClientData] = (*Docker)(nil)
 
+// exported comment on type Docker should be of the form "Docker ..." (with optional leading article)
 // A docker client that is connected to an [docker.Deamon].
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
@@ -34,6 +35,7 @@ type Docker struct {
 	os                 os.OS
 }
 
+// exported comment on function NewDocker should be of the form "NewDocker ..."
 // Create a new instance of Docker
 func NewDocker(daemon *docker.Daemon) *Docker {
 	dockerInstance := &Docker{

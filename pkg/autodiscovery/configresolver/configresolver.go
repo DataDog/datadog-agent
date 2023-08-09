@@ -40,6 +40,7 @@ var templateVariables = map[string]variableGetter{
 	"kube":     getAdditionalTplVariables,
 }
 
+// NoServiceError exported type should have comment or be unexported
 type NoServiceError struct {
 	message string
 }
@@ -48,6 +49,7 @@ func (n *NoServiceError) Error() string {
 	return n.message
 }
 
+// NewNoServiceError exported function should have comment or be unexported
 func NewNoServiceError(message string) *NoServiceError {
 	return &NoServiceError{
 		message: message,

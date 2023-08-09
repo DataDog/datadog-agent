@@ -25,6 +25,7 @@ var preferredHPAVersions = map[string]int{
 	"v2beta1": 1,
 }
 
+// DiscoverHPAGroupVersionResource exported function should have comment or be unexported
 func DiscoverHPAGroupVersionResource(client kubernetes.Interface) (schema.GroupVersionResource, error) {
 	groups, _, err := client.Discovery().ServerGroupsAndResources()
 	if err != nil {

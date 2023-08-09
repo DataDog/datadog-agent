@@ -412,6 +412,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	return err == nil
 }
 
+// CheckConnectivityDiagnose exported function should have comment or be unexported
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint)
 	return destination.url, completeCheckConnectivity(ctx, destination)

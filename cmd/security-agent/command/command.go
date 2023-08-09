@@ -17,12 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 )
 
+// GlobalParams exported type should have comment or be unexported
 type GlobalParams struct {
 	ConfigFilePaths []string
 }
 
+// SubcommandFactory exported type should have comment or be unexported
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
+// LoggerName exported const should have comment or be unexported
 const LoggerName = "SECURITY"
 
 var defaultSecurityAgentConfigFilePaths = []string{

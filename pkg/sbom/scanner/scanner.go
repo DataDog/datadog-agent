@@ -36,6 +36,7 @@ type scanRequest struct {
 	ch        chan<- sbom.ScanResult
 }
 
+// Scanner exported type should have comment or be unexported
 type Scanner struct {
 	startOnce sync.Once
 	running   bool
@@ -43,6 +44,7 @@ type Scanner struct {
 	disk      filesystem.Disk
 }
 
+// Scan exported method should have comment or be unexported
 func (s *Scanner) Scan(request sbom.ScanRequest, opts sbom.ScanOptions, ch chan<- sbom.ScanResult) error {
 	collectorName := request.Collector()
 	collector := collectors.Collectors[collectorName]
@@ -150,6 +152,7 @@ func (s *Scanner) start(ctx context.Context) {
 	}()
 }
 
+// Start exported method should have comment or be unexported
 func (s *Scanner) Start(ctx context.Context) {
 	s.startOnce.Do(func() {
 		s.start(ctx)

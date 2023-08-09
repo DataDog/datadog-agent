@@ -21,6 +21,7 @@ var (
 	registeredCounters   map[string]telemetry.Counter
 )
 
+// NewRegoTelemetry exported function should have comment or be unexported
 func NewRegoTelemetry() *RegoTelemetry {
 	return &RegoTelemetry{
 		inner:      opametrics.New(),
@@ -125,6 +126,7 @@ func (t *regoTimer) Stop() int64 {
 	return delta
 }
 
+// RegoTelemetry exported type should have comment or be unexported
 type RegoTelemetry struct {
 	sync.Mutex
 	inner      opametrics.Metrics
@@ -133,10 +135,12 @@ type RegoTelemetry struct {
 	histograms map[string]*regoHistogram
 }
 
+// Info exported method should have comment or be unexported
 func (m *RegoTelemetry) Info() opametrics.Info {
 	return m.inner.Info()
 }
 
+// Timer exported method should have comment or be unexported
 func (m *RegoTelemetry) Timer(name string) opametrics.Timer {
 	m.Lock()
 	defer m.Unlock()
@@ -152,6 +156,7 @@ func (m *RegoTelemetry) Timer(name string) opametrics.Timer {
 	return t
 }
 
+// Histogram exported method should have comment or be unexported
 func (m *RegoTelemetry) Histogram(name string) opametrics.Histogram {
 	m.Lock()
 	defer m.Unlock()
@@ -167,6 +172,7 @@ func (m *RegoTelemetry) Histogram(name string) opametrics.Histogram {
 	return h
 }
 
+// Counter exported method should have comment or be unexported
 func (m *RegoTelemetry) Counter(name string) opametrics.Counter {
 	m.Lock()
 	defer m.Unlock()
@@ -182,14 +188,17 @@ func (m *RegoTelemetry) Counter(name string) opametrics.Counter {
 	return c
 }
 
+// All exported method should have comment or be unexported
 func (m *RegoTelemetry) All() map[string]interface{} {
 	return m.inner.All()
 }
 
+// Clear exported method should have comment or be unexported
 func (m *RegoTelemetry) Clear() {
 	m.inner.Clear()
 }
 
+// MarshalJSON exported method should have comment or be unexported
 func (m *RegoTelemetry) MarshalJSON() ([]byte, error) {
 	return m.inner.MarshalJSON()
 }

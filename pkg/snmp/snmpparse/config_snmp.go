@@ -26,6 +26,7 @@ var configCheckURLSnmp string
 // SNMPConfig is a generic container for configuration data specific to the SNMP
 // integration.
 
+// SNMPConfig exported type should have comment or be unexported
 type SNMPConfig struct {
 
 	//General
@@ -47,6 +48,7 @@ type SNMPConfig struct {
 	NetAddress string `yaml:"network_address"`
 }
 
+// exported comment on function SetDefault should be of the form "SetDefault ..."
 // set default values used by the agent
 func SetDefault(sc *SNMPConfig) {
 	sc.Port = 161
@@ -56,6 +58,7 @@ func SetDefault(sc *SNMPConfig) {
 
 }
 
+// ParseConfigSnmp exported function should have comment or be unexported
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	//an array containing all the snmp instances
 	snmpconfigs := []SNMPConfig{}
@@ -108,6 +111,7 @@ func parseConfigSnmpMain() ([]SNMPConfig, error) {
 
 }
 
+// GetConfigCheckSnmp exported function should have comment or be unexported
 func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -146,6 +150,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 
 }
 
+// GetIPConfig exported function should have comment or be unexported
 func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	ipAddressConfigs := []SNMPConfig{}
 	netAddressConfigs := []SNMPConfig{}

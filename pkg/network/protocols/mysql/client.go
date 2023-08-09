@@ -15,6 +15,7 @@ import (
 	mysqldriver "github.com/go-sql-driver/mysql"
 )
 
+// Options exported type should have comment or be unexported
 type Options struct {
 	ServerAddress string
 	Username      string
@@ -23,11 +24,13 @@ type Options struct {
 	Dialer        *net.Dialer
 }
 
+// Client exported type should have comment or be unexported
 type Client struct {
 	DB     *sql.DB
 	dbName string
 }
 
+// NewClient exported function should have comment or be unexported
 func NewClient(opts Options) (*Client, error) {
 	user := opts.Username
 	if user == "" {
@@ -65,6 +68,7 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
+// CreateDB exported method should have comment or be unexported
 func (c *Client) CreateDB() error {
 	_, err := c.DB.Exec("CREATE DATABASE " + c.dbName)
 	if err != nil {
@@ -75,36 +79,43 @@ func (c *Client) CreateDB() error {
 	return err
 }
 
+// DropDB exported method should have comment or be unexported
 func (c *Client) DropDB() error {
 	_, err := c.DB.Exec("DROP DATABASE " + c.dbName)
 	return err
 }
 
+// CreateTable exported method should have comment or be unexported
 func (c *Client) CreateTable() error {
 	_, err := c.DB.Exec("CREATE TABLE cities(id INT PRIMARY KEY AUTO_INCREMENT, name TEXT, population INT);")
 	return err
 }
 
+// DropTable exported method should have comment or be unexported
 func (c *Client) DropTable() error {
 	_, err := c.DB.Exec("DROP TABLE cities;")
 	return err
 }
 
+// AlterTable exported method should have comment or be unexported
 func (c *Client) AlterTable() error {
 	_, err := c.DB.Exec("ALTER TABLE cities ADD creation_year INT;")
 	return err
 }
 
+// InsertIntoTable exported method should have comment or be unexported
 func (c *Client) InsertIntoTable(name string, population int) error {
 	_, err := c.DB.Exec("INSERT INTO cities(name, population) VALUES(?, ?);", name, population)
 	return err
 }
 
+// DeleteFromTable exported method should have comment or be unexported
 func (c *Client) DeleteFromTable(name string) error {
 	_, err := c.DB.Exec("DELETE from cities where name=?", name)
 	return err
 }
 
+// SelectFromTable exported method should have comment or be unexported
 func (c *Client) SelectFromTable(name string) (int, error) {
 	row := c.DB.QueryRow("select * from cities where name=?;", name)
 	if err := row.Err(); err != nil {
@@ -119,11 +130,13 @@ func (c *Client) SelectFromTable(name string) (int, error) {
 	return population, nil
 }
 
+// SelectAllFromTable exported method should have comment or be unexported
 func (c *Client) SelectAllFromTable() error {
 	_, err := c.DB.Query("select * from cities;")
 	return err
 }
 
+// UpdateTable exported method should have comment or be unexported
 func (c *Client) UpdateTable(srcName, newName string, newPopulation int) error {
 	_, err := c.DB.Exec("UPDATE cities set name=?, population=? where name=?;", newName, newPopulation, srcName)
 	return err

@@ -48,6 +48,7 @@ func RunCommand(cmd string) (string, error) {
 	return string(out), nil
 }
 
+// StartCommandCtx exported function should have comment or be unexported
 func StartCommandCtx(ctx context.Context, cmd string) (*exec.Cmd, io.WriteCloser, error) {
 	args := strings.Split(cmd, " ")
 	c := exec.CommandContext(ctx, args[0], args[1:]...)

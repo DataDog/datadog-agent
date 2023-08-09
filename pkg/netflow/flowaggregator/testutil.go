@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// WaitForFlowsToBeFlushed exported function should have comment or be unexported
 func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) (uint64, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(500 * time.Millisecond)

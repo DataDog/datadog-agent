@@ -108,6 +108,7 @@ type Stats struct {
 	telemetry                bool // do we want telemetry on this Check
 }
 
+// StatsCheck exported type should have comment or be unexported
 type StatsCheck interface {
 	// String provides a printable version of the check name
 	String() string

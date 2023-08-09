@@ -14,12 +14,14 @@ import (
 	"github.com/twmb/murmur3"
 )
 
+// GetQuerySignature exported function should have comment or be unexported
 func GetQuerySignature(statement string) string {
 	h := fnv.New64a()
 	h.Write([]byte(statement))
 	return strconv.FormatUint(murmur3.Sum64([]byte(statement)), 16)
 }
 
+// ObfuscatedStatement exported type should have comment or be unexported
 type ObfuscatedStatement struct {
 	Statement      string
 	QuerySignature string

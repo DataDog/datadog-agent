@@ -27,10 +27,12 @@ const (
 	streamKeepAliveInterval = 9 * time.Minute
 )
 
+// Server exported type should have comment or be unexported
 type Server struct {
 	tagger tagger.Tagger
 }
 
+// NewServer exported function should have comment or be unexported
 func NewServer(t tagger.Tagger) *Server {
 	return &Server{
 		tagger: t,

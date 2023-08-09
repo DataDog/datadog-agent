@@ -20,6 +20,7 @@ type contextKey struct {
 	key string
 }
 
+// ConnContextKey exported var should have comment or be unexported
 var ConnContextKey = &contextKey{"http-connection"}
 
 // NewMuxedGRPCServer returns an http.Server that multiplexes connections

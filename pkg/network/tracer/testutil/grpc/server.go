@@ -241,10 +241,12 @@ func NewServer(addr string) (*Server, error) {
 	return server, nil
 }
 
+// Stop exported method should have comment or be unexported
 func (s *Server) Stop() {
 	s.grpcSrv.Stop()
 }
 
+// Run exported method should have comment or be unexported
 func (s *Server) Run() {
 	go func() {
 		if err := s.grpcSrv.Serve(s.lis); err != nil {

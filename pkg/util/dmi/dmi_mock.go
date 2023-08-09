@@ -21,6 +21,7 @@ func resetSysPath() {
 	dmiBoardVendorPath = "/sys/devices/virtual/dmi/id/board_vendor"
 }
 
+// SetupMock exported function should have comment or be unexported
 func SetupMock(t *testing.T, hypervisorUUID, productUUID, boardAssetTag, boardVendor string) {
 	tempDir := t.TempDir()
 	t.Cleanup(resetSysPath)

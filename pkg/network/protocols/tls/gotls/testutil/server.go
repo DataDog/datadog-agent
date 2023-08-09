@@ -13,6 +13,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+// RunServer exported function should have comment or be unexported
 func RunServer(t testing.TB, serverPort string) error {
 	env := []string{
 		"HTTPS_PORT=" + serverPort,

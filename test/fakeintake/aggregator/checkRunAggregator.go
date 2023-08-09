@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// CheckRun exported type should have comment or be unexported
 type CheckRun struct {
 	Check     string   `json:"check"`
 	HostName  string   `json:"host_name"`
@@ -24,6 +25,7 @@ func (cr *CheckRun) name() string {
 	return cr.Check
 }
 
+// GetTags exported method should have comment or be unexported
 func (cr *CheckRun) GetTags() []string {
 	return cr.Tags
 }
@@ -38,10 +40,12 @@ func parseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	return checks, err
 }
 
+// CheckRunAggregator exported type should have comment or be unexported
 type CheckRunAggregator struct {
 	Aggregator[*CheckRun]
 }
 
+// NewCheckRunAggregator exported function should have comment or be unexported
 func NewCheckRunAggregator() CheckRunAggregator {
 	return CheckRunAggregator{
 		Aggregator: newAggregator(parseCheckRunPayload),

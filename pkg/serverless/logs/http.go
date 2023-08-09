@@ -11,15 +11,18 @@ import (
 	"net/http"
 )
 
+// exported comment on type LambdaLogsAPIServer should be of the form "LambdaLogsAPIServer ..." (with optional leading article)
 // LambdaLogsAPI implements the AWS Lambda Logs API callback
 type LambdaLogsAPIServer struct {
 	out chan<- []LambdaLogAPIMessage
 }
 
+// NewLambdaLogsAPIServer exported function should have comment or be unexported
 func NewLambdaLogsAPIServer(out chan<- []LambdaLogAPIMessage) LambdaLogsAPIServer {
 	return LambdaLogsAPIServer{out}
 }
 
+// Close exported method should have comment or be unexported
 func (l *LambdaLogsAPIServer) Close() {
 	close(l.out)
 }

@@ -21,16 +21,19 @@ const (
 	defaultTimeout = time.Second * 10
 )
 
+// Options exported type should have comment or be unexported
 type Options struct {
 	ServerAddress string
 	Dialer        *net.Dialer
 	CustomOptions []kgo.Opt
 }
 
+// Client exported type should have comment or be unexported
 type Client struct {
 	Client *kgo.Client
 }
 
+// NewClient exported function should have comment or be unexported
 func NewClient(opts Options) (*Client, error) {
 	kafkaOptions := []kgo.Opt{kgo.SeedBrokers(opts.ServerAddress)}
 	kafkaOptions = append(kafkaOptions, opts.CustomOptions...)
@@ -53,6 +56,7 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
+// CreateTopic exported method should have comment or be unexported
 func (c *Client) CreateTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -61,6 +65,7 @@ func (c *Client) CreateTopic(topicName string) error {
 	return err
 }
 
+// DeleteTopic exported method should have comment or be unexported
 func (c *Client) DeleteTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)

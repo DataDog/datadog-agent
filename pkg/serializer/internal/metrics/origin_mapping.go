@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+// MetricSourceToOriginCategory exported function should have comment or be unexported
 func MetricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 	// These constants map to specific fields in the 'OriginCategory' enum in origin.proto
 	switch ms {
@@ -23,6 +24,7 @@ func MetricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 	}
 }
 
+// MetricSourceToOriginService exported function should have comment or be unexported
 func MetricSourceToOriginService(ms metrics.MetricSource) int32 {
 	// These constants map to specific fields in the 'OriginService' enum in origin.proto
 	switch ms {

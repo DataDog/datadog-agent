@@ -12,6 +12,7 @@ import (
 	"strconv"
 )
 
+// GetFreePort exported function should have comment or be unexported
 func GetFreePort() uint16 {
 	var port uint16
 	for i := 0; i < 5; i++ {

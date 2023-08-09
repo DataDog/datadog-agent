@@ -21,6 +21,7 @@ import (
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// Commands exported function should have comment or be unexported
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",

@@ -20,6 +20,7 @@ type Collector interface {
 	Pull(context.Context) error
 }
 
+// CollectorCatalog exported type should have comment or be unexported
 type CollectorCatalog map[string]collectorFactory
 
 type collectorFactory func() Collector

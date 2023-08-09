@@ -15,10 +15,12 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
+// GetAPIEndpoints exported function should have comment or be unexported
 func GetAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
 	return getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints")
 }
 
+// GetEventsAPIEndpoints exported function should have comment or be unexported
 func GetEventsAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
 	return getAPIEndpointsWithKeys(config, "https://process-events.", "process_config.events_dd_url", "process_config.events_additional_endpoints")
 }

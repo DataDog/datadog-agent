@@ -356,6 +356,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
 }
 
+// CheckProcessTelemetry exported function should have comment or be unexported
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {
