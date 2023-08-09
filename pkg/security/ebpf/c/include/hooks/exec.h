@@ -75,40 +75,13 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     return 0;
 }
 
-int __attribute__((always_inline)) handle_sys_fork() {
-    struct syscall_cache_t syscall = {
-        .type = EVENT_FORK,
-    };
-
-    cache_syscall(&syscall);
-
-    return 0;
-}
-
-SYSCALL_KPROBE0(fork) {
-    return handle_sys_fork();
-}
-
-HOOK_SYSCALL_ENTRY0(clone) {
-    return handle_sys_fork();
-}
-
-HOOK_SYSCALL_ENTRY0(clone3) {
-    return handle_sys_fork();
-}
-
-SYSCALL_KPROBE0(vfork) {
-    return handle_sys_fork();
-}
-
 #define DO_FORK_STRUCT_INPUT 1
 
 int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall) {
-        return 0;
-    }
-    syscall->fork.is_thread = 1;
+    struct syscall_cache_t syscall = {
+        .type = EVENT_FORK,
+        .fork.is_thread = 1,
+    };
 
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
@@ -127,6 +100,8 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
             syscall->fork.is_thread = 0;
         }
     }
+
+    cache_syscall(&syscall);
 
     return 0;
 }
