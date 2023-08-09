@@ -36,10 +36,11 @@ func TestKindSuite(t *testing.T) {
 		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 	}
+
 	t.Cleanup(func() {
-		fmt.Println("KIND CLEANUP CALLED")
 		infra.GetStackManager().DeleteStack(ctx, "kind-cluster")
 	})
+
 	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
 	require.NoError(t, err)
 

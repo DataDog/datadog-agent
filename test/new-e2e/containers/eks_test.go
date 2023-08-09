@@ -39,7 +39,6 @@ func TestEKSSuite(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		fmt.Println("EKS CLEANUP CALLED")
 		infra.GetStackManager().DeleteStack(ctx, "eks-cluster")
 	})
 
