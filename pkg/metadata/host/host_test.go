@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"testing"
-	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -59,30 +57,6 @@ func TestGetCPUInfo(t *testing.T) {
 
 func TestBuildKey(t *testing.T) {
 	assert.Equal(t, "metadata/host/foo", buildKey("foo"))
-}
-
-func TestGetContainerMeta(t *testing.T) {
-	// reset catalog
-	container.DefaultCatalog = make(container.Catalog)
-	container.RegisterMetadataProvider("provider1", func() (map[string]string, error) { return map[string]string{"foo": "bar"}, nil })
-	container.RegisterMetadataProvider("provider2", func() (map[string]string, error) { return map[string]string{"fizz": "buzz"}, nil })
-	container.RegisterMetadataProvider("provider3", func() (map[string]string, error) { return map[string]string{"fizz": "buzz"}, nil })
-
-	meta := getContainerMeta(50 * time.Millisecond)
-	assert.Equal(t, map[string]string{"foo": "bar", "fizz": "buzz"}, meta)
-}
-
-func TestGetContainerMetaTimeout(t *testing.T) {
-	// reset catalog
-	container.DefaultCatalog = make(container.Catalog)
-	container.RegisterMetadataProvider("provider1", func() (map[string]string, error) { return map[string]string{"foo": "bar"}, nil })
-	container.RegisterMetadataProvider("provider2", func() (map[string]string, error) {
-		time.Sleep(time.Second)
-		return map[string]string{"fizz": "buzz"}, nil
-	})
-
-	meta := getContainerMeta(50 * time.Millisecond)
-	assert.Equal(t, map[string]string{"foo": "bar"}, meta)
 }
 
 func TestGetLogsMeta(t *testing.T) {

@@ -9,7 +9,6 @@ import (
 	"context"
 	"os"
 	"path"
-	"sync"
 	"time"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
@@ -18,11 +17,11 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	containerMetadata "github.com/DataDog/datadog-agent/pkg/util/containers/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -54,7 +53,7 @@ func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      hostMetadataUtils.GetHostTags(ctx, false, config.Datadog),
-		ContainerMeta: getContainerMeta(1 * time.Second),
+		ContainerMeta: containerMetadata.Get(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(ctx),
 		LogsMeta:      getLogsMeta(),
 		InstallMethod: getInstallMethod(getInstallInfoPath()),
@@ -95,49 +94,6 @@ func getNetworkMeta(ctx context.Context) *NetworkMeta {
 	}
 
 	return networkMeta
-}
-
-func getContainerMeta(timeout time.Duration) map[string]string {
-	wg := sync.WaitGroup{}
-	containerMeta := make(map[string]string)
-	// protecting the above map from concurrent access
-	mutex := &sync.Mutex{}
-
-	for provider, getMeta := range container.DefaultCatalog {
-		wg.Add(1)
-		go func(provider string, getMeta container.MetadataProvider) {
-			defer wg.Done()
-			meta, err := getMeta()
-			if err != nil {
-				log.Debugf("Unable to get %s metadata: %s", provider, err)
-				return
-			}
-			mutex.Lock()
-			for k, v := range meta {
-				containerMeta[k] = v
-			}
-			mutex.Unlock()
-		}(provider, getMeta)
-	}
-	// we want to timeout even if the wait group is not done yet
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		return containerMeta
-	case <-time.After(timeout):
-		// in this case the map might be incomplete so return a copy to avoid race
-		incompleteMeta := make(map[string]string)
-		mutex.Lock()
-		for k, v := range containerMeta {
-			incompleteMeta[k] = v
-		}
-		mutex.Unlock()
-		return incompleteMeta
-	}
 }
 
 func getLogsMeta() *LogsMeta {
