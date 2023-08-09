@@ -6,6 +6,7 @@
 package languagedetection
 
 import (
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -103,4 +104,17 @@ func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReade
 		}
 	}
 	return langs
+}
+
+func privilegedLanguageDetectionEnabled(sysProbeConfig config.ConfigReader) bool {
+	if sysProbeConfig == nil {
+		return false
+	}
+
+	// System probe language detection only works on linux operating systems for the moment.
+	if runtime.GOOS != "linux" {
+		return false
+	}
+
+	return sysProbeConfig.GetBool("system_probe_config.language_detection.enabled")
 }

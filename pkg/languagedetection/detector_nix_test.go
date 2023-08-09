@@ -8,7 +8,6 @@
 package languagedetection
 
 import (
-	"google.golang.org/protobuf/proto"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +21,7 @@ import (
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func makeProcess(cmdline []string) *procutil.Process {
