@@ -863,6 +863,7 @@ workflow:
         - pkg/collector/corechecks/ebpf/**/*
         - pkg/ebpf/**/*
         - pkg/network/**/*
+        - pkg/process/monitor/*
         - pkg/util/kernel/**/*
         - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
         - test/kitchen/test/integration/system-probe-test/**/*

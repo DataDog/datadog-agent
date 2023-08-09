@@ -20,10 +20,12 @@ import (
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -114,6 +116,7 @@ type Tailer struct {
 
 	info      *status.InfoRegistry
 	bytesRead *status.CountInfo
+	movingSum *util.MovingSum
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -151,6 +154,12 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	fileRotated := opts.Rotated
 	opts.Info.Register(bytesRead)
 
+	timeWindow := 24 * time.Hour
+	totalBucket := 24
+	bucketSize := timeWindow / time.Duration(totalBucket)
+	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
+	opts.Info.Register(movingSum)
+
 	t := &Tailer{
 		file:                   opts.File,
 		outputChan:             opts.OutputChan,
@@ -169,6 +178,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		didFileRotate:          atomic.NewBool(false),
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
+		movingSum:              movingSum,
 	}
 
 	if fileRotated {
@@ -283,6 +293,7 @@ func (t *Tailer) readForever() {
 			return
 		}
 		t.recordBytes(int64(n))
+		t.movingSum.Add(int64(n))
 
 		select {
 		case <-t.stop:
