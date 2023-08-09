@@ -17,7 +17,7 @@ go_deps:
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
   script:
-    - source /root/.bashrc
+    - source /etc/profile
     - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
   artifacts:
@@ -32,7 +32,7 @@ go_tools_deps:
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
   script:
-    - source /root/.bashrc
+    - source /etc/profile
     - inv -e download-tools
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache_tools.tar.gz .
   artifacts:

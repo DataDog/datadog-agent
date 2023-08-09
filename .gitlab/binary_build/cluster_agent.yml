@@ -19,7 +19,7 @@ cluster_agent-build_amd64:
   variables:
     ARCH: amd64
   before_script:
-    - source /root/.bashrc
+    - source /etc/profile
     - !reference [.retrieve_linux_go_deps]
 
 cluster_agent-build_arm64:
@@ -32,5 +32,5 @@ cluster_agent-build_arm64:
   variables:
     ARCH: arm64
   before_script:
-    - source /root/.bashrc
+    - source /etc/profile
     - !reference [.retrieve_linux_go_deps]

@@ -84,7 +84,7 @@ agent_suse-x64-a6:
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
   before_script:
-    - source /root/.bashrc
+    - source /etc/profile
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent package for suse-x64
@@ -101,7 +101,7 @@ agent_suse-x64-a7:
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
   before_script:
-    - source /root/.bashrc
+    - source /etc/profile
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 iot_agent_suse-x64:
@@ -112,7 +112,7 @@ iot_agent_suse-x64:
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
-    - source /root/.bashrc
+    - source /etc/profile
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - !reference [.setup_ruby_mirror_linux]
@@ -150,7 +150,7 @@ dogstatsd_suse-x64:
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   variables:
   before_script:
-    - source /root/.bashrc
+    - source /etc/profile
     - !reference [.retrieve_linux_go_deps]
   script:
     # remove artifacts from previous pipelines that may come from the cache
