@@ -133,7 +133,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(daemon.ExecutionContext.LastRequestID())
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdstart, coldStartTags.IsProactiveInit)
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
@@ -175,14 +175,14 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(requestID)
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdstart, coldStartTags.IsProactiveInit)
 		metricTags = tags.AddInitTypeTag(metricTags)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
 	}
 
-	if coldStartTags.IsColdStart {
+	if coldStartTags.IsColdstart {
 		daemon.UpdateStrategy()
 	}
 

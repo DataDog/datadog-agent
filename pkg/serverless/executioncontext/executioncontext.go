@@ -16,7 +16,7 @@ import (
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
 type ColdStartTags struct {
-	IsColdStart     bool
+	IsColdstart     bool
 	IsProactiveInit bool
 }
 
@@ -26,7 +26,7 @@ type ExecutionContext struct {
 	arn                string
 	lastRequestID      string
 	coldstartRequestID string
-	wasColdStart       bool
+	wasColdstart       bool
 	wasProactiveInit   bool
 	lastLogRequestID   string
 	lastOOMRequestID   string
@@ -61,7 +61,7 @@ func (ec *ExecutionContext) GetCurrentState() State {
 		ARN:                ec.arn,
 		LastRequestID:      ec.lastRequestID,
 		ColdstartRequestID: ec.coldstartRequestID,
-		WasColdStart:       ec.wasColdStart,
+		WasColdStart:       ec.wasColdstart,
 		WasProactiveInit:   ec.wasProactiveInit,
 		LastLogRequestID:   ec.lastLogRequestID,
 		LastOOMRequestID:   ec.lastOOMRequestID,
@@ -77,14 +77,14 @@ func (ec *ExecutionContext) GetColdStartTagsForRequestID(requestID string) ColdS
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	coldStartTags := ColdStartTags{
-		IsColdStart:     false,
+		IsColdstart:     false,
 		IsProactiveInit: false,
 	}
 	if requestID != ec.coldstartRequestID {
 		return coldStartTags
 	}
 
-	coldStartTags.IsColdStart = ec.wasColdStart
+	coldStartTags.IsColdstart = ec.wasColdstart
 	coldStartTags.IsProactiveInit = ec.wasProactiveInit
 	return coldStartTags
 }
@@ -114,9 +114,9 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 		// from TelemetryAPI
 		if time.Now().Sub(ec.initTime) > 10*time.Second {
 			ec.wasProactiveInit = true
-			ec.wasColdStart = false
+			ec.wasColdstart = false
 		} else {
-			ec.wasColdStart = true
+			ec.wasColdstart = true
 		}
 		ec.coldstartRequestID = requestID
 	}
