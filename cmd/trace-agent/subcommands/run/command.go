@@ -44,6 +44,16 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	return runCmd
 }
 
+func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
+	cmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
+	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
+		"enables CPU profiling and specifies profile path.")
+	cmd.PersistentFlags().StringVarP(&cliParams.MemProfile, "mem-profile", "m", "",
+		"enables memory profiling and specifies profilh.")
+
+	setOSSpecificParamFlags(cmd, cliParams)
+}
+
 func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
@@ -55,20 +65,6 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
 	)
-}
-
-func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
-	cmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
-	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
-		"enables CPU profiling and specifies profile path.")
-	cmd.PersistentFlags().StringVarP(&cliParams.MemProfile, "mem-profile", "m", "",
-		"enables memory profiling and specifies profilh.")
-
-	setOSSpecificParamFlags(cmd, cliParams)
-}
-
-type Params struct {
-	DefaultLogFile string
 }
 
 // handleSignal closes a channel to exit cleanly from routines

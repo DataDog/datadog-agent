@@ -6,11 +6,12 @@
 package run
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestStartCommand(t *testing.T) {
