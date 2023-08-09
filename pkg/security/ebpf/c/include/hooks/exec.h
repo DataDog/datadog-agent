@@ -87,6 +87,7 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     u32 *is_kthread = bpf_map_lookup_elem(&is_new_kthread, &kthread_key);
     if (is_kthread) {
         syscall.fork.is_kthread = *is_kthread;
+        *is_kthread = 0;
     }
 
     u64 input;
