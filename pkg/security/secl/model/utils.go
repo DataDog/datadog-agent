@@ -12,8 +12,11 @@ import (
 	"regexp"
 )
 
+// ContainerIDPatternStr is the pattern of a container ID
+var ContainerIDPatternStr = fmt.Sprintf(`([[:xdigit:]]{%v})`, sha256.Size*2)
+
 // containerIDPattern is the pattern of a container ID
-var containerIDPattern = regexp.MustCompile(fmt.Sprintf(`([[:xdigit:]]{%v})`, sha256.Size*2))
+var containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID
 func FindContainerID(s string) string {

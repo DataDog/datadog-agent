@@ -87,6 +87,14 @@ var (
 	Kernel5_18 = kernel.VersionCode(5, 18, 0)
 	// Kernel5_19 is the KernelVersion representation of kernel version 5.19
 	Kernel5_19 = kernel.VersionCode(5, 19, 0)
+	// Kernel6_0 is the KernelVersion representation of kernel version 6.0
+	Kernel6_0 = kernel.VersionCode(6, 0, 0)
+	// Kernel6_1 is the KernelVersion representation of kernel version 6.1
+	Kernel6_1 = kernel.VersionCode(6, 1, 0)
+	// Kernel6_2 is the KernelVersion representation of kernel version 6.2
+	Kernel6_2 = kernel.VersionCode(6, 2, 0)
+	// Kernel6_3 is the KernelVersion representation of kernel version 6.3
+	Kernel6_3 = kernel.VersionCode(6, 3, 0)
 )
 
 // Version defines a kernel version helper
@@ -217,6 +225,11 @@ func (k *Version) IsRH8Kernel() bool {
 	return k.OsRelease["PLATFORM_ID"] == "platform:el8"
 }
 
+// IsRH9Kernel returns whether the kernel is a rh9 kernel
+func (k *Version) IsRH9Kernel() bool {
+	return k.OsRelease["PLATFORM_ID"] == "platform:el9"
+}
+
 // IsSuseKernel returns whether the kernel is a suse kernel
 func (k *Version) IsSuseKernel() bool {
 	return k.IsSLESKernel() || k.OsRelease["ID"] == "opensuse-leap"
@@ -247,14 +260,19 @@ func (k *Version) IsCOSKernel() bool {
 	return k.OsRelease["ID"] == "cos"
 }
 
-// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
+// IsAmazonLinuxKernel returns whether the kernel is an amazon linux kernel
 func (k *Version) IsAmazonLinuxKernel() bool {
 	return k.OsRelease["ID"] == "amzn"
 }
 
-// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
+// IsAmazonLinux2022Kernel returns whether the kernel is an amazon linux 2022 kernel
 func (k *Version) IsAmazonLinux2022Kernel() bool {
 	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2022"
+}
+
+// IsAmazonLinux2023Kernel returns whether the kernel is an amazon linux 2023 kernel
+func (k *Version) IsAmazonLinux2023Kernel() bool {
+	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2023"
 }
 
 // IsInRangeCloseOpen returns whether the kernel version is between the begin

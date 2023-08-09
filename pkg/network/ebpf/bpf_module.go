@@ -51,6 +51,11 @@ func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "usm", debug)
 }
 
+// ReadSharedLibrariesModule from the asset file
+func ReadSharedLibrariesModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "shared-libraries", debug)
+}
+
 // ReadDNSModule from the asset file
 func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "dns", debug)
@@ -67,17 +72,7 @@ func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 
 // ReadConntrackBPFModule from the asset file
 func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "conntrack.o"
-	if debug {
-		file = "conntrack-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readModule(bpfDir, "conntrack", debug)
 }
 
 func GetModulesInUse() []string {

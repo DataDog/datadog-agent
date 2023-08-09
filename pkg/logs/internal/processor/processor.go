@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
 // A Processor updates messages from an inputChan and pushes
@@ -91,7 +91,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
-		p.diagnosticMessageReceiver.HandleMessage(*msg, redactedMsg)
+		p.diagnosticMessageReceiver.HandleMessage(*msg, "", redactedMsg)
 
 		// Encode the message to its final format
 		content, err := p.encoder.Encode(msg, redactedMsg)

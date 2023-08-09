@@ -10,8 +10,6 @@
 package probe
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -56,42 +54,6 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 	evt.FillCustomEventCommonFields()
 
 	return events.NewCustomRule(events.LostEventsRuleID, events.LostEventsRuleDesc), events.NewCustomEvent(model.CustomLostWriteEventType, evt)
-}
-
-// NoisyProcessEvent is used to report that a noisy process was temporarily discarded
-// easyjson:json
-type NoisyProcessEvent struct {
-	events.CustomEventCommonFields
-	Count          uint64        `json:"pid_count"`
-	Threshold      int64         `json:"threshold"`
-	ControlPeriod  time.Duration `json:"control_period"`
-	DiscardedUntil time.Time     `json:"discarded_until"`
-	Pid            uint32        `json:"pid"`
-	Comm           string        `json:"comm"`
-}
-
-// NewNoisyProcessEvent returns the rule and a populated custom event for a noisy_process event
-func NewNoisyProcessEvent(count uint64,
-	threshold int64,
-	controlPeriod time.Duration,
-	discardedUntil time.Time,
-	pid uint32,
-	comm string,
-	timestamp time.Time) (*rules.Rule, *events.CustomEvent) {
-
-	evt := NoisyProcessEvent{
-		Count:          count,
-		Threshold:      threshold,
-		ControlPeriod:  controlPeriod,
-		DiscardedUntil: discardedUntil,
-		Pid:            pid,
-		Comm:           comm,
-	}
-	evt.FillCustomEventCommonFields()
-	// Overwrite common timestamp
-	evt.Timestamp = timestamp
-
-	return events.NewCustomRule(events.NoisyProcessRuleID, events.NoisyProcessRuleDesc), events.NewCustomEvent(model.CustomNoisyProcessEventType, evt)
 }
 
 func errorToEventType(err error) model.EventType {

@@ -14,7 +14,7 @@ dependency "python3" if with_python_runtime? "3"
 dependency "libarchive" if windows?
 dependency "yaml-cpp" if windows?
 
-dependency "openscap" if linux? and !arm7l?
+dependency "openscap" if linux? and !arm7l? and !heroku? # Security-agent dependency, not needed for Heroku
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
@@ -155,7 +155,7 @@ build do
   end
 
   # Security agent
-  unless windows?
+  unless windows? || heroku?
     command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"

@@ -139,6 +139,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
+			case workloadmeta.KindProcess:
+				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -699,6 +701,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:
 		return fmt.Sprintf("container_image_metadata://%s", entityID.ID)
+	case workloadmeta.KindProcess:
+		return fmt.Sprintf("process://%s", entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
@@ -750,5 +754,24 @@ func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
+	}
+}
+
+//lint:ignore U1000 Ignore unused function until the collector is implemented
+func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*TagInfo {
+	process := ev.Entity.(*workloadmeta.Process)
+	tags := utils.NewTagList()
+	if process.Language != nil {
+		tags.AddLow("language", string(process.Language.Name))
+	}
+	low, orch, high, standard := tags.Compute()
+	return []*TagInfo{{
+		Source:               processSource,
+		Entity:               buildTaggerEntityID(process.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+	},
 	}
 }

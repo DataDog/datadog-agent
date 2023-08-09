@@ -235,7 +235,8 @@ func TestBuildContainerMetrics(t *testing.T) {
 			},
 			wantStats: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Ptr(float64(utilsystem.HostCPUCount()) * 100),
+					Limit:          pointer.Ptr(float64(utilsystem.HostCPUCount()) * 100),
+					DefaultedLimit: true,
 				},
 				PID:    &provider.ContainerPIDStats{},
 				Memory: &provider.ContainerMemStats{},

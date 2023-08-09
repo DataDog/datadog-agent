@@ -82,6 +82,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		Ppid:        p.PPid,
 		Cookie:      p.Cookie,
 		IsThread:    p.IsThread,
+		IsExecChild: p.IsExecChild,
 		File:        fileEventToProto(&p.FileEvent),
 		ContainerId: p.ContainerID,
 		SpanId:      p.SpanID,
@@ -154,7 +155,10 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		PackageName:       fe.PkgName,
 		PackageVersion:    fe.PkgVersion,
 		PackageSrcversion: fe.PkgSrcVersion,
+		Hashes:            make([]string, len(fe.Hashes)),
+		HashState:         adproto.HashState(fe.HashState),
 	}
+	copy(fi.Hashes, fe.Hashes)
 
 	return fi
 }

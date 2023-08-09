@@ -12,9 +12,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // only used for testing
@@ -72,6 +74,31 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	assertPayloadSizeFromExtractTransactions(a, container, []int{11})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{10})
 	assertPayloadSizeFromExtractTransactions(a, container, []int{9})
+	a.Equal(0, q.getFilesCount())
+	a.Equal(int64(0), q.GetDiskSpaceUsed())
+}
+
+func TestTransactionRetryQueueFlushAllToDisk(t *testing.T) {
+	a := assert.New(t)
+	q := newOnDiskRetryQueueTest(t, a)
+
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+
+	// We're under the limit here, so should all be in memory
+	for _, payloadSize := range []int{9, 10, 11} {
+		container.Add(createTransactionWithPayloadSize(payloadSize))
+	}
+	a.Equal(30, container.getCurrentMemSizeInBytes())
+	a.Equal(0, q.getFilesCount())
+
+	// Flush to disk
+	container.FlushToDisk()
+	a.Equal(0, container.getCurrentMemSizeInBytes())
+	a.Equal(1, q.getFilesCount())
+
+	// Pull everything back out
+	assertPayloadSizeFromExtractTransactions(a, container, []int{9, 10, 11})
+
 	a.Equal(0, q.getFilesCount())
 	a.Equal(int64(0), q.GetDiskSpaceUsed())
 }
@@ -153,8 +180,10 @@ func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQue
 			Total:     10000,
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, 1000, 1)
+	log := fxutil.Test[log.Component](t, log.MockModule)
 	q, err := newOnDiskRetryQueue(
-		NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver("", nil)),
+		log,
+		NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver("", nil)),
 		path,
 		diskUsageLimit,
 		newOnDiskRetryQueueTelemetry("domain"),

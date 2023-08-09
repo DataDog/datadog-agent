@@ -34,7 +34,7 @@ func GetPayload() *Payload {
 func getGohaiInfo() *gohai {
 	res := new(gohai)
 
-	cpuPayload, err := new(cpu.Cpu).Collect()
+	cpuPayload, _, err := cpu.CollectInfo().AsJSON()
 	if err == nil {
 		res.CPU = cpuPayload
 	} else {
@@ -48,7 +48,7 @@ func getGohaiInfo() *gohai {
 		log.Errorf("Failed to retrieve filesystem metadata: %s", err)
 	}
 
-	memoryPayload, err := new(memory.Memory).Collect()
+	memoryPayload, _, err := memory.CollectInfo().AsJSON()
 	if err == nil {
 		res.Memory = memoryPayload
 	} else {
@@ -64,7 +64,7 @@ func getGohaiInfo() *gohai {
 		}
 	}
 
-	platformPayload, err := new(platform.Platform).Collect()
+	platformPayload, _, err := platform.CollectInfo().AsJSON()
 	if err == nil {
 		res.Platform = platformPayload
 	} else {

@@ -14,7 +14,7 @@ var ioctlProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_vfs_ioctl",
+			EBPFFuncName: "hook_do_vfs_ioctl",
 		},
 	},
 }

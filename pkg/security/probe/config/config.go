@@ -61,16 +61,6 @@ type Config struct {
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
 
-	// LoadControllerEventsCountThreshold defines the amount of events past which we will trigger the in-kernel circuit breaker
-	LoadControllerEventsCountThreshold int64
-
-	// LoadControllerDiscarderTimeout defines the amount of time discarders set by the load controller should last
-	LoadControllerDiscarderTimeout time.Duration
-
-	// LoadControllerControlPeriod defines the period at which the load controller will empty the user space counter used
-	// to evaluate the amount of events brought back to user space
-	LoadControllerControlPeriod time.Duration
-
 	// StatsTagsCardinality determines the cardinality level of the tags added to the exported metrics
 	StatsTagsCardinality string
 
@@ -101,6 +91,9 @@ type Config struct {
 
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
+
+	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
+	EventStreamUseFentry bool
 
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
@@ -142,30 +135,28 @@ func NewConfig() (*Config, error) {
 	setEnv()
 
 	c := &Config{
-		Config:                             *ebpf.NewConfig(),
-		EnableKernelFilters:                getBool("enable_kernel_filters"),
-		EnableApprovers:                    getBool("enable_approvers"),
-		EnableDiscarders:                   getBool("enable_discarders"),
-		FlushDiscarderWindow:               getInt("flush_discarder_window"),
-		PIDCacheSize:                       getInt("pid_cache_size"),
-		LoadControllerEventsCountThreshold: int64(getInt("load_controller.events_count_threshold")),
-		LoadControllerDiscarderTimeout:     time.Duration(getInt("load_controller.discarder_timeout")) * time.Second,
-		LoadControllerControlPeriod:        time.Duration(getInt("load_controller.control_period")) * time.Second,
-		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
-		CustomSensitiveWords:               getStringSlice("custom_sensitive_words"),
-		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
-		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
-		DentryCacheSize:                    getInt("dentry_cache_size"),
-		RemoteTaggerEnabled:                getBool("remote_tagger"),
-		RuntimeMonitor:                     getBool("runtime_monitor.enabled"),
-		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
-		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
-		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),
-		EventStreamUseRingBuffer:           getBool("event_stream.use_ring_buffer"),
-		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
-		EnvsWithValue:                      getStringSlice("envs_with_value"),
-		NetworkEnabled:                     getBool("network.enabled"),
-		StatsPollingInterval:               time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		Config:                       *ebpf.NewConfig(),
+		EnableKernelFilters:          getBool("enable_kernel_filters"),
+		EnableApprovers:              getBool("enable_approvers"),
+		EnableDiscarders:             getBool("enable_discarders"),
+		FlushDiscarderWindow:         getInt("flush_discarder_window"),
+		PIDCacheSize:                 getInt("pid_cache_size"),
+		StatsTagsCardinality:         getString("events_stats.tags_cardinality"),
+		CustomSensitiveWords:         getStringSlice("custom_sensitive_words"),
+		ERPCDentryResolutionEnabled:  getBool("erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:   getBool("map_dentry_resolution_enabled"),
+		DentryCacheSize:              getInt("dentry_cache_size"),
+		RemoteTaggerEnabled:          getBool("remote_tagger"),
+		RuntimeMonitor:               getBool("runtime_monitor.enabled"),
+		NetworkLazyInterfacePrefixes: getStringSlice("network.lazy_interface_prefixes"),
+		NetworkClassifierPriority:    uint16(getInt("network.classifier_priority")),
+		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
+		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
+		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
+		EventStreamUseFentry:         getBool("event_stream.use_fentry"),
+		EnvsWithValue:                getStringSlice("envs_with_value"),
+		NetworkEnabled:               getBool("network.enabled"),
+		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),

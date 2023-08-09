@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -68,8 +69,9 @@ const (
 // easyjson:json
 type ActivityDump struct {
 	*sync.Mutex
-	state ActivityDumpStatus
-	adm   *ActivityDumpManager
+	state    ActivityDumpStatus
+	adm      *ActivityDumpManager
+	selector *cgroupModel.WorkloadSelector
 
 	countedByLimiter bool
 
@@ -112,13 +114,13 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 }
 
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
-func NewEmptyActivityDump() *ActivityDump {
+func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer) *ActivityDump {
 	ad := &ActivityDump{
 		Mutex:           &sync.Mutex{},
 		StorageRequests: make(map[config.StorageFormat][]config.StorageRequest),
 		DNSNames:        utils.NewStringKeys(nil),
 	}
-	ad.ActivityTree = activity_tree.NewActivityTree(ad, "activity_dump")
+	ad.ActivityTree = activity_tree.NewActivityTree(ad, pathsReducer, "activity_dump")
 	return ad
 }
 
@@ -127,7 +129,7 @@ type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
-	ad := NewEmptyActivityDump()
+	ad := NewEmptyActivityDump(adm.pathsReducer)
 	now := time.Now()
 	ad.Metadata = mtdt.Metadata{
 		AgentVersion:      version.AgentVersion,
@@ -151,7 +153,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
 		adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		now,
-		adm.timeResolver,
+		adm.resolvers.TimeResolver,
 	)
 	ad.LoadConfigCookie = utils.NewCookie()
 
@@ -177,7 +179,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		return nil, fmt.Errorf("couldn't parse timeout [%s]: %w", metadata.GetTimeout(), err)
 	}
 
-	ad := NewEmptyActivityDump()
+	ad := NewEmptyActivityDump(nil)
 	ad.Host = msg.GetHost()
 	ad.Service = msg.GetService()
 	ad.Source = msg.GetSource()
@@ -229,6 +231,19 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	return ad, nil
 }
 
+// GetWorkloadSelector returns the workload selector of the dump
+func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
+	if ad.selector != nil && ad.selector.IsReady() {
+		return ad.selector
+	}
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	if err != nil {
+		return nil
+	}
+	ad.selector = &selector
+	return ad.selector
+}
+
 // SetState sets the status of the activity dump
 func (ad *ActivityDump) SetState(state ActivityDumpStatus) {
 	ad.Lock()
@@ -277,8 +292,8 @@ func (ad *ActivityDump) SetLoadConfig(cookie uint32, config model.ActivityDumpLo
 	ad.LoadConfigCookie = cookie
 
 	// Update metadata
-	ad.Metadata.Start = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.StartTimestampRaw)
-	ad.Metadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
+	ad.Metadata.Start = ad.adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.StartTimestampRaw)
+	ad.Metadata.End = ad.adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
 }
 
 // SetTimeout updates the activity dump timeout
@@ -286,16 +301,18 @@ func (ad *ActivityDump) SetTimeout(timeout time.Duration) {
 	ad.LoadConfig.SetTimeout(timeout)
 
 	// Update metadata
-	ad.Metadata.End = ad.adm.timeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
+	ad.Metadata.End = ad.adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(ad.LoadConfig.EndTimestampRaw)
 }
 
 // updateTracedPid traces a pid in kernel space
 func (ad *ActivityDump) updateTracedPid(pid uint32) {
 	// start by looking up any existing entry
 	var cookie uint32
-	_ = ad.adm.tracedPIDsMap.Lookup(pid, &cookie)
-	if cookie != ad.LoadConfigCookie {
-		_ = ad.adm.tracedPIDsMap.Put(pid, ad.LoadConfigCookie)
+	if ad.adm != nil { // it could be nil when running unit tests
+		_ = ad.adm.tracedPIDsMap.Lookup(pid, &cookie)
+		if cookie != ad.LoadConfigCookie {
+			_ = ad.adm.tracedPIDsMap.Put(pid, ad.LoadConfigCookie)
+		}
 	}
 }
 
@@ -350,9 +367,22 @@ func (ad *ActivityDump) NewProcessNodeCallback(p *activity_tree.ProcessNode) {
 // enable (thread unsafe) assuming the current dump is properly initialized, "enable" pushes kernel space filters so that events can start
 // flowing in from kernel space
 func (ad *ActivityDump) enable() error {
-	// insert load config now (it might already exist, do not update in that case)
-	if err := ad.adm.activityDumpsConfigMap.Put(ad.LoadConfigCookie, ad.LoadConfig); err != nil {
-		return fmt.Errorf("couldn't push activity dump load config: %w", err)
+	// insert load config now (it might already exist when starting a new partial dump, update it in that case)
+	if err := ad.adm.activityDumpsConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateAny); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("couldn't push activity dump load config: %w", err)
+		}
+	}
+
+	if len(ad.Metadata.ContainerID) > 0 {
+		// insert container ID in traced_cgroups map (it might already exist, do not update in that case)
+		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.ContainerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
+			if !errors.Is(err, ebpf.ErrKeyExist) {
+				// delete activity dump load config
+				_ = ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie)
+				return fmt.Errorf("couldn't push activity dump container ID %s: %w", ad.Metadata.ContainerID, err)
+			}
+		}
 	}
 
 	if len(ad.Metadata.Comm) > 0 {
@@ -439,6 +469,7 @@ func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 // spot can be released, the dump will be fully stopped.
 func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	ad.Metadata.End = time.Now()
+	ad.adm.lastStoppedDumpTime = ad.Metadata.End
 
 	if releaseTracedCgroupSpot || len(ad.Metadata.Comm) > 0 {
 		if err := ad.disable(); err != nil {
@@ -460,7 +491,7 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	}
 
 	// scrub processes and retain args envs now
-	ad.ActivityTree.ScrubProcessArgsEnvs(ad.adm.processResolver)
+	ad.ActivityTree.ScrubProcessArgsEnvs(ad.adm.resolvers.ProcessResolver)
 }
 
 // IsEmpty return true if the dump did not contain any nodes
@@ -481,7 +512,7 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		return
 	}
 
-	if ok, err := ad.ActivityTree.Insert(event, activity_tree.Runtime); ok && err == nil {
+	if ok, err := ad.ActivityTree.Insert(event, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
 		// check dump size
 		ad.checkInMemorySize()
 	}
@@ -578,7 +609,7 @@ func (ad *ActivityDump) resolveTags() error {
 	}
 
 	var err error
-	ad.Tags, err = ad.adm.tagsResolvers.ResolveWithErr(ad.Metadata.ContainerID)
+	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(ad.Metadata.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
 	}
@@ -649,8 +680,8 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 // Encode encodes an activity dump in the provided format
 func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
 	switch format {
-	case config.Json:
-		return ad.EncodeJSON()
+	case config.JSON:
+		return ad.EncodeJSON("")
 	case config.Protobuf:
 		return ad.EncodeProtobuf()
 	case config.Dot:
@@ -691,7 +722,7 @@ func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
 }
 
 // EncodeJSON encodes an activity dump in the ProtoJSON format
-func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
+func (ad *ActivityDump) EncodeJSON(indent string) (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
@@ -701,11 +732,12 @@ func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 	opts := protojson.MarshalOptions{
 		EmitUnpopulated: true,
 		UseProtoNames:   true,
+		Indent:          indent,
 	}
 
 	raw, err := opts.Marshal(pad)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", config.Json, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", config.JSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -778,7 +810,7 @@ func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.Storage
 		return ad.DecodeProtobuf(reader)
 	case config.Profile:
 		return ad.DecodeProfileProtobuf(reader)
-	case config.Json:
+	case config.JSON:
 		return ad.DecodeJSON(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
@@ -800,7 +832,12 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
 
-	protoToActivityDump(ad, inter)
+	var pathsReducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		pathsReducer = ad.adm.pathsReducer
+	}
+
+	protoToActivityDump(ad, pathsReducer, inter)
 
 	return nil
 }
@@ -820,7 +857,12 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
 
-	securityProfileProtoToActivityDump(ad, inter)
+	var reducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		reducer = ad.adm.pathsReducer
+	}
+
+	securityProfileProtoToActivityDump(ad, reducer, inter)
 
 	return nil
 }
@@ -843,7 +885,12 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode json file: %w", err)
 	}
 
-	protoToActivityDump(ad, inter)
+	var reducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		reducer = ad.adm.pathsReducer
+	}
+
+	protoToActivityDump(ad, reducer, inter)
 
 	return nil
 }

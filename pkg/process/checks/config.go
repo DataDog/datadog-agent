@@ -16,7 +16,7 @@ var getMaxBatchSize = func(config ddconfig.ConfigReader) int {
 }
 
 func ensureValidMaxBatchSize(batchSize int) int {
-	if batchSize <= 0 || batchSize > ddconfig.DefaultProcessMaxPerMessage {
+	if batchSize <= 0 || batchSize > ddconfig.ProcessMaxPerMessageLimit {
 		log.Warnf("Invalid max item count per message (%d), using default value of %d", batchSize, ddconfig.DefaultProcessMaxPerMessage)
 		return ddconfig.DefaultProcessMaxPerMessage
 	}
@@ -29,7 +29,7 @@ var getMaxBatchBytes = func(config ddconfig.ConfigReader) int {
 }
 
 func ensureValidMaxBatchBytes(batchBytes int) int {
-	if batchBytes <= 0 || batchBytes > ddconfig.DefaultProcessMaxMessageBytes {
+	if batchBytes <= 0 || batchBytes > ddconfig.ProcessMaxMessageBytesLimit {
 		log.Warnf("Invalid max byte size per message (%d), using default value of %d", batchBytes, ddconfig.DefaultProcessMaxMessageBytes)
 		return ddconfig.DefaultProcessMaxMessageBytes
 	}

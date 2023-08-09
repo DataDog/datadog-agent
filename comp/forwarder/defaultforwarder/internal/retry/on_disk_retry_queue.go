@@ -13,15 +13,16 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const retryTransactionsExtension = ".retry"
 const retryFileFormat = "2006_01_02__15_04_05_"
 
 type onDiskRetryQueue struct {
+	log                 log.Component
 	serializer          *HTTPTransactionsSerializer
 	storagePath         string
 	diskUsageLimit      *DiskUsageLimit
@@ -32,6 +33,7 @@ type onDiskRetryQueue struct {
 }
 
 func newOnDiskRetryQueue(
+	log log.Component,
 	serializer *HTTPTransactionsSerializer,
 	storagePath string,
 	diskUsageLimit *DiskUsageLimit,
@@ -43,6 +45,7 @@ func newOnDiskRetryQueue(
 	}
 
 	storage := &onDiskRetryQueue{
+		log:                 log,
 		serializer:          serializer,
 		storagePath:         storagePath,
 		diskUsageLimit:      diskUsageLimit,
@@ -70,7 +73,7 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	_, _ = s.serializer.GetBytesAndReset()
 
 	for _, t := range transactions {
-		if err := t.SerializeTo(s.serializer); err != nil {
+		if err := t.SerializeTo(s.log, s.serializer); err != nil {
 			return err
 		}
 	}
@@ -161,11 +164,11 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 	for len(s.filenames) > 0 && s.currentSizeInBytes+bufferSize > maxStorageInBytes {
 		index := 0
 		filename := s.filenames[index]
-		log.Errorf("Maximum disk space for retry transactions is reached. Removing %s", filename)
+		s.log.Errorf("Maximum disk space for retry transactions is reached. Removing %s", filename)
 
 		bytes, err := os.ReadFile(filename)
 		if err != nil {
-			log.Errorf("Cannot read the file %v: %v", filename, err)
+			s.log.Errorf("Cannot read the file %v: %v", filename, err)
 		} else if transactions, _, errDeserialize := s.serializer.Deserialize(bytes); errDeserialize == nil {
 			pointDroppedCount := 0
 			for _, tr := range transactions {
@@ -173,7 +176,7 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 			}
 			s.onPointDropped(pointDroppedCount)
 		} else {
-			log.Errorf("Cannot deserialize the content of file %v: %v", filename, errDeserialize)
+			s.log.Errorf("Cannot deserialize the content of file %v: %v", filename, errDeserialize)
 		}
 
 		if err := s.removeFileAt(index); err != nil {
@@ -240,7 +243,7 @@ func (s *onDiskRetryQueue) getExistingRetryFiles() ([]os.FileInfo, int64, error)
 	for _, entry := range entries {
 		info, err := entry.Info()
 		if err != nil {
-			log.Warn("Can't get file info", err)
+			s.log.Warn("Can't get file info", err)
 			continue
 		}
 

@@ -80,15 +80,8 @@ directory "/tmp/junit" do
   recursive true
 end
 
-cookbook_file "/tmp/junit/job_url.txt" do
-  source "job_url.txt"
-  mode '0444'
-  action :create
-  ignore_failure true
-end
-
-cookbook_file "/tmp/junit/tags.txt" do
-  source "tags.txt"
+cookbook_file "/tmp/junit/job_env.txt" do
+  source "job_env.txt"
   mode '0444'
   action :create
   ignore_failure true
@@ -117,10 +110,11 @@ kernel_module 'veth' do
   action :load
 end
 
-# Some functional tests, TestProcessIdentifyInterpreter for example, require python and perl
+# Some functional tests, TestProcessIdentifyInterpreter for example, require python
 # Re: the container tests: Python comes with the Dockerfile, Perl needs to be installed manually
-package 'python3'
-package 'perl'
+if (not ['redhat', 'oracle'].include?(node[:platform])) or node[:platform_version].start_with?("7")
+  package 'python3'
+end
 
 if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
   if ['ubuntu', 'debian'].include?(node[:platform])

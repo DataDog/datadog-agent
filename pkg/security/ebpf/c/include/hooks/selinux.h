@@ -63,7 +63,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     cache_syscall(&syscall);
 
     // tail call
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_SELINUX);
@@ -100,22 +100,35 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
 }
 
 SEC("kprobe/dr_selinux_callback")
-int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ctx) {
+int kprobe_dr_selinux_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
     return dr_selinux_callback(ctx, retval);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_selinux_callback")
+int fentry_dr_selinux_callback(ctx_t *ctx) {
+    // int retval = PT_REGS_RC(ctx);
+    int retval = 0;
+    return dr_selinux_callback(ctx, retval);
+}
+
+#endif // USE_FENTRY
+
 #define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
-    SEC("kprobe/" #func_name)                                               \
-    int kprobe_##func_name(struct pt_regs *ctx) {                           \
-        struct file *file = (struct file *)PT_REGS_PARM1(ctx);              \
-        const char *buf = (const char *)PT_REGS_PARM2(ctx);                 \
-        size_t count = (size_t)PT_REGS_PARM3(ctx);                          \
+    HOOK_ENTRY(#func_name)                                                  \
+    int hook_##func_name(ctx_t *ctx) {                                      \
+        struct file *file = (struct file *)CTX_PARM1(ctx);                  \
+        const char *buf = (const char *)CTX_PARM2(ctx);                     \
+        size_t count = (size_t)CTX_PARM3(ctx);                              \
         /* selinux only supports ppos = 0 */                                \
         return handle_selinux_event(ctx, file, buf, count, (source_event)); \
     }
 
+#ifndef USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_DISABLE_CHANGE_SOURCE_EVENT)
+#endif // USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_ENFORCE_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_SOURCE_EVENT)

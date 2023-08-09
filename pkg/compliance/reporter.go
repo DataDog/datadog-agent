@@ -6,10 +6,14 @@
 package compliance
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -19,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -31,7 +36,11 @@ type LogReporter struct {
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, context *client.DestinationsContext) (*LogReporter, error) {
+func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) (*LogReporter, error) {
+	hostname, err := hostname.Get(context.Background())
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
 	health := health.RegisterLiveness(sourceType)
 
 	// setup the auditor
@@ -39,7 +48,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext)
 	pipelineProvider.Start()
 
 	stopper.Add(pipelineProvider)
@@ -54,7 +63,19 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 		},
 	)
 	logChan := pipelineProvider.NextPipelineChan()
-	tags := []string{common.QueryAccountIdTag()}
+
+	tags := []string{
+		common.QueryAccountIDTag(),
+		fmt.Sprintf("host:%s", hostname),
+	}
+
+	// merge tags from config
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
+		if strings.HasPrefix(tag, "host") {
+			continue
+		}
+		tags = append(tags, tag)
+	}
 
 	return &LogReporter{
 		logSource: logSource,

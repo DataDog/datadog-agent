@@ -21,7 +21,7 @@ type vmClient struct {
 	t      *testing.T
 }
 
-func newVMClient(t *testing.T, sshKey string, connection *utils.Connection) (*vmClient, error) {
+func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*vmClient, error) {
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
@@ -42,7 +42,7 @@ func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
 	return output, nil
 }
 
-// Execute execute a command and asserts there is no error.
+// Execute executes a command and returns its output.
 func (vmClient *vmClient) Execute(command string) string {
 	output, err := vmClient.ExecuteWithError(command)
 	require.NoError(vmClient.t, err)

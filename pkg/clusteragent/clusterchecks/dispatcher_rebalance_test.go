@@ -13,9 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRebalance(t *testing.T) {
@@ -1366,8 +1367,14 @@ func TestRebalance(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
 			// Tests have been written with this value hardcoded
 			// Changing the values rather than re-writing all the tests.
+			originalCheckExecutionTimeWeight := checkExecutionTimeWeight
+			originalMetricSamplesWeight := checkMetricSamplesWeight
 			checkExecutionTimeWeight = 0.8
 			checkMetricSamplesWeight = 0.2
+			defer func() {
+				checkExecutionTimeWeight = originalCheckExecutionTimeWeight
+				checkMetricSamplesWeight = originalMetricSamplesWeight
+			}()
 
 			dispatcher := newDispatcher()
 
@@ -1396,7 +1403,7 @@ func TestRebalance(t *testing.T) {
 func TestMoveCheck(t *testing.T) {
 	type checkInfo struct {
 		config integration.Config
-		id     check.ID
+		id     checkid.ID
 		node   string
 	}
 
@@ -1428,7 +1435,7 @@ func TestMoveCheck(t *testing.T) {
 			dispatcher := newDispatcher()
 
 			// setup check id
-			id := check.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
+			id := checkid.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
 
 			// prepare store
 			dispatcher.store.active = true
@@ -1458,4 +1465,46 @@ func TestMoveCheck(t *testing.T) {
 			requireNotLocked(t, dispatcher.store)
 		})
 	}
+}
+
+func TestCalculateAvg(t *testing.T) {
+	// checkMetricSamplesWeight affects this test. To avoid coupling this test
+	// with the actual value, overwrite here and restore after the test.
+	originalMetricSamplesWeight := checkMetricSamplesWeight
+	checkMetricSamplesWeight = 1
+	defer func() {
+		checkMetricSamplesWeight = originalMetricSamplesWeight
+	}()
+
+	testDispatcher := newDispatcher()
+
+	// The busyness of this node is 3 (1 + 2)
+	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
+	testDispatcher.store.nodes["node1"].clcRunnerStats = types.CLCRunnersStats{
+		"check1": types.CLCRunnerStats{
+			MetricSamples:  1,
+			IsClusterCheck: true,
+		},
+		"check2": types.CLCRunnerStats{
+			MetricSamples:  2,
+			IsClusterCheck: true,
+		},
+	}
+
+	// The busyness of this node is 7 (3 + 4)
+	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
+	testDispatcher.store.nodes["node2"].clcRunnerStats = types.CLCRunnersStats{
+		"check3": types.CLCRunnerStats{
+			MetricSamples:  3,
+			IsClusterCheck: true,
+		},
+		"check4": types.CLCRunnerStats{
+			MetricSamples:  4,
+			IsClusterCheck: true,
+		},
+	}
+
+	avg, err := testDispatcher.calculateAvg()
+	require.NoError(t, err)
+	assert.Equal(t, 5, avg)
 }

@@ -400,7 +400,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	}
 
 	var expectedFormats = []string{"profile"}
-	var testActivityDumpTracedEventTypes = []string{"exec"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "dns"}
 
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
@@ -418,29 +418,28 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
 		anomalyDetectionMinimumStablePeriod: 0,
-		anomalyDetectionWarmupPeriod:        17 * time.Second,
+		anomalyDetectionWarmupPeriod:        3 * time.Second,
+		tagsResolver:                        NewFakeMonoResolver(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+
+	err = test.StopAllActivityDumps()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	dockerInstance, dump, err := test.StartADockerGetDump()
+	mainDockerInstance, dump, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer dockerInstance.stop()
+	defer mainDockerInstance.stop()
 
 	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-	cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
-	_, err = cmd.CombinedOutput()
-	if err != nil {
-		t.Fatal(err)
-	}
+	cmd := mainDockerInstance.Command("nslookup", []string{"google.fr"}, []string{})
+	cmd.CombinedOutput()
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
 	err = test.StopActivityDump(dump.Name, "", "")
@@ -449,48 +448,111 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	}
 	time.Sleep(6 * time.Second) // a quick sleep to let the profile to be loaded (5sec debounce + 1sec spare)
 
-	t.Run("anomaly-detection-warmup", func(t *testing.T) {
+	testDockerInstance1, _, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDockerInstance1.stop()
+
+	t.Run("anomaly-detection-warmup-1", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
+			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd.CombinedOutput()
+			return nil
 		}, func(r *rules.Rule, event *events.CustomEvent) bool {
 			if r.Rule.ID == events.AnomalyDetectionRuleID {
 				t.Fatal("Should not had receive any anomaly detection during warm up.")
 			}
 			return false
-		}, time.Second*3, model.ExecEventType)
+		}, time.Second*5, model.DNSEventType)
 	})
 
-	time.Sleep(time.Second * 10)
-
-	t.Run("anomaly-detection-warmed-up-autolearned", func(t *testing.T) {
+	t.Run("anomaly-detection-warmed-up-autolearned-1", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
+			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd.CombinedOutput()
+			return nil
 		}, func(r *rules.Rule, event *events.CustomEvent) bool {
 			if r.Rule.ID == events.AnomalyDetectionRuleID {
-				t.Fatalf("Should not had receive any anomaly detection because of auto learn during warm up")
+				t.Fatal("Should not had receive any anomaly detection during warm up.")
 			}
 			return false
-		}, time.Second*3, model.ExecEventType)
+		}, time.Second*3, model.DNSEventType)
 	})
 
-	t.Run("anomaly-detection-warmed-up", func(t *testing.T) {
-		err = test.GetCustomEventSent(t, func() error {
-			cmd := dockerInstance.Command("getent", []string{"hosts"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
+	t.Run("anomaly-detection-warmed-up-not-autolearned-1", func(t *testing.T) {
+		test.GetCustomEventSent(t, func() error {
+			cmd := testDockerInstance1.Command("nslookup", []string{"foo.baz"}, []string{})
+			cmd.CombinedOutput()
+			return nil
 		}, func(r *rules.Rule, event *events.CustomEvent) bool {
 			assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
 			return true
-		}, time.Second*3, model.ExecEventType)
+		}, time.Second*3, model.DNSEventType)
 		if err != nil {
 			t.Error(err)
 		}
 	})
 
+	testDockerInstance2, _, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDockerInstance1.stop()
+
+	t.Run("anomaly-detection-warmup-2", func(t *testing.T) {
+		test.GetCustomEventSent(t, func() error {
+			cmd := testDockerInstance2.Command("nslookup", []string{"foo.baz"}, []string{})
+			cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatal("Should not had receive any anomaly detection during warm up.")
+			}
+			return false
+		}, time.Second*5, model.DNSEventType)
+	})
+
+	// already sleep for timeout for warmup period + 2sec spare (5s)
+
+	t.Run("anomaly-detection-warmed-up-autolearned-2", func(t *testing.T) {
+		test.GetCustomEventSent(t, func() error {
+			cmd := testDockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatal("Should not had receive any anomaly detection during warm up.")
+			}
+			return false
+		}, time.Second*3, model.DNSEventType)
+	})
+
+	t.Run("anomaly-detection-warmed-up-autolearned-bis-2", func(t *testing.T) {
+		test.GetCustomEventSent(t, func() error {
+			cmd := testDockerInstance2.Command("nslookup", []string{"foo.baz"}, []string{})
+			cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatal("Should not had receive any anomaly detection during warm up.")
+			}
+			return false
+		}, time.Second*3, model.DNSEventType)
+	})
+
+	t.Run("anomaly-detection-warmed-up-autolearned-bis-1", func(t *testing.T) {
+		test.GetCustomEventSent(t, func() error {
+			cmd := testDockerInstance1.Command("nslookup", []string{"foo.baz"}, []string{})
+			cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			if r.Rule.ID == events.AnomalyDetectionRuleID {
+				t.Fatal("Should not had receive any anomaly detection during warm up.")
+			}
+			return false
+		}, time.Second*3, model.DNSEventType)
+	})
 }
 
 func TestSecurityProfileReinsertionPeriod(t *testing.T) {

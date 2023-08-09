@@ -9,7 +9,7 @@ package kafka
 
 import "github.com/DataDog/datadog-agent/pkg/network/types"
 
-func (tx *EbpfKafkaTx) ConnTuple() types.ConnectionKey {
+func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
@@ -20,14 +20,10 @@ func (tx *EbpfKafkaTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
-func (tx *EbpfKafkaTx) TopicName() string {
-	return string(tx.Topic_name[:tx.Topic_name_size])
-}
-
-func (tx *EbpfKafkaTx) APIKey() uint16 {
+func (tx *EbpfTx) APIKey() uint16 {
 	return tx.Request_api_key
 }
 
-func (tx *EbpfKafkaTx) APIVersion() uint16 {
+func (tx *EbpfTx) APIVersion() uint16 {
 	return tx.Request_api_version
 }

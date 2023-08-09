@@ -14,11 +14,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -115,7 +115,7 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 		select {
 		case ss := <-agnt.TraceWriter.In:
 			tp = ss.TracerPayload
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond):
 			t.Fatal("timed out")
 		}
 

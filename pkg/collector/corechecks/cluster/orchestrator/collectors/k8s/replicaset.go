@@ -59,7 +59,7 @@ func (c *ReplicaSetCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ReplicaSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().ReplicaSets()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Apps().V1().ReplicaSets()
 	c.lister = c.informer.Lister()
 }
 

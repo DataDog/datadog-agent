@@ -19,8 +19,8 @@ cluster_agent-build_amd64:
   variables:
     ARCH: amd64
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
 
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
@@ -32,5 +32,5 @@ cluster_agent-build_arm64:
   variables:
     ARCH: arm64
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3

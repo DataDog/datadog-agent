@@ -68,6 +68,8 @@ though).
 PYTHONPATH="./venv/lib/python3.8/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
+See also some notes in [./checks](./checks) about running custom python checks.
+
 #### Invoke
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
@@ -95,7 +97,7 @@ variables (see Invoke docs for more details).
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.19.7` or
+You must [install Golang](https://golang.org/doc/install) version `1.20.6` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 

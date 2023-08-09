@@ -19,7 +19,7 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	moduleName := config.ModuleName(vars["module-name"])
 
-	if moduleName == config.SecurityRuntimeModule {
+	if moduleName == config.EventMonitorModule {
 		w.WriteHeader(http.StatusOK)
 		return
 	}

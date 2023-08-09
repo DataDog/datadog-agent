@@ -7,6 +7,7 @@ package traps
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"net"
 	"time"
 
@@ -18,13 +19,14 @@ import (
 // TrapListener opens an UDP socket and put all received traps in a channel
 type TrapListener struct {
 	config        Config
+	aggregator    sender.Sender
 	packets       PacketsChannel
 	listener      *gosnmp.TrapListener
 	errorsChannel chan error
 }
 
 // NewTrapListener creates a simple TrapListener instance but does not start it
-func NewTrapListener(config Config, packets PacketsChannel) (*TrapListener, error) {
+func NewTrapListener(config Config, aggregator sender.Sender, packets PacketsChannel) (*TrapListener, error) {
 	var err error
 	gosnmpListener := gosnmp.NewTrapListener()
 	gosnmpListener.Params, err = config.BuildSNMPParams()
@@ -34,6 +36,7 @@ func NewTrapListener(config Config, packets PacketsChannel) (*TrapListener, erro
 	errorsChan := make(chan error, 1)
 	trapListener := &TrapListener{
 		config:        config,
+		aggregator:    aggregator,
 		packets:       packets,
 		listener:      gosnmpListener,
 		errorsChannel: errorsChan,
@@ -77,12 +80,18 @@ func (t *TrapListener) Stop() {
 }
 
 func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+	packet := &SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
+	tags := packet.getTags()
+
+	t.aggregator.Count("datadog.snmp_traps.received", 1, "", tags)
+
 	if err := validatePacket(p, t.config); err != nil {
 		log.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
 		trapsPacketsAuthErrors.Add(1)
+		t.aggregator.Count("datadog.snmp_traps.invalid_packet", 1, "", append(tags, "reason:unknown_community_string"))
 		return
 	}
 	log.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
 	trapsPackets.Add(1)
-	t.packets <- &SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli()}
+	t.packets <- packet
 }

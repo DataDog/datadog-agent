@@ -10,6 +10,7 @@ package usm
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -142,7 +143,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				})
 				ctx.extras["client"] = client
 				require.NoError(t, err)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -192,7 +193,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				})
 				ctx.extras["client"] = client
 				require.NoError(t, err)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -234,7 +235,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				})
 				ctx.extras["client"] = client
 				require.NoError(t, err)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				require.NoError(t, client.CreateTopic(topicName))
 
 				numberOfIterations := 1000
 				for i := 1; i <= numberOfIterations; i++ {
@@ -278,7 +279,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				})
 				ctx.extras["client"] = client
 				require.NoError(t, err)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -286,15 +287,15 @@ func testKafkaProtocolParsing(t *testing.T) {
 				cancel()
 
 				serverAddr := "localhost:8081"
-				srvDoneFn := testutil.HTTPServer(t, "localhost:8081", testutil.Options{})
+				srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
 				t.Cleanup(srvDoneFn)
 				httpClient := nethttp.Client{}
 
 				req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
 				require.NoError(t, err)
 
-				expectedOccurrences := 10
-				for i := 0; i < expectedOccurrences; i++ {
+				httpRequestCount := 10
+				for i := 0; i < httpRequestCount; i++ {
 					resp, err := httpClient.Do(req)
 					require.NoError(t, err)
 					// Have to read the response body to ensure the client will be able to properly close the connection.
@@ -303,15 +304,37 @@ func testKafkaProtocolParsing(t *testing.T) {
 				}
 				srvDoneFn()
 
-				occurrences := 0
+				httpOccurrences := PrintableInt(0)
+				expectedKafkaRequestCount := 2
+				kafkaStatsCount := PrintableInt(0)
+				kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
 				require.Eventually(t, func() bool {
-					httpStats := monitor.GetHTTPStats()
-					occurrences += countRequestOccurrences(httpStats, req)
-					return occurrences == expectedOccurrences
-				}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
+					allStats := monitor.GetProtocolStats()
+					require.NotNil(t, allStats)
+
+					httpStats, ok := allStats[protocols.HTTP]
+					if ok {
+						httpOccurrences.Add(countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req))
+					}
+
+					kafkaProtocolStats, ok := allStats[protocols.Kafka]
+					// We might not have kafka stats, and it might be the expected case (to capture 0).
+					if ok {
+						currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStat)
+						for key, stats := range currentStats {
+							prevStats, ok := kafkaStats[key]
+							if ok && prevStats != nil {
+								prevStats.CombineWith(stats)
+							} else {
+								kafkaStats[key] = currentStats[key]
+							}
+						}
+					}
+					kafkaStatsCount = PrintableInt(len(kafkaStats))
+					return len(kafkaStats) == expectedKafkaRequestCount && httpOccurrences.Load() == httpRequestCount
+				}, time.Second*3, time.Millisecond*100, "Expected to find %d http requests (captured %v), and %d kafka requests (captured %v)", httpRequestCount, &httpOccurrences, expectedKafkaRequestCount, &kafkaStatsCount)
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
 				validateProduceFetchCount(t, kafkaStats, topicName,
 					kafkaParsingValidation{
 						expectedNumberOfProduceRequests: 2,
@@ -320,8 +343,14 @@ func testKafkaProtocolParsing(t *testing.T) {
 						expectedApiVersionFetch:         0,
 					})
 			},
-			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
+			teardown: kafkaTeardown,
+			configuration: func() *config.Config {
+				cfg := config.New()
+				cfg.EnableHTTPMonitoring = true
+				cfg.EnableKafkaMonitoring = true
+				cfg.MaxTrackedConnections = 1000
+				return cfg
+			},
 		},
 		{
 			name: "TestEnableHTTPOnly",
@@ -345,7 +374,7 @@ func testKafkaProtocolParsing(t *testing.T) {
 				})
 				ctx.extras["client"] = client
 				require.NoError(t, err)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -380,23 +409,39 @@ func (i *PrintableInt) String() string {
 	return fmt.Sprintf("%d", *i)
 }
 
+func (i *PrintableInt) Load() int {
+	if i == nil {
+		return 0
+	}
+
+	return int(*i)
+}
+
+func (i *PrintableInt) Add(other int) {
+	*i = PrintableInt(other + i.Load())
+}
+
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[kafka.Key]*kafka.RequestStat {
 	statsCount := PrintableInt(0)
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
 	require.Eventually(t, func() bool {
-		currentStats := monitor.GetKafkaStats()
-		for key, stats := range currentStats {
-			prevStats, ok := kafkaStats[key]
-			if ok && prevStats != nil {
-				prevStats.CombineWith(stats)
-			} else {
-				kafkaStats[key] = currentStats[key]
+		protocolStats := monitor.GetProtocolStats()
+		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
+		// We might not have kafka stats, and it might be the expected case (to capture 0).
+		if exists {
+			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStat)
+			for key, stats := range currentStats {
+				prevStats, ok := kafkaStats[key]
+				if ok && prevStats != nil {
+					prevStats.CombineWith(stats)
+				} else {
+					kafkaStats[key] = currentStats[key]
+				}
 			}
 		}
-
 		statsCount = PrintableInt(len(kafkaStats))
 		return expectedStatsCount == len(kafkaStats)
-	}, time.Second*3, time.Millisecond*100, "Expected to find a %d stats, instead captured %v", expectedStatsCount, &statsCount)
+	}, time.Second*5, time.Millisecond*100, "Expected to find a %d stats, instead captured %v", expectedStatsCount, &statsCount)
 	return kafkaStats
 }
 
@@ -430,19 +475,18 @@ func testProtocolParsingInner(t *testing.T, params kafkaParsingTestAttributes, c
 			params.teardown(t, params.context)
 		})
 	}
-	monitor := newHTTPWithKafkaMonitor(t, cfg)
+	monitor := newKafkaMonitor(t, cfg)
 	params.testBody(t, params.context, monitor)
 }
 
 func getDefaultTestConfiguration() *config.Config {
 	cfg := config.New()
-	// We don't have a way of enabling kafka without http at the moment
-	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = true
+	cfg.MaxTrackedConnections = 1000
 	return cfg
 }
 
-func newHTTPWithKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
+func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
@@ -472,9 +516,9 @@ func TestLoadKafkaBinary(t *testing.T) {
 func loadKafkaBinary(t *testing.T, debug bool) {
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
-	cfg.EnableHTTPMonitoring = true
 	cfg.EnableKafkaMonitoring = true
+	cfg.MaxTrackedConnections = 1000
 	cfg.BPFDebug = debug
 
-	newHTTPWithKafkaMonitor(t, cfg)
+	newKafkaMonitor(t, cfg)
 }

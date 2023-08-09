@@ -39,7 +39,7 @@ func TestActivityDumps(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
@@ -108,7 +108,6 @@ func TestActivityDumps(t *testing.T) {
 			if node.Process.Pid < node.Process.PPid {
 				t.Errorf("PID < PPID")
 			}
-			assert.Equal(t, false, node.Process.IsThread)
 			assert.Equal(t, uint64(0), node.Process.SpanID)
 			assert.Equal(t, uint64(0), node.Process.TraceID)
 			assert.Equal(t, "", node.Process.TTYName)

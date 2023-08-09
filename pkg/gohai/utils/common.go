@@ -11,65 +11,34 @@ import (
 	"runtime"
 )
 
-var ErrNoFieldCollected = errors.New("no field was collected")
-var ErrArgNotStruct = errors.New("argument is not a struct")
-var ErrNotCollectable = fmt.Errorf("cannot be collected on %s %s", runtime.GOOS, runtime.GOARCH)
-var ErrNotExported = errors.New("field not exported by the struct")
-var ErrCannotRender = errors.New("field inner type cannot be rendered")
-var ErrNoValueMethod = errors.New("field doesn't have the expected Value method")
-var ErrNoJSONTag = errors.New("field doesn't have a json tag")
+var (
+	// ErrNoFieldCollected means no field could be collected
+	ErrNoFieldCollected = errors.New("no field was collected")
+	// ErrArgNotStruct means the argument should be a struct but wasn't
+	ErrArgNotStruct = errors.New("argument is not a struct")
+	// ErrNotCollectable means the value can't be collected on the given platform
+	ErrNotCollectable = fmt.Errorf("cannot be collected on %s %s", runtime.GOOS, runtime.GOARCH)
+	// ErrNotExported means the struct has an unexported field
+	ErrNotExported = errors.New("field not exported by the struct")
+	// ErrCannotRender means a field which cannot be rendered
+	ErrCannotRender = errors.New("field inner type cannot be rendered")
+	// ErrNoValueMethod means a field doesn't have a Value method
+	ErrNoValueMethod = errors.New("field doesn't have the expected Value method")
+	// ErrNoJSONTag means a field doesn't have a json tag
+	ErrNoJSONTag = errors.New("field doesn't have a json tag")
+)
 
-// reflectValueToString converts the given value to a string, and returns a boolean indicating
-// whether it succeeded
-//
-// Supported types are int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, string
-func reflectValueToString(value reflect.Value) (string, bool) {
-	var rendered string
-	switch value.Kind() {
-	// case reflect.Bool:
-	case reflect.Int:
-		rendered = fmt.Sprintf("%d", value.Interface().(int))
-	case reflect.Int8:
-		rendered = fmt.Sprintf("%d", value.Interface().(int8))
-	case reflect.Int16:
-		rendered = fmt.Sprintf("%d", value.Interface().(int16))
-	case reflect.Int32:
-		rendered = fmt.Sprintf("%d", value.Interface().(int32))
-	case reflect.Int64:
-		rendered = fmt.Sprintf("%d", value.Interface().(int64))
-	case reflect.Uint:
-		rendered = fmt.Sprintf("%d", value.Interface().(uint))
-	case reflect.Uint8:
-		rendered = fmt.Sprintf("%d", value.Interface().(uint8))
-	case reflect.Uint16:
-		rendered = fmt.Sprintf("%d", value.Interface().(uint16))
-	case reflect.Uint32:
-		rendered = fmt.Sprintf("%d", value.Interface().(uint32))
-	case reflect.Uint64:
-		rendered = fmt.Sprintf("%d", value.Interface().(uint64))
-	// case reflect.Uintptr:
-	case reflect.Float32:
-		rendered = fmt.Sprintf("%f", value.Interface().(float32))
-	case reflect.Float64:
-		rendered = fmt.Sprintf("%f", value.Interface().(float64))
-	// case reflect.Complex64:
-	// case reflect.Complex128:
-	// case reflect.Array:
-	// case reflect.Chan:
-	// case reflect.Func:
-	// case reflect.Interface:
-	// case reflect.Map:
-	// case reflect.Pointer:
-	// case reflect.Slice:
-	case reflect.String:
-		rendered = value.String()
-	// case reflect.Struct:
-	// case reflect.UnsafePointer:
-	default:
-		return "", false
+// canBeRendered returns whether the given type can be converted to a string properly
+func canBeRendered(ty reflect.Kind) bool {
+	renderables := map[reflect.Kind]struct{}{
+		reflect.Int: {}, reflect.Int8: {}, reflect.Int16: {}, reflect.Int32: {},
+		reflect.Int64: {}, reflect.Uint: {}, reflect.Uint8: {}, reflect.Uint16: {},
+		reflect.Uint32: {}, reflect.Uint64: {}, reflect.Uintptr: {}, reflect.Float32: {},
+		reflect.Float64: {}, reflect.String: {},
 	}
 
-	return rendered, true
+	_, ok := renderables[ty]
+	return ok
 }
 
 // getValueMethod returns whether the field has a Value function with the correct arguments and return types.
@@ -92,6 +61,11 @@ func getValueMethod(fieldTy reflect.StructField) (reflect.Method, bool) {
 	}
 
 	return valueMethod, true
+}
+
+// Jsonable represents a type which can be converted to a mashallable object
+type Jsonable interface {
+	AsJSON() (interface{}, []string, error)
 }
 
 // AsJSON takes a structure and returns a marshal-able object representing the fields of the struct,
@@ -162,16 +136,14 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 			retValue = reflect.Zero(retValue.Type())
 		}
 
-		// try to render the value
-		renderedValue, ok := reflectValueToString(retValue)
-		if !ok {
+		if !canBeRendered(retValue.Kind()) {
 			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrCannotRender)
 		}
 
 		// Get returns an empty string if the key does not exist so no need for particular error handling
 		unit := fieldTy.Tag.Get("unit")
 
-		values[jsonName] = fmt.Sprintf("%s%s", renderedValue, unit)
+		values[jsonName] = fmt.Sprintf("%v%s", retValue.Interface(), unit)
 	}
 
 	// return an error if no field was successfully collected

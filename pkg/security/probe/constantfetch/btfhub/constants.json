@@ -1,5 +1,5 @@
 {
-	"commit": "836f43887cabdfc30549a1cd49c2ee2ca08e46f5",
+	"commit": "5a34cade9f0b78b0f2d9d52aefaa2a0fc160a3d7",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -35,7 +35,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1880,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -71,7 +72,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1880,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -107,7 +109,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2008,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -144,7 +147,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2008,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -180,7 +184,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1880,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -216,7 +221,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -252,7 +258,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -289,7 +296,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -324,7 +332,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -360,7 +369,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -393,7 +403,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1240,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -426,7 +437,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1240,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -462,7 +474,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -498,7 +511,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -535,7 +549,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -571,7 +586,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1312,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -603,7 +619,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 896,
 			"tty_name_offset": 400,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -634,7 +651,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 896,
 			"tty_name_offset": 400,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -665,7 +683,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 944,
 			"tty_name_offset": 400,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -698,7 +717,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1808,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -732,7 +752,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -767,7 +788,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1528,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -803,7 +825,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -839,7 +862,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -875,7 +899,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -911,7 +936,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -949,7 +975,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1960,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -986,7 +1013,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1384,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1023,7 +1051,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1384,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1055,7 +1084,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1464,
 			"tty_name_offset": 400,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1087,7 +1117,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1696,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -1124,7 +1155,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1912,
 			"tty_name_offset": 360,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -1162,7 +1194,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1872,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1200,7 +1233,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1296,
 			"tty_name_offset": 312,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1238,7 +1272,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1296,
 			"tty_name_offset": 312,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1275,7 +1310,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1424,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1312,7 +1348,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1424,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -1350,7 +1387,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1387,7 +1425,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1426,7 +1465,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1960,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 296,
@@ -1465,7 +1505,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2408,
 			"tty_name_offset": 368,
-			"tty_offset": 392
+			"tty_offset": 392,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1504,7 +1545,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1360,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1543,7 +1585,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1448,
 			"tty_name_offset": 496,
-			"tty_offset": 440
+			"tty_offset": 440,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1582,7 +1625,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1368,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1621,7 +1665,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1456,
 			"tty_name_offset": 496,
-			"tty_offset": 440
+			"tty_offset": 440,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -1660,7 +1705,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1408,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -1699,7 +1745,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1480,
 			"tty_name_offset": 488,
-			"tty_offset": 440
+			"tty_offset": 440,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1738,7 +1785,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1328,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1777,7 +1825,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1480,
 			"tty_name_offset": 496,
-			"tty_offset": 440
+			"tty_offset": 440,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1816,7 +1865,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1336,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1855,7 +1905,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1488,
 			"tty_name_offset": 496,
-			"tty_offset": 440
+			"tty_offset": 440,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -1894,7 +1945,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2336,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -1933,7 +1985,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2480,
 			"tty_name_offset": 488,
-			"tty_offset": 440
+			"tty_offset": 440,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -1966,7 +2019,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1304,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2000,7 +2054,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1304,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2033,7 +2088,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1272,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2066,7 +2122,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1352,
 			"tty_name_offset": 496,
-			"tty_offset": 464
+			"tty_offset": 464,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2100,7 +2157,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1272,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2134,7 +2192,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1352,
 			"tty_name_offset": 496,
-			"tty_offset": 464
+			"tty_offset": 464,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2168,7 +2227,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2264,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2201,7 +2261,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1400,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2236,7 +2297,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2269,7 +2331,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1392,
 			"tty_name_offset": 400,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2307,7 +2370,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1424,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2346,7 +2410,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1424,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2383,7 +2448,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -2421,7 +2487,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1384,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2458,7 +2525,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -2496,7 +2564,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1424,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2535,7 +2604,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1384,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2575,7 +2645,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1392,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2615,7 +2686,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1432,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2654,7 +2726,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1872,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2693,7 +2766,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2733,7 +2807,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1392,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2773,7 +2848,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1432,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2809,7 +2885,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2008,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -2846,7 +2923,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2008,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2886,7 +2964,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1872,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2926,7 +3005,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1936,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -2966,7 +3046,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1936,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3001,7 +3082,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1296,
 			"tty_name_offset": 312,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3034,7 +3116,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1984,
 			"tty_name_offset": 400,
-			"tty_offset": 416
+			"tty_offset": 416,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3069,7 +3152,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3105,7 +3189,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2392,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3142,7 +3227,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2392,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3182,7 +3268,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3222,7 +3309,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3262,7 +3350,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2384,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3302,7 +3391,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2384,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3335,7 +3425,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3372,7 +3463,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2296,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -3412,7 +3504,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2336,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3446,7 +3539,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1488,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3480,7 +3574,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1464,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3515,7 +3610,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3553,7 +3649,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1520,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3591,7 +3688,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1520,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3628,7 +3726,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3661,7 +3760,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1152,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3694,7 +3794,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1160,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3727,7 +3828,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1160,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3760,7 +3862,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1160,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3793,7 +3896,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1136,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3826,7 +3930,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1344,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3861,7 +3966,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1328,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3895,7 +4001,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2288,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3929,7 +4036,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2256,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3963,7 +4071,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2264,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -3999,7 +4108,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4037,7 +4147,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4074,7 +4185,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4112,7 +4224,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4151,7 +4264,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4189,7 +4303,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4228,7 +4343,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4266,7 +4382,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4299,7 +4416,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1168,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4333,7 +4451,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1168,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4366,7 +4485,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1200,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4399,7 +4519,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1176,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4432,7 +4553,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1176,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4465,7 +4587,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1176,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4498,7 +4621,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1152,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4531,7 +4655,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1208,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4564,7 +4689,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1208,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4597,7 +4723,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1208,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4630,7 +4757,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1184,
 			"tty_name_offset": 400,
-			"tty_offset": 384
+			"tty_offset": 384,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4663,7 +4791,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1328,
 			"tty_name_offset": 400,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4702,7 +4831,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1520,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -4741,7 +4871,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 1392,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -4779,7 +4910,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1392,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -4817,7 +4949,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1392,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -4855,7 +4988,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 1392,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4895,7 +5029,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1416,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4935,7 +5070,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1416,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -4975,7 +5111,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1416,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5015,7 +5152,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1416,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5055,7 +5193,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1416,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5093,7 +5232,8 @@
 			"sock_common_skc_net_offset": 48,
 			"socket_sock_offset": 32,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5132,7 +5272,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5172,7 +5313,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5211,7 +5353,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 368
+			"tty_offset": 368,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 168,
@@ -5250,7 +5393,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_link_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 376
+			"tty_offset": 376,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5288,7 +5432,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5327,7 +5472,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5365,7 +5511,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5403,7 +5550,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5442,7 +5590,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5480,7 +5629,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5519,7 +5669,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 176,
@@ -5557,7 +5708,8 @@
 			"socket_sock_offset": 32,
 			"task_struct_pid_offset": 2320,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5597,7 +5749,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5637,7 +5790,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5677,7 +5831,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5717,7 +5872,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5757,7 +5913,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5797,7 +5954,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5837,7 +5995,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5877,7 +6036,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5917,7 +6077,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5957,7 +6118,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -5997,7 +6159,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6037,7 +6200,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2328,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6077,7 +6241,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2344,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6116,7 +6281,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1440,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6155,7 +6321,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1440,
 			"tty_name_offset": 360,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6195,7 +6362,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1440,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6234,7 +6402,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1448,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6273,7 +6442,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 1448,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6312,7 +6482,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2432,
 			"tty_name_offset": 360,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6351,7 +6522,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2432,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6390,7 +6562,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2416,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6430,7 +6603,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2352,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6470,7 +6644,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2368,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 48,
@@ -6510,7 +6685,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2368,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6549,7 +6725,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2360,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6588,7 +6765,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2376,
 			"tty_name_offset": 368,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6627,7 +6805,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2376,
 			"tty_name_offset": 368,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6666,7 +6845,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2360,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6705,7 +6885,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2376,
 			"tty_name_offset": 360,
-			"tty_offset": 408
+			"tty_offset": 408,
+			"vm_area_struct_flags_offset": 80
 		},
 		{
 			"binprm_file_offset": 64,
@@ -6744,7 +6925,8 @@
 			"socket_sock_offset": 24,
 			"task_struct_pid_offset": 2376,
 			"tty_name_offset": 360,
-			"tty_offset": 400
+			"tty_offset": 400,
+			"vm_area_struct_flags_offset": 80
 		}
 	],
 	"kernels": [
@@ -7243,6 +7425,62 @@
 			"version": "2",
 			"arch": "arm64",
 			"uname_release": "4.14.305-227.531.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.309-231.529.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.311-233.529.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.313-235.533.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.314-237.533.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.314-238.539.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.318-240.529.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.318-241.531.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.320-242.534.amzn2.aarch64",
 			"cindex": 3
 		},
 		{
@@ -7796,6 +8034,62 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.305-227.531.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.309-231.529.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.311-233.529.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.313-235.533.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.314-237.533.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.314-238.539.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.318-240.529.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.318-241.531.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.320-242.534.amzn2.x86_64",
 			"cindex": 7
 		},
 		{
@@ -9189,6 +9483,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.90.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.92.1.el7.x86_64",
 			"cindex": 33
 		},
 		{
@@ -12121,7 +12422,35 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "arm64",
+			"uname_release": "4.14.35-2047.526.2.1.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
 			"uname_release": "4.14.35-2047.526.2.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.527.1.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.527.2.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.528.1.el7uek.aarch64",
 			"cindex": 77
 		},
 		{
@@ -13214,6 +13543,20 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.90.1.0.2.el7.x86_64",
+			"cindex": 81
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.92.1.0.1.el7.x86_64",
+			"cindex": 81
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.92.1.0.2.el7.x86_64",
 			"cindex": 81
 		},
 		{
@@ -14439,6 +14782,20 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.1.12-124.74.2.el7uek.x86_64",
+			"cindex": 82
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.1.12-124.75.3.el7uek.x86_64",
+			"cindex": 82
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.1.12-124.76.2.el7uek.x86_64",
 			"cindex": 82
 		},
 		{
@@ -16888,7 +17245,35 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.526.2.1.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.526.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.527.1.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.527.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.528.1.el7uek.x86_64",
 			"cindex": 85
 		},
 		{
@@ -25778,6 +26163,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-117-generic",
 			"cindex": 96
 		},
@@ -26192,6 +26584,13 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-212-generic",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-213-generic",
 			"cindex": 129
 		},
 		{
@@ -29187,6 +29586,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1152-gcp",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1153-aws",
 			"cindex": 115
 		},
@@ -29231,6 +29637,13 @@
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1157-azure",
 			"cindex": 140
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 115
 		},
 		{
 			"distrib": "ubuntu",
@@ -29286,6 +29699,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1166-azure",
+			"cindex": 140
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1167-azure",
 			"cindex": 140
 		},
 		{
@@ -29706,6 +30126,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-212-generic",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-213-generic",
 			"cindex": 115
 		},
 		{

@@ -1,12 +1,12 @@
 # https://github.com/confluentinc/confluent-kafka-python/blob/master/INSTALL.md#install-from-source
 
 name "confluent-kafka-python"
-default_version "2.0.2"
+default_version "2.1.1"
 
 dependency "pip3"
 
 source :url => "https://github.com/confluentinc/confluent-kafka-python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "137c82d23e931e03a2803569d51bb025a7b9a364818b08d1664800abaaa5cc63",
+       :sha256 => "b1abd74866f4dab5042b64262be3d330a67ab7a535d1f7c31d5ecc4834532adf",
        :extract => :seven_zip
 
 relative_path "confluent-kafka-python-#{version}"

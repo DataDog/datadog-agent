@@ -8,6 +8,7 @@ package model
 import (
 	"bytes"
 	"errors"
+	"strings"
 )
 
 var (
@@ -17,6 +18,8 @@ var (
 	ErrDNSNameOutOfBounds = errors.New("dns name out of bound")
 	// ErrDNSNameNonPrintableASCII reported because name non-printable ascii
 	ErrDNSNameNonPrintableASCII = errors.New("dns name non-printable ascii")
+	// ErrDNSNameMalformatted reported because name mal formatted (too short, missing dots, etc)
+	ErrDNSNameMalformatted = errors.New("dns name mal-formatted")
 )
 
 const DNS_PREALLOC_SIZE = 256
@@ -74,4 +77,25 @@ LOOP:
 	}
 
 	return rep.String(), err
+}
+
+func validateDNSName(dns string) error {
+	// Maximum length of the DNS name field in the DNS protocol is 255 bytes:
+	//
+	//                  <------------- 255 --------------->
+	//                  | X | ... | Y | ... | Z | ... | 0 |
+	//
+	// If you remove the trailing 0 and the first X (which isn't turned into a `.` in the string representation), you
+	// get a maximum printable characters length of 253.
+	if len(dns) > 253 {
+		return ErrDNSNameMalformatted
+	}
+
+	// Check that each label isn't empty and at most 63 characters.
+	for _, sub := range strings.Split(dns, ".") {
+		if n := len(sub); n < 1 || n > 63 {
+			return ErrDNSNameMalformatted
+		}
+	}
+	return nil
 }

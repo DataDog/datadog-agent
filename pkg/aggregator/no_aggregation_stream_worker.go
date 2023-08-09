@@ -36,6 +36,9 @@ type noAggregationStreamWorker struct {
 	flushConfig          FlushAndSerializeInParallel
 	maxMetricsPerPayload int
 
+	// pointer to the shared MetricSamplePool stored in the Demultiplexer.
+	metricSamplePool *metrics.MetricSamplePool
+
 	seriesSink   *metrics.IterableSeries
 	sketchesSink *metrics.IterableSketches
 
@@ -73,7 +76,8 @@ func init() {
 	noaggExpvars.Set("Flush", &expvarNoAggFlush)
 }
 
-func newNoAggregationStreamWorker(maxMetricsPerPayload int, serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
+func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
+	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
 		serializer:           serializer,
 		flushConfig:          flushConfig,
@@ -191,6 +195,11 @@ func (w *noAggregationStreamWorker) run() {
 							sample.GetTags(w.taggerBuffer, w.metricBuffer)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
+							// if the value is a rate, we have to account for the 10s interval
+							if mtype == metrics.APIRateType {
+								sample.Value /= bucketSize
+							}
+
 							// turns this metric sample into a serie
 							var serie metrics.Serie
 							serie.Name = sample.Name
@@ -198,8 +207,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							serie.Host = sample.Host
 							serie.MType = mtype
-							// ignored by the intake when late but mimic dogstatsd traffic here anyway
-							serie.Interval = 10
+							serie.Interval = bucketSize
 							w.seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
@@ -215,6 +223,8 @@ func (w *noAggregationStreamWorker) run() {
 						expvarNoAggSamplesProcessedOk.Add(int64(countProcessed))
 						tlmNoAggSamplesProcessedUnsupportedType.Add(float64(countUnsupportedType))
 						expvarNoAggSamplesProcessedUnsupportedType.Add(int64(countUnsupportedType))
+
+						w.metricSamplePool.PutBatch(samples) // return the sample batch back to the pool for reuse
 
 						if serializedSamples > w.maxMetricsPerPayload {
 							tlmNoAggFlush.Add(1)
@@ -249,7 +259,7 @@ func metricSampleAPIType(m metrics.MetricSample) (metrics.APIMetricType, bool) {
 	case metrics.GaugeType:
 		return metrics.APIGaugeType, true
 	case metrics.CounterType:
-		return metrics.APICountType, true
+		return metrics.APIRateType, true
 	case metrics.RateType:
 		return metrics.APIRateType, true
 	default:

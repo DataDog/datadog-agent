@@ -374,6 +374,25 @@ func TestConvertMetric(t *testing.T) {
 			expectedErr:        "",
 		},
 		{
+			name: "METRIC flow_process_nf_errors_count",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_nf_errors_count"),
+				Type: promClient.MetricType_COUNTER.Enum(),
+			},
+			metric: &promClient.Metric{
+				Counter: &promClient.Counter{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("error"), Value: proto.String("some-error")},
+				},
+			},
+			expectedMetricType: metrics.MonotonicCountType,
+			expectedName:       "processor.errors",
+			expectedValue:      10.0,
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "error:some-error", "flow_protocol:netflow"},
+			expectedErr:        "",
+		},
+		{
 			name: "METRIC flow_traffic_bytes",
 			metricFamily: &promClient.MetricFamily{
 				Name: proto.String("flow_traffic_bytes"),

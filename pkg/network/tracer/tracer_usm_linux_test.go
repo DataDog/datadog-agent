@@ -35,17 +35,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
+	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
+	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
@@ -708,7 +707,7 @@ func (s *USMSuite) TestJavaInjection() {
 	defaultCfg := cfg
 
 	dir, _ := testutil.CurDir()
-	testdataDir := filepath.Join(dir, "../java/testdata")
+	testdataDir := filepath.Join(dir, "../protocols/tls/java/testdata")
 	legacyJavaDir := cfg.JavaDir
 	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
 	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
@@ -870,16 +869,21 @@ func (s *USMSuite) TestJavaInjection() {
 				cfg.ProtocolClassificationEnabled = true
 				cfg.CollectTCPv4Conns = true
 				cfg.CollectTCPv6Conns = true
+
+				serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:5443", testutil.Options{
+					EnableTLS: true,
+				})
+				t.Cleanup(serverDoneFn)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
-					for key := range payload.HTTP {
-						if key.Path.Content == "/anything/java-tls-request" {
+					for key, stats := range payload.HTTP {
+						if key.Path.Content == "/200/anything/java-tls-request" {
 							t.Log("path content found")
 							// socket filter is not supported on fentry tracer
 							if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
@@ -887,16 +891,28 @@ func (s *USMSuite) TestJavaInjection() {
 								return true
 							}
 
+							req, exists := stats.Data[200]
+							if !exists {
+								t.Logf("wrong response, not 200 : %#+v", key)
+								continue
+							}
+
+							if req.StaticTags != network.ConnTagJava {
+								t.Logf("tag not java : %#+v", key)
+								continue
+							}
+
 							for _, c := range payload.Conns {
 								if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 									return true
 								}
 							}
+							t.Logf("TLS connection tag not found : %#+v", key)
 						}
 					}
 
 					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://host.docker.internal:5443/200/anything/java-tls-request")
 			},
 		},
 	}
@@ -918,16 +934,22 @@ func (s *USMSuite) TestJavaInjection() {
 	}
 }
 
+func skipFedora(t *testing.T) bool {
+	info, err := host.Info()
+	require.NoError(t, err)
+
+	return info.Platform == "fedora" && (info.PlatformVersion == "35" || info.PlatformVersion == "36" || info.PlatformVersion == "37" || info.PlatformVersion == "38")
+}
+
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !goTLSSupported() {
 			t.Skip("GoTLS not supported for this setup")
 		}
-		info, err := host.Info()
-		require.NoError(t, err)
+
 		// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
-		if info.Platform == "fedora" && (info.PlatformVersion == "36" || info.PlatformVersion == "37") {
+		if skipFedora(t) {
 			// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
 			t.Skip("TestHTTPGoTLSAttachProbes fails on this OS consistently")
 		}
@@ -987,7 +1009,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
+	gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
@@ -1004,7 +1026,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	issueRequestsFn := tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
@@ -1048,7 +1070,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	require.NoError(t, gotls.RunServer(t, serverPort))
+	require.NoError(t, gotlstestutil.RunServer(t, serverPort))
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -1067,7 +1089,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	require.NoError(t, gotls.RunServer(t, serverPort))
+	require.NoError(t, gotlstestutil.RunServer(t, serverPort))
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{

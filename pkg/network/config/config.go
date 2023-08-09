@@ -303,8 +303,8 @@ func New() *Config {
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
+		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(join(smNS, "http_max_request_fragment")),
 
 		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:           cfg.GetInt(join(spNS, "conntrack_max_state_size")),
@@ -327,8 +327,8 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 
-		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),

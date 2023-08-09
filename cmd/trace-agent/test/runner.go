@@ -17,7 +17,7 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 // ErrNotStarted is returned when attempting to operate an unstarted Runner.
@@ -180,15 +180,16 @@ func (s *Runner) DoReq(url, method string, payload []byte) (*http.Response, erro
 
 func (s *Runner) doRequest(req *http.Request) error {
 	resp, err := http.DefaultClient.Do(req)
-	if err == nil {
-		defer resp.Body.Close()
+	if err != nil {
+		return err
 	}
-	if resp.StatusCode != 200 {
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
 		slurp, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("%s (error reading response body: %v)", resp.Status, err)
 		}
 		return fmt.Errorf("%s: %s", resp.Status, slurp)
 	}
-	return err
+	return nil
 }

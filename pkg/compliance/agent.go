@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -71,6 +71,10 @@ type Agent struct {
 	cancel context.CancelFunc
 }
 
+func xccdfEnabled() bool {
+	return config.Datadog.GetBool("compliance_config.xccdf.enabled") || config.Datadog.GetBool("compliance_config.host_benchmarks.enabled")
+}
+
 func DefaultRuleFilter(r *Rule) bool {
 	if config.IsKubernetes() {
 		if r.SkipOnK8s {
@@ -81,13 +85,13 @@ func DefaultRuleFilter(r *Rule) bool {
 			return false
 		}
 	}
-	if r.IsXCCDF() && !config.Datadog.GetBool("compliance_config.xccdf.enabled") {
+	if r.IsXCCDF() && !xccdfEnabled() {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel := module.NewRuleFilterModel()
-		seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-		accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+		ruleFilterModel := rules.NewRuleFilterModel()
+		seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
+		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 			Filters: r.Filters,
 		})
 		if err != nil {
@@ -248,7 +252,7 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 }
 
 func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
-	if !config.Datadog.GetBool("compliance_config.xccdf.enabled") {
+	if !xccdfEnabled() {
 		return
 	}
 	benchmarks, err := LoadBenchmarks(a.opts.ConfigDir, "*.yaml", func(r *Rule) bool {
@@ -314,9 +318,9 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel := module.NewRuleFilterModel()
-	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-	accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+	ruleFilterModel := rules.NewRuleFilterModel()
+	seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
+	accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 		Filters: []string{aptconfig.SeclFilter},
 	})
 	if !accepted || err != nil {

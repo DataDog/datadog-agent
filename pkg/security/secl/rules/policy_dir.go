@@ -15,7 +15,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const policyExtension = ".policy"
+const (
+	policyExtension = ".policy"
+)
 
 var _ PolicyProvider = (*PoliciesDirProvider)(nil)
 
@@ -46,7 +48,7 @@ func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFi
 
 	name := filepath.Base(filename)
 
-	return LoadPolicy(name, "file", f, macroFilters, ruleFilters)
+	return LoadPolicy(name, PolicyProviderTypeDir, f, macroFilters, ruleFilters)
 }
 
 func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
@@ -197,4 +199,8 @@ func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvide
 	}
 
 	return p, nil
+}
+
+func (p *PoliciesDirProvider) Type() string {
+	return PolicyProviderTypeDir
 }

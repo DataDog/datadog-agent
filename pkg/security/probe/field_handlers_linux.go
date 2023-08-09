@@ -52,12 +52,16 @@ func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
-	if f.Filesystem == "" && !f.IsFileless() {
-		fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
-		if err != nil {
-			ev.SetPathResolutionError(f, err)
+	if f.Filesystem == "" {
+		if f.IsFileless() {
+			f.Filesystem = model.TmpFS
+		} else {
+			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+			if err != nil {
+				ev.SetPathResolutionError(f, err)
+			}
+			f.Filesystem = fs
 		}
-		f.Filesystem = fs
 	}
 	return f.Filesystem
 }
@@ -117,11 +121,10 @@ func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountE
 
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	if ev.ContainerContext.ID != "" {
-		if ev.ContainerContext == eventZero.ContainerContext {
-			if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
-				ev.ContainerContext = &containerContext.ContainerContext
-			}
+	if ev.ContainerContext.ID != "" && !ev.ContainerContext.Resolved {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
+			ev.ContainerContext = &containerContext.ContainerContext
+			ev.ContainerContext.Resolved = true
 		}
 	}
 	return ev.ContainerContext, ev.ContainerContext != nil
@@ -511,4 +514,14 @@ func (fh *FieldHandlers) ResolveModuleArgs(ev *model.Event, module *model.LoadMo
 		return strings.Join(argsTmp, " ")
 	}
 	return module.Args
+}
+
+// ResolveHashesFromEvent resolves the hashes of the requested event
+func (fh *FieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+}
+
+// ResolveHashes resolves the hashes of the requested file event
+func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
 }

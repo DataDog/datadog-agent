@@ -33,7 +33,7 @@ type flareResponse struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string) io.ReadCloser {
+func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname, source string) io.ReadCloser {
 	//No need to close the reader, http.Client does it for us
 	bodyReader, bodyWriter := io.Pipe()
 
@@ -51,6 +51,9 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		}
 		if email != "" {
 			writer.WriteField("email", email) //nolint:errcheck
+		}
+		if source != "" {
+			writer.WriteField("source", source) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
@@ -79,7 +82,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 	return bodyReader
 }
 
-func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, client *http.Client) (*http.Response, error) {
+func readAndPostFlareFile(archivePath, caseID, email, hostname, source, url string, client *http.Client) (*http.Response, error) {
 	// Having resolved the POST URL, we do not expect to see further redirects, so do not
 	// handle them.
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -100,7 +103,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, clie
 
 	// Manually set the Body and ContentLenght. http.NewRequest doesn't do all of this
 	// for us, since a PipeReader is not one of the Reader types it knows how to handle.
-	request.Body = getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname)
+	request.Body = getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname, source)
 
 	// -1 here means 'unknown' and makes this a 'chunked' request. See https://github.com/golang/go/issues/18117
 	request.ContentLength = -1
@@ -141,7 +144,7 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 	}
 
 	if err != nil {
-		response := fmt.Sprintf("Error: could not deserialize response body -- Please contact support by email.")
+		response := "Error: could not deserialize response body -- Please contact support by email."
 		sample := string(b)
 		if len(sample) > 150 {
 			sample = sample[:150]
@@ -192,7 +195,7 @@ func mkURL(baseURL string, caseID string, apiKey string) string {
 
 // SendTo sends a flare file to the backend. This is part of the "helpers" package while all the code is moved to
 // components. When possible use the "Send" method of the "flare" component instead.
-func SendTo(archivePath, caseID, email, apiKey, url string) (string, error) {
+func SendTo(archivePath, caseID, email, source, apiKey, url string) (string, error) {
 	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
@@ -214,10 +217,11 @@ func SendTo(archivePath, caseID, email, apiKey, url string) (string, error) {
 		return "", err
 	}
 
-	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, client)
+	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, source, url, client)
 	if err != nil {
 		return "", err
 	}
 
+	defer r.Body.Close()
 	return analyzeResponse(r, apiKey)
 }

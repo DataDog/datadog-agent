@@ -17,11 +17,15 @@ import (
 )
 
 const (
-	AgentAPIKey               = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
-	AgentAPPKey               = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
-	AwsKeyPairName            = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
-	AwsPublicKeyPath          = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
+	AgentAPIKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
+	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
+
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
+	InfraExtraResourcesTags   = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
+
+	AWSKeyPairName    = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
+	AWSPublicKeyPath  = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
+	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
 )
 
 type ConfigMap auto.ConfigMap
@@ -43,50 +47,53 @@ func (cm ConfigMap) ToPulumi() auto.ConfigMap {
 	return (auto.ConfigMap)(cm)
 }
 
-func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
-	val, err := store.Get(paramName)
-	if err != nil {
-		return err
-	}
-
-	cm[configMapKey] = auto.ConfigValue{
-		Value: val,
-	}
-	return nil
+func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
+	return setConfigMapFromParameter(secretStore, cm, paramName, configMapKey, true)
 }
 
-func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
-	val, err := secretStore.Get(paramName)
+func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
+	return setConfigMapFromParameter(store, cm, paramName, configMapKey, false)
+}
+
+func setConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string, secret bool) error {
+	val, err := store.Get(paramName)
 	if err != nil {
+		if errors.As(err, &parameters.ParameterNotFoundError{}) {
+			return nil
+		}
 		return err
 	}
 
 	cm[configMapKey] = auto.ConfigValue{
 		Value:  val,
-		Secret: true,
+		Secret: secret,
 	}
 	return nil
 }
 
 func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap, error) {
 	// Priority order: profile configs < scenarioConfig < Env/CLI config
-
-	// Inject profile variables
 	cm := ConfigMap{}
-	cm.Set("ddinfra:env", profile.EnvironmentNames(), false)
-	keyPair, err := profile.ParamStore().Get(parameters.KeyPairName)
-	if err == nil {
-		cm.Set(AwsKeyPairName, keyPair, false)
-	} else {
-		if !errors.As(err, &parameters.ParameterNotFoundError{}) {
-			return nil, err
-		}
-	}
-	publicKeyPath, err := profile.ParamStore().Get(parameters.PublicKeyPath)
-	if err == nil {
-		cm.Set(AwsPublicKeyPath, publicKeyPath, false)
-	}
 
+	// Parameters from profile
+	cm.Set("ddinfra:env", profile.EnvironmentNames(), false)
+	err := SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.KeyPairName, AWSKeyPairName)
+	if err != nil {
+		return nil, err
+	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PublicKeyPath, AWSPublicKeyPath)
+	if err != nil {
+		return nil, err
+	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PrivateKeyPath, AWSPrivateKeyPath)
+	if err != nil {
+		return nil, err
+	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.ExtraResourcesTags, InfraExtraResourcesTags)
+	if err != nil {
+		return nil, err
+	}
+	// Secret parameters from profile store
 	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, AgentAPIKey)
 	if err != nil {
 		return nil, err
@@ -95,7 +102,6 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
-
 	// Merge with scenario variables
 	cm.Merge(scenarioConfig)
 

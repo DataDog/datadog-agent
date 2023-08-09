@@ -30,11 +30,6 @@ const (
 	// RulesetLoadedRuleDesc is the rule description for the ruleset_loaded events
 	RulesetLoadedRuleDesc = "New ruleset loaded"
 
-	// NoisyProcessRuleID is the rule ID for the noisy_process events
-	NoisyProcessRuleID = "noisy_process"
-	// NoisyProcessRuleDesc is the rule description for the noisy_process events
-	NoisyProcessRuleDesc = "Noisy process detected"
-
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
 	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
@@ -47,7 +42,7 @@ const (
 
 	// AnomalyDetectionRuleID is the rule ID for anomaly_detection events
 	AnomalyDetectionRuleID = "anomaly_detection"
-	// AnomalyDetectionRuleID is the rule description for anomaly_detection events
+	// AnomalyDetectionRuleDesc is the rule description for anomaly_detection events
 	AnomalyDetectionRuleDesc = "Anomaly detection"
 
 	// NoProcessContextErrorRuleID is the rule ID for events without process context
@@ -61,11 +56,13 @@ const (
 	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
 )
 
+// CustomEventCommonFields represents the fields common to all custom events
 type CustomEventCommonFields struct {
 	Timestamp time.Time `json:"date"`
 	Service   string    `json:"service"`
 }
 
+// FillCustomEventCommonFields fills the common fields with default values
 func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
 	commonFields.Service = ServiceName
 	commonFields.Timestamp = time.Now()
@@ -84,7 +81,6 @@ func AllCustomRuleIDs() []string {
 	return []string{
 		LostEventsRuleID,
 		RulesetLoadedRuleID,
-		NoisyProcessRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
 		AnomalyDetectionRuleID,
@@ -93,7 +89,7 @@ func AllCustomRuleIDs() []string {
 	}
 }
 
-// NewCustomEvent returns a new custom event
+// NewCustomEventLazy returns a new custom event
 func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson.Marshaler, tags ...string) *CustomEvent {
 	return &CustomEvent{
 		eventType:     eventType,
@@ -102,6 +98,7 @@ func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson
 	}
 }
 
+// NewCustomEvent returns a new custom event
 func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler, tags ...string) *CustomEvent {
 	return NewCustomEventLazy(eventType, func() easyjson.Marshaler {
 		return marshaler
@@ -134,11 +131,17 @@ func (ce *CustomEvent) GetType() string {
 	return ce.eventType.String()
 }
 
+// GetWorkloadID returns the workload id
+func (ce *CustomEvent) GetWorkloadID() string {
+	return ""
+}
+
 // GetEventType returns the event type
 func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
+// MarshalEasyJSON marshals the custom event to JSON using easyJSON
 func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
 	ce.marshalerCtor().MarshalEasyJSON(w)
 }

@@ -52,7 +52,7 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 		case <-ctx.Done():
 			if err := ctx.Err(); err != nil {
 				patternScanner.PrintLogs(t)
-				return fmt.Errorf("failed to start %s server: %s", serverName, err)
+				return fmt.Errorf("failed to start %s pid %d server: %s", serverName, cmd.Process.Pid, err)
 			}
 		case <-patternScanner.DoneChan:
 			t.Logf("%s server pid (docker) %d is ready", serverName, cmd.Process.Pid)
@@ -60,7 +60,7 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 		case <-time.After(timeout):
 			patternScanner.PrintLogs(t)
 			// please don't use t.Fatalf() here as we could test if it failed later
-			return fmt.Errorf("failed to start %s server: timed out after %s", serverName, timeout.String())
+			return fmt.Errorf("failed to start %s server pid %d: timed out after %s", serverName, cmd.Process.Pid, timeout.String())
 		}
 	}
 }
@@ -97,17 +97,17 @@ func RunHostServer(t *testing.T, command []string, env []string, serverStartRege
 		case <-ctx.Done():
 			if err := ctx.Err(); err != nil {
 				patternScanner.PrintLogs(t)
-				t.Errorf("failed to start %s server: %s", serverName, err)
+				t.Errorf("failed to start %s pid %d server: %s", serverName, cmd.Process.Pid, err)
 			}
 			return false
 		case <-patternScanner.DoneChan:
-			t.Logf("%s host server is ready", serverName)
+			t.Logf("%s host server pid %d is ready", serverName, cmd.Process.Pid)
 			patternScanner.PrintLogs(t)
 			return true
 		case <-time.After(time.Second * 60):
 			patternScanner.PrintLogs(t)
 			// please don't use t.Fatalf() here as we could test if it failed later
-			t.Errorf("failed to start %s host server", serverName)
+			t.Errorf("failed to start %s host server pid %d", serverName, cmd.Process.Pid)
 			return false
 		}
 	}

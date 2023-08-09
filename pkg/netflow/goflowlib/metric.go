@@ -84,6 +84,14 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
+	"flow_process_nf_errors_count": {
+		name:           "processor.errors",
+		allowedTagKeys: []string{"router", "error"},
+		keyRemapper: map[string]string{
+			"router": "exporter_ip",
+		},
+		extraTags: []string{"flow_protocol:netflow"},
+	},
 	"flow_traffic_bytes": {
 		name:           "traffic.bytes",
 		allowedTagKeys: []string{"local_port", "remote_ip", "type"},

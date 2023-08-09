@@ -32,7 +32,7 @@ from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
-PROFILE_COV = "profile.cov"
+PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
@@ -97,6 +97,7 @@ TOOL_LIST_PROTO = [
     'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
+    'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',
 ]
 
@@ -133,7 +134,7 @@ def invoke_unit_tests(ctx):
     for _, _, files in os.walk("tasks/unit-tests/"):
         for file in files:
             if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
-                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
+                ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
 
 
 def test_core(
@@ -225,35 +226,36 @@ class ModuleTestResult(ModuleResult):
             # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
             # here, in system-probe.py, and in libs/pipeline_notifications.py
             # We should have some common result.json parsing lib.
-            with open(self.result_json_path, encoding="utf-8") as tf:
-                for line in tf:
-                    json_test = json.loads(line.strip())
-                    # This logic assumes that the lines in result.json are "in order", i.e. that retries
-                    # are logged after the initial test run.
+            if self.result_json_path is not None and os.path.exists(self.result_json_path):
+                with open(self.result_json_path, encoding="utf-8") as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        # This logic assumes that the lines in result.json are "in order", i.e. that retries
+                        # are logged after the initial test run.
 
-                    # The line is a "Package" line, but not a "Test" line.
-                    # We take these into account, because in some cases (panics, race conditions),
-                    # individual test failures are not reported, only a package-level failure is.
-                    if 'Package' in json_test and 'Test' not in json_test:
-                        package = json_test['Package']
-                        action = json_test["Action"]
+                        # The line is a "Package" line, but not a "Test" line.
+                        # We take these into account, because in some cases (panics, race conditions),
+                        # individual test failures are not reported, only a package-level failure is.
+                        if 'Package' in json_test and 'Test' not in json_test:
+                            package = json_test['Package']
+                            action = json_test["Action"]
 
-                        if action == "fail":
-                            failed_packages.add(package)
-                        elif action == "pass" and package in failed_tests.keys():
-                            # The package was retried and fully succeeded, removing from the list of packages to report
-                            failed_packages.remove(package)
+                            if action == "fail":
+                                failed_packages.add(package)
+                            elif action == "pass" and package in failed_tests.keys():
+                                # The package was retried and fully succeeded, removing from the list of packages to report
+                                failed_packages.remove(package)
 
-                    # The line is a "Test" line.
-                    elif 'Package' in json_test and 'Test' in json_test:
-                        name = json_test['Test']
-                        package = json_test['Package']
-                        action = json_test["Action"]
-                        if action == "fail":
-                            failed_tests[package].add(name)
-                        elif action == "pass" and name in failed_tests.get(package, set()):
-                            # The test was retried and succeeded, removing from the list of tests to report
-                            failed_tests[package].remove(name)
+                        # The line is a "Test" line.
+                        elif 'Package' in json_test and 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
+                            action = json_test["Action"]
+                            if action == "fail":
+                                failed_tests[package].add(name)
+                            elif action == "pass" and name in failed_tests.get(package, set()):
+                                # The test was retried and succeeded, removing from the list of tests to report
+                                failed_tests[package].remove(name)
 
             if failed_packages:
                 failure_string += "Test failures:\n"
@@ -271,16 +273,27 @@ class ModuleTestResult(ModuleResult):
 
 
 def lint_flavor(
-    ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
+    ctx,
+    modules: List[GoModule],
+    flavor: AgentFlavor,
+    build_tags: List[str],
+    arch: str,
+    rtloader_root: bool,
+    concurrency: int,
 ):
     """
     Runs linters for given flavor, build tags, and modules.
     """
 
-    def command(module_results, module, module_result):
+    def command(module_results, module: GoModule, module_result):
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
-                ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+                ctx,
+                targets=module.lint_targets,
+                rtloader_root=rtloader_root,
+                build_tags=build_tags,
+                arch=arch,
+                concurrency=concurrency,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -289,6 +302,31 @@ def lint_flavor(
         module_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
+
+
+def build_stdlib(
+    ctx,
+    build_tags: List[str],
+    cmd: str,
+    env: Dict[str, str],
+    args: Dict[str, str],
+    test_profiler: TestProfiler,
+):
+    """
+    Builds the stdlib with the same build flags as the tests.
+
+    Since Go 1.20, standard library is not pre-compiled anymore but is built as needed and cached in the build cache.
+    To avoid a perfomance overhead when running tests, we pre-compile the standard library and cache it.
+    We must use the same build flags as the one we are using when compiling tests to not invalidate the cache.
+    """
+    args["go_build_tags"] = " ".join(build_tags)
+
+    ctx.run(
+        cmd.format(**args),
+        env=env,
+        out_stream=test_profiler,
+        warn=True,
+    )
 
 
 def test_flavor(
@@ -456,7 +494,7 @@ def test(
     rtloader_root=None,
     python_home_2=None,
     python_home_3=None,
-    cpus=0,
+    cpus=None,
     major_version='7',
     python_runtimes='3',
     timeout=180,
@@ -494,11 +532,26 @@ def test(
     # }
     modules_results_per_phase = defaultdict(dict)
 
+    # Sanitize environment variables
+    # We want to ignore all `DD_` variables, as they will interfere with the behavior
+    # of some unit tests
+    for env in os.environ.keys():
+        if env.startswith("DD_"):
+            del os.environ[env]
+
     # Run linters first
 
     if not skip_linters:
         modules_results_per_phase["lint"] = run_lint_go(
-            ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch
+            ctx,
+            module,
+            targets,
+            flavors,
+            build_include,
+            build_exclude,
+            rtloader_root,
+            arch,
+            cpus,
         )
 
     # Process input arguments
@@ -513,8 +566,6 @@ def test(
     }
 
     timeout = int(timeout)
-
-    # Lint
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -571,6 +622,8 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
+    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
@@ -591,6 +644,14 @@ def test(
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
+        build_stdlib(
+            ctx,
+            build_tags=build_tags,
+            cmd=stdlib_build_cmd,
+            env=env,
+            args=args,
+            test_profiler=test_profiler,
+        )
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -645,6 +706,7 @@ def run_lint_go(
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
+    cpus=None,
 ):
     modules, flavors = process_input_args(module, targets, flavors)
 
@@ -661,7 +723,13 @@ def run_lint_go(
 
     for flavor, build_tags in linter_tags.items():
         modules_lint_results_per_flavor[flavor] = lint_flavor(
-            ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
+            ctx,
+            modules=modules,
+            flavor=flavor,
+            build_tags=build_tags,
+            arch=arch,
+            rtloader_root=rtloader_root,
+            concurrency=cpus,
         )
 
     return modules_lint_results_per_flavor
@@ -677,6 +745,7 @@ def lint_go(
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
+    cpus=None,
 ):
     """
     Run go linters on the given module and targets.
@@ -703,7 +772,15 @@ def lint_go(
     modules_results_per_phase = defaultdict(dict)
 
     modules_results_per_phase["lint"] = run_lint_go(
-        ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch
+        ctx,
+        module,
+        targets,
+        flavors,
+        build_include,
+        build_exclude,
+        rtloader_root,
+        arch,
+        cpus,
     )
 
     success = process_module_results(modules_results_per_phase)

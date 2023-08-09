@@ -1,6 +1,0 @@
-Manifest-Version: 1.0
-Can-Redefine-Classes: true
-Can-Retransform-Classes: true
-Agent-Class: TestAgentLoaded
-Premain-Class: TestAgentLoaded
-Created-By: 1.2.3.4 (Private Build)

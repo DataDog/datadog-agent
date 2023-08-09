@@ -16,24 +16,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const kProbeTelemetryName = "ebpf__kprobes"
-
 var myPid int
-
-var debugfsStats = struct {
-	hits   telemetry.Gauge
-	misses telemetry.Gauge
-}{
-	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"name"}, "Gauge tracking number of kprobe hits"),
-	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"name"}, "Gauge tracking number of kprobe misses"),
-}
 
 func init() {
 	myPid = manager.Getpid()
@@ -85,12 +74,8 @@ func getProbeStats(pid int, profile string) map[string]uint64 {
 			event = parts[1]
 		}
 		event = strings.ToLower(event)
-		hitsKey := fmt.Sprintf("%s_hits", event)
-		missesKey := fmt.Sprintf("%s_misses", event)
-		debugfsStats.hits.Add(float64(st.Hits), event)
-		debugfsStats.misses.Add(float64(st.Misses), event)
-		res[hitsKey] = st.Hits
-		res[missesKey] = st.Misses
+		res[fmt.Sprintf("%s_hits", event)] = st.Hits
+		res[fmt.Sprintf("%s_misses", event)] = st.Misses
 	}
 
 	return res

@@ -7,6 +7,7 @@ from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
+DEFAULT_JIRA_PROJECT = "AGENTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = {
     "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
@@ -37,6 +38,39 @@ GITHUB_SLACK_MAP = {
     "@datadog/debugger": "#debugger-ops-prod",
     "@datadog/database-monitoring": "#database-monitoring",
     "@datadog/agent-cspm": "#k9-cspm-ops",
+    "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
+}
+
+GITHUB_JIRA_MAP = {
+    "@datadog/agent-platform": "AP",
+    "@datadog/documentation": "DOCS",
+    "@datadog/container-integrations": "CONT",
+    "@datadog/platform-integrations": "PINT",
+    "@datadog/agent-security": "SEC",
+    "@datadog/agent-apm": "AIT",
+    "@datadog/network-device-monitoring": "NDM",
+    "@datadog/processes": "PROC",
+    "@datadog/agent-metrics-logs": "AML",
+    "@datadog/agent-shared-components": "ASC",
+    "@datadog/container-app": "CAP",
+    "@datadog/metrics-aggregation": "AGGR",
+    "@datadog/serverless": "SLS",
+    "@datadog/remote-config": "RCM",
+    "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
+    "@datadog/ebpf-platform": "EBPF",
+    "@datadog/networks": "NPM",
+    "@datadog/universal-service-monitoring": "USMO",
+    "@datadog/windows-agent": "WA",
+    "@datadog/windows-kernel-integrations": "WKIT",
+    "@datadog/opentelemetry": "OTEL",
+    "@datadog/agent-e2e-testing": "AETT",
+    "@datadog/software-integrity-and-trust": "SINT",
+    "@datadog/single-machine-performance": "SMP",
+    "@datadog/agent-integrations": "AIT",
+    "@datadog/debugger": "DEBUG",
+    "@datadog/database-monitoring": "DBM",
+    "@datadog/agent-cspm": "SEC",
+    "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
 }
 
 
@@ -47,7 +81,7 @@ def read_owners(owners_file):
         return CodeOwners(f.read())
 
 
-def check_for_missing_owners_slack(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
+def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
     error = False
     for path in owners.paths:
@@ -57,6 +91,10 @@ def check_for_missing_owners_slack(print_missing_teams=True, owners_file=".githu
             error = True
             if print_missing_teams:
                 print(f"The team {path[2][0][1]} doesn't have a slack team assigned !!")
+        if path[2][0][1].lower() not in GITHUB_JIRA_MAP:
+            error = True
+            if print_missing_teams:
+                print(f"The team {path[2][0][1]} doesn't have a jira project assigned !!")
     return error
 
 

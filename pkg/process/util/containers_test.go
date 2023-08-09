@@ -170,6 +170,7 @@ func TestGetContainers(t *testing.T) {
 
 	// cID5 garden container full stats (replacing Linux WorkingSet with CommitBytes)
 	cID5Metrics := mock.GetFullSampleContainerEntry()
+	cID5Metrics.ContainerStats.CPU.DefaultedLimit = true
 	cID5Metrics.ContainerStats.Timestamp = testTime
 	cID5Metrics.NetworkStats.Timestamp = testTime
 	cID5Metrics.ContainerStats.PID.PIDs = []int{6, 7}
@@ -246,7 +247,7 @@ func TestGetContainers(t *testing.T) {
 			Name:      "foobar-pod7",
 			Namespace: "default",
 			Annotations: map[string]string{
-				fmt.Sprintf("ad.datadoghq.com/container7.exclude"): `true`,
+				"ad.datadoghq.com/container7.exclude": `true`,
 			},
 		},
 		IP: "127.0.0.1",
@@ -398,7 +399,7 @@ func TestGetContainers(t *testing.T) {
 		{
 			Type:         "garden",
 			Id:           "cID5",
-			CpuLimit:     50,
+			CpuLimit:     0,
 			MemoryLimit:  42000,
 			State:        process.ContainerState_running,
 			Created:      testTime.Unix(),
@@ -607,7 +608,7 @@ func TestGetContainers(t *testing.T) {
 		{
 			Type:         "garden",
 			Id:           "cID5",
-			CpuLimit:     50,
+			CpuLimit:     0,
 			MemoryLimit:  42000,
 			State:        process.ContainerState_running,
 			Created:      testTime.Unix(),

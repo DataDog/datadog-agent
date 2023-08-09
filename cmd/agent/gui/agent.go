@@ -149,7 +149,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 		return
 	}
 
-	res, e := flare.Send(filePath, payload.CaseID, payload.Email)
+	res, e := flare.Send(filePath, payload.CaseID, payload.Email, "local")
 	if e != nil {
 		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
 		log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + e.Error())

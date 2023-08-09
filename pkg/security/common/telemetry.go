@@ -6,14 +6,19 @@
 package common
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // ContainersTelemetry represents the objects necessary to send metrics listing containers
 type ContainersTelemetry struct {
-	Sender        aggregator.Sender
+	Sender        sender.Sender
 	MetadataStore workloadmeta.Store
+	IgnoreDDAgent bool
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
@@ -29,6 +34,7 @@ func NewContainersTelemetry() (*ContainersTelemetry, error) {
 	}, nil
 }
 
+// ListRunningContainers returns the list of running containers (from the workload meta store)
 func (c *ContainersTelemetry) ListRunningContainers() []*workloadmeta.Container {
 	return c.MetadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 }
@@ -39,6 +45,15 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 	containers := c.ListRunningContainers()
 
 	for _, container := range containers {
+		if c.IgnoreDDAgent {
+			value := container.EnvVars["DOCKER_DD_AGENT"]
+			value = strings.ToLower(value)
+			if value == "yes" || value == "true" {
+				log.Debugf("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
+				continue
+			}
+		}
+
 		c.Sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
 	}
 
