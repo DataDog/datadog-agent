@@ -496,7 +496,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		}
 
 		if t.shouldSkipConnection(c) {
-			tracerTelemetry.skippedConns.Inc()
+			tracerTelemetry.skippedConns.Inc(c.Type.String())
 			return false
 		}
 		return true
