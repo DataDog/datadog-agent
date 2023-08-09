@@ -38,12 +38,6 @@
 #define MAX_7_BITS 127
 
 typedef enum {
-    kMethod = 2,
-    kPath = 4,
-    kStatus = 9,
-} static_table_key_t;
-
-typedef enum {
     kGET = 2,
     kPOST = 3,
     kEmptyPath = 4,
@@ -56,11 +50,6 @@ typedef enum {
     k404 = 13,
     k500 = 14,
 } static_table_value_t;
-
-typedef struct {
-    static_table_key_t key;
-    static_table_value_t value;
-} static_table_entry_t;
 
 typedef struct {
     char buffer[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
@@ -112,11 +101,5 @@ typedef struct {
     __u32 offset;
     __u8 iteration;
 } http2_tail_call_state_t;
-
-typedef enum {
-    HEADER_ERROR = 0,
-    HEADER_NOT_INTERESTING,
-    HEADER_INTERESTING,
-} parse_result_t;
 
 #endif

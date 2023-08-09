@@ -52,10 +52,10 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
 #ifdef DEBUG
-    bpf_printk("interpreter file: %llx\n", file);
-    bpf_printk("interpreter inode: %u\n", syscall->exec.linux_binprm.interpreter.ino);
-    bpf_printk("interpreter mount id: %u %u %u\n", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
-    bpf_printk("interpreter path id: %u\n", syscall->exec.linux_binprm.interpreter.path_id);
+    bpf_printk("interpreter file: %llx", file);
+    bpf_printk("interpreter inode: %u", syscall->exec.linux_binprm.interpreter.ino);
+    bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
+    bpf_printk("interpreter path id: %u", syscall->exec.linux_binprm.interpreter.path_id);
 #endif
 
     // Add interpreter path to map/pathnames, which is used by the dentry resolver.
@@ -526,16 +526,16 @@ int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_bin
     bpf_probe_read(&interpreter, sizeof(interpreter), (char *)bprm + binprm_file_offset);
 
 #ifdef DEBUG
-    bpf_printk("binprm_file_offset: %d\n", binprm_file_offset);
+    bpf_printk("binprm_file_offset: %d", binprm_file_offset);
 
-    bpf_printk("interpreter file: %llx\n", interpreter);
+    bpf_printk("interpreter file: %llx", interpreter);
 
     const char *s;
     bpf_probe_read(&s, sizeof(s), &bprm->filename);
-    bpf_printk("*filename from binprm: %s\n", s);
+    bpf_printk("*filename from binprm: %s", s);
 
     bpf_probe_read(&s, sizeof(s), &bprm->interp);
-    bpf_printk("*interp from binprm: %s\n", s);
+    bpf_printk("*interp from binprm: %s", s);
 #endif
 
     return handle_interpreted_exec_event(ctx, syscall, interpreter);

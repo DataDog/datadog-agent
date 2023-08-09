@@ -174,87 +174,54 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 // It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
 type staticTableEntry struct {
 	Index uint64
-	Value StaticTableValue
+	Value StaticTableEnumValue
 }
 
 var (
 	staticTableEntries = []staticTableEntry{
 		{
 			Index: 2,
-			Value: StaticTableValue{
-				Key:   MethodKey,
-				Value: GetValue,
-			},
+			Value: GetValue,
 		},
 		{
 			Index: 3,
-			Value: StaticTableValue{
-				Key:   MethodKey,
-				Value: PostValue,
-			},
+			Value: PostValue,
 		},
 		{
 			Index: 4,
-			Value: StaticTableValue{
-				Key:   PathKey,
-				Value: EmptyPathValue,
-			},
+			Value: EmptyPathValue,
 		},
 		{
 			Index: 5,
-			Value: StaticTableValue{
-				Key:   PathKey,
-				Value: IndexPathValue,
-			},
+			Value: IndexPathValue,
 		},
 		{
 			Index: 8,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K200Value,
-			},
+			Value: K200Value,
 		},
 		{
 			Index: 9,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K204Value,
-			},
+			Value: K204Value,
 		},
 		{
 			Index: 10,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K206Value,
-			},
+			Value: K206Value,
 		},
 		{
 			Index: 11,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K304Value,
-			},
+			Value: K304Value,
 		},
 		{
 			Index: 12,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K400Value,
-			},
+			Value: K400Value,
 		},
 		{
 			Index: 13,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K404Value,
-			},
+			Value: K404Value,
 		},
 		{
 			Index: 14,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K500Value,
-			},
+			Value: K500Value,
 		},
 	}
 )
