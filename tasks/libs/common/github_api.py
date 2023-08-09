@@ -5,7 +5,13 @@ import re
 import subprocess
 
 import requests
-from github import Auth, Github, GithubException, GithubIntegration, GithubObject
+
+try:
+    from github import Auth, Github, GithubException, GithubIntegration, GithubObject
+except ImportError:
+    # PyGithub isn't available on some build images, ignore it for now
+    # and fail hard if it gets used.
+    pass
 from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]

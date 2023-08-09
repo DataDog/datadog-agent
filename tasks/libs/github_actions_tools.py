@@ -5,7 +5,6 @@ import zipfile
 from datetime import datetime
 from time import sleep
 
-from github import GithubException
 from invoke.exceptions import Exit
 
 from ..utils import DEFAULT_BRANCH
@@ -85,6 +84,9 @@ def follow_workflow_run(run):
     """
     Follow the workflow run until completion and return its conclusion.
     """
+    # Imported from here since only x86_64 images ship this module
+    from github import GithubException
+
     print(color_message("Workflow run link: " + color_message(run.html_url, "green"), "blue"))
 
     minutes = 0
