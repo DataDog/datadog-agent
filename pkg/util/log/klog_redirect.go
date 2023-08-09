@@ -7,8 +7,7 @@ package log
 
 import "strings"
 
-// exported comment on type KlogRedirectLogger should be of the form "KlogRedirectLogger ..." (with optional leading article)
-// redirectLogger is used to redirect klog logs to datadog logs. klog is
+// KlogRedirectLogger is used to redirect klog logs to datadog logs. klog is
 // client-go's logger, logging to STDERR by default, which makes all severities
 // into ERROR, along with the formatting just being off. To make the
 // conversion, we set a redirectLogger as klog's output, and parse the severity

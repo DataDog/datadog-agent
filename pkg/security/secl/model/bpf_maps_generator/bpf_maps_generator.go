@@ -32,7 +32,7 @@ type tmplContext struct {
 	Entries     []mapEntry
 }
 
-const BPF_MAX_OBJ_SIZE = 15 // 16 - 1 for the \0
+const BPF_MAX_OBJ_SIZE = 15 // BPF_MAX_OBJ_SIZE 16 - 1 for the \0
 
 func main() {
 	var (

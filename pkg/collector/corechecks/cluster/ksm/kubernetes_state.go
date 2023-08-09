@@ -161,8 +161,7 @@ type KSMCheck struct {
 	metadataMetricsRegex *regexp.Regexp
 }
 
-// exported comment on type JoinsConfigWithoutLabelsMapping should be of the form "JoinsConfigWithoutLabelsMapping ..." (with optional leading article)
-// JoinsConfig contains the config parameters for label joins
+// JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
 type JoinsConfigWithoutLabelsMapping struct {
 	// LabelsToMatch contains the labels that must
 	// match the labels of the targeted metric

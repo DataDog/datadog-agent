@@ -54,6 +54,7 @@ type JSONLogs []map[string]any
 var (
 // TestLogTime exported var should have comment or be unexported
 	TestLogTime      = time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC)
+// TestLogTimestamp exported var should have comment or be unexported
 	TestLogTimestamp = pcommon.NewTimestampFromTime(TestLogTime)
 )
 

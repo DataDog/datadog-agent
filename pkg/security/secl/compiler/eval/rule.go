@@ -39,8 +39,7 @@ type RuleEvaluator struct {
 	partialEvals map[Field]BoolEvalFnc
 }
 
-// exported comment on function NewRule should be of the form "NewRule ..."
-// Rule returns a new rule
+// NewRule returns a new rule
 func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 	if opts.MacroStore == nil {
 		opts.WithMacroStore(&MacroStore{})

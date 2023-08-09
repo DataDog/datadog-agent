@@ -11,8 +11,7 @@ import (
 	"net/http"
 )
 
-// exported comment on type LambdaLogsAPIServer should be of the form "LambdaLogsAPIServer ..." (with optional leading article)
-// LambdaLogsAPI implements the AWS Lambda Logs API callback
+// LambdaLogsAPIServer implements the AWS Lambda Logs API callback
 type LambdaLogsAPIServer struct {
 	out chan<- []LambdaLogAPIMessage
 }

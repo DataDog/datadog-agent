@@ -48,8 +48,7 @@ type SNMPConfig struct {
 	NetAddress string `yaml:"network_address"`
 }
 
-// exported comment on function SetDefault should be of the form "SetDefault ..."
-// set default values used by the agent
+// SetDefault set default values used by the agent
 func SetDefault(sc *SNMPConfig) {
 	sc.Port = 161
 	sc.Version = ""

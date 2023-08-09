@@ -12,8 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
-// exported comment on function BuildJSONPayload should be of the form "BuildJSONPayload ..."
-// Build serializes a metadata payload and sends it to the forwarder
+// BuildJSONPayload serializes a metadata payload and sends it to the forwarder
 func BuildJSONPayload(b *JSONPayloadBuilder, m marshaler.StreamJSONMarshaler) (transaction.BytesPayloads, error) {
 	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
 	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)

@@ -7,8 +7,7 @@ package utils
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-// exported comment on function IsCheckTelemetryEnabled should be of the form "IsCheckTelemetryEnabled ..."
-// IsCheckEnabled returns if we want telemetry for the given check.
+// IsCheckTelemetryEnabled returns if we want telemetry for the given check.
 // Returns true if a * is present in the telemetry.checks list.
 func IsCheckTelemetryEnabled(checkName string) bool {
 	// false if telemetry is disabled
@@ -29,8 +28,7 @@ func IsCheckTelemetryEnabled(checkName string) bool {
 	return false
 }
 
-// exported comment on function IsTelemetryEnabled should be of the form "IsTelemetryEnabled ..."
-// IsEnabled returns whether or not telemetry is enabled
+// IsTelemetryEnabled returns whether or not telemetry is enabled
 func IsTelemetryEnabled() bool {
 	return config.Datadog.IsSet("telemetry.enabled") && config.Datadog.GetBool("telemetry.enabled")
 }

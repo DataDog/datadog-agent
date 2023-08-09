@@ -10,8 +10,7 @@ type MacroStore struct {
 	Macros map[MacroID]*Macro
 }
 
-// exported comment on method MacroStore.Add should be of the form "Add ..."
-// AddMacro add a macro
+// Add add a macro
 func (s *MacroStore) Add(macro *Macro) *MacroStore {
 	if s.Macros == nil {
 		s.Macros = make(map[string]*Macro)
@@ -47,8 +46,7 @@ type VariableStore struct {
 	Variables map[string]VariableValue
 }
 
-// exported comment on method VariableStore.Add should be of the form "Add ..."
-// AddVariable add a variable
+// Add add a variable
 func (s *VariableStore) Add(name string, variable VariableValue) *VariableStore {
 	if s.Variables == nil {
 		s.Variables = make(map[string]VariableValue)

@@ -533,8 +533,7 @@ const (
 	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
 )
 
-// exported comment on type SeccompProfile should be of the form "SeccompProfile ..." (with optional leading article)
-// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+// SeccompProfile contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
 type SeccompProfile struct {
 	Type             SeccompProfileType
 	LocalhostProfile string

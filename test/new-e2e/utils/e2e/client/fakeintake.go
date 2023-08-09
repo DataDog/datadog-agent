@@ -14,15 +14,13 @@ import (
 
 var _ clientService[infraFakeintake.ClientData] = (*Fakeintake)(nil)
 
-// exported comment on type Fakeintake should be of the form "Fakeintake ..." (with optional leading article)
-// A client fakeintake that is connected to a fakeintake ECS task defined in test-infra-definition.
+// Fakeintake A client fakeintake that is connected to a fakeintake ECS task defined in test-infra-definition.
 type Fakeintake struct {
 	*UpResultDeserializer[infraFakeintake.ClientData]
 	*fakeintake.Client
 }
 
-// exported comment on function NewFakeintake should be of the form "NewFakeintake ..."
-// Create a new instance of
+// NewFakeintake Create a new instance of
 func NewFakeintake(exporter *infraFakeintake.ConnectionExporter) *Fakeintake {
 	fi := &Fakeintake{}
 	fi.UpResultDeserializer = NewUpResultDeserializer[infraFakeintake.ClientData](exporter, fi)

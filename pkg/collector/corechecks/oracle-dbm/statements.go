@@ -21,13 +21,13 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-// exported comment on const QUERY_FMS_RANDOM should be of the form "QUERY_FMS_RANDOM ..."
+// QUERY_FMS_RANDOM TODO
 /*
  * We are selecting from sql_fulltext instead of sql_text because sql_text doesn't preserve the new lines.
  * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
  * For such statements, we will have to get the text from v$sql which has the complete text.
  */
-const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id, 
+const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id,
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
 	sum(direct_writes) as direct_writes,
@@ -62,9 +62,9 @@ const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_nam
 	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
 	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
 	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c 
+FROM v$sqlstats s, v$containers c
 WHERE s.con_id = c.con_id (+) AND force_matching_signature != 0
-GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value 
+GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value
 HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
@@ -104,21 +104,21 @@ const QUERY_FMS_LAST_ACTIVE = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pd
 	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
 	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
 	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c, ( 
-    SELECT * 
-    FROM ( 
+FROM v$sqlstats s, v$containers c, (
+    SELECT *
+    FROM (
         SELECT force_matching_signature, sql_id, row_number ( ) over ( partition by force_matching_signature ORDER BY last_active_time DESC ) rowno
-    FROM v$sqlstats 
+    FROM v$sqlstats
     WHERE last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature != 0
-) 
+)
 WHERE rowno = 1
-) sq 
-WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching_signature 
-GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
+) sq
+WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching_signature
+GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id
 FETCH FIRST :limit ROWS ONLY`
 
 // QUERY_SQLID exported const should have comment or be unexported
-const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length (sql_fulltext) sql_text_length, 
+const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length (sql_fulltext) sql_text_length,
 	parse_calls,
 	disk_reads,
 	direct_writes,
@@ -153,12 +153,11 @@ const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, 
 	io_cell_uncompressed_bytes,
 	io_cell_offload_returned_bytes,
 	avoided_executions
-FROM v$sqlstats s, v$containers c 
+FROM v$sqlstats s, v$containers c
 WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature = 0
 FETCH FIRST :limit ROWS ONLY`
 
-// exported comment on const PLAN_QUERY should be of the form "PLAN_QUERY ..."
-// including sql_id for indexed access
+// PLAN_QUERY including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
 	timestamp,
 	operation,
@@ -195,7 +194,7 @@ const PLAN_QUERY = `SELECT /* DD */
 	last_degree,
 	last_tempseg_size
 FROM v$sql_plan_statistics_all s
-WHERE 
+WHERE
   sql_id = :1 AND plan_hash_value = :2 AND con_id = :3
 ORDER BY id, position`
 

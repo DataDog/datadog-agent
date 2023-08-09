@@ -18,8 +18,8 @@ const SnmpExternalTagsSourceType = "snmp"
 // IfAdminStatus exported type should have comment or be unexported
 type IfAdminStatus int
 
+// This const block should have a comment or be unexported
 const (
-// AdminStatus_Up exported const should have comment (or a comment on this block) or be unexported
 	AdminStatus_Up      IfAdminStatus = 1
 	AdminStatus_Down    IfAdminStatus = 2
 	AdminStatus_Testing IfAdminStatus = 3
@@ -43,8 +43,8 @@ func (i IfAdminStatus) AsString() string {
 // IfOperStatus exported type should have comment or be unexported
 type IfOperStatus int
 
+// This const block should have a comment or be unexported
 const (
-// OperStatus_Up exported const should have comment (or a comment on this block) or be unexported
 	OperStatus_Up             IfOperStatus = 1
 	OperStatus_Down           IfOperStatus = 2
 	OperStatus_Testing        IfOperStatus = 3
@@ -76,8 +76,8 @@ func (i IfOperStatus) AsString() string {
 // InterfaceStatus exported type should have comment or be unexported
 type InterfaceStatus string
 
+// This const block should have a comment or be unexported
 const (
-// InterfaceStatus_Up exported const should have comment (or a comment on this block) or be unexported
 	InterfaceStatus_Up      InterfaceStatus = "up"
 	InterfaceStatus_Down    InterfaceStatus = "down"
 	InterfaceStatus_Warning InterfaceStatus = "warning"

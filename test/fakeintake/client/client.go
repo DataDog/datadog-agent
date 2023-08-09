@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// Client exported type should have comment or be unexported
 type Client struct {
 	fakeIntakeURL string
 
@@ -215,12 +216,11 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 			}
 		}
 		// TODO return similarity error score
-// exported comment on function WithMetricValueHigherThan should be of the form "WithMetricValueHigherThan ..."
 		return false, nil
 	}
 }
 
-// WithMetricValueLowerThan filters metrics with values higher than `minValue`
+// WithMetricValueHigherThan filters metrics with values higher than `minValue`
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -237,12 +237,11 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	err := c.getLogs()
 	if err != nil {
 		return nil, err
-// exported comment on method Client.GetLogServiceNames should be of the form "GetLogServiceNames ..."
 	}
 	return c.logAggregator.GetPayloadsByName(service), nil
 }
 
-// GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
+// GetLogServiceNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
@@ -316,8 +315,7 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 	return c.checkRunAggregator.GetNames(), nil
 }
 
-// exported comment on method Client.GetCheckRun should be of the form "GetCheckRun ..."
-// FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
+// GetCheckRun fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()

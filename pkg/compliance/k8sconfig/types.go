@@ -64,9 +64,8 @@ type K8sTokenFileMeta struct {
 	Mode  uint32 `json:"mode"`
 }
 
-// exported comment on type K8sAdmissionPluginConfigMeta should be of the form "K8sAdmissionPluginConfigMeta ..." (with optional leading article)
-// https://github.com/kubernetes/kubernetes/blob/6356023cb42d681b7ad0e6d14d1652247d75b797/staging/src/k8s.io/apiserver/pkg/apis/apiserver/types.go#L30
 type (
+	// k8sAdmissionConfigSource https://github.com/kubernetes/kubernetes/blob/6356023cb42d681b7ad0e6d14d1652247d75b797/staging/src/k8s.io/apiserver/pkg/apis/apiserver/types.go#L30
 	k8sAdmissionConfigSource struct {
 		Plugins []struct {
 			Name          string      `yaml:"name"`
@@ -75,11 +74,13 @@ type (
 		} `yaml:"plugins"`
 	}
 
+	// K8sAdmissionPluginConfigMeta TODO
 	K8sAdmissionPluginConfigMeta struct {
 		Name          string      `json:"name"`
 		Configuration interface{} `json:"configuration,omitempty"`
 	}
 
+	//K8sAdmissionConfigFileMeta TODO
 	K8sAdmissionConfigFileMeta struct {
 		User    string                          `json:"user,omitempty"`
 		Group   string                          `json:"group,omitempty"`
@@ -129,11 +130,10 @@ type K8sCertFileMeta struct {
 	} `json:"certificate"`
 }
 
-// exported comment on type K8SKubeconfig should be of the form "K8SKubeconfig ..." (with optional leading article)
-// k8SKubeconfigSource is used to parse the kubeconfig files. It is not
-// exported as-is, and used to build K8sKubeconfig.
-// https://github.com/kubernetes/kubernetes/blob/ad18954259eae3db51bac2274ed4ca7304b923c4/staging/src/k8s.io/client-go/tools/clientcmd/api/types.go#LL31C1-L55C2
 type (
+	// k8SKubeconfigSource is used to parse the kubeconfig files. It is not
+	// exported as-is, and used to build K8sKubeconfig.
+	// https://github.com/kubernetes/kubernetes/blob/ad18954259eae3db51bac2274ed4ca7304b923c4/staging/src/k8s.io/client-go/tools/clientcmd/api/types.go#LL31C1-L55C2
 	k8SKubeconfigSource struct {
 		Kind       string `yaml:"kind,omitempty"`
 		APIVersion string `yaml:"apiVersion,omitempty"`
@@ -183,6 +183,7 @@ type (
 		Namespace string `yaml:"namespace,omitempty"`
 	}
 
+	// K8SKubeconfig exported type should have a comment
 	K8SKubeconfig struct {
 		Clusters       map[string]*K8sKubeconfigCluster `json:"clusters"`
 		Users          map[string]*K8sKubeconfigUser    `json:"users"`
@@ -190,6 +191,7 @@ type (
 		CurrentContext string                           `json:"currentContext"`
 	}
 
+	// K8sKubeconfigCluster exported type should have a comment
 	K8sKubeconfigCluster struct {
 		Server                string           `json:"server"`
 		TLSServerName         string           `json:"tlsServerName,omitempty"`
@@ -199,6 +201,7 @@ type (
 		DisableCompression    bool             `json:"disableCompression,omitempty"`
 	}
 
+	// K8sKubeconfigUser exported type should have a comment
 	K8sKubeconfigUser struct {
 		UseToken          bool             `json:"useToken"`
 		UsePassword       bool             `json:"usePassword"`
@@ -207,6 +210,7 @@ type (
 		ClientKey         *K8sKeyFileMeta  `json:"clientKey,omitempty"`
 	}
 
+	// K8sKubeconfigContext exported type should have a comment
 	K8sKubeconfigContext struct {
 		Cluster   string `json:"cluster"`
 		User      string `json:"user"`
@@ -214,9 +218,8 @@ type (
 	}
 )
 
-// exported comment on type K8sEncryptionProviderConfigFileMeta should be of the form "K8sEncryptionProviderConfigFileMeta ..." (with optional leading article)
-// https://github.com/kubernetes/kubernetes/blob/e1ad9bee5bba8fbe85a6bf6201379ce8b1a611b1/staging/src/k8s.io/apiserver/pkg/apis/config/types.go#L70
 type (
+	// K8sEncryptionProviderConfigFileMeta https://github.com/kubernetes/kubernetes/blob/e1ad9bee5bba8fbe85a6bf6201379ce8b1a611b1/staging/src/k8s.io/apiserver/pkg/apis/config/types.go#L70
 	K8sEncryptionProviderConfigFileMeta struct {
 		Path      string `json:"path,omitempty"`
 		User      string `json:"user,omitempty"`
@@ -234,6 +237,7 @@ type (
 		} `yaml:"resources" json:"resources"`
 	}
 
+	// K8sEncryptionProviderKMSSource TODO
 	K8sEncryptionProviderKMSSource struct {
 		Name      string `yaml:"name" json:"name"`
 		Endpoint  string `yaml:"endpoint" json:"endpoint"`
@@ -241,6 +245,7 @@ type (
 		Timeout   string `yaml:"timeout" json:"timeout"`
 	}
 
+	// K8sEncryptionProviderKeysSource TODO
 	K8sEncryptionProviderKeysSource struct {
 		Keys []struct {
 			Name string `yaml:"name" json:"name"`

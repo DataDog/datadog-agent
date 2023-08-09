@@ -11,11 +11,9 @@ package common
 // IntegrationName is the name of the integration.
 const IntegrationName = "oracle"
 
-// exported comment on const IntegrationNameScheduler should be of the form "IntegrationNameScheduler ..."
-/* We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
- * functionality written in Python. We will change this back to `oracle` once we migrated this functionality
- * here.
- */
+// IntegrationNameScheduler We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
+// functionality written in Python. We will change this back to `oracle` once we migrated this functionality
+// here.
 const IntegrationNameScheduler = "oracle-dbm"
 
 // Godror exported const should have comment or be unexported

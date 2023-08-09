@@ -36,8 +36,7 @@ var DEFAULT_SQL_TRACED_RUNS = 10
 // DB_TIMEOUT exported var should have comment or be unexported
 var DB_TIMEOUT = "20000"
 
-// exported comment on type StatementsFilter should be of the form "StatementsFilter ..." (with optional leading article)
-// The structure is filled by activity sampling and serves as a filter for query metrics
+// StatementsFilter The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
 	SQLIDs                  map[string]int
 	ForceMatchingSignatures map[string]int

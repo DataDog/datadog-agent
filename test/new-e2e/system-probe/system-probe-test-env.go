@@ -82,8 +82,10 @@ type TestEnv struct {
 var (
 	// MicroVMsDependenciesPath exported var should have comment or be unexported
 	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
+  // CustomAMIWorkingDir exported var should have comment or be unexported
 	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
 
+  // CI_PROJECT_DIR exported var should have comment or be unexported
 	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")

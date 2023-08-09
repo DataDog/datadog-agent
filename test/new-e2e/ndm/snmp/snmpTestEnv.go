@@ -23,6 +23,7 @@ import (
 )
 // TestEnv exported type should have comment or be unexported
 
+// TestEnv exported type should have comment or be unexported
 type TestEnv struct {
 	context context.Context
 	name    string
@@ -42,6 +43,7 @@ const (
 )
 // NewTestEnv exported function should have comment or be unexported
 
+// NewTestEnv exported function should have comment or be unexported
 func NewTestEnv() (*TestEnv, error) {
 	snmpTestEnv := &TestEnv{
 		context: context.Background(),

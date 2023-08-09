@@ -46,8 +46,7 @@ func SetServiceMapping(newServiceMapping map[string]string) {
 	serviceMapping = newServiceMapping
 }
 
-// exported comment on function GetServiceMapping should be of the form "GetServiceMapping ..."
-// This function gets a snapshot of the current service mapping without modifying it.
+// GetServiceMapping This function gets a snapshot of the current service mapping without modifying it.
 func GetServiceMapping() map[string]string {
 	return serviceMapping
 }
