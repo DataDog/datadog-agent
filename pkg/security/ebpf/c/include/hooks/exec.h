@@ -121,6 +121,14 @@ int hook_kernel_thread(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("user_mode_thread")
+int hook_user_mode_thread(ctx_t *ctx) {
+    u32 index = 0;
+    u32 value = 1;
+    bpf_map_update_elem(&is_new_kthread, &index, &value, BPF_ANY);
+    return 0;
+}
+
 HOOK_ENTRY("kernel_clone")
 int hook_kernel_clone(ctx_t *ctx) {
     return handle_do_fork(ctx);
