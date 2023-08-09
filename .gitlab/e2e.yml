@@ -200,6 +200,7 @@ new-e2e-agent-subcommands-main:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: e2e_cleanup
+  when: always
   script:
     - mkdir -p ~/.aws
     - set +x
@@ -216,4 +217,3 @@ new-e2e-cleanup-dev:
 new-e2e-cleanup-main:
   extends: .new-e2e-cleanup
   rules: !reference [.on_main]
-  when: always
