@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// Minimum value for runtime_security_config.activity_dump.max_dump_size
+	// ADMinMaxDumSize represents the minimum value for runtime_security_config.activity_dump.max_dump_size
 	ADMinMaxDumSize = 100
 )
 
@@ -219,6 +219,7 @@ func NewConfig() (*Config, error) {
 	}, nil
 }
 
+// NewRuntimeSecurityConfig returns the runtime security (CWS) config, build from the system probe one
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	sysconfig.Adjust(coreconfig.SystemProbe)
 

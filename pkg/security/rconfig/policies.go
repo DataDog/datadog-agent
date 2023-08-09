@@ -152,6 +152,7 @@ func (r *RCPolicyProvider) Close() error {
 	return nil
 }
 
+// Type returns the type of this policy provider
 func (r *RCPolicyProvider) Type() string {
 	return rules.PolicyProviderTypeRC
 }

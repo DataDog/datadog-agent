@@ -239,17 +239,17 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            static_table_entry_t* static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
+            static_table_value_t* static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
             if (static_value == NULL) {
                 break;
             }
 
-            if (static_value->key == kMethod){
+            if (current_header->index == kPOST || current_header->index == kGET){
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method = static_value->value;
-            } else if (static_value->key == kStatus) {
-                current_stream->response_status_code = static_value->value;
+                current_stream->request_method = *static_value;
+            } else if (current_header->index >= k200 && current_header->index <= k500) {
+                current_stream->response_status_code = *static_value;
             }
             continue;
         }

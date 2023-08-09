@@ -12,13 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 

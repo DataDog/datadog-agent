@@ -209,7 +209,7 @@ func TestHTTPCorrectness(t *testing.T) {
 
 		sk.Process(tx)
 		tel.Log()
-		require.Equal(t, int64(1), tel.malformed.Get())
+		require.Equal(t, int64(1), tel.nonPrintableCharacters.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
@@ -226,7 +226,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			util.AddressFromString("2.2.2.2"),
 			1234,
 			8080,
-			"/ver\x04y/wro\x02g/path/",
+			"/get",
 			404,
 			30*time.Millisecond,
 		)
@@ -234,7 +234,7 @@ func TestHTTPCorrectness(t *testing.T) {
 
 		sk.Process(tx)
 		tel.Log()
-		require.Equal(t, int64(1), tel.malformed.Get())
+		require.Equal(t, int64(1), tel.unknownMethod.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
@@ -251,14 +251,38 @@ func TestHTTPCorrectness(t *testing.T) {
 			util.AddressFromString("2.2.2.2"),
 			1234,
 			8080,
-			"/ver\x04y/wro\x02g/path/",
+			"/get",
 			404,
 			0,
 		)
 
 		sk.Process(tx)
 		tel.Log()
-		require.Equal(t, int64(1), tel.malformed.Get())
+		require.Equal(t, int64(1), tel.invalidLatency.Get())
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 0)
+	})
+
+	t.Run("Empty path", func(t *testing.T) {
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
+		tel := NewTelemetry("http")
+		sk := NewStatkeeper(cfg, tel)
+		tx := generateIPv4HTTPTransaction(
+			util.AddressFromString("1.1.1.1"),
+			util.AddressFromString("2.2.2.2"),
+			1234,
+			8080,
+			"",
+			404,
+			30*time.Millisecond,
+		)
+
+		sk.Process(tx)
+		tel.Log()
+		require.Equal(t, int64(1), tel.emptyPath.Get())
 
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
