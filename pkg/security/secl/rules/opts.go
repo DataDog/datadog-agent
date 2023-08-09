@@ -68,7 +68,7 @@ func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *O
 	return o
 }
 
-// NetEvalOpts returns eval options
+// NewEvalOpts returns eval options
 func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 	var ruleOpts Opts
 

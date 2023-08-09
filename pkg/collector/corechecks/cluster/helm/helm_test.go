@@ -557,7 +557,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.AssertServiceCheck(
 				t,
 				"helm.release_state",
-				servicecheck.ServiceCheckOK,
+				servicecheck.OK,
 				"",
 				[]string{
 					"helm_release:my_datadog",
@@ -573,7 +573,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.AssertServiceCheck(
 				t,
 				"helm.release_state",
-				servicecheck.ServiceCheckOK,
+				servicecheck.OK,
 				"",
 				[]string{
 					"helm_release:my_app",
@@ -589,7 +589,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.AssertServiceCheck(
 				t,
 				"helm.release_state",
-				servicecheck.ServiceCheckCritical,
+				servicecheck.Critical,
 				"",
 				[]string{
 					"helm_release:my_proxy",

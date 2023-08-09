@@ -26,7 +26,7 @@ type testDeps struct {
 	fx.In
 	Server         server.Component
 	Debug          serverDebug.Component
-	AggregatorDeps aggregator.AggregatorTestDeps
+	AggregatorDeps aggregator.TestDeps
 }
 
 func TestDogstatsdMetricsStats(t *testing.T) {

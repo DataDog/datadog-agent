@@ -73,7 +73,7 @@ func (s *streamHandler) Port() int {
 	return s.port
 }
 
-func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	return &client{cl: pb.NewAgentSecureClient(cc)}
 }
 

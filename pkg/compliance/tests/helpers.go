@@ -52,6 +52,7 @@ type assertedRule struct {
 	expectErr bool
 }
 
+//revive:disable:unexported-return
 func NewTestBench(t *testing.T) *suite {
 	rootDir := t.TempDir()
 	return &suite{

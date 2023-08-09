@@ -18,7 +18,7 @@ import (
 )
 
 type myservice struct {
-	cliParams *RunParams
+	cliParams *CliParams
 	config    config.Component
 }
 

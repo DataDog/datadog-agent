@@ -16,22 +16,22 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
-// APIServerDeps exported type should have comment or be unexported
-type APIServerDeps struct {
+// ServerDeps exported type should have comment or be unexported
+type ServerDeps struct {
 	fx.In
 
 	Config config.Component
 	Log    log.Component
 }
 
-func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+func injectDeps(deps ServerDeps, handler func(ServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(writer http.ResponseWriter, req *http.Request) {
 		handler(deps, writer, req)
 	}
 }
 
 // SetupAPIServerHandlers exported function should have comment or be unexported
-func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
+func SetupAPIServerHandlers(deps ServerDeps, r *mux.Router) {
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("process_config")).Methods("GET") // Get only settings in the process_config namespace
 	r.HandleFunc("/config/all", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")           // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")

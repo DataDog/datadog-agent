@@ -342,7 +342,7 @@ func (s *checkSender) SendRawServiceCheck(sc *servicecheck.ServiceCheck) {
 }
 
 // ServiceCheck submits a service check
-func (s *checkSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Status, hostname string, tags []string, message string) {
 	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
 	serviceCheck := servicecheck.ServiceCheck{
 		CheckName: checkName,

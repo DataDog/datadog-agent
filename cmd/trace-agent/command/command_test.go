@@ -21,7 +21,7 @@ func TestRootCommand(t *testing.T) {
 		// to make sure our _actual_ root command is called.
 		[]string{"trace-agent", "--config", "PATH"},
 		run.Start, // root command by default calls run.Start
-		func(cliParams *run.RunParams) {
+		func(cliParams *run.CliParams) {
 			require.Equal(t, "PATH", cliParams.ConfPath)
 		})
 }

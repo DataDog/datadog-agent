@@ -312,7 +312,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 		}
 
 		for _, condition := range component.Conditions {
-			statusCheck := servicecheck.ServiceCheckUnknown
+			statusCheck := servicecheck.Unknown
 			message := ""
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
@@ -324,10 +324,10 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 			// We only expect True, False and Unknown (default).
 			switch condition.Status {
 			case "True":
-				statusCheck = servicecheck.ServiceCheckOK
+				statusCheck = servicecheck.OK
 				message = condition.Message
 			case "False":
-				statusCheck = servicecheck.ServiceCheckCritical
+				statusCheck = servicecheck.Critical
 				message = condition.Error
 				if message == "" {
 					message = condition.Message
@@ -355,14 +355,14 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender
 
 	var (
 		msg    string
-		status servicecheck.ServiceCheckStatus
+		status servicecheck.Status
 	)
 
 	if ready {
 		msg = "ok"
-		status = servicecheck.ServiceCheckOK
+		status = servicecheck.OK
 	} else {
-		status = servicecheck.ServiceCheckCritical
+		status = servicecheck.Critical
 		if err != nil {
 			msg = err.Error()
 		} else {

@@ -58,7 +58,7 @@ var (
 )
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(config config.Reader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
 
 	return &WorkloadMetaExtractor{
@@ -174,7 +174,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 }
 
 // Enabled returns whether the extractor should be enabled
-func Enabled(ddconfig config.ConfigReader) bool {
+func Enabled(ddconfig config.Reader) bool {
 	return ddconfig.GetBool("process_config.language_detection.enabled")
 }
 

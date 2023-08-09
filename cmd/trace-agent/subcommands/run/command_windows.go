@@ -26,7 +26,7 @@ import (
 
 var elog debug.Log
 
-type RunParams struct {
+type CliParams struct {
 	*subcommands.GlobalParams
 
 	// PIDFilePath contains the value of the --pidfile flag.
@@ -41,14 +41,14 @@ type RunParams struct {
 	Debug bool
 }
 
-func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
+func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *CliParams) {
 	cmd.PersistentFlags().BoolVarP(&cliParams.Foreground, "foreground", "f", false,
 		"runs the trace-agent in the foreground.")
 	cmd.PersistentFlags().BoolVarP(&cliParams.Debug, "debug", "d", false,
 		"runs the trace-agent in debug mode.")
 }
 
-func Start(cliParams *RunParams, config config.Component) error {
+func Start(cliParams *CliParams, config config.Component) error {
 	// Entrypoint here
 
 	if !cliParams.Foreground {
@@ -77,7 +77,7 @@ func Start(cliParams *RunParams, config config.Component) error {
 	return runAgent(ctx, cliParams, config)
 }
 
-func runService(cliParams *RunParams, config config.Component) {
+func runService(cliParams *CliParams, config config.Component) {
 	var err error
 	if cliParams.Debug {
 		elog = debug.New(tracecfg.ServiceName)

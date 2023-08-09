@@ -14,5 +14,5 @@ import (
 func TestServiceUp(t *testing.T) {
 	expectedTags := []string{}
 
-	sender.AssertServiceCheck(t, "docker.service_up", servicecheck.ServiceCheckOK, "", expectedTags, "")
+	sender.AssertServiceCheck(t, "docker.service_up", servicecheck.OK, "", expectedTags, "")
 }

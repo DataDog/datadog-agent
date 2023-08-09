@@ -31,7 +31,7 @@ type dockerEventBundle struct {
 	events        []*docker.ContainerEvent
 	maxTimestamp  time.Time
 	countByAction map[string]int
-	alertType     event.EventAlertType
+	alertType     event.AlertType
 }
 
 func newDockerEventBundler(imageName string) *dockerEventBundle {
@@ -39,7 +39,7 @@ func newDockerEventBundler(imageName string) *dockerEventBundle {
 		imageName:     imageName,
 		events:        []*docker.ContainerEvent{},
 		countByAction: make(map[string]int),
-		alertType:     event.EventAlertTypeInfo,
+		alertType:     event.AlertTypeInfo,
 	}
 }
 
@@ -56,7 +56,7 @@ func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
 	}
 
 	if isAlertTypeError(event.Action) {
-		b.alertType = metricsevent.EventAlertTypeError
+		b.alertType = metricsevent.AlertTypeError
 	}
 
 	return nil
@@ -73,7 +73,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 			formatStringIntMap(b.countByAction),
 			hostname,
 		),
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           hostname,
 		SourceTypeName: dockerCheckName,
 		EventType:      dockerCheckName,

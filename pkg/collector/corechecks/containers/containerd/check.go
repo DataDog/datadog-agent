@@ -102,11 +102,11 @@ func (c *ContainerdCheck) Run() error {
 
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	if errHealth := c.client.CheckConnectivity(); errHealth != nil {
-		sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
+		sender.ServiceCheck("containerd.health", servicecheck.Critical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
-	sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck("containerd.health", servicecheck.OK, "", nil, "")
 
 	if err := c.runProcessor(sender); err != nil {
 		_ = c.Warnf("Error collecting metrics: %s", err)

@@ -21,7 +21,7 @@ import (
 const collectorId = "local-process"
 
 // NewProcessCollector exported function should have comment or be unexported
-func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
+func NewProcessCollector(ddConfig config.Reader) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
 
 	processData := checks.NewProcessData(ddConfig)
@@ -39,7 +39,7 @@ func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
 
 // Collector exported type should have comment or be unexported
 type Collector struct {
-	ddConfig config.ConfigReader
+	ddConfig config.Reader
 
 	processData *checks.ProcessData
 
@@ -119,7 +119,7 @@ func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
 // Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `workloadmeta.remote_process_collector.enabled`
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
-func Enabled(cfg config.ConfigReader) bool {
+func Enabled(cfg config.Reader) bool {
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false
 	}

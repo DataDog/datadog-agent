@@ -54,7 +54,7 @@ type Runner interface {
 
 // CheckRunner will collect metrics from the local system and ship to the backend.
 type CheckRunner struct {
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	// required for being able to start and stop the collector
 	wg   *sync.WaitGroup
@@ -93,7 +93,7 @@ func (l *CheckRunner) RunRealTime() bool {
 }
 
 // NewRunner creates a new CheckRunner
-func NewRunner(config ddconfig.ConfigReader, sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+func NewRunner(config ddconfig.Reader, sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	runRealTime := !config.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
@@ -115,7 +115,7 @@ func NewRunner(config ddconfig.ConfigReader, sysCfg *sysconfig.Config, hostInfo 
 }
 
 // NewRunnerWithChecks creates a new CheckRunner
-func NewRunnerWithChecks(config ddconfig.ConfigReader, checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+func NewRunnerWithChecks(config ddconfig.Reader, checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err

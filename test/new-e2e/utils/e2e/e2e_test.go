@@ -31,12 +31,12 @@ func TestE2ESuite(t *testing.T) {
 
 func (suite *e2eSuite) Test1_DefaultEnv() {
 	suite.Env() // create the env if it doesn't exist
-	suite.Require().Equal("default", s.stackName)
-	suite.Require().Equal(1, s.runFctCallCount)
+	suite.Require().Equal("default", suite.stackName)
+	suite.Require().Equal(1, suite.runFctCallCount)
 }
 
 func (suite *e2eSuite) Test2_UpdateEnv() {
-	suite.UpdateEnv(s.updateEnvStack)
+	suite.UpdateEnv(suite.updateEnvStack)
 	suite.Env() // create the env if it doesn't exist
 	suite.Require().Equal("updateEnvStack", suite.stackName)
 	suite.Require().Equal(2, suite.runFctCallCount)
@@ -45,7 +45,7 @@ func (suite *e2eSuite) Test2_UpdateEnv() {
 func (suite *e2eSuite) Test3_UpdateEnv() {
 	// As the env is the same as before this function does nothing
 	// and runFctCallCount is not increment
-	suite.UpdateEnv(s.updateEnvStack)
+	suite.UpdateEnv(suite.updateEnvStack)
 	suite.Env() // create the env if it doesn't exist
 	suite.Require().Equal("updateEnvStack", suite.stackName)
 	suite.Require().Equal(2, suite.runFctCallCount)
@@ -79,7 +79,7 @@ func E2ESuiteSkipDeleteOnFailure(t *testing.T) {
 }
 
 func (suite *skipDeleteOnFailureSuite) Test1() {
-	suite.UpdateEnv(s.updateStack("Test1"))
+	suite.UpdateEnv(suite.updateStack("Test1"))
 }
 
 func (suite *skipDeleteOnFailureSuite) Test2() {
@@ -88,7 +88,7 @@ func (suite *skipDeleteOnFailureSuite) Test2() {
 }
 
 func (suite *skipDeleteOnFailureSuite) Test3() {
-	suite.UpdateEnv(s.updateStack("Test3"))
+	suite.UpdateEnv(suite.updateStack("Test3"))
 }
 
 func (suite *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {

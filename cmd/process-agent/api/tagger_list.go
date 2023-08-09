@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
-func getTaggerList(deps APIServerDeps, w http.ResponseWriter, r *http.Request) {
+func getTaggerList(deps ServerDeps, w http.ResponseWriter, r *http.Request) {
 	cardinality := collectors.TagCardinality(tagger.ChecksCardinality)
 	response := tagger.List(cardinality)
 

@@ -93,11 +93,11 @@ func handleServiceCheck(c *Check, err error) {
 	}
 
 	message := ""
-	var status servicecheck.ServiceCheckStatus
+	var status servicecheck.Status
 	if err == nil {
-		status = servicecheck.ServiceCheckOK
+		status = servicecheck.OK
 	} else {
-		status = servicecheck.ServiceCheckCritical
+		status = servicecheck.Critical
 		log.Errorf("failed to connect: %s", err)
 	}
 	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)

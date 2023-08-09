@@ -72,8 +72,8 @@ type ApmRemoteConfigEventError struct {
 	Message string `json:"message,omitempty"`
 }
 
-// TelemetryCollector is the interface used to send reports about startup to the instrumentation telemetry intake
-type TelemetryCollector interface {
+// Collector is the interface used to send reports about startup to the instrumentation telemetry intake
+type Collector interface {
 	SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent)
 	SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent)
 	SetTestHost(testHost string)
@@ -98,7 +98,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
-func NewCollector(rcClientId string, kubernetesClusterId string) TelemetryCollector {
+func NewCollector(rcClientId string, kubernetesClusterId string) Collector {
 	return &telemetryCollector{
 		client:              httputils.NewResetClient(httpClientResetInterval, httpClientFactory(httpClientTimeout)),
 		host:                utils.GetMainEndpoint(config.Datadog, mainEndpointPrefix, mainEndpointUrlKey),
@@ -113,7 +113,7 @@ func (tc *telemetryCollector) SetTestHost(testHost string) {
 }
 
 // NewNoopCollector returns a noop collector
-func NewNoopCollector() TelemetryCollector {
+func NewNoopCollector() Collector {
 	return &noopTelemetryCollector{}
 }
 

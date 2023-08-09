@@ -299,7 +299,7 @@ func defaultedType(componentName string, conf *conf) *conf {
 		conf.goType = "*K8sKeyFileMeta"
 	case "config_file":
 		conf.flagDefault = parseTypeString(conf.flagDefault)
-		conf.goType = "*K8sConfigFileMeta"
+		conf.goType = "*FileMeta"
 	case "admission_config_file":
 		conf.flagDefault = parseTypeString(conf.flagDefault)
 		conf.goType = "*K8sAdmissionConfigFileMeta"
@@ -389,7 +389,7 @@ func printKomponentCode(komp *komponent) string {
 			return fmt.Sprintf("res.%s = l.loadKeyFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sTokenFileMeta":
 			return fmt.Sprintf("res.%s = l.loadTokenFileMeta(%s)", toGoField(c.flagName), v)
-		case "*K8sConfigFileMeta":
+		case "*FileMeta":
 			if komp.name == "kubelet" && c.flagName == "config" {
 				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 			}

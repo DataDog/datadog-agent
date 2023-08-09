@@ -276,7 +276,7 @@ func TestFuzzCountFields(t *testing.T) {
 			expected = append(expected, s)
 		}
 
-		assert.ElementsMatch(pb.PbToStringSlice(expected), pb.PbToStringSlice(actual))
+		assert.ElementsMatch(pb.ToStringSlice(expected), pb.ToStringSlice(actual))
 		aggCounts.Stats[0].Stats[0].Stats = nil
 		expectedAggCounts.Stats[0].Stats[0].Stats = nil
 		assert.Equal(expectedAggCounts, aggCounts)

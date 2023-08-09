@@ -60,10 +60,10 @@ func preAllocateEvents(n int) []*event.Event {
 			Title:          "Event title",
 			Text:           "some text",
 			Ts:             21,
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           "localhost",
 			Tags:           []string{"a", "b:21", "c"},
-			AlertType:      event.EventAlertTypeWarning,
+			AlertType:      event.AlertTypeWarning,
 			AggregationKey: "",
 			SourceTypeName: "",
 			EventType:      "",
@@ -80,7 +80,7 @@ func preAllocateServiceChecks(n int) []*servicecheck.ServiceCheck {
 	for i := range scs {
 		sc := &servicecheck.ServiceCheck{
 			CheckName: "benchmark.sc." + RandomString(4),
-			Status:    servicecheck.ServiceCheckOK,
+			Status:    servicecheck.OK,
 			Host:      "localhost",
 			Ts:        time.Now().Unix(),
 			Tags:      []string{"a", "b:21", "c"},

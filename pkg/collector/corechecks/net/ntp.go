@@ -165,7 +165,7 @@ func (c *NTPCheck) Run() error {
 		return err
 	}
 
-	var serviceCheckStatus servicecheck.ServiceCheckStatus
+	var serviceCheckStatus servicecheck.Status
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
 
@@ -173,17 +173,17 @@ func (c *NTPCheck) Run() error {
 	if err != nil {
 		log.Error(err)
 
-		sender.ServiceCheck("ntp.in_sync", servicecheck.ServiceCheckUnknown, "", nil, serviceCheckMessage)
+		sender.ServiceCheck("ntp.in_sync", servicecheck.Unknown, "", nil, serviceCheckMessage)
 		c.lastCollection = time.Now()
 		sender.Commit()
 
 		return err
 	}
 	if int(math.Abs(clockOffset)) > offsetThreshold {
-		serviceCheckStatus = servicecheck.ServiceCheckCritical
+		serviceCheckStatus = servicecheck.Critical
 		serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
 	} else {
-		serviceCheckStatus = servicecheck.ServiceCheckOK
+		serviceCheckStatus = servicecheck.OK
 	}
 
 	sender.Gauge("ntp.offset", clockOffset, "", nil)

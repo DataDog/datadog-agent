@@ -19,7 +19,7 @@ type ProfilingRuntimeSetting struct {
 	SettingName string
 	Service     string
 
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
 }
 
@@ -40,7 +40,7 @@ func (l ProfilingRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}
@@ -65,7 +65,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
 	}
 
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}

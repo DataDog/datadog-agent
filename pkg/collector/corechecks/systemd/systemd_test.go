@@ -296,7 +296,7 @@ func TestDbusConnectionErr(t *testing.T) {
 
 	expectedErrorMsg := "cannot create a connection: some error"
 	assert.EqualError(t, err, expectedErrorMsg)
-	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckCritical, "", []string(nil), expectedErrorMsg)
+	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.Critical, "", []string(nil), expectedErrorMsg)
 }
 
 func TestSystemStateCallFailGracefully(t *testing.T) {
@@ -376,8 +376,8 @@ unit_names:
 	assert.Nil(t, err)
 
 	// assertions
-	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
-	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.OK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, servicecheck.OK, "", []string(nil), mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_loaded_count", float64(6), "", []string(nil))
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_monitored_count", float64(2), "", []string(nil))
 	mockSender.AssertCalled(t, "Gauge", "systemd.units_total", float64(8), "", []string(nil))
@@ -502,25 +502,25 @@ unit_names:
 
 	// assertions
 	tags := []string{"unit:unit1.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckOK, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.OK, "", tags, "")
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.active", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded", float64(1), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.uptime", mock.Anything, "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit2.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Critical, "", tags, "")
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.uptime", mock.Anything, "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.active", float64(0), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.unit.loaded", float64(0), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit3.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Critical, "", tags, "")
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit4.service"}
-	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Critical, "", tags, "")
 	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
 
 	tags = []string{"unit:unit5.socket"}
@@ -576,7 +576,7 @@ unit_names:
 	check.Run()
 
 	// assertions
-	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.OK, "", []string(nil), mock.Anything)
 
 	tags := []string{"unit:unit1.service"}
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", mock.Anything, "", tags)
@@ -593,16 +593,16 @@ unit_names:
 func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 	data := []struct {
 		systemStatus               interface{}
-		expectedServiceCheckStatus servicecheck.ServiceCheckStatus
+		expectedServiceCheckStatus servicecheck.Status
 		expectedMessage            string
 	}{
-		{"initializing", servicecheck.ServiceCheckUnknown, "Systemd status is \"initializing\""},
-		{"starting", servicecheck.ServiceCheckUnknown, "Systemd status is \"starting\""},
-		{"running", servicecheck.ServiceCheckOK, "Systemd status is \"running\""},
-		{"degraded", servicecheck.ServiceCheckCritical, "Systemd status is \"degraded\""},
-		{"maintenance", servicecheck.ServiceCheckCritical, "Systemd status is \"maintenance\""},
-		{"stopping", servicecheck.ServiceCheckCritical, "Systemd status is \"stopping\""},
-		{999, servicecheck.ServiceCheckUnknown, "Systemd status is 999"},
+		{"initializing", servicecheck.Unknown, "Systemd status is \"initializing\""},
+		{"starting", servicecheck.Unknown, "Systemd status is \"starting\""},
+		{"running", servicecheck.OK, "Systemd status is \"running\""},
+		{"degraded", servicecheck.Critical, "Systemd status is \"degraded\""},
+		{"maintenance", servicecheck.Critical, "Systemd status is \"maintenance\""},
+		{"stopping", servicecheck.Critical, "Systemd status is \"stopping\""},
+		{999, servicecheck.Unknown, "Systemd status is 999"},
 	}
 	for _, d := range data {
 		t.Run(fmt.Sprintf("state %s should be mapped to %s", d.systemStatus, d.expectedServiceCheckStatus.String()), func(t *testing.T) {
@@ -624,7 +624,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 			err := check.Run()
 			assert.NoError(t, err)
 
-			mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), "")
+			mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.OK, "", []string(nil), "")
 			mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, d.expectedServiceCheckStatus, "", []string(nil), d.expectedMessage)
 		})
 	}
@@ -672,17 +672,17 @@ unit_names:
 	check.Run()
 
 	// assertions
-	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
-	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.OK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, servicecheck.OK, "", []string(nil), mock.Anything)
 
 	tags := []string{"unit:unit1.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckOK, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.OK, "", tags, "")
 
 	tags = []string{"unit:unit2.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Critical, "", tags, "")
 
 	tags = []string{"unit:unit3.service"}
-	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Critical, "", tags, "")
 
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 4)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
@@ -737,20 +737,20 @@ substate_status_mapping:
 	check.Run()
 
 	// assertions
-	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
-	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.OK, "", []string(nil), mock.Anything)
+	mockSender.AssertCalled(t, "ServiceCheck", systemStateServiceCheck, servicecheck.OK, "", []string(nil), mock.Anything)
 
 	tags := []string{"unit:unit1.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckUnknown, "", tags, "")
-	mockSender.AssertCalled(t, "ServiceCheck", unitSubStateServiceCheck, servicecheck.ServiceCheckOK, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Unknown, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitSubStateServiceCheck, servicecheck.OK, "", tags, "")
 
 	tags = []string{"unit:unit2.service"}
-	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckUnknown, "", tags, "")
-	mockSender.AssertCalled(t, "ServiceCheck", unitSubStateServiceCheck, servicecheck.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Unknown, "", tags, "")
+	mockSender.AssertCalled(t, "ServiceCheck", unitSubStateServiceCheck, servicecheck.Critical, "", tags, "")
 
 	tags = []string{"unit:unit3.service"}
-	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.ServiceCheckUnknown, "", tags, "")
-	mockSender.AssertNotCalled(t, "ServiceCheck", unitSubStateServiceCheck, servicecheck.ServiceCheckCritical, "", tags, "")
+	mockSender.AssertNotCalled(t, "ServiceCheck", unitStateServiceCheck, servicecheck.Unknown, "", tags, "")
+	mockSender.AssertNotCalled(t, "ServiceCheck", unitSubStateServiceCheck, servicecheck.Critical, "", tags, "")
 
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 6)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
@@ -759,14 +759,14 @@ substate_status_mapping:
 func TestGetServiceCheckStatusDefaultMapping(t *testing.T) {
 	data := []struct {
 		activeState    string
-		expectedStatus servicecheck.ServiceCheckStatus
+		expectedStatus servicecheck.Status
 	}{
-		{"active", servicecheck.ServiceCheckOK},
-		{"inactive", servicecheck.ServiceCheckCritical},
-		{"failed", servicecheck.ServiceCheckCritical},
-		{"activating", servicecheck.ServiceCheckUnknown},
-		{"deactivating", servicecheck.ServiceCheckUnknown},
-		{"does not exist", servicecheck.ServiceCheckUnknown},
+		{"active", servicecheck.OK},
+		{"inactive", servicecheck.Critical},
+		{"failed", servicecheck.Critical},
+		{"activating", servicecheck.Unknown},
+		{"deactivating", servicecheck.Unknown},
+		{"does not exist", servicecheck.Unknown},
 	}
 
 	for _, d := range data {
@@ -786,13 +786,13 @@ func TestGetServiceCheckStatusCustomMapping(t *testing.T) {
 
 	data := []struct {
 		subState       string
-		expectedStatus servicecheck.ServiceCheckStatus
+		expectedStatus servicecheck.Status
 	}{
-		{"foo", servicecheck.ServiceCheckCritical},
-		{"bar", servicecheck.ServiceCheckOK},
-		{"baz", servicecheck.ServiceCheckWarning},
-		{"sth", servicecheck.ServiceCheckUnknown},
-		{"xyz", servicecheck.ServiceCheckUnknown},
+		{"foo", servicecheck.Critical},
+		{"bar", servicecheck.OK},
+		{"baz", servicecheck.Warning},
+		{"sth", servicecheck.Unknown},
+		{"xyz", servicecheck.Unknown},
 	}
 
 	for _, d := range data {

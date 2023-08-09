@@ -51,7 +51,7 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() config.ConfigReader {
+func (c *cfg) Object() config.Reader {
 	return c
 }
 

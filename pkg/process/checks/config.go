@@ -11,7 +11,7 @@ import (
 )
 
 // getMaxBatchSize returns the maximum number of items (processes, containers, process_discoveries) in a check payload
-var getMaxBatchSize = func(config ddconfig.ConfigReader) int {
+var getMaxBatchSize = func(config ddconfig.Reader) int {
 	return ensureValidMaxBatchSize(config.GetInt("process_config.max_per_message"))
 }
 
@@ -24,7 +24,7 @@ func ensureValidMaxBatchSize(batchSize int) int {
 }
 
 // getMaxBatchSize returns the maximum number of bytes in a check payload
-var getMaxBatchBytes = func(config ddconfig.ConfigReader) int {
+var getMaxBatchBytes = func(config ddconfig.Reader) int {
 	return ensureValidMaxBatchBytes(config.GetInt("process_config.max_message_bytes"))
 }
 

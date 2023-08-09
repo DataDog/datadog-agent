@@ -37,7 +37,7 @@ func BuildID(checkName string, integrationConfigDigest uint64, instance, initCon
 	return ID(fmt.Sprintf("%s:%x", checkName, h.Sum64()))
 }
 
-// IDToCheckName returns the check name from a check ID
-func IDToCheckName(id ID) string {
+// ToCheckName returns the check name from a check ID
+func ToCheckName(id ID) string {
 	return strings.SplitN(string(id), ":", 2)[0]
 }

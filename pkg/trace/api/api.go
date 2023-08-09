@@ -74,7 +74,7 @@ type HTTPReceiver struct {
 	statsProcessor      StatsProcessor
 	containerIDProvider IDProvider
 
-	telemetryCollector telemetry.TelemetryCollector
+	telemetryCollector telemetry.Collector
 
 	rateLimiterResponse int // HTTP status code when refusing
 
@@ -86,7 +86,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.TelemetryCollector) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, telemetryCollector telemetry.Collector) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests

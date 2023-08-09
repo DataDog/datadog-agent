@@ -218,28 +218,28 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	})
 }
 
-func enrichEventPriority(priority eventPriority) metricsevent.EventPriority {
+func enrichEventPriority(priority eventPriority) metricsevent.Priority {
 	switch priority {
 	case priorityNormal:
-		return metricsevent.EventPriorityNormal
+		return metricsevent.PriorityNormal
 	case priorityLow:
-		return metricsevent.EventPriorityLow
+		return metricsevent.PriorityLow
 	}
-	return metricsevent.EventPriorityNormal
+	return metricsevent.PriorityNormal
 }
 
-func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.EventAlertType {
+func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.AlertType {
 	switch dogstatsdAlertType {
 	case alertTypeSuccess:
-		return metricsevent.EventAlertTypeSuccess
+		return metricsevent.AlertTypeSuccess
 	case alertTypeInfo:
-		return metricsevent.EventAlertTypeInfo
+		return metricsevent.AlertTypeInfo
 	case alertTypeWarning:
-		return metricsevent.EventAlertTypeWarning
+		return metricsevent.AlertTypeWarning
 	case alertTypeError:
-		return metricsevent.EventAlertTypeError
+		return metricsevent.AlertTypeError
 	}
-	return metricsevent.EventAlertTypeSuccess
+	return metricsevent.AlertTypeSuccess
 }
 
 func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metricsevent.Event {
@@ -267,18 +267,18 @@ func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metric
 	return enrichedEvent
 }
 
-func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceCheckStatus {
+func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.Status {
 	switch status {
 	case serviceCheckStatusUnknown:
-		return servicecheck.ServiceCheckUnknown
+		return servicecheck.Unknown
 	case serviceCheckStatusOk:
-		return servicecheck.ServiceCheckOK
+		return servicecheck.OK
 	case serviceCheckStatusWarning:
-		return servicecheck.ServiceCheckWarning
+		return servicecheck.Warning
 	case serviceCheckStatusCritical:
-		return servicecheck.ServiceCheckCritical
+		return servicecheck.Critical
 	}
-	return servicecheck.ServiceCheckUnknown
+	return servicecheck.Unknown
 }
 
 func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, conf enrichConfig) *servicecheck.ServiceCheck {

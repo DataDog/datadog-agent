@@ -14,7 +14,7 @@ import (
 type K8sNodeConfig struct {
 	Version            string               `json:"version"`
 	ManagedEnvironment *K8sManagedEnvConfig `json:"managedEnvironment,omitempty"`
-	KubeletService     *K8sConfigFileMeta   `json:"kubeletService,omitempty"`
+	KubeletService     *FileMeta   `json:"kubeletService,omitempty"`
 	AdminKubeconfig    *K8sKubeconfigMeta   `json:"adminKubeconfig,omitempty"`
 	Components         struct {
 		Etcd                  *K8sEtcdConfig                  `json:"etcd,omitempty"`
@@ -25,10 +25,10 @@ type K8sNodeConfig struct {
 		KubeScheduler         *K8sKubeSchedulerConfig         `json:"kubeScheduler,omitempty"`
 	} `json:"components"`
 	Manifests struct {
-		Etcd                 *K8sConfigFileMeta `json:"etcd,omitempty"`
-		KubeContollerManager *K8sConfigFileMeta `json:"kubeControllerManager,omitempty"`
-		KubeApiserver        *K8sConfigFileMeta `json:"kubeApiserver,omitempty"`
-		KubeScheduler        *K8sConfigFileMeta `json:"kubeScheduler,omitempty"`
+		Etcd                 *FileMeta `json:"etcd,omitempty"`
+		KubeContollerManager *FileMeta `json:"kubeControllerManager,omitempty"`
+		KubeApiserver        *FileMeta `json:"kubeApiserver,omitempty"`
+		KubeScheduler        *FileMeta `json:"kubeScheduler,omitempty"`
 	} `json:"manifests"`
 	Errors []error `json:"errors,omitempty"`
 }
@@ -47,8 +47,8 @@ type K8sDirMeta struct {
 	Mode  uint32 `json:"mode"`
 }
 
-// K8sConfigFileMeta exported type should have comment or be unexported
-type K8sConfigFileMeta struct {
+// FileMeta exported type should have comment or be unexported
+type FileMeta struct {
 	Path    string      `json:"path"`
 	User    string      `json:"user"`
 	Group   string      `json:"group"`

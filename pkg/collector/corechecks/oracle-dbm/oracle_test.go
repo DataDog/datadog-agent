@@ -122,7 +122,7 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 }
 
 func initAndStartAgentDemultiplexer() {
-	//deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	//deps := fxutil.Test[aggregator.TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	//demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
 
 	//aggregator.InitAndStartAgentDemultiplexer(nil, nil, demuxOpts(), "")
@@ -130,7 +130,7 @@ func initAndStartAgentDemultiplexer() {
 
 func TestChkRun(t *testing.T) {
 	//initAndStartAgentDemultiplexer()
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[aggregator.TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")

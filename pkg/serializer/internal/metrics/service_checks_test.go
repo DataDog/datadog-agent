@@ -30,7 +30,7 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 		CheckName: "my_service.can_connect",
 		Host:      "my-hostname",
 		Ts:        int64(12345),
-		Status:    servicecheck.ServiceCheckOK,
+		Status:    servicecheck.OK,
 		Message:   "my_service is up",
 		Tags:      []string{"tag1", "tag2:yes"},
 	}}
@@ -48,7 +48,7 @@ func TestSplitServiceChecks(t *testing.T) {
 			CheckName: "test.check",
 			Host:      "test.localhost",
 			Ts:        1000,
-			Status:    servicecheck.ServiceCheckOK,
+			Status:    servicecheck.OK,
 			Message:   "this is fine",
 			Tags:      []string{"tag1", "tag2:yes"},
 		}
@@ -70,7 +70,7 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 		CheckName: checkName,
 		Host:      "2",
 		Ts:        3,
-		Status:    servicecheck.ServiceCheckUnknown,
+		Status:    servicecheck.Unknown,
 		Message:   "4",
 		Tags:      []string{"5", "6"}}
 }

@@ -22,21 +22,21 @@ import (
 type remoteConfigProvider struct {
 	client             *remote.Client
 	isLeaderNotif      <-chan struct{}
-	subscribers        map[TargetObjKind]chan PatchRequest
+	subscribers        map[TargetObjKind]chan Request
 	clusterName        string
-	telemetryCollector telemetry.TelemetryCollector
+	telemetryCollector telemetry.Collector
 }
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.Collector, clusterName string) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
 	return &remoteConfigProvider{
 		client:             client,
 		isLeaderNotif:      isLeaderNotif,
-		subscribers:        make(map[TargetObjKind]chan PatchRequest),
+		subscribers:        make(map[TargetObjKind]chan Request),
 		clusterName:        clusterName,
 		telemetryCollector: telemetryCollector,
 	}, nil
@@ -59,8 +59,8 @@ func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 	}
 }
 
-func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan PatchRequest {
-	ch := make(chan PatchRequest, 10)
+func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan Request {
+	ch := make(chan Request, 10)
 	rcp.subscribers[kind] = ch
 	return ch
 }
@@ -71,7 +71,7 @@ func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig) {
 	var valid, invalid float64
 	for path, config := range update {
 		log.Debugf("Parsing config %s from path %s", config.Config, path)
-		var req PatchRequest
+		var req Request
 		err := json.Unmarshal(config.Config, &req)
 		if err != nil {
 			invalid++

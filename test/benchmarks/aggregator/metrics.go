@@ -39,10 +39,10 @@ func generateEvent(numberOfEvent int, sender sender.Sender) float64 {
 			Title:          "Event title",
 			Text:           "some text",
 			Ts:             21,
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           "localhost",
 			Tags:           []string{"a", "b:21", "c"},
-			AlertType:      event.EventAlertTypeWarning,
+			AlertType:      event.AlertTypeWarning,
 			AggregationKey: "",
 			SourceTypeName: "",
 			EventType:      "",
@@ -54,7 +54,7 @@ func generateEvent(numberOfEvent int, sender sender.Sender) float64 {
 func generateServiceCheck(numberOfSC int, sender sender.Sender) float64 {
 	start := time.Now()
 	for i := 0; i < numberOfSC; i++ {
-		sender.ServiceCheck("benchmark.ServiceCheck."+strconv.Itoa(i), servicecheck.ServiceCheckOK, "localhost", []string{"a", "b:21", "c"}, "some message")
+		sender.ServiceCheck("benchmark.ServiceCheck."+strconv.Itoa(i), servicecheck.OK, "localhost", []string{"a", "b:21", "c"}, "some message")
 	}
 	return float64(time.Since(start)) / float64(time.Millisecond)
 }

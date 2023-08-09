@@ -244,7 +244,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 			CheckName: "test.check",
 			Host:      "test.localhost",
 			Ts:        1000,
-			Status:    servicecheck.ServiceCheckOK,
+			Status:    servicecheck.OK,
 			Message:   "this is fine",
 			Tags:      []string{"tag1", "tag2:yes"},
 		}

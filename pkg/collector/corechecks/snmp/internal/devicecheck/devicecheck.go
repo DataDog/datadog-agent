@@ -113,11 +113,11 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	tags := common.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
-		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
+		d.sender.ServiceCheck(serviceCheckName, servicecheck.Critical, tags, checkErr.Error())
 	} else {
 		d.savedDynamicTags = dynamicTags
 		tags = append(tags, dynamicTags...)
-		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
+		d.sender.ServiceCheck(serviceCheckName, servicecheck.OK, tags, "")
 	}
 	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
 	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)

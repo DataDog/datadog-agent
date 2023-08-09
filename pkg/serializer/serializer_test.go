@@ -191,7 +191,8 @@ func createJSONPayloadMatcher(prefix string) interface{} {
 
 func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string) bool {
 	for _, compressedPayload := range payloads {
-		if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
+		payload, err := compression.Decompress(compressedPayload.GetContent());
+		if err != nil {
 			return false
 		}
 		if strings.HasPrefix(string(payload), prefix) {
@@ -210,7 +211,8 @@ func createJSONBytesPayloadMatcher(prefix string) interface{} {
 func createProtoscopeMatcher(protoscopeDef string) interface{} {
 	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
+			payload, err := compression.Decompress(compressedPayload.GetContent());
+			if err != nil {
 				return false
 			}
 			res, err := protoscope.NewScanner(protoscopeDef).Exec()

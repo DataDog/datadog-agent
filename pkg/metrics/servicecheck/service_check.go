@@ -14,43 +14,43 @@ import (
 	"strings"
 )
 
-// ServiceCheckStatus represents the status associated with a service check
-type ServiceCheckStatus int
+// Status represents the status associated with a service check
+type Status int
 
 // Enumeration of the existing service check statuses, and their values
 const (
-	ServiceCheckOK       ServiceCheckStatus = iota
-	ServiceCheckWarning  ServiceCheckStatus = 1
-	ServiceCheckCritical ServiceCheckStatus = 2
-	ServiceCheckUnknown  ServiceCheckStatus = 3
+	OK       Status = iota
+	Warning  Status = 1
+	Critical Status = 2
+	Unknown  Status = 3
 )
 
-// GetServiceCheckStatus returns the ServiceCheckStatus from and integer value
-func GetServiceCheckStatus(val int) (ServiceCheckStatus, error) {
+// GetStatus returns the Status from and integer value
+func GetStatus(val int) (Status, error) {
 	switch val {
-	case int(ServiceCheckOK):
-		return ServiceCheckOK, nil
-	case int(ServiceCheckWarning):
-		return ServiceCheckWarning, nil
-	case int(ServiceCheckCritical):
-		return ServiceCheckCritical, nil
-	case int(ServiceCheckUnknown):
-		return ServiceCheckUnknown, nil
+	case int(OK):
+		return OK, nil
+	case int(Warning):
+		return Warning, nil
+	case int(Critical):
+		return Critical, nil
+	case int(Unknown):
+		return Unknown, nil
 	default:
-		return ServiceCheckUnknown, fmt.Errorf("invalid value for a ServiceCheckStatus")
+		return Unknown, fmt.Errorf("invalid value for a Status")
 	}
 }
 
-// String returns a string representation of ServiceCheckStatus
-func (s ServiceCheckStatus) String() string {
+// String returns a string representation of Status
+func (s Status) String() string {
 	switch s {
-	case ServiceCheckOK:
+	case OK:
 		return "OK"
-	case ServiceCheckWarning:
+	case Warning:
 		return "WARNING"
-	case ServiceCheckCritical:
+	case Critical:
 		return "CRITICAL"
-	case ServiceCheckUnknown:
+	case Unknown:
 		return "UNKNOWN"
 	default:
 		return ""
@@ -62,7 +62,7 @@ type ServiceCheck struct {
 	CheckName        string             `json:"check"`
 	Host             string             `json:"host_name"`
 	Ts               int64              `json:"timestamp"`
-	Status           ServiceCheckStatus `json:"status"`
+	Status           Status             `json:"status"`
 	Message          string             `json:"message"`
 	Tags             []string           `json:"tags"`
 	OriginFromUDS    string             `json:"-"`

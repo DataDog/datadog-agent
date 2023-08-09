@@ -472,9 +472,9 @@ func (hc *HelmCheck) sendServiceCheck(sender sender.Sender) {
 			tags := taggedRel.commonTags
 
 			if taggedRel.release.Info != nil && taggedRel.release.Info.Status == "failed" {
-				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
+				sender.ServiceCheck(serviceCheckName, servicecheck.Critical, "", tags, "Release in \"failed\" state")
 			} else {
-				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, "", tags, "")
+				sender.ServiceCheck(serviceCheckName, servicecheck.OK, "", tags, "")
 			}
 		}
 	}

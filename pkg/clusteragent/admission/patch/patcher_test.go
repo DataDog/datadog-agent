@@ -41,7 +41,7 @@ func TestPatchDeployment(t *testing.T) {
 	}
 
 	// Create request skeleton
-	req := PatchRequest{
+	req := Request{
 		ID:        "id",
 		K8sTarget: K8sTarget{Kind: KindDeployment, Namespace: ns, Name: name},
 		LibConfig: common.LibConfig{Language: "java", Version: "latest"},

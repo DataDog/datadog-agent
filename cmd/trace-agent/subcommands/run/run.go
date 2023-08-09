@@ -51,7 +51,7 @@ to your datadog.yaml. Exiting...`
 const stackDepth = 3
 
 // Run is the entrypoint of our code, which starts the agent.
-func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) error {
+func runAgent(ctx context.Context, cliParams *CliParams, cfg config.Component) error {
 
 	tracecfg := cfg.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option

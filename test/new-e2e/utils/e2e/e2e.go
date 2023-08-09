@@ -488,7 +488,7 @@ func (suite *Suite[Env]) SetupSuite() {
 	suite.Require().NoError(err)
 }
 
-// TearDownTestSuite run after all the tests in the suite have been run.
+// TearDownSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
 //
 // If you override TearDownSuite in your custom test suite type, the function must call [e2e.Suite.TearDownSuite].

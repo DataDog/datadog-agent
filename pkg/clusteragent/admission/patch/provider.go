@@ -17,10 +17,10 @@ import (
 
 type patchProvider interface {
 	start(stopCh <-chan struct{})
-	subscribe(kind TargetObjKind) chan PatchRequest
+	subscribe(kind TargetObjKind) chan Request
 }
 
-func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
+func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.Collector, clusterName string) (patchProvider, error) {
 	if config.IsRemoteConfigEnabled(config.Datadog) {
 		return newRemoteConfigProvider(rcClient, isLeaderNotif, telemetryCollector, clusterName)
 	}

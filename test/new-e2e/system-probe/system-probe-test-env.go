@@ -54,8 +54,8 @@ var availabilityZones = map[string][]string{
 	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
 }
 
-// SystemProbeEnvOpts exported type should have comment or be unexported
-type SystemProbeEnvOpts struct {
+// EnvOpts exported type should have comment or be unexported
+type EnvOpts struct {
 	X86AmiID              string
 	ArmAmiID              string
 	SSHKeyPath            string
@@ -147,7 +147,7 @@ func getAvailabilityZone(env string, azIndx int) string {
 }
 
 // NewTestEnv exported function should have comment or be unexported
-func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
+func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
 

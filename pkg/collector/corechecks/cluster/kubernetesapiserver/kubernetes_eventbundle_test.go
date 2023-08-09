@@ -66,7 +66,7 @@ func TestFormatEvent(t *testing.T) {
 			},
 			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
-				Priority:       event.EventPriorityNormal,
+				Priority:       event.PriorityNormal,
 				SourceTypeName: "kubernetes",
 				EventType:      kubernetesAPIServerCheckName,
 				Ts:             timestamp,
@@ -99,7 +99,7 @@ func TestFormatEvent(t *testing.T) {
 			},
 			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
-				Priority:       event.EventPriorityNormal,
+				Priority:       event.PriorityNormal,
 				SourceTypeName: "kubernetes",
 				EventType:      kubernetesAPIServerCheckName,
 				Ts:             timestamp,
@@ -134,7 +134,7 @@ func TestFormatEvent(t *testing.T) {
 			},
 			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
-				Priority:       event.EventPriorityNormal,
+				Priority:       event.PriorityNormal,
 				SourceTypeName: "kubernetes",
 				EventType:      kubernetesAPIServerCheckName,
 				Ts:             timestamp,

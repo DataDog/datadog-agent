@@ -126,13 +126,13 @@ var serviceCheckStateMapping = map[string]string{
 	"deactivating": "unknown",
 }
 
-var systemdStatusMapping = map[string]servicecheck.ServiceCheckStatus{
-	"initializing": servicecheck.ServiceCheckUnknown,
-	"starting":     servicecheck.ServiceCheckUnknown,
-	"running":      servicecheck.ServiceCheckOK,
-	"degraded":     servicecheck.ServiceCheckCritical,
-	"maintenance":  servicecheck.ServiceCheckCritical,
-	"stopping":     servicecheck.ServiceCheckCritical,
+var systemdStatusMapping = map[string]servicecheck.Status{
+	"initializing": servicecheck.Unknown,
+	"starting":     servicecheck.Unknown,
+	"running":      servicecheck.OK,
+	"degraded":     servicecheck.Critical,
+	"maintenance":  servicecheck.Critical,
+	"stopping":     servicecheck.Critical,
 }
 
 // SystemdCheck aggregates metrics from one SystemdCheck instance
@@ -235,10 +235,10 @@ func (c *SystemdCheck) connect(sender sender.Sender) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
 	if err != nil {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
-		sender.ServiceCheck(canConnectServiceCheck, servicecheck.ServiceCheckCritical, "", nil, newErr.Error())
+		sender.ServiceCheck(canConnectServiceCheck, servicecheck.Critical, "", nil, newErr.Error())
 		return nil, newErr
 	}
-	sender.ServiceCheck(canConnectServiceCheck, servicecheck.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(canConnectServiceCheck, servicecheck.OK, "", nil, "")
 	return conn, nil
 }
 
@@ -250,7 +250,7 @@ func (c *SystemdCheck) submitSystemdState(sender sender.Sender, conn *dbus.Conn)
 	if err != nil {
 		log.Debugf("err calling SystemState: %v", err)
 	} else {
-		serviceCheckStatus := servicecheck.ServiceCheckUnknown
+		serviceCheckStatus := servicecheck.Unknown
 		systemState, ok := systemStateProp.Value.Value().(string)
 		if ok {
 			status, ok := systemdStatusMapping[systemState]
@@ -487,16 +487,16 @@ func getPropertyBool(properties map[string]interface{}, propertyName string) (bo
 }
 
 // getServiceCheckStatus returns a service check status for a given unit state (or substate) and a provided mapping
-func getServiceCheckStatus(state string, mapping map[string]string) servicecheck.ServiceCheckStatus {
+func getServiceCheckStatus(state string, mapping map[string]string) servicecheck.Status {
 	switch mapping[state] {
 	case "ok":
-		return servicecheck.ServiceCheckOK
+		return servicecheck.OK
 	case "warning":
-		return servicecheck.ServiceCheckWarning
+		return servicecheck.Warning
 	case "critical":
-		return servicecheck.ServiceCheckCritical
+		return servicecheck.Critical
 	}
-	return servicecheck.ServiceCheckUnknown
+	return servicecheck.Unknown
 }
 
 // isMonitored verifies if a unit should be monitored.

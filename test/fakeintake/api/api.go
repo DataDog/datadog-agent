@@ -15,8 +15,8 @@ type Payload struct {
 	Encoding  string    `json:"encoding"`
 }
 
-// APIFakeIntakePayloadsGETResponse exported type should have comment or be unexported
-type APIFakeIntakePayloadsGETResponse struct {
+// FakeIntakePayloadsGETResponse exported type should have comment or be unexported
+type FakeIntakePayloadsGETResponse struct {
 	Payloads []Payload `json:"payloads"`
 }
 
@@ -26,7 +26,7 @@ type RouteStat struct {
 	Count int    `json:"count"`
 }
 
-// APIFakeIntakeRouteStatsGETResponse exported type should have comment or be unexported
-type APIFakeIntakeRouteStatsGETResponse struct {
+// FakeIntakeRouteStatsGETResponse exported type should have comment or be unexported
+type FakeIntakeRouteStatsGETResponse struct {
 	Routes map[string]RouteStat `json:"routes"`
 }

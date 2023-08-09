@@ -25,10 +25,10 @@ func buildEvents(numberOfEvents int) metricsserializer.Events {
 			Title:     fmt.Sprintf("test.events%d", i),
 			Text:      fmt.Sprintf("test.events%d", i),
 			Ts:        1,
-			Priority:  event.EventPriorityLow,
+			Priority:  event.PriorityLow,
 			Host:      "localHost",
 			Tags:      []string{"tag1", "tag2:yes"},
-			AlertType: event.EventAlertTypeInfo,
+			AlertType: event.AlertTypeInfo,
 		}
 		events = append(events, &event)
 	}

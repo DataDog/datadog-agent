@@ -60,10 +60,10 @@ func TestServer(t *testing.T) {
 		fi.handleGetPayloads(response, request)
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 
-		expectedResponse := api.APIFakeIntakePayloadsGETResponse{
+		expectedResponse := api.FakeIntakePayloadsGETResponse{
 			Payloads: nil,
 		}
-		actualResponse := api.APIFakeIntakePayloadsGETResponse{}
+		actualResponse := api.FakeIntakePayloadsGETResponse{}
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading response")
 		json.Unmarshal(body, &actualResponse)
@@ -97,7 +97,7 @@ func TestServer(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
-		expectedGETResponse := api.APIFakeIntakePayloadsGETResponse{
+		expectedGETResponse := api.FakeIntakePayloadsGETResponse{
 			Payloads: []api.Payload{
 				{
 					Timestamp: clock.Now(),
@@ -111,7 +111,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		actualGETResponse := api.APIFakeIntakePayloadsGETResponse{}
+		actualGETResponse := api.FakeIntakePayloadsGETResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
@@ -211,7 +211,7 @@ func TestServer(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
-		expectedGETResponse := api.APIFakeIntakeRouteStatsGETResponse{
+		expectedGETResponse := api.FakeIntakeRouteStatsGETResponse{
 			Routes: map[string]api.RouteStat{
 				"/api/v2/series": {
 					ID:    "/api/v2/series",
@@ -223,7 +223,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		actualGETResponse := api.APIFakeIntakeRouteStatsGETResponse{}
+		actualGETResponse := api.FakeIntakeRouteStatsGETResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)

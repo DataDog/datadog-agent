@@ -81,7 +81,7 @@ func TestPatchRequestValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pr := PatchRequest{
+			pr := Request{
 				LibConfig: tt.LibConfig,
 				K8sTarget: tt.K8sTarget,
 			}

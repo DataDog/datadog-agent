@@ -228,8 +228,8 @@ func publishDropCheckPayloads() interface{} {
 	return infoDropCheckPayloads
 }
 
-// StatusInfo is a structure to get information from expvar and feed to template
-type StatusInfo struct {
+// Info is a structure to get information from expvar and feed to template
+type Info struct {
 	Pid                             int                    `json:"pid"`
 	HostName                        string                 `json:"host"`
 	Uptime                          int                    `json:"uptime"`
@@ -257,7 +257,7 @@ type StatusInfo struct {
 }
 
 // InitExpvars exported function should have comment or be unexported
-func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(config ddconfig.Reader, telemetry telemetry.Component, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))

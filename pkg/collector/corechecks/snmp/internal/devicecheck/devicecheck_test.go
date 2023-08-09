@@ -1138,7 +1138,7 @@ profiles:
 	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
 		"static_tag:from_profile_root", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 
-	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.OK, "", snmpTags, "")
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
 	assert.Equal(t, false, deviceCk.config.AutodetectProfile)
@@ -1147,7 +1147,7 @@ profiles:
 	err = deviceCk.Run(time.Now())
 
 	assert.Error(t, err, "some error")
-	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
+	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.Critical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", snmpTags)
 }

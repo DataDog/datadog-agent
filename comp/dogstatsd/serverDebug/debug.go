@@ -71,7 +71,7 @@ func newServerDebug(deps dependencies) Component {
 	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(log logComponent.Component, cfg config.ConfigReader) Component {
+func newServerDebugCompat(log logComponent.Component, cfg config.Reader) Component {
 	sd := &serverDebug{
 		log:     log,
 		enabled: atomic.NewBool(false),
@@ -266,7 +266,7 @@ func (d *serverDebug) disableMetricsStats() {
 }
 
 // build a local dogstatsd logger and bubbling up any errors
-func (d *serverDebug) getDogstatsdDebug(cfg config.ConfigReader) slog.LoggerInterface {
+func (d *serverDebug) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface {
 
 	var dogstatsdLogger slog.LoggerInterface
 

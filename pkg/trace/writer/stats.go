@@ -55,7 +55,7 @@ type StatsWriter struct {
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, in <-chan *pb.StatsPayload, telemetryCollector telemetry.TelemetryCollector) *StatsWriter {
+func NewStatsWriter(cfg *config.AgentConfig, in <-chan *pb.StatsPayload, telemetryCollector telemetry.Collector) *StatsWriter {
 	sw := &StatsWriter{
 		in:        in,
 		stats:     &info.StatsWriterInfo{},

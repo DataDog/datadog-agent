@@ -18,7 +18,7 @@ var (
 	// ErrRuleWithoutExpression is returned when there is no expression
 	ErrRuleWithoutExpression = errors.New("no rule expression")
 
-	// ErrRuleWithoutExpression is returned when there is no expression
+	// ErrRuleIDPattern is returned when there is no expression
 	ErrRuleIDPattern = errors.New("rule ID pattern error")
 
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule

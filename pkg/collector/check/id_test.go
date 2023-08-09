@@ -61,7 +61,7 @@ func TestIDToCheckName(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("case %d: %s", i, tc.in), func(t *testing.T) {
-			assert.Equal(t, tc.out, checkid.IDToCheckName(checkid.ID(tc.in)))
+			assert.Equal(t, tc.out, checkid.ToCheckName(checkid.ID(tc.in)))
 		})
 	}
 }

@@ -33,8 +33,8 @@ const (
 
 var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not started")
 
-// RemoteGrpcClient exported type should have comment or be unexported
-type RemoteGrpcClient interface {
+// GrpcClient exported type should have comment or be unexported
+type GrpcClient interface {
 	// StreamEntites establishes the stream between the client and the remote gRPC server.
 	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
 }
@@ -52,7 +52,7 @@ type StreamHandler interface {
 	// IsEnabled returns if the feature is enabled
 	IsEnabled() bool
 	// NewClient returns a client to connect to a remote gRPC server.
-	NewClient(cc grpc.ClientConnInterface) RemoteGrpcClient
+	NewClient(cc grpc.ClientConnInterface) GrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
 	HandleResponse(response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
@@ -67,7 +67,7 @@ type GenericCollector struct {
 	store        workloadmeta.Store
 	resyncNeeded bool
 
-	client RemoteGrpcClient
+	client GrpcClient
 	stream Stream
 
 	streamCtx    context.Context

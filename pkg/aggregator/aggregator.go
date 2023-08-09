@@ -609,7 +609,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 	// Add a simple service check for the Agent status
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		CheckName: fmt.Sprintf("datadog.%s.up", agg.agentName),
-		Status:    servicecheck.ServiceCheckOK,
+		Status:    servicecheck.OK,
 		Tags:      agg.tags(false),
 		Host:      agg.hostname,
 	})

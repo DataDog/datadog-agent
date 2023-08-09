@@ -263,7 +263,7 @@ type (
 // ResolvedInputs is the generic data structure that is returned by a Resolver.
 type ResolvedInputs map[string]interface{}
 
-// Benchmarks represents a set of rules that have a common identity, typically
+// Benchmark represents a set of rules that have a common identity, typically
 // part of the same framework. It holds metadata that are shared between these
 // rules. Rules of a same Benchmark are typically run together.
 type Benchmark struct {

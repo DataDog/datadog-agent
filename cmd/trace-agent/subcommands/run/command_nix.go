@@ -19,8 +19,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// RunParams exported type should have comment or be unexported
-type RunParams struct {
+// CliParams exported type should have comment or be unexported
+type CliParams struct {
 	*subcommands.GlobalParams
 
 	// PIDFilePath contains the value of the --pidfile flag.
@@ -31,10 +31,10 @@ type RunParams struct {
 	MemProfile string
 }
 
-func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
+func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *CliParams) {}
 
 // Start exported function should have comment or be unexported
-func Start(cliParams *RunParams, config config.Component) error {
+func Start(cliParams *CliParams, config config.Component) error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	// prepare go runtime

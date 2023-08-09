@@ -152,7 +152,7 @@ func (l *loader) loadDirMeta(name string) *K8sDirMeta {
 	}
 }
 
-func (l *loader) loadServiceFileMeta(names []string) *K8sConfigFileMeta {
+func (l *loader) loadServiceFileMeta(names []string) *FileMeta {
 	for _, name := range names {
 		meta := l.loadConfigFileMeta(name)
 		if meta != nil {
@@ -162,7 +162,7 @@ func (l *loader) loadServiceFileMeta(names []string) *K8sConfigFileMeta {
 	return nil
 }
 
-func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
+func (l *loader) loadConfigFileMeta(name string) *FileMeta {
 	_, info, b, ok := l.loadMeta(name, true)
 	if !ok {
 		return nil
@@ -184,7 +184,7 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 		content = string(b)
 	}
 
-	return &K8sConfigFileMeta{
+	return &FileMeta{
 		Path:    name,
 		User:    utils.GetFileUser(info),
 		Group:   utils.GetFileGroup(info),
@@ -193,7 +193,7 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 	}
 }
 
-func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
+func (l *loader) loadKubeletConfigFileMeta(name string) *FileMeta {
 	meta := l.loadConfigFileMeta(name)
 	if meta == nil {
 		return nil

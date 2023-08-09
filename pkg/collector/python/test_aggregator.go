@@ -135,7 +135,7 @@ func testSubmitServiceCheck(t *testing.T) {
 		C.CString("my_hostname"),
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "my_hostname", []string{"tag1", "tag2"}, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.Warning, "my_hostname", []string{"tag1", "tag2"}, "my_message")
 }
 
 func testSubmitServiceCheckEmptyTag(t *testing.T) {
@@ -150,7 +150,7 @@ func testSubmitServiceCheckEmptyTag(t *testing.T) {
 		C.CString("my_hostname"),
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "my_hostname", nil, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.Warning, "my_hostname", nil, "my_message")
 }
 
 func testSubmitServiceCheckEmptyHostame(t *testing.T) {
@@ -165,7 +165,7 @@ func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 		nil,
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "", nil, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.Warning, "", nil, "my_message")
 }
 
 func testSubmitEvent(t *testing.T) {

@@ -24,7 +24,7 @@ type stubCheck struct {
 }
 
 func (c *stubCheck) ID() checkid.ID { return checkid.ID(c.id) }
-func (c *stubCheck) String() string { return checkid.IDToCheckName(c.ID()) }
+func (c *stubCheck) String() string { return checkid.ToCheckName(c.ID()) }
 
 func newTestCheck(id string) *stubCheck {
 	return &stubCheck{id: id}

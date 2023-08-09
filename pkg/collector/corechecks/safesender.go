@@ -80,7 +80,7 @@ func (ss *safeSender) Historate(metric string, value float64, hostname string, t
 }
 
 // ServiceCheck implements sender.Sender#ServiceCheck.
-func (ss *safeSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (ss *safeSender) ServiceCheck(checkName string, status servicecheck.Status, hostname string, tags []string, message string) {
 	ss.Sender.ServiceCheck(checkName, status, hostname, cloneTags(tags), message)
 }
 

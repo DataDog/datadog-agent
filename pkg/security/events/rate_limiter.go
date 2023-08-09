@@ -27,7 +27,7 @@ var (
 	defaultLimit = rate.Limit(10)
 	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
 	// flooding.
-	defaultBurst int = 40
+	defaultBurst = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
 		RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded

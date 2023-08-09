@@ -164,19 +164,19 @@ func (w *Worker) Run() {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
 		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
-		serviceCheckStatus := servicecheck.ServiceCheckOK
+		serviceCheckStatus := servicecheck.OK
 
 		hname, _ := hostname.Get(context.TODO())
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
-			serviceCheckStatus = servicecheck.ServiceCheckWarning
+			serviceCheckStatus = servicecheck.Warning
 		}
 
 		if checkErr != nil {
 			checkLogger.Error(checkErr)
 			expvars.AddErrorsCount(1)
-			serviceCheckStatus = servicecheck.ServiceCheckCritical
+			serviceCheckStatus = servicecheck.Critical
 		}
 
 		if sender != nil && !longRunning {

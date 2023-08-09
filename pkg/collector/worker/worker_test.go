@@ -40,7 +40,7 @@ type testCheck struct {
 }
 
 func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
-func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
+func (c *testCheck) String() string { return checkid.ToCheckName(c.ID()) }
 func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
 
 func (c *testCheck) Interval() time.Duration {
@@ -514,7 +514,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.On(
 		"ServiceCheck",
 		serviceCheckStatusKey,
-		servicecheck.ServiceCheckOK,
+		servicecheck.OK,
 		"myhost",
 		[]string{"check:goodcheck", "dd_enable_check_intake:true"},
 		"",
@@ -523,7 +523,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.On(
 		"ServiceCheck",
 		serviceCheckStatusKey,
-		servicecheck.ServiceCheckWarning,
+		servicecheck.Warning,
 		"myhost",
 		[]string{"check:check_withwarn", "dd_enable_check_intake:true"},
 		"",
@@ -532,7 +532,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.On(
 		"ServiceCheck",
 		serviceCheckStatusKey,
-		servicecheck.ServiceCheckCritical,
+		servicecheck.Critical,
 		"myhost",
 		[]string{"check:check_witherr", "dd_enable_check_intake:true"},
 		"",

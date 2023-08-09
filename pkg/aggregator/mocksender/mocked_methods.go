@@ -58,7 +58,7 @@ func (m *MockSender) GaugeNoIndex(metric string, value float64, hostname string,
 }
 
 // ServiceCheck enables the service check mock call.
-func (m *MockSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (m *MockSender) ServiceCheck(checkName string, status servicecheck.Status, hostname string, tags []string, message string) {
 	m.Called(checkName, status, hostname, tags, message)
 }
 

@@ -27,11 +27,11 @@ import (
 type patcher struct {
 	k8sClient          kubernetes.Interface
 	isLeader           func() bool
-	deploymentsQueue   chan PatchRequest
-	telemetryCollector telemetry.TelemetryCollector
+	deploymentsQueue   chan Request
+	telemetryCollector telemetry.Collector
 }
 
-func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, telemetryCollector telemetry.TelemetryCollector, pp patchProvider) *patcher {
+func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, telemetryCollector telemetry.Collector, pp patchProvider) *patcher {
 	return &patcher{
 		k8sClient:          k8sClient,
 		isLeader:           isLeaderFunc,
@@ -57,7 +57,7 @@ func (p *patcher) start(stopCh <-chan struct{}) {
 }
 
 // patchDeployment applies a patch request to a k8s target deployment
-func (p *patcher) patchDeployment(req PatchRequest) error {
+func (p *patcher) patchDeployment(req Request) error {
 	if !p.isLeader() {
 		log.Debug("Not leader, skipping")
 		return nil
@@ -112,7 +112,7 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	return nil
 }
 
-func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {
+func enableConfig(deploy *corev1.Deployment, req Request) error {
 	if deploy.Spec.Template.Labels == nil {
 		deploy.Spec.Template.Labels = make(map[string]string)
 	}
@@ -133,7 +133,7 @@ func enableConfig(deploy *corev1.Deployment, req PatchRequest) error {
 	return nil
 }
 
-func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
+func disableConfig(deploy *corev1.Deployment, req Request) {
 	if deploy.Spec.Template.Labels == nil {
 		deploy.Spec.Template.Labels = make(map[string]string)
 	}

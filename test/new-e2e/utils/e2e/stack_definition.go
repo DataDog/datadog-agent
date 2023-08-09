@@ -101,7 +101,7 @@ type FakeIntakeEnv struct {
 	Fakeintake *client.Fakeintake
 }
 
-// FakeIntake creates a stack definition containing a virtual machine the Agent and the fake intake.
+// FakeIntakeStackDef creates a stack definition containing a virtual machine the Agent and the fake intake.
 //
 // See [ec2vm.Params] for available options for vmParams.
 //

@@ -21,7 +21,7 @@ const (
 	EventFlagsSavedByAD
 	// EventFlagsActivityDumpSample an AD sample
 	EventFlagsActivityDumpSample
-	// InProfile true if the event was found in a profile
+	// EventFlagsSecurityProfileInProfile true if the event was found in a profile
 	EventFlagsSecurityProfileInProfile
 )
 

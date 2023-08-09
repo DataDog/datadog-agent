@@ -66,7 +66,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
-// Replace previous entry values by the given one
+// ApplyExecTimeOf Replace previous entry values by the given one
 func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }

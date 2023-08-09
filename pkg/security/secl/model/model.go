@@ -176,7 +176,7 @@ func (r *Releasable) SetReleaseCallback(callback func()) {
 	}
 }
 
-// Release triggers the callback
+// OnRelease triggers the callback
 func (r *Releasable) OnRelease() {
 	r.onReleaseCallback()
 }
@@ -366,7 +366,7 @@ func (e *Event) IsSavedByActivityDumps() bool {
 	return e.Flags&EventFlagsSavedByAD > 0
 }
 
-// IsSavedByActivityDumps return whether AD sample
+// IsActivityDumpSample return whether AD sample
 func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
 }
@@ -463,20 +463,20 @@ func (e *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 
 // ResolveProcessCacheEntry uses the field handler
 func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return e.FieldHandlers.ResolveProcessCacheEntry(ev)
+	return e.FieldHandlers.ResolveProcessCacheEntry(e)
 }
 
 // ResolveEventTime uses the field handler
 func (e *Event) ResolveEventTime() time.Time {
-	return e.FieldHandlers.ResolveEventTime(ev)
+	return e.FieldHandlers.ResolveEventTime(e)
 }
 
 // GetProcessService uses the field handler
 func (e *Event) GetProcessService() string {
-	return e.FieldHandlers.GetProcessService(ev)
+	return e.FieldHandlers.GetProcessService(e)
 }
 
-// MatchedRules contains the identification of one rule that has match
+// MatchedRule contains the identification of one rule that has match
 type MatchedRule struct {
 	RuleID        string
 	RuleVersion   string
@@ -507,7 +507,7 @@ func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
 	return true
 }
 
-// Append two lists, but avoiding duplicates
+// AppendMatchedRule Append two lists, but avoiding duplicates
 func AppendMatchedRule(list []*MatchedRule, toAdd []*MatchedRule) []*MatchedRule {
 	for _, ta := range toAdd {
 		found := false
@@ -1353,7 +1353,7 @@ func (pl *PathLeaf) GetName() string {
 	return NullTerminatedString(pl.Name[:])
 }
 
-// GetName returns the path value as a string
+// SetName returns the path value as a string
 func (pl *PathLeaf) SetName(name string) {
 	copy(pl.Name[:], []byte(name))
 	pl.Len = uint16(len(name) + 1)

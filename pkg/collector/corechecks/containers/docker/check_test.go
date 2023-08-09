@@ -230,7 +230,7 @@ func TestDockerCustomPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 10, "", []string{"volume_state:attached"})
 	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 2, "", []string{"volume_state:dangling"})
 
-	mockSender.AssertServiceCheck(t, DockerServiceUp, servicecheck.ServiceCheckOK, "", nil, "")
+	mockSender.AssertServiceCheck(t, DockerServiceUp, servicecheck.OK, "", nil, "")
 }
 
 func TestContainersRunning(t *testing.T) {

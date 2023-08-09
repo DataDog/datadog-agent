@@ -24,7 +24,7 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.ConfigReader) *ContainerCheck {
+func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
 	}
@@ -34,7 +34,7 @@ func NewContainerCheck(config ddconfig.ConfigReader) *ContainerCheck {
 type ContainerCheck struct {
 	sync.Mutex
 
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	hostInfo          *HostInfo
 	containerProvider util.ContainerProvider

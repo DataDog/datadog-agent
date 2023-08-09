@@ -12,7 +12,7 @@ import (
 
 // RuntimeMutexProfileFraction wraps runtime.SetMutexProfileFraction setting.
 type RuntimeMutexProfileFraction struct {
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
 }
 
@@ -49,7 +49,7 @@ func (r RuntimeMutexProfileFraction) Set(value interface{}) error {
 	err = checkProfilingNeedsRestart(profiling.GetMutexProfileFraction(), rate)
 
 	profiling.SetMutexProfileFraction(rate)
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}

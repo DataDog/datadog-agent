@@ -28,7 +28,7 @@ import (
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
-	config.ConfigWriter
+	config.Writer
 }
 
 // MockModule defines the fx options for the mock component.

@@ -108,8 +108,8 @@ type Stats struct {
 	telemetry                bool // do we want telemetry on this Check
 }
 
-// StatsCheck exported type should have comment or be unexported
-type StatsCheck interface {
+// Check exported type should have comment or be unexported
+type Check interface {
 	// String provides a printable version of the check name
 	String() string
 	// ID provides a unique identifier for every check instance
@@ -121,7 +121,7 @@ type StatsCheck interface {
 }
 
 // NewStats returns a new check stats instance
-func NewStats(c StatsCheck) *Stats {
+func NewStats(c Check) *Stats {
 	stats := Stats{
 		CheckID:                  c.ID(),
 		CheckName:                c.String(),

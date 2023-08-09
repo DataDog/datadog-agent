@@ -24,7 +24,7 @@ import (
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
 
-	cliParams := &RunParams{}
+	cliParams := &CliParams{}
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Start datadog trace-agent.",
@@ -40,7 +40,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	return runCmd
 }
 
-func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
+func setParamFlags(cmd *cobra.Command, cliParams *CliParams) {
 	cmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
 	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
 		"enables CPU profiling and specifies profile path.")
@@ -55,7 +55,7 @@ type Params struct {
 	DefaultLogFile string
 }
 
-func runTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interface{}) error {
+func runTraceAgentFct(cliParams *CliParams, defaultConfPath string, fct interface{}) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}

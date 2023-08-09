@@ -256,7 +256,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	payloads := fi.safeGetPayloads(route)
 
 	// build response
-	resp := api.APIFakeIntakePayloadsGETResponse{
+	resp := api.FakeIntakePayloadsGETResponse{
 		Payloads: payloads,
 	}
 	jsonResp, err := json.Marshal(resp)
@@ -314,7 +314,7 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	log.Print("Handling getRouteStats request")
 	routes := fi.safeGetRouteStats()
 	// build response
-	resp := api.APIFakeIntakeRouteStatsGETResponse{
+	resp := api.FakeIntakeRouteStatsGETResponse{
 		Routes: map[string]api.RouteStat{},
 	}
 	for route, count := range routes {

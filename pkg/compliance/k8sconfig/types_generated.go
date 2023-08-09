@@ -23,7 +23,7 @@ type K8sKubeApiserverConfig struct {
 	AuditLogMaxbackup               int                                  `json:"audit-log-maxbackup"`                // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuditLogMaxsize                 int                                  `json:"audit-log-maxsize"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuditLogPath                    string                               `json:"audit-log-path"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuditPolicyFile                 *K8sConfigFileMeta                   `json:"audit-policy-file"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	AuditPolicyFile                 *FileMeta                   `json:"audit-policy-file"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuthorizationMode               []string                             `json:"authorization-mode"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	BindAddress                     string                               `json:"bind-address"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ClientCaFile                    *K8sCertFileMeta                     `json:"client-ca-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -261,7 +261,7 @@ type K8sKubeSchedulerConfig struct {
 	AuthorizationKubeconfig         string             `json:"authorization-kubeconfig"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	BindAddress                     string             `json:"bind-address"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ClientCaFile                    *K8sCertFileMeta   `json:"client-ca-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config                          *K8sConfigFileMeta `json:"config"`                             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config                          *FileMeta `json:"config"`                             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	FeatureGates                    string             `json:"feature-gates"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Kubeconfig                      *K8sKubeconfigMeta `json:"kubeconfig"`                         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Profiling                       bool               `json:"profiling"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -516,7 +516,7 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 // K8sKubeProxyConfig exported type should have comment or be unexported
 type K8sKubeProxyConfig struct {
 	BindAddress      string             `json:"bind-address"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config           *K8sConfigFileMeta `json:"config"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config           *FileMeta `json:"config"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	FeatureGates     string             `json:"feature-gates"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	HostnameOverride string             `json:"hostname-override"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Kubeconfig       *K8sKubeconfigMeta `json:"kubeconfig"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -567,13 +567,13 @@ type K8sKubeletConfig struct {
 	AnonymousAuth                  bool               `json:"anonymous-auth"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuthorizationMode              string             `json:"authorization-mode"`                // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ClientCaFile                   *K8sCertFileMeta   `json:"client-ca-file"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config                         *K8sConfigFileMeta `json:"config"`                            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config                         *FileMeta `json:"config"`                            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	EventBurst                     int                `json:"event-burst"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	EventQps                       int                `json:"event-qps"`                         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	FeatureGates                   string             `json:"feature-gates"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	HostnameOverride               string             `json:"hostname-override"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ImageCredentialProviderBinDir  *K8sDirMeta        `json:"image-credential-provider-bin-dir"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ImageCredentialProviderConfig  *K8sConfigFileMeta `json:"image-credential-provider-config"`  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	ImageCredentialProviderConfig  *FileMeta `json:"image-credential-provider-config"`  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Kubeconfig                     *K8sKubeconfigMeta `json:"kubeconfig"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	MakeIptablesUtilChains         bool               `json:"make-iptables-util-chains"`         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	MaxPods                        int                `json:"max-pods"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17

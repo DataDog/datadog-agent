@@ -24,7 +24,7 @@ type testCheck struct {
 }
 
 func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
-func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
+func (c *testCheck) String() string { return checkid.ToCheckName(c.ID()) }
 
 func newTestCheck(id string) *testCheck {
 	return &testCheck{id: id}

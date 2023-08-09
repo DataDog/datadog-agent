@@ -24,7 +24,7 @@ type ProcessData struct {
 }
 
 // NewProcessData exported function should have comment or be unexported
-func NewProcessData(cfg config.ConfigReader) *ProcessData {
+func NewProcessData(cfg config.Reader) *ProcessData {
 	return &ProcessData{
 		probe: newProcessProbe(cfg),
 	}

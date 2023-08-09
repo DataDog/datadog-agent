@@ -66,8 +66,8 @@ func TestReceiveAndForward(t *testing.T) {
 
 	require.Len(t, sc, 2)
 	assert.Equal(t, sc[0].CheckName, "test.ServiceCheck")
-	assert.Equal(t, sc[0].Status, servicecheck.ServiceCheckOK)
+	assert.Equal(t, sc[0].Status, servicecheck.OK)
 
 	assert.Equal(t, sc[1].CheckName, "datadog.agent.up")
-	assert.Equal(t, sc[1].Status, servicecheck.ServiceCheckOK)
+	assert.Equal(t, sc[1].Status, servicecheck.OK)
 }

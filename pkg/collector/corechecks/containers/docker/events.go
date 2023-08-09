@@ -78,9 +78,9 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender se
 
 		// Building and sending message
 		message := fmt.Sprintf("Container %s exited with %d", ev.ContainerName, exitCodeInt)
-		status := servicecheck.ServiceCheckOK
+		status := servicecheck.OK
 		if _, ok := d.okExitCodes[int(exitCodeInt)]; !ok {
-			status = servicecheck.ServiceCheckCritical
+			status = servicecheck.Critical
 		}
 
 		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ev.ContainerID), collectors.HighCardinality)

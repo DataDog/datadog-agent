@@ -94,23 +94,23 @@ func TestMockedServiceCheck(t *testing.T) {
 
 	tags := []string{"one", "two"}
 	message := "message 1"
-	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckOK, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckOK, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.OK, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.OK, "", tags, message)
 
 	tags = append(tags, "a", "b", "c")
 	message = "message 2"
-	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckCritical, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckCritical, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.Critical, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.Critical, "", tags, message)
 
 	message = "message 3"
 	tags = []string{"1", "2"}
-	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.Warning, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.Warning, "", tags, message)
 
 	message = "message 4"
 	tags = append(tags, "container_name:redis")
-	sender.ServiceCheck("docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
-	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckWarning, "", tags, message)
+	sender.ServiceCheck("docker.exit", servicecheck.Warning, "", tags, message)
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.Warning, "", tags, message)
 }
 
 func TestMockedEvent(t *testing.T) {
@@ -126,7 +126,7 @@ func TestMockedEvent(t *testing.T) {
 		Tags:           tags,
 		AggregationKey: "docker:busybox",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 	}
 	sender.Event(eventOne)
 	sender.AssertEvent(t, eventOne, time.Second)
@@ -137,7 +137,7 @@ func TestMockedEvent(t *testing.T) {
 		Tags:           tags,
 		AggregationKey: "docker:redis",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 	}
 	sender.AssertEventMissing(t, eventTwo, 0)
 

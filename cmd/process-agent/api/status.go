@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-func statusHandler(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
+func statusHandler(deps ServerDeps, w http.ResponseWriter, _ *http.Request) {
 	deps.Log.Info("Got a request for the status. Making status.")
 
 	// Get expVar server address

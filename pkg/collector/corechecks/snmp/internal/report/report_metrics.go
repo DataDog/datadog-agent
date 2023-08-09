@@ -247,7 +247,7 @@ func (ms *MetricSender) MonotonicCount(metric string, value float64, tags []stri
 }
 
 // ServiceCheck wraps Sender.ServiceCheck
-func (ms *MetricSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, tags []string, message string) {
+func (ms *MetricSender) ServiceCheck(checkName string, status servicecheck.Status, tags []string, message string) {
 	ms.sender.ServiceCheck(checkName, status, ms.hostname, tags, message)
 }
 

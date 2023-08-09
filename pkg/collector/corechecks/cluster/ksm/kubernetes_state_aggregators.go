@@ -64,7 +64,7 @@ type cronJob struct {
 
 type cronJobState struct {
 	id    int
-	state servicecheck.ServiceCheckStatus
+	state servicecheck.Status
 }
 
 type lastCronJobAggregator struct {
@@ -191,14 +191,14 @@ func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
 }
 
 func (a *lastCronJobCompleteAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, servicecheck.ServiceCheckOK)
+	a.aggregator.accumulate(metric, servicecheck.OK)
 }
 
 func (a *lastCronJobFailedAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, servicecheck.ServiceCheckCritical)
+	a.aggregator.accumulate(metric, servicecheck.Critical)
 }
 
-func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.ServiceCheckStatus) {
+func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.Status) {
 	if condition, found := metric.Labels["condition"]; !found || condition != "true" {
 		return
 	}

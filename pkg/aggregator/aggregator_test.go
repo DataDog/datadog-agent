@@ -111,7 +111,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	// -
 
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, defaultHostname)
 
 	defer demux.Stop(false)
@@ -157,13 +157,13 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
 		CheckName: "my_service.can_connect",
-		Status:    servicecheck.ServiceCheckOK,
+		Status:    servicecheck.OK,
 		Tags:      []string{"bar", "foo", "bar"},
 		Message:   "message",
 	})
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		CheckName: "my_service.can_connect",
-		Status:    servicecheck.ServiceCheckOK,
+		Status:    servicecheck.OK,
 		Host:      "my-hostname",
 		Tags:      []string{"foo", "foo", "bar"},
 		Ts:        12345,
@@ -196,10 +196,10 @@ func TestAddEventDefaultValues(t *testing.T) {
 		Title:          "Another event occurred",
 		Text:           "Other event description",
 		Ts:             12345,
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar", "foo"},
-		AlertType:      event.EventAlertTypeError,
+		AlertType:      event.AlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	})
@@ -221,9 +221,9 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "Another event occurred", event2.Title)
 	assert.Equal(t, "my-hostname", event2.Host)
 	assert.Equal(t, int64(12345), event2.Ts)
-	assert.Equal(t, event.EventPriorityNormal, event2.Priority)
+	assert.Equal(t, event.PriorityNormal, event2.Priority)
 	assert.ElementsMatch(t, []string{"foo", "bar"}, event2.Tags)
-	assert.Equal(t, event.EventAlertTypeError, event2.AlertType)
+	assert.Equal(t, event.AlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }
@@ -240,7 +240,7 @@ func TestDefaultData(t *testing.T) {
 	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.OK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, agg.hostname, m[0].Host)
 
@@ -291,7 +291,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+			deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 			demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 			demux.sharedSerializer = s
@@ -356,7 +356,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+			deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 			demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 			demux.sharedSerializer = s
@@ -412,7 +412,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	demux.aggregator.serializer = s
@@ -471,7 +471,7 @@ func TestRecurrentSeries(t *testing.T) {
 	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.OK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, demux.Aggregator().hostname, m[0].Host)
 
@@ -598,7 +598,7 @@ func TestTimeSamplerFlush(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
 	opts := demuxTestOptions()
-	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	demux.aggregator.serializer = s

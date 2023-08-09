@@ -244,7 +244,7 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	// only tags added by the check
 	s.sender.SetCheckService("")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.OK, "testhostname", checkTags, "test message")
 	sc := <-s.serviceCheckChan
 	assert.Equal(t, checkTags, sc.Tags)
 
@@ -252,7 +252,7 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	s.sender.SetCheckService("service1")
 	s.sender.SetCheckService("service2")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.OK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, append(checkTags, "service:service2"), sc.Tags)
 }
@@ -328,13 +328,13 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	s := initSender(checkID1, "")
 
 	// no custom tags
-	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
+	s.sender.ServiceCheck("test", servicecheck.OK, "testhostname", nil, "test message")
 	sc := <-s.serviceCheckChan
 	assert.Nil(t, sc.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.OK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, checkTags, sc.Tags)
 
@@ -344,12 +344,12 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
+	s.sender.ServiceCheck("test", servicecheck.OK, "testhostname", nil, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, customTags, sc.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.OK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, append(checkTags, customTags...), sc.Tags)
 }
@@ -445,16 +445,16 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Commit()
-	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
+	s.sender.ServiceCheck("my_service.can_connect", servicecheck.OK, "my-hostname", []string{"foo", "bar"}, "message")
 	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
 	submittedEvent := event.Event{
 		Title:          "Something happened",
 		Text:           "Description of the event",
 		Ts:             12,
-		Priority:       event.EventPriorityLow,
+		Priority:       event.PriorityLow,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar"},
-		AlertType:      event.EventAlertTypeInfo,
+		AlertType:      event.AlertTypeInfo,
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
@@ -513,7 +513,7 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	serviceCheck := <-s.serviceCheckChan
 	assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-	assert.Equal(t, servicecheck.ServiceCheckOK, serviceCheck.Status)
+	assert.Equal(t, servicecheck.OK, serviceCheck.Status)
 	assert.Equal(t, "my-hostname", serviceCheck.Host)
 	assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
 	assert.Equal(t, "message", serviceCheck.Message)
@@ -565,15 +565,15 @@ func TestCheckSenderHostname(t *testing.T) {
 
 			s.sender.Gauge("my.metric", 1.0, tc.submittedHostname, []string{"foo", "bar"})
 			s.sender.Commit()
-			s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
+			s.sender.ServiceCheck("my_service.can_connect", servicecheck.OK, tc.submittedHostname, []string{"foo", "bar"}, "message")
 			submittedEvent := event.Event{
 				Title:          "Something happened",
 				Text:           "Description of the event",
 				Ts:             12,
-				Priority:       event.EventPriorityLow,
+				Priority:       event.PriorityLow,
 				Host:           tc.submittedHostname,
 				Tags:           []string{"foo", "bar"},
-				AlertType:      event.EventAlertTypeInfo,
+				AlertType:      event.AlertTypeInfo,
 				AggregationKey: "event_agg_key",
 				SourceTypeName: "docker",
 			}
@@ -587,7 +587,7 @@ func TestCheckSenderHostname(t *testing.T) {
 
 			serviceCheck := <-s.serviceCheckChan
 			assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-			assert.Equal(t, servicecheck.ServiceCheckOK, serviceCheck.Status)
+			assert.Equal(t, servicecheck.OK, serviceCheck.Status)
 			assert.Equal(t, tc.expectedHostname, serviceCheck.Host)
 			assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
 			assert.Equal(t, "message", serviceCheck.Message)

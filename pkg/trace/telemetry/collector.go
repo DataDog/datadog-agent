@@ -64,8 +64,8 @@ type OnboardingEventError struct {
 	Message string `json:"message,omitempty"`
 }
 
-// TelemetryCollector is the interface used to send reports about startup to the instrumentation telemetry intake
-type TelemetryCollector interface {
+// Collector is the interface used to send reports about startup to the instrumentation telemetry intake
+type Collector interface {
 	SendStartupSuccess()
 	SendStartupError(code int, err error)
 }
@@ -80,9 +80,9 @@ type telemetryCollector struct {
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
-func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
+func NewCollector(cfg *config.AgentConfig) Collector {
 	if !cfg.TelemetryConfig.Enabled {
-		return &noopTelemetryCollector{}
+		return &noopCollector{}
 	}
 
 	var endpoints []config.Endpoint
@@ -109,8 +109,8 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 }
 
 // NewNoopCollector returns a noop collector
-func NewNoopCollector() TelemetryCollector {
-	return &noopTelemetryCollector{}
+func NewNoopCollector() Collector {
+	return &noopCollector{}
 }
 
 func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
@@ -171,7 +171,7 @@ func (f *telemetryCollector) SendStartupError(code int, err error) {
 	f.sendEvent(&ev)
 }
 
-type noopTelemetryCollector struct{}
+type noopCollector struct{}
 
-func (*noopTelemetryCollector) SendStartupSuccess()                  {}
-func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
+func (*noopCollector) SendStartupSuccess()                  {}
+func (*noopCollector) SendStartupError(code int, err error) {}

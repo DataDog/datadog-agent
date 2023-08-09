@@ -32,7 +32,7 @@ func (mc *mockCheck) ID() checkid.ID       { return mc.id }
 func (mc *mockCheck) String() string       { return mc.stringVal }
 func (mc *mockCheck) Version() string      { return mc.version }
 
-func newMockCheck() StatsCheck {
+func newMockCheck() Check {
 	return &mockCheck{
 		cfgSource: "checkConfigSrc",
 		id:        "checkID",

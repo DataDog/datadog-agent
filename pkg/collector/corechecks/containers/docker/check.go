@@ -140,7 +140,7 @@ func (d *DockerCheck) Run() error {
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.Critical, "", nil, err.Error())
 		_ = d.Warnf("Error initialising check: %s", err)
 		return err
 	}
@@ -153,7 +153,7 @@ func (d *DockerCheck) Run() error {
 
 	rawContainerList, err := du.RawContainerList(context.TODO(), dockerTypes.ContainerListOptions{All: true, Size: collectContainerSize})
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.Critical, "", nil, err.Error())
 		_ = d.Warnf("Error collecting containers: %s", err)
 		return err
 	}
@@ -286,7 +286,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 	d.collectVolumeMetrics(sender, du)
 
 	// All metrics collected, setting servicecheck to ok
-	sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(DockerServiceUp, servicecheck.OK, "", nil, "")
 
 	// Collecting events
 	d.collectEvents(sender, du)
@@ -300,14 +300,14 @@ func (d *DockerCheck) collectImageMetrics(sender sender.Sender, du docker.Client
 	if err != nil {
 		log.Warnf("Unable to list Docker images, err: %v", err)
 		_ = d.Warnf("Unable to list Docker images, err: %v", err)
-		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.Critical, "", nil, err.Error())
 		return err
 	}
 	allImages, err := du.Images(context.TODO(), true)
 	if err != nil {
 		log.Warnf("Unable to list Docker images, err: %v", err)
 		_ = d.Warnf("Unable to list Docker images, err: %v", err)
-		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.Critical, "", nil, err.Error())
 		return err
 	}
 

@@ -58,7 +58,7 @@ type Agent struct {
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
-	TelemetryCollector    telemetry.TelemetryCollector
+	TelemetryCollector    telemetry.Collector
 	DebugServer           *api.DebugServer
 
 	// obfuscator is used to obfuscate sensitive data from various span
@@ -85,7 +85,7 @@ type Agent struct {
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.Collector) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsChan := make(chan *pb.StatsPayload, 100)

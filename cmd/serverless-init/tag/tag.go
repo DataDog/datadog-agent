@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
 
-// TagPair contains a pair of tag key and value
-type TagPair struct {
+// Pair contains a pair of tag key and value
+type Pair struct {
 	name    string
 	envName string
 }
@@ -30,7 +30,7 @@ func getTag(envName string) (string, bool) {
 // GetBaseTagsMapWithMetadata returns a map of Datadog's base tags
 func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 	tagsMap := map[string]string{}
-	listTags := []TagPair{
+	listTags := []Pair{
 		{
 			name:    "env",
 			envName: "DD_ENV",

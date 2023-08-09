@@ -26,7 +26,7 @@ type ExitDetector interface {
 }
 
 // ConfigureAutoExit starts automatic shutdown mechanism if necessary
-func ConfigureAutoExit(ctx context.Context, cfg config.ConfigReader) error {
+func ConfigureAutoExit(ctx context.Context, cfg config.Reader) error {
 	var sd ExitDetector
 	var err error
 

@@ -16,16 +16,16 @@ import (
 )
 
 // GetAPIEndpoints exported function should have comment or be unexported
-func GetAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
+func GetAPIEndpoints(config ddconfig.Reader) (eps []apicfg.Endpoint, err error) {
 	return getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints")
 }
 
 // GetEventsAPIEndpoints exported function should have comment or be unexported
-func GetEventsAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
+func GetEventsAPIEndpoints(config ddconfig.Reader) (eps []apicfg.Endpoint, err error) {
 	return getAPIEndpointsWithKeys(config, "https://process-events.", "process_config.events_dd_url", "process_config.events_additional_endpoints")
 }
 
-func getAPIEndpointsWithKeys(config ddconfig.ConfigReader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
+func getAPIEndpointsWithKeys(config ddconfig.Reader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
 	// Setup main endpoint
 	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(ddconfig.Datadog, prefix, defaultEpKey))
 	if err != nil {

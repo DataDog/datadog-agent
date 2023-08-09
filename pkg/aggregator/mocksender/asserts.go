@@ -20,7 +20,7 @@ import (
 // AssertServiceCheck allows to assert a ServiceCheck was exclusively emitted with given parameters.
 // Additional tags over the ones specified don't make it fail
 // Assert the ServiceCheck wasn't called with any other possible status
-func (m *MockSender) AssertServiceCheck(t *testing.T, checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) bool {
+func (m *MockSender) AssertServiceCheck(t *testing.T, checkName string, status servicecheck.Status, hostname string, tags []string, message string) bool {
 	okCall := m.Mock.AssertCalled(t, "ServiceCheck", checkName, status, hostname, MatchTagsContains(tags), message)
 	notOkCalls := m.Mock.AssertNotCalled(t, "ServiceCheck", checkName, AnythingBut(status), hostname, MatchTagsContains(tags), mock.AnythingOfType("string"))
 	return okCall && notOkCalls

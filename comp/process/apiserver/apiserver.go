@@ -33,14 +33,14 @@ type dependencies struct {
 
 	Log log.Component
 
-	APIServerDeps api.APIServerDeps
+	ServerDeps api.ServerDeps
 }
 
 func newApiServer(deps dependencies) Component {
 	initRuntimeSettings(deps.Log)
 
 	r := mux.NewRouter()
-	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
+	api.SetupAPIServerHandlers(deps.ServerDeps, r) // Set up routes
 
 	addr, err := ddconfig.GetProcessAPIAddressPort()
 	if err != nil {

@@ -38,7 +38,7 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
+func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 	check := &ProcessCheck{
 		config:        config,
 		scrubber:      procutil.NewDefaultDataScrubber(),
@@ -64,7 +64,7 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
@@ -627,7 +627,7 @@ func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process,
 	}
 }
 
-func initScrubber(config ddconfig.ConfigReader, scrubber *procutil.DataScrubber) {
+func initScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
 	// Enable/Disable the DataScrubber to obfuscate process args
 	if config.IsSet(configScrubArgs) {
 		scrubber.Enabled = config.GetBool(configScrubArgs)
@@ -651,7 +651,7 @@ func initScrubber(config ddconfig.ConfigReader, scrubber *procutil.DataScrubber)
 	}
 }
 
-func initDisallowList(config ddconfig.ConfigReader) []*regexp.Regexp {
+func initDisallowList(config ddconfig.Reader) []*regexp.Regexp {
 	var disallowList []*regexp.Regexp
 	// A list of regex patterns that will exclude a process if matched.
 	if config.IsSet(configDisallowList) {

@@ -129,7 +129,7 @@ func AddCheckStats(
 
 	log.Tracef("Adding stats for %s", string(c.ID()))
 
-	checkName := checkid.IDToCheckName(c.ID())
+	checkName := checkid.ToCheckName(c.ID())
 	stats, found := checkStats.stats[checkName]
 	if !found {
 		stats = make(map[checkid.ID]*checkstats.Stats)
@@ -152,7 +152,7 @@ func RemoveCheckStats(checkID checkid.ID) {
 
 	log.Debugf("Removing stats for %s", string(checkID))
 
-	checkName := checkid.IDToCheckName(checkID)
+	checkName := checkid.ToCheckName(checkID)
 	stats, found := checkStats.stats[checkName]
 
 	if !found {
@@ -172,7 +172,7 @@ func CheckStats(id checkid.ID) (*checkstats.Stats, bool) {
 	checkStats.statsLock.RLock()
 	defer checkStats.statsLock.RUnlock()
 
-	checkName := checkid.IDToCheckName(id)
+	checkName := checkid.ToCheckName(id)
 	stats, nameFound := checkStats.stats[checkName]
 
 	if !nameFound {

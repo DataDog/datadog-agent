@@ -79,7 +79,7 @@ func nodeConditionTransformer(s sender.Sender, name string, metric ksmstore.DDMe
 	}
 
 	serviceCheckName := ""
-	var eventStatus servicecheck.ServiceCheckStatus
+	var eventStatus servicecheck.Status
 	switch condition {
 	case "Ready":
 		serviceCheckName = ksmMetricPrefix + "node.ready"
@@ -114,26 +114,26 @@ func nodeConditionTransformer(s sender.Sender, name string, metric ksmstore.DDMe
 // statusForCondition returns the right service check status based on the KSM label 'status'
 // and the nature of the event whether a positive event or not
 // e.g Ready is a positive event while MemoryPressure is not
-func statusForCondition(status string, positiveEvent bool) servicecheck.ServiceCheckStatus {
+func statusForCondition(status string, positiveEvent bool) servicecheck.Status {
 	switch status {
 	case "true":
 		if positiveEvent {
-			return servicecheck.ServiceCheckOK
+			return servicecheck.OK
 		}
-		return servicecheck.ServiceCheckCritical
+		return servicecheck.Critical
 	case "false":
 		if positiveEvent {
-			return servicecheck.ServiceCheckCritical
+			return servicecheck.Critical
 		}
-		return servicecheck.ServiceCheckOK
+		return servicecheck.OK
 	case "unknown":
 		if positiveEvent {
-			return servicecheck.ServiceCheckWarning
+			return servicecheck.Warning
 		}
-		return servicecheck.ServiceCheckUnknown
+		return servicecheck.Unknown
 	default:
 		log.Tracef("Unknown 'status' label: '%s'", status)
-		return servicecheck.ServiceCheckUnknown
+		return servicecheck.Unknown
 	}
 }
 
@@ -290,12 +290,12 @@ func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMe
 // cronJobNextScheduleTransformer sends a service check to alert if the cronjob's next schedule is in the past
 func cronJobNextScheduleTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	message := ""
-	var status servicecheck.ServiceCheckStatus
+	var status servicecheck.Status
 	timeDiff := int64(metric.Val) - currentTime.Unix()
 	if timeDiff >= 0 {
-		status = servicecheck.ServiceCheckOK
+		status = servicecheck.OK
 	} else {
-		status = servicecheck.ServiceCheckCritical
+		status = servicecheck.Critical
 		message = fmt.Sprintf("The cron job check scheduled at %s is %d seconds late", time.Unix(int64(metric.Val), 0).UTC(), -timeDiff)
 	}
 	s.ServiceCheck(ksmMetricPrefix+"cronjob.on_schedule_check", status, hostname, tags, message)
@@ -323,7 +323,7 @@ func jobCompleteTransformer(s sender.Sender, name string, metric ksmstore.DDMetr
 	copy(tagsCopy, tags)
 	jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, tagsCopy)
 
-	jobServiceCheck(s, metric, servicecheck.ServiceCheckOK, hostname, tags)
+	jobServiceCheck(s, metric, servicecheck.OK, hostname, tags)
 }
 
 // jobFailedTransformer sends a metric and a service check based on kube_job_failed
@@ -340,7 +340,7 @@ func jobFailedTransformer(s sender.Sender, name string, metric ksmstore.DDMetric
 	copy(tagsCopy, tags)
 	jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, tagsCopy)
 
-	jobServiceCheck(s, metric, servicecheck.ServiceCheckCritical, hostname, tags)
+	jobServiceCheck(s, metric, servicecheck.Critical, hostname, tags)
 }
 
 // jobTimestampPattern extracts the timestamp in the job name label
@@ -377,7 +377,7 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 }
 
 // jobServiceCheck sends a service check for jobs
-func jobServiceCheck(s sender.Sender, metric ksmstore.DDMetric, status servicecheck.ServiceCheckStatus, hostname string, tags []string) {
+func jobServiceCheck(s sender.Sender, metric ksmstore.DDMetric, status servicecheck.Status, hostname string, tags []string) {
 	if strippedTags, valid := validateJob(metric.Val, tags); valid {
 		s.ServiceCheck(ksmMetricPrefix+"job.complete", status, hostname, strippedTags, "")
 	}

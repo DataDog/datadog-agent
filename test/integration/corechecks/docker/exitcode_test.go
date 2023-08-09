@@ -26,7 +26,7 @@ func TestContainerExit(t *testing.T) {
 		"highcardenvtag:exithighenv",
 		"lowcardenvtag:exitlowenv",
 	}
-	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckOK, "", append(expectedTags, "container_name:exitcode_exit0_1"), "Container exitcode_exit0_1 exited with 0")
-	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckCritical, "", append(expectedTags, "container_name:exitcode_exit1_1"), "Container exitcode_exit1_1 exited with 1")
-	sender.AssertServiceCheck(t, "docker.exit", servicecheck.ServiceCheckCritical, "", append(expectedTags, "container_name:exitcode_exit54_1"), "Container exitcode_exit54_1 exited with 54")
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.OK, "", append(expectedTags, "container_name:exitcode_exit0_1"), "Container exitcode_exit0_1 exited with 0")
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.Critical, "", append(expectedTags, "container_name:exitcode_exit1_1"), "Container exitcode_exit1_1 exited with 1")
+	sender.AssertServiceCheck(t, "docker.exit", servicecheck.Critical, "", append(expectedTags, "container_name:exitcode_exit54_1"), "Container exitcode_exit54_1 exited with 54")
 }

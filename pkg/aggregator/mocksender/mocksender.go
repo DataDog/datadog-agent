@@ -64,7 +64,7 @@ func (m *MockSender) SetupAcceptAll() {
 	).Return()
 	m.On("ServiceCheck",
 		mock.AnythingOfType("string"),                          // checkName (e.g: docker.exit)
-		mock.AnythingOfType("servicecheck.ServiceCheckStatus"), // (e.g: servicecheck.ServiceCheckOK)
+		mock.AnythingOfType("servicecheck.Status"),             // (e.g: servicecheck.OK)
 		mock.AnythingOfType("string"),                          // Hostname
 		mock.AnythingOfType("[]string"),                        // Tags
 		mock.AnythingOfType("string"),                          // message

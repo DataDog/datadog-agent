@@ -13,7 +13,7 @@ import (
 
 // LogLevelRuntimeSetting wraps operations to change log level at runtime.
 type LogLevelRuntimeSetting struct {
-	Config    config.ConfigReaderWriter
+	Config    config.ReaderWriter
 	ConfigKey string
 }
 
@@ -52,7 +52,7 @@ func (l LogLevelRuntimeSetting) Set(v interface{}) error {
 	if l.ConfigKey != "" {
 		key = l.ConfigKey
 	}
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}

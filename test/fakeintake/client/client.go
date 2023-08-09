@@ -114,7 +114,7 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 	if err != nil {
 		return nil, err
 	}
-	var response api.APIFakeIntakePayloadsGETResponse
+	var response api.FakeIntakePayloadsGETResponse
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		return nil, err
