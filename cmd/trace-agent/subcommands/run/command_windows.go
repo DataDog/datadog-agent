@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/runtime"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
