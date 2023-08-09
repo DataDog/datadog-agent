@@ -21,7 +21,7 @@ type jsonSerializer struct {
 }
 
 func (j jsonSerializer) Model(conns *network.Connections, modeler *Modeler) *model.Connections {
-	return modelConnections(conns, modeler.httpEncoder, modeler.http2Encoder, modeler.kafkaEncoder)
+	return modelConnections(conns, modeler)
 }
 
 func (j jsonSerializer) InitModeler(conns *network.Connections) *Modeler {

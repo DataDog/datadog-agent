@@ -66,7 +66,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-func modelConnections(conns *network.Connections, httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder) *model.Connections {
+func modelConnections(conns *network.Connections, modeler *Modeler) *model.Connections {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
@@ -83,7 +83,7 @@ func modelConnections(conns *network.Connections, httpEncoder *httpEncoder, http
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
+		agentConns[i] = FormatConnection(conn, routeIndex, modeler.httpEncoder, modeler.http2Encoder, modeler.kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
