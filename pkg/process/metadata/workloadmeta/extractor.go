@@ -67,8 +67,8 @@ func NewWorkloadMetaExtractor(sysprobeConfig config.ConfigReader) *WorkloadMetaE
 		cache:        make(map[string]*ProcessEntity),
 		cacheVersion: 0,
 		// Keep only the latest diff in memory in case there's no consumer for it
-		diffChan:        make(chan *ProcessCacheDiff, 1),
-		sysprobeConfig:  sysprobeConfig,
+		diffChan:       make(chan *ProcessCacheDiff, 1),
+		sysprobeConfig: sysprobeConfig,
 	}
 }
 
