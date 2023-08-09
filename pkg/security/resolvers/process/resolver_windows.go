@@ -16,22 +16,23 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-type Pid uint32
-type ProcessResolver struct {
+type Pid = uint32
+
+type Resolver struct {
 	maplock   sync.Mutex
 	processes map[Pid]*model.ProcessCacheEntry
-	opts      ProcessResolverOpts
+	opts      ResolverOpts
 }
 
-// ProcessResolverOpts options of resolver
-type ProcessResolverOpts struct {
+// ResolverOpts options of resolver
+type ResolverOpts struct {
 }
 
-// NewProcessResolver returns a new process resolver
+// NewResolver returns a new process resolver
 func NewResolver(config *config.Config, statsdClient statsd.ClientInterface,
-	opts ProcessResolverOpts) (*ProcessResolver, error) {
+	opts ResolverOpts) (*Resolver, error) {
 
-	p := &ProcessResolver{
+	p := &Resolver{
 		processes: make(map[Pid]*model.ProcessCacheEntry),
 		opts:      opts,
 	}
@@ -39,12 +40,12 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface,
 	return p, nil
 }
 
-// NewProcessResolverOpts returns a new set of process resolver options
-func NewResolverOpts() ProcessResolverOpts {
-	return ProcessResolverOpts{}
+// NewResolverOpts returns a new set of process resolver options
+func NewResolverOpts() ResolverOpts {
+	return ResolverOpts{}
 }
 
-func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine string) (*model.ProcessCacheEntry, error) {
+func (p *Resolver) AddNewProcessEntry(pid Pid, file string, commandLine string) (*model.ProcessCacheEntry, error) {
 	e := model.NewProcessCacheEntry(nil)
 
 	e.Process.PIDContext.Pid = uint32(e.Pid)
@@ -58,7 +59,7 @@ func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine s
 	return e, nil
 }
 
-func (p *ProcessResolver) GetProcessEntry(pid Pid) *model.ProcessCacheEntry {
+func (p *Resolver) GetProcessEntry(pid Pid) *model.ProcessCacheEntry {
 	p.maplock.Lock()
 	defer p.maplock.Unlock()
 	if e, ok := p.processes[pid]; ok {
@@ -67,7 +68,7 @@ func (p *ProcessResolver) GetProcessEntry(pid Pid) *model.ProcessCacheEntry {
 	return nil
 }
 
-func (p *ProcessResolver) DeleteProcessEntry(pid Pid) {
+func (p *Resolver) DeleteProcessEntry(pid Pid) {
 	p.maplock.Lock()
 	defer p.maplock.Unlock()
 	if _, ok := p.processes[pid]; ok {
@@ -77,5 +78,5 @@ func (p *ProcessResolver) DeleteProcessEntry(pid Pid) {
 
 // Resolve returns the cache entry for the given pid
 func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry {
-	return GetProcessEntry(pid)
+	return p.GetProcessEntry(pid)
 }

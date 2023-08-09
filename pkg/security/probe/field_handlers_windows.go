@@ -23,3 +23,8 @@ func (fh *FieldHandlers) ResolveEventTime(ev *model.Event) time.Time {
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return ev.ContainerContext, ev.ContainerContext != nil
 }
+
+// ResolveProcessArgv resolves the args of the event as an array
+func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
+	return process.Argv
+}
