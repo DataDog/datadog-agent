@@ -112,6 +112,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("_do_fork", fentry, withSkipIfFentry(true)),
 				kprobeOrFentry("do_fork", fentry, withSkipIfFentry(true)),
 				kprobeOrFentry("kernel_clone", fentry),
+				kprobeOrFentry("kernel_thread", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("cgroup_tasks_write", fentry, withSkipIfFentry(true)),
