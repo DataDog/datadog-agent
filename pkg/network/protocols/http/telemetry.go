@@ -22,11 +22,11 @@ type Telemetry struct {
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
 
-	totalHits    *libtelemetry.Counter
-	dropped      *libtelemetry.Counter // this happens when statKeeper reaches capacity
-	rejected     *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
-	malformed    *libtelemetry.Counter // this happens when the request doesn't have the expected format
-	aggregations *libtelemetry.Counter
+	totalHits                                                        *libtelemetry.Counter
+	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
+	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
+	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
+	aggregations                                                     *libtelemetry.Counter
 }
 
 func NewTelemetry(protocol string) *Telemetry {
@@ -44,10 +44,13 @@ func NewTelemetry(protocol string) *Telemetry {
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewCounter("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		dropped:   metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
-		rejected:  metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
-		malformed: metricGroup.NewCounter("malformed", libtelemetry.OptStatsd),
+		totalHits:              metricGroup.NewCounter("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		dropped:                metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
+		rejected:               metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
+		emptyPath:              metricGroup.NewCounter("malformed", "type:empty-path", libtelemetry.OptStatsd),
+		unknownMethod:          metricGroup.NewCounter("malformed", "type:unknown-method", libtelemetry.OptStatsd),
+		invalidLatency:         metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
+		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
 	}
 }
 

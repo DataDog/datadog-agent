@@ -137,6 +137,10 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 	}
 
 	var bpfTelemetry *nettelemetry.EBPFTelemetry
+	if nettelemetry.EBPFTelemetrySupported() {
+		bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+		coretelemetry.GetCompatComponent().RegisterCollector(bpfTelemetry)
+	}
 
 	if cfg.ServiceMonitoringEnabled {
 		if !http.Supported() {
@@ -148,8 +152,6 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 			cfg.EnableHTTPMonitoring = false
 			cfg.EnableHTTP2Monitoring = false
 			cfg.EnableHTTPSMonitoring = false
-		} else {
-			bpfTelemetry = nettelemetry.NewEBPFTelemetry()
 		}
 
 		if !http2.Supported() {

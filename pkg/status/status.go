@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs"
@@ -55,9 +57,9 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
 	stats["hostTags"] = hostTags
 
-	pythonVersion := host.GetPythonVersion()
+	pythonVersion := python.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
-	stats["hostinfo"] = host.GetStatusInformation()
+	stats["hostinfo"] = hostMetadataUtils.GetInformation()
 
 	stats["JMXStatus"] = GetJMXStatus()
 	stats["JMXStartupError"] = GetJMXStartupError()
