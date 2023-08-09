@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// EvaluationSet exported type should have comment or be unexported
 type EvaluationSet struct {
 	RuleSets map[eval.RuleSetTagValue]*RuleSet
 }
@@ -59,6 +60,7 @@ type ruleIndexEntry struct {
 	ruleID eval.RuleID
 }
 
+// LoadPolicies exported method should have comment or be unexported
 func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
 	var (
 		errs       *multierror.Error

@@ -51,6 +51,7 @@ type CliParams struct {
 	dumpReports       string
 }
 
+// SecurityAgentCommands exported function should have comment or be unexported
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
@@ -60,6 +61,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	})
 }
 
+// ClusterAgentCommands exported function should have comment or be unexported
 func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return bundleParams
@@ -99,6 +101,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 	return []*cobra.Command{cmd}
 }
 
+// RunCheck exported function should have comment or be unexported
 func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {

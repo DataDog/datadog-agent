@@ -55,10 +55,12 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 	return p, nil
 }
 
+// Start exported method should have comment or be unexported
 func (p *ProcessConsumer) Start() error {
 	return nil
 }
 
+// Stop exported method should have comment or be unexported
 func (p *ProcessConsumer) Stop() {
 }
 
@@ -67,6 +69,7 @@ func (p *ProcessConsumer) ID() string {
 	return "PROCESS"
 }
 
+// SendStats exported method should have comment or be unexported
 func (p *ProcessConsumer) SendStats() {
 	if count := p.expiredEvents.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {

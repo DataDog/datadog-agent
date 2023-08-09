@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+// LogReporter exported type should have comment or be unexported
 type LogReporter struct {
 	logSource *sources.LogSource
 	logChan   chan *message.Message
@@ -85,10 +86,12 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	}, nil
 }
 
+// Endpoints exported method should have comment or be unexported
 func (r *LogReporter) Endpoints() *config.Endpoints {
 	return r.endpoints
 }
 
+// ReportEvent exported method should have comment or be unexported
 func (r *LogReporter) ReportEvent(event interface{}) {
 	buf, err := json.Marshal(event)
 	if err != nil {

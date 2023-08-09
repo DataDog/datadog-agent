@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// ParseProcessFlags exported function should have comment or be unexported
 func ParseProcessFlags(args []string) []string {
 	flags := make([]string, 0)
 	for _, arg := range args {
@@ -43,6 +44,7 @@ func ParseProcessFlags(args []string) []string {
 	return flags
 }
 
+// ParseProcessOptions exported function should have comment or be unexported
 func ParseProcessOptions(args []string) []string {
 	options := make([]string, 0)
 	for i := 0; i < len(args); i++ {

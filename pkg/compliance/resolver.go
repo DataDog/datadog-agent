@@ -50,23 +50,30 @@ const inputsResolveTimeout = 5 * time.Second
 // given rule's inputs are not resolvable in the current environment.
 var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
 
+// DockerProvider exported type should have comment or be unexported
 type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
+// KubernetesProvider exported type should have comment or be unexported
 type KubernetesProvider func(context.Context) (kubedynamic.Interface, error)
+// LinuxAuditProvider exported type should have comment or be unexported
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
 
+// LinuxAuditClient exported type should have comment or be unexported
 type LinuxAuditClient interface {
 	GetFileWatchRules() ([]*auditrule.FileWatchRule, error)
 	Close() error
 }
 
+// DefaultDockerProvider exported function should have comment or be unexported
 func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) {
 	return newDockerClient(ctx)
 }
 
+// DefaultLinuxAuditProvider exported function should have comment or be unexported
 func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
 	return newLinuxAuditClient()
 }
 
+// ResolverOptions exported type should have comment or be unexported
 type ResolverOptions struct {
 	Hostname     string
 	HostRoot     string

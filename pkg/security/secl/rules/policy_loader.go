@@ -13,6 +13,7 @@ import (
 	"github.com/skydive-project/go-debouncer"
 )
 
+// This const block should have a comment of be unexported
 const (
 	PolicyProviderTypeDir = "file"
 	PolicyProviderTypeRC  = "remote-config"

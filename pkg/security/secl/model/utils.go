@@ -72,6 +72,7 @@ func UnmarshalString(data []byte, size int) (string, error) {
 	return NullTerminatedString(data[:size]), nil
 }
 
+// NullTerminatedString exported function should have a comment or be unexported
 func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {

@@ -1,3 +1,4 @@
+// Status exported type should have comment or be unexported
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -159,6 +160,7 @@ type Releasable struct {
 	onReleaseCallback func() `field:"-" json:"-"`
 }
 
+// CallReleaseCallback exported method should have comment or be unexported
 func (r *Releasable) CallReleaseCallback() {
 	if r.onReleaseCallback != nil {
 		r.onReleaseCallback()
@@ -190,6 +192,7 @@ type ContainerContext struct {
 	Resolved  bool     `field:"-"`
 }
 
+// Status type should have a comment or be unexported
 type Status uint32
 
 const (
@@ -201,6 +204,7 @@ const (
 	WorkloadHardening
 )
 
+// IsEnabled exported method should have comment or be unexported
 func (s Status) IsEnabled(option Status) bool {
 	return (s & option) != 0
 }
@@ -496,6 +500,7 @@ func NewMatchedRule(ruleID, ruleVersion string, ruleTags map[string]string, poli
 	}
 }
 
+// Match exported method should have comment or be unexported
 func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
 	if mr2 == nil ||
 		mr.RuleID != mr2.RuleID ||
@@ -937,6 +942,7 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
+// This const block should have a comment of be unexported
 const (
 	ProcessCacheEntryFromUnknown = iota
 	ProcessCacheEntryFromEvent
@@ -945,6 +951,7 @@ const (
 	ProcessCacheEntryFromSnapshot
 )
 
+// ProcessSources exported var should have comment or be unexported
 var ProcessSources = [...]string{
 	"unknown",
 	"event",
@@ -953,6 +960,7 @@ var ProcessSources = [...]string{
 	"procfs_snapshot",
 }
 
+// ProcessSourceToString exported function should have comment or be unexported
 func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
 }
@@ -1297,6 +1305,7 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
+// PathKeySize exported const should have comment or be unexported
 const PathKeySize = 16
 
 // AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event

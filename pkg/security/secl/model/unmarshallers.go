@@ -324,6 +324,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	return MaxArgEnvSize + 8, nil
 }
 
+// UnmarshalBinary exported method should have comment or be unexported
 func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData

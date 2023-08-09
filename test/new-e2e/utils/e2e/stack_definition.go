@@ -19,11 +19,13 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// StackDefinition exported type should have comment or be unexported
 type StackDefinition[Env any] struct {
 	envFactory func(ctx *pulumi.Context) (*Env, error)
 	configMap  runner.ConfigMap
 }
 
+// NewStackDef exported function should have comment or be unexported
 func NewStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error), configMap runner.ConfigMap) *StackDefinition[Env] {
 	return &StackDefinition[Env]{envFactory: envFactory, configMap: configMap}
 }
@@ -33,6 +35,7 @@ func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, err
 	return NewStackDef(envFactory, runner.ConfigMap{})
 }
 
+// VMEnv exported type should have comment or be unexported
 type VMEnv struct {
 	VM *client.VM
 }
@@ -46,6 +49,7 @@ func EC2VMStackDef(options ...ec2params.Option) *StackDefinition[VMEnv] {
 	return CustomEC2VMStackDef(noop, options...)
 }
 
+// CustomEC2VMStackDef exported function should have comment or be unexported
 func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params.Option) *StackDefinition[VMEnv] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*VMEnv, error) {
 		vm, err := ec2vm.NewEc2VM(ctx, options...)
@@ -62,6 +66,7 @@ func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params
 	})
 }
 
+// AgentEnv exported type should have comment or be unexported
 type AgentEnv struct {
 	VM    *client.VM
 	Agent *client.Agent
@@ -95,6 +100,7 @@ func AgentStackDef(vmParams []ec2params.Option, agentParameters ...agentparams.O
 	)
 }
 
+// FakeIntakeEnv exported type should have comment or be unexported
 type FakeIntakeEnv struct {
 	VM         *client.VM
 	Agent      *client.Agent
@@ -136,6 +142,7 @@ func FakeIntakeStackDef(vmParams []ec2params.Option, agentParameters ...agentpar
 	)
 }
 
+// DockerEnv exported type should have comment or be unexported
 type DockerEnv struct {
 	Docker *client.Docker
 }

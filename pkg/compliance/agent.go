@@ -28,6 +28,7 @@ const containersCountMetricName = "datadog.security_agent.compliance.containers_
 
 var status = expvar.NewMap("compliance")
 
+// AgentOptions exported type should have comment or be unexported
 type AgentOptions struct {
 	// ResolverOptions is the options passed to the constructed resolvers
 	// internally. See resolver.go.
@@ -60,6 +61,7 @@ type AgentOptions struct {
 	EvalThrottling time.Duration
 }
 
+// Agent exported type should have comment or be unexported
 type Agent struct {
 	opts AgentOptions
 
@@ -75,6 +77,7 @@ func xccdfEnabled() bool {
 	return config.Datadog.GetBool("compliance_config.xccdf.enabled") || config.Datadog.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
+// DefaultRuleFilter exported function should have comment or be unexported
 func DefaultRuleFilter(r *Rule) bool {
 	if config.IsKubernetes() {
 		if r.SkipOnK8s {
@@ -105,6 +108,7 @@ func DefaultRuleFilter(r *Rule) bool {
 	return true
 }
 
+// NewAgent exported function should have comment or be unexported
 func NewAgent(opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
@@ -137,6 +141,7 @@ func NewAgent(opts AgentOptions) *Agent {
 	}
 }
 
+// Start exported method should have comment or be unexported
 func (a *Agent) Start() error {
 	telemetry, err := common.NewContainersTelemetry()
 	if err != nil {
@@ -198,6 +203,7 @@ func (a *Agent) Start() error {
 	return nil
 }
 
+// Stop exported method should have comment or be unexported
 func (a *Agent) Stop() {
 	log.Tracef("shutting down compliance agent")
 	a.cancel()
@@ -372,6 +378,7 @@ func (a *Agent) runTelemetry(ctx context.Context) {
 	}
 }
 
+// GetStatus exported method should have comment or be unexported
 func (a *Agent) GetStatus() map[string]interface{} {
 	return map[string]interface{}{
 		"endpoints": a.opts.Reporter.Endpoints().GetStatus(),

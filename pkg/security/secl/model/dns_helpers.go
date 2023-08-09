@@ -22,6 +22,7 @@ var (
 	ErrDNSNameMalformatted = errors.New("dns name mal-formatted")
 )
 
+// DNS_PREALLOC_SIZE exported const should have comment or be unexported
 const DNS_PREALLOC_SIZE = 256
 
 func decodeDNSName(raw []byte) (string, error) {

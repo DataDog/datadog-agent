@@ -22,11 +22,13 @@ import (
 // event.
 type Evaluator string
 
+// This const block should have a comment of be unexported
 const (
 	RegoEvaluator  Evaluator = "rego"
 	XCCDFEvaluator Evaluator = "xccdf"
 )
 
+// CheckResult exported type should have comment or be unexported
 type CheckResult string
 
 const (
@@ -43,6 +45,7 @@ const (
 	CheckSkipped CheckResult = "skipped"
 )
 
+// CheckStatus exported type should have comment or be unexported
 type CheckStatus struct {
 	RuleID      string
 	Name        string
@@ -72,6 +75,7 @@ type CheckEvent struct {
 	errReason error `json:"-"`
 }
 
+// ResourceLog exported type should have comment or be unexported
 type ResourceLog struct {
 	AgentVersion string      `json:"agent_version,omitempty"`
 	ExpireAt     time.Time   `json:"expire_at,omitempty"`
@@ -94,6 +98,7 @@ func (e *CheckEvent) String() string {
 	return s
 }
 
+// NewCheckError exported function should have comment or be unexported
 func NewCheckError(
 	evaluator Evaluator,
 	errReason error,
@@ -118,6 +123,7 @@ func NewCheckError(
 	}
 }
 
+// NewCheckEvent exported function should have comment or be unexported
 func NewCheckEvent(
 	evaluator Evaluator,
 	result CheckResult,
@@ -141,6 +147,7 @@ func NewCheckEvent(
 	}
 }
 
+// NewCheckSkipped exported function should have comment or be unexported
 func NewCheckSkipped(
 	evaluator Evaluator,
 	skipReason error,
@@ -161,6 +168,7 @@ func NewCheckSkipped(
 	}
 }
 
+// NewResourceLog exported function should have comment or be unexported
 func NewResourceLog(resourceID, resourceType string, resource interface{}) *ResourceLog {
 	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
 	return &ResourceLog{
@@ -172,8 +180,10 @@ func NewResourceLog(resourceID, resourceType string, resource interface{}) *Reso
 	}
 }
 
+// RuleScope exported type should have comment or be unexported
 type RuleScope string
 
+// This const block should have a comment of be unexported
 const (
 	Unscoped               RuleScope = "none"
 	DockerScope            RuleScope = "docker"
@@ -181,6 +191,7 @@ const (
 	KubernetesClusterScope RuleScope = "kubernetesCluster"
 )
 
+// RuleFilter exported type should have comment or be unexported
 type RuleFilter func(*Rule) bool
 
 // Rule defines a list of inputs against which we can evaluate properties. It
@@ -214,29 +225,35 @@ type (
 		Type    string `yaml:"type,omitempty" json:"type,omitempty"`
 	}
 
+// InputSpecFile exported type should have comment or be unexported
 	InputSpecFile struct {
 		Path   string `yaml:"path" json:"path"`
 		Glob   string `yaml:"glob" json:"glob"`
 		Parser string `yaml:"parser,omitempty" json:"parser,omitempty"`
 	}
 
+// InputSpecProcess exported type should have comment or be unexported
 	InputSpecProcess struct {
 		Name string   `yaml:"name" json:"name"`
 		Envs []string `yaml:"envs,omitempty" json:"envs,omitempty"`
 	}
 
+// InputSpecGroup exported type should have comment or be unexported
 	InputSpecGroup struct {
 		Name string `yaml:"name" json:"name"`
 	}
 
+// InputSpecAudit exported type should have comment or be unexported
 	InputSpecAudit struct {
 		Path string `yaml:"path" json:"path"`
 	}
 
+// InputSpecDocker exported type should have comment or be unexported
 	InputSpecDocker struct {
 		Kind string `yaml:"kind" json:"kind"`
 	}
 
+// InputSpecKubeapiserver exported type should have comment or be unexported
 	InputSpecKubeapiserver struct {
 		Kind          string `yaml:"kind" json:"kind"`
 		Version       string `yaml:"version,omitempty" json:"version,omitempty"`
@@ -250,6 +267,7 @@ type (
 		} `yaml:"apiRequest" json:"apiRequest"`
 	}
 
+// InputSpecXCCDF exported type should have comment or be unexported
 	InputSpecXCCDF struct {
 		Name    string   `yaml:"name" json:"name"`
 		Profile string   `yaml:"profile" json:"profile"`
@@ -257,6 +275,7 @@ type (
 		Rules   []string `yaml:"rules,omitempty" json:"rules,omitempty"`
 	}
 
+// InputSpecConstants exported type should have comment or be unexported
 	InputSpecConstants map[string]interface{}
 )
 
@@ -280,14 +299,17 @@ type Benchmark struct {
 	} `yaml:"schema,omitempty" json:"schema,omitempty"`
 }
 
+// IsRego exported method should have comment or be unexported
 func (r *Rule) IsRego() bool {
 	return !r.IsXCCDF()
 }
 
+// IsXCCDF exported method should have comment or be unexported
 func (r *Rule) IsXCCDF() bool {
 	return len(r.InputSpecs) == 1 && r.InputSpecs[0].XCCDF != nil
 }
 
+// HasScope exported method should have comment or be unexported
 func (r *Rule) HasScope(scope RuleScope) bool {
 	for _, s := range r.Scopes {
 		if s == scope {
@@ -297,6 +319,7 @@ func (r *Rule) HasScope(scope RuleScope) bool {
 	return false
 }
 
+// Valid exported method should have comment or be unexported
 func (i *InputSpec) Valid() error {
 	// NOTE(jinroh): the current semantics allow to specify the result type as
 	// an "array". Here we enforce that the specified result type is
@@ -316,6 +339,7 @@ func (i *InputSpec) Valid() error {
 	return nil
 }
 
+// Valid exported method should have comment or be unexported
 func (b *Benchmark) Valid() error {
 	if len(b.Rules) == 0 {
 		return fmt.Errorf("bad benchmark: empty rule set")

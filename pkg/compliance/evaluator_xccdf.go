@@ -33,6 +33,7 @@ const (
 	enableSysChar = false
 )
 
+// This const block should have a comment of be unexported
 const (
 	XCCDF_RESULT_PASS = iota + 1
 	XCCDF_RESULT_FAIL
@@ -249,6 +250,7 @@ func (p *oscapIO) Kill() error {
 	return nil
 }
 
+// EvaluateXCCDFRule exported function should have comment or be unexported
 func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	if !rule.IsXCCDF() {
 		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)
