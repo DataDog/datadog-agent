@@ -187,21 +187,23 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 	})
 
 	// prepare go runtime
-	agentrt.SetMaxProcs()
-	procs := runtime.GOMAXPROCS(0)
-	if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
-		log.Infof("GOMAXPROCS manually set to %v", mp)
-	} else if tracecfg.MaxCPU > 0 {
-		allowedCores := int(tracecfg.MaxCPU / 100)
-		if allowedCores < 1 {
-			allowedCores = 1
+	cgsetprocs := agentrt.SetMaxProcs()
+	if !cgsetprocs {
+		procs := runtime.GOMAXPROCS(0)
+		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
+			log.Infof("GOMAXPROCS manually set to %v", mp)
+		} else if tracecfg.MaxCPU > 0 {
+			allowedCores := int(tracecfg.MaxCPU / 100)
+			if allowedCores < 1 {
+				allowedCores = 1
+			}
+			if allowedCores < procs {
+				log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, (allowedCores))
+				runtime.GOMAXPROCS(int(allowedCores))
+			}
+		} else {
+			log.Infof("apm_config.max_cpu is disabled. leaving GOMAXPROCS at current value.")
 		}
-		if allowedCores < procs {
-			log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, (allowedCores))
-			runtime.GOMAXPROCS(int(allowedCores))
-		}
-	} else {
-		log.Infof("apm_config.max_cpu is disabled. leaving GOMAXPROCS at current value.")
 	}
 	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
@@ -210,21 +212,22 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 	if err != nil {
 		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
 	}
-
-	if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
-		log.Infof("GOMEMLIMIT manually set to: %v", lim)
-	} else if tracecfg.MaxMemory > 0 && (cgmem == 0 || int64(tracecfg.MaxMemory) < cgmem) {
-		// We have a apm_config.max_memory that's lower than the cgroup limit.
-		log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
-		finalmem := int64(tracecfg.MaxMemory * 0.9)
-		debug.SetMemoryLimit(finalmem)
-		log.Infof("Maximum memory available: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
-	} else if cgmem > 0 {
-		// cgroup already constrained the memory
-		log.Infof("Memory constrained by cgroup. Setting GOMEMLIMIT to: %vMiB", cgmem/(1024*1024))
+	if cgmem == 0 {
+		// memory limit not set from cgroups
+		if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
+			log.Infof("GOMEMLIMIT manually set to: %v", lim)
+		} else if tracecfg.MaxMemory > 0 {
+			// We have a apm_config.max_memory that's lower than the cgroup limit.
+			log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			finalmem := int64(tracecfg.MaxMemory * 0.9)
+			debug.SetMemoryLimit(finalmem)
+			log.Infof("Maximum memory available: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
+		} else {
+			// There are no memory constraints
+			log.Infof("GOMEMLIMIT unconstrained.")
+		}
 	} else {
-		// There are no memory constraints
-		log.Infof("GOMEMLIMIT unconstrained.")
+		log.Infof("Memory constrained by cgroup. Setting GOMEMLIMIT to: %vMiB", cgmem/(1024*1024))
 	}
 
 	agnt := agent.NewAgent(ctx, tracecfg, telemetryCollector)
