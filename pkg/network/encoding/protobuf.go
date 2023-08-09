@@ -18,7 +18,7 @@ const ContentTypeProtobuf = "application/protobuf"
 type protoSerializer struct{}
 
 func (p protoSerializer) Model(conns *network.Connections, modeler *Modeler) *model.Connections {
-	return modelConnections(conns, modeler.httpEncoder, modeler.http2Encoder, modeler.kafkaEncoder)
+	return modelConnections(conns, modeler)
 }
 
 func (p protoSerializer) InitModeler(conns *network.Connections) *Modeler {
