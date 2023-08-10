@@ -79,8 +79,8 @@ images_path_local = {
     "bionic": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-{arch}.qcow2",
     "focal": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-{arch}.qcow2",
     "jammy": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-{arch}.qcow2",
-    "bullseye": "file:///home/kernel-version-testing/rootfs/bullseye.qcow2.{arch}-DEV.qcow2",
-    "buster": "file:///home/kernel-version-testing/rootfs/buster.qcow2.{arch}-DEV.qcow2",
+    "bullseye": "file:///home/kernel-version-testing/rootfs/custom-bullseye.{arch}.qcow2",
+    "buster": "file:///home/kernel-version-testing/rootfs/custom-buster.{arch}.qcow2",
     "amzn_4.14": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-4.14.qcow2",
     "amzn_5.4": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.4.qcow2",
     "amzn_5.10": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.10.qcow2",
@@ -95,8 +95,8 @@ images_path_s3 = {
     "bionic": "{url_base}bionic-server-cloudimg-{arch}.qcow2",
     "focal": "{url_base}focal-server-cloudimg-{arch}.qcow2",
     "jammy": "{url_base}jammy-server-cloudimg-{arch}.qcow2",
-    "bullseye": "{url_base}bullseye.qcow2.{arch}-DEV.qcow2",
-    "buster": "{url_base}buster.qcow2.{arch}-DEV.qcow2",
+    "bullseye": "{url_base}custom-bullseye.{arch}.qcow2",
+    "buster": "{url_base}custom-buster.{arch}.qcow2",
     "amzn_4.14": "{url_base}amzn2-kvm-2.0-{arch}-4.14.qcow2",
     "amzn_5.4": "{url_base}amzn2-kvm-2.0-{arch}-5.4.qcow2",
     "amzn_5.10": "{url_base}amzn2-kvm-2.0-{arch}-5.10.qcow2",
@@ -111,8 +111,8 @@ images_name = {
     "bionic": "bionic-server-cloudimg-{arch}.qcow2",
     "focal": "focal-server-cloudimg-{arch}.qcow2",
     "jammy": "jammy-server-cloudimg-{arch}.qcow2",
-    "bullseye": "bullseye.qcow2.{arch}-DEV.qcow2",
-    "buster": "buster.qcow2.{arch}-DEV.qcow2",
+    "bullseye": "custom-bullseye.{arch}.qcow2",
+    "buster": "custom-buster.{arch}.qcow2",
     "amzn_4.14": "amzn2-kvm-2.0-{arch}-4.14.qcow2",
     "amzn_5.4": "amzn2-kvm-2.0-{arch}-5.4.qcow2",
     "amzn_5.10": "amzn2-kvm-2.0-{arch}-5.10.qcow2",
@@ -311,12 +311,12 @@ def build_new_vmset(set_id, kernels):
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"custom-{arch}", "arch": arch, "kernels": kernels}
         if version == "lte_414":
             vmset["image"] = {
-                "image_path": f"buster.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
+                "image_path": f"custom-buster.{distro_arch_mapping[platform_arch]}.qcow2",
                 "image_source": get_image_path("buster", distro_arch_mapping[platform_arch], local),
             }
         else:
             vmset["image"] = {
-                "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
+                "image_path": f"custom-bullseye.{distro_arch_mapping[platform_arch]}.qcow2",
                 "image_source": get_image_path("bullseye", distro_arch_mapping[platform_arch], local),
             }
     elif recipe == "distro":

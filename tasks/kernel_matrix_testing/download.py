@@ -13,8 +13,8 @@ except ImportError:
 
 url_base = "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/"
 rootfs_amd64 = {
-    "bullseye.qcow2.amd64-DEV.qcow2",
-    "buster.qcow2.amd64-DEV.qcow2",
+    "custom-bullseye.amd64.qcow2",
+    "custom-buster.amd64.qcow2",
     "jammy-server-cloudimg-amd64.qcow2",
     "focal-server-cloudimg-amd64.qcow2",
     "bionic-server-cloudimg-amd64.qcow2",
@@ -25,7 +25,7 @@ rootfs_amd64 = {
 }
 
 rootfs_arm64 = {
-    "bullseye.qcow2.arm64-DEV.qcow2",
+    "custom-bullseye.arm64.qcow2",
     "jammy-server-cloudimg-arm64.qcow2",
     "focal-server-cloudimg-arm64.qcow2",
     "bionic-server-cloudimg-arm64.qcow2",
