@@ -739,8 +739,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
 
     # clean target_packages only
     for pkg_dir in target_packages:
-        if os.path.exists(pkg_dir):
-            shutil.rmtree(pkg_dir)
+        test_dir = pkg_dir.lstrip(os.getcwd())
+        if os.path.exists(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir)):
+            shutil.rmtree(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir))
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
