@@ -58,7 +58,7 @@ func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
-// exported comment on const ProcessDiscoveryHint should be of the form "ProcessDiscoveryHint ..."
+	// exported comment on const ProcessDiscoveryHint should be of the form "ProcessDiscoveryHint ..."
 	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 
@@ -105,7 +105,7 @@ type ProcessCheck struct {
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
-// struct field lookupIdProbe should be lookupIDProbe
+	// struct field lookupIdProbe should be lookupIDProbe
 	lookupIdProbe *LookupIdProbe
 
 	extractors []metadata.Extractor
@@ -432,7 +432,7 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
-// func parameter lookupIdProbe should be lookupIDProbe
+	// func parameter lookupIdProbe should be lookupIDProbe
 	lookupIdProbe *LookupIdProbe,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)

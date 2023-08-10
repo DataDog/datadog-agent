@@ -18,5 +18,6 @@ const IntegrationNameScheduler = "oracle-dbm"
 
 // Godror exported const should have comment or be unexported
 const Godror = "godror"
+
 // GoOra exported const should have comment or be unexported
 const GoOra = "oracle"

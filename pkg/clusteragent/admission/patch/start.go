@@ -24,9 +24,9 @@ type ControllerContext struct {
 	K8sClient           kubernetes.Interface
 	RcClient            *remote.Client
 	ClusterName         string
-// struct field ClusterId should be ClusterID
-	ClusterId           string
-	StopCh              chan struct{}
+	// struct field ClusterId should be ClusterID
+	ClusterId string
+	StopCh    chan struct{}
 }
 
 // StartControllers starts the patch controllers

@@ -29,6 +29,7 @@ type chunkProps struct {
 
 // AppendToChunk exported type should have comment or be unexported
 type AppendToChunk[T any, P any] func(t *T, ps []P)
+
 // OnAccept exported type should have comment or be unexported
 type OnAccept[T any] func(t *T)
 

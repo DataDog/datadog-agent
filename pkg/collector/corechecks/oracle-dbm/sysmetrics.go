@@ -29,7 +29,7 @@ const SYSMETRICS_QUERY = `SELECT
   WHERE s.con_id = c.con_id(+)`
 
 const (
-// Count exported const should have comment (or a comment on this block) or be unexported
+	// Count exported const should have comment (or a comment on this block) or be unexported
 	Count int = 0
 )
 

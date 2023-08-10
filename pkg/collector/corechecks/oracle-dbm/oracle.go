@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-  // A blank import should be only in a main or test package, or have a comment justifying it
+	// A blank import should be only in a main or test package, or have a comment justifying it
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	cache "github.com/patrickmn/go-cache"
@@ -33,8 +33,10 @@ import (
 
 // MAX_OPEN_CONNECTIONS exported var should have comment or be unexported
 var MAX_OPEN_CONNECTIONS = 10
+
 // DEFAULT_SQL_TRACED_RUNS exported var should have comment or be unexported
 var DEFAULT_SQL_TRACED_RUNS = 10
+
 // DB_TIMEOUT exported var should have comment or be unexported
 // don't use ALL_CAPS in Go names; use CamelCase
 var DB_TIMEOUT = "20000"
@@ -52,6 +54,7 @@ type StatementsCacheData struct {
 	tables         []string
 	commands       []string
 }
+
 // StatementsCache exported type should have comment or be unexported
 type StatementsCache struct {
 	SQLIDs                  map[string]StatementsCacheData

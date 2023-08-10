@@ -21,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+
 // TestEnv exported type should have comment or be unexported
 
 // TestEnv exported type should have comment or be unexported
@@ -41,6 +42,7 @@ var snmpConfig string
 const (
 	composeDataPath = "compose/data"
 )
+
 // NewTestEnv exported function should have comment or be unexported
 
 // NewTestEnv exported function should have comment or be unexported

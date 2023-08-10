@@ -400,15 +400,15 @@ type PlanStatementMetadata struct {
 
 // PlanDefinition exported type should have comment or be unexported
 type PlanDefinition struct {
-	Operation        string  `json:"operation,omitempty"`
-	Options          string  `json:"options,omitempty"`
-	ObjectOwner      string  `json:"object_owner,omitempty"`
-	ObjectName       string  `json:"object_name,omitempty"`
-	ObjectAlias      string  `json:"object_alias,omitempty"`
-	ObjectType       string  `json:"object_type,omitempty"`
-// struct field PlanStepId should be PlanStepID
-	PlanStepId       int64   `json:"id,omitempty"`
-// struct field ParentId should be ParentID
+	Operation   string `json:"operation,omitempty"`
+	Options     string `json:"options,omitempty"`
+	ObjectOwner string `json:"object_owner,omitempty"`
+	ObjectName  string `json:"object_name,omitempty"`
+	ObjectAlias string `json:"object_alias,omitempty"`
+	ObjectType  string `json:"object_type,omitempty"`
+	// struct field PlanStepId should be PlanStepID
+	PlanStepId int64 `json:"id,omitempty"`
+	// struct field ParentId should be ParentID
 	ParentId         int64   `json:"parent_id,omitempty"`
 	Depth            int64   `json:"depth,omitempty"`
 	Position         int64   `json:"position,omitempty"`
@@ -472,17 +472,18 @@ type PlanGlobalRow struct {
 	Executions    sql.NullString `db:"EXECUTIONS"`
 	PDBName       sql.NullString `db:"PDB_NAME"`
 }
+
 // PlanStepRows exported type should have comment or be unexported
 type PlanStepRows struct {
-	Operation        sql.NullString  `db:"OPERATION"`
-	Options          sql.NullString  `db:"OPTIONS"`
-	ObjectOwner      sql.NullString  `db:"OBJECT_OWNER"`
-	ObjectName       sql.NullString  `db:"OBJECT_NAME"`
-	ObjectAlias      sql.NullString  `db:"OBJECT_ALIAS"`
-	ObjectType       sql.NullString  `db:"OBJECT_TYPE"`
-// struct field PlanStepId should be PlanStepID
-	PlanStepId       sql.NullInt64   `db:"ID"`
-// struct field ParentId should be ParentID
+	Operation   sql.NullString `db:"OPERATION"`
+	Options     sql.NullString `db:"OPTIONS"`
+	ObjectOwner sql.NullString `db:"OBJECT_OWNER"`
+	ObjectName  sql.NullString `db:"OBJECT_NAME"`
+	ObjectAlias sql.NullString `db:"OBJECT_ALIAS"`
+	ObjectType  sql.NullString `db:"OBJECT_TYPE"`
+	// struct field PlanStepId should be PlanStepID
+	PlanStepId sql.NullInt64 `db:"ID"`
+	// struct field ParentId should be ParentID
 	ParentId         sql.NullInt64   `db:"PARENT_ID"`
 	Depth            sql.NullInt64   `db:"DEPTH"`
 	Position         sql.NullInt64   `db:"POSITION"`
@@ -508,6 +509,7 @@ type PlanStepRows struct {
 	LastDegree       *uint64         `db:"LAST_DEGREE"`
 	LastTempsegSize  *uint64         `db:"LAST_TEMPSEG_SIZE"`
 }
+
 // PlanRows exported type should have comment or be unexported
 type PlanRows struct {
 	PlanGlobalRow

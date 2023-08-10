@@ -42,6 +42,7 @@ const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
 // RunZip App Services env vars
 const RunZip = "APPSVC_RUN_ZIP"
+
 // AppLogsTrace exported const should have comment or be unexported
 const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 

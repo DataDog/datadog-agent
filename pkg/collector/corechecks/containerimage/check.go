@@ -38,9 +38,9 @@ type Config struct {
 }
 
 type configValueRange struct {
-	min      int
-	max      int
-// don't use underscores in Go names; struct field default_ should be default
+	min int
+	max int
+	// don't use underscores in Go names; struct field default_ should be default
 	default_ int
 }
 

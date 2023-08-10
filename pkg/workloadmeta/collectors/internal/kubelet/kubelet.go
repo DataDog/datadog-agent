@@ -109,7 +109,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		containerSpecs = append(containerSpecs, pod.Spec.InitContainers...)
 		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
-// var podId should be podID
+		// var podId should be podID
 		podId := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podMeta.UID,

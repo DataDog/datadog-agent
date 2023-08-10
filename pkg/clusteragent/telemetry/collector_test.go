@@ -21,9 +21,9 @@ import (
 )
 
 const (
-// const testRcClientId should be testRcClientID
-	testRcClientId          = "YgRPh8NqGkvhXq71FvxVN"
-// const testKubernetesClusterId should be testKubernetesClusterID
+	// const testRcClientId should be testRcClientID
+	testRcClientId = "YgRPh8NqGkvhXq71FvxVN"
+	// const testKubernetesClusterId should be testKubernetesClusterID
 	testKubernetesClusterId = "2cb68cff-935e-4d09-8e57-7c2c5e0364d6"
 )
 

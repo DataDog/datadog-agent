@@ -59,15 +59,15 @@ func (s Status) String() string {
 
 // ServiceCheck holds a service check (w/ serialization to DD api format)
 type ServiceCheck struct {
-	CheckName        string             `json:"check"`
-	Host             string             `json:"host_name"`
-	Ts               int64              `json:"timestamp"`
-	Status           Status             `json:"status"`
-	Message          string             `json:"message"`
-	Tags             []string           `json:"tags"`
-	OriginFromUDS    string             `json:"-"`
-	OriginFromClient string             `json:"-"`
-	Cardinality      string             `json:"-"`
+	CheckName        string   `json:"check"`
+	Host             string   `json:"host_name"`
+	Ts               int64    `json:"timestamp"`
+	Status           Status   `json:"status"`
+	Message          string   `json:"message"`
+	Tags             []string `json:"tags"`
+	OriginFromUDS    string   `json:"-"`
+	OriginFromClient string   `json:"-"`
+	Cardinality      string   `json:"-"`
 }
 
 func (sc ServiceCheck) String() string {

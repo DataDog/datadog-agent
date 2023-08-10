@@ -225,35 +225,35 @@ type (
 		Type    string `yaml:"type,omitempty" json:"type,omitempty"`
 	}
 
-// InputSpecFile exported type should have comment or be unexported
+	// InputSpecFile exported type should have comment or be unexported
 	InputSpecFile struct {
 		Path   string `yaml:"path" json:"path"`
 		Glob   string `yaml:"glob" json:"glob"`
 		Parser string `yaml:"parser,omitempty" json:"parser,omitempty"`
 	}
 
-// InputSpecProcess exported type should have comment or be unexported
+	// InputSpecProcess exported type should have comment or be unexported
 	InputSpecProcess struct {
 		Name string   `yaml:"name" json:"name"`
 		Envs []string `yaml:"envs,omitempty" json:"envs,omitempty"`
 	}
 
-// InputSpecGroup exported type should have comment or be unexported
+	// InputSpecGroup exported type should have comment or be unexported
 	InputSpecGroup struct {
 		Name string `yaml:"name" json:"name"`
 	}
 
-// InputSpecAudit exported type should have comment or be unexported
+	// InputSpecAudit exported type should have comment or be unexported
 	InputSpecAudit struct {
 		Path string `yaml:"path" json:"path"`
 	}
 
-// InputSpecDocker exported type should have comment or be unexported
+	// InputSpecDocker exported type should have comment or be unexported
 	InputSpecDocker struct {
 		Kind string `yaml:"kind" json:"kind"`
 	}
 
-// InputSpecKubeapiserver exported type should have comment or be unexported
+	// InputSpecKubeapiserver exported type should have comment or be unexported
 	InputSpecKubeapiserver struct {
 		Kind          string `yaml:"kind" json:"kind"`
 		Version       string `yaml:"version,omitempty" json:"version,omitempty"`
@@ -267,7 +267,7 @@ type (
 		} `yaml:"apiRequest" json:"apiRequest"`
 	}
 
-// InputSpecXCCDF exported type should have comment or be unexported
+	// InputSpecXCCDF exported type should have comment or be unexported
 	InputSpecXCCDF struct {
 		Name    string   `yaml:"name" json:"name"`
 		Profile string   `yaml:"profile" json:"profile"`
@@ -275,7 +275,7 @@ type (
 		Rules   []string `yaml:"rules,omitempty" json:"rules,omitempty"`
 	}
 
-// InputSpecConstants exported type should have comment or be unexported
+	// InputSpecConstants exported type should have comment or be unexported
 	InputSpecConstants map[string]interface{}
 )
 

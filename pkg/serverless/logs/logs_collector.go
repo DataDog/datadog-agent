@@ -53,10 +53,10 @@ type LambdaLogsCollector struct {
 	enhancedMetricsEnabled bool
 	invocationStartTime    time.Time
 	invocationEndTime      time.Time
-// don't use underscores in Go names; struct field process_once should be processOnce
-	process_once           *sync.Once
-	executionContext       *executioncontext.ExecutionContext
-	lambdaInitMetricChan   chan<- *LambdaInitMetric
+	// don't use underscores in Go names; struct field process_once should be processOnce
+	process_once         *sync.Once
+	executionContext     *executioncontext.ExecutionContext
+	lambdaInitMetricChan chan<- *LambdaInitMetric
 
 	arn         string
 	errorStatus string
@@ -235,7 +235,7 @@ func (lc *LambdaLogsCollector) processMessage(
 			coldStart = state.Coldstart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
-// var outOfMemoryRequestId should be outOfMemoryRequestID
+		// var outOfMemoryRequestId should be outOfMemoryRequestID
 		outOfMemoryRequestId := ""
 
 		if message.logType == logTypeFunction {

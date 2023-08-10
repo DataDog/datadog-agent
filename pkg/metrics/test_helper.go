@@ -174,6 +174,7 @@ func (s *SketchesSourceTest) MoveNext() bool {
 func (s *SketchesSourceTest) Current() *SketchSeries {
 	return s.values[s.currentIndex]
 }
+
 // Count exported method should have comment or be unexported
 func (s *SketchesSourceTest) Count() uint64 {
 	return uint64(len(s.values))

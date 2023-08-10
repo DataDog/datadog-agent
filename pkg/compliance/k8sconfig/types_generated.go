@@ -25,7 +25,7 @@ type K8sKubeApiserverConfig struct {
 	AuditLogMaxbackup               int                                  `json:"audit-log-maxbackup"`                // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuditLogMaxsize                 int                                  `json:"audit-log-maxsize"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuditLogPath                    string                               `json:"audit-log-path"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuditPolicyFile                 *FileMeta                   `json:"audit-policy-file"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	AuditPolicyFile                 *FileMeta                            `json:"audit-policy-file"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	AuthorizationMode               []string                             `json:"authorization-mode"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	BindAddress                     string                               `json:"bind-address"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ClientCaFile                    *K8sCertFileMeta                     `json:"client-ca-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -54,16 +54,16 @@ type K8sKubeApiserverConfig struct {
 	ServiceAccountKeyFile           *K8sKeyFileMeta                      `json:"service-account-key-file"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ServiceAccountLookup            bool                                 `json:"service-account-lookup"`             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ServiceAccountSigningKeyFile    *K8sKeyFileMeta                      `json:"service-account-signing-key-file"`   // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field ServiceClusterIpRange should be ServiceClusterIPRange
-	ServiceClusterIpRange           string                               `json:"service-cluster-ip-range"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCertFile should be TLSCertFile
-	TlsCertFile                     *K8sCertFileMeta                     `json:"tls-cert-file"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCipherSuites should be TLSCipherSuites
-	TlsCipherSuites                 []string                             `json:"tls-cipher-suites"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
-	TlsPrivateKeyFile               *K8sKeyFileMeta                      `json:"tls-private-key-file"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TokenAuthFile                   *K8sTokenFileMeta                    `json:"token-auth-file"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	SkippedFlags                    map[string]string                    `json:"skippedFlags,omitempty"`
+	// struct field ServiceClusterIpRange should be ServiceClusterIPRange
+	ServiceClusterIpRange string `json:"service-cluster-ip-range"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsCertFile should be TLSCertFile
+	TlsCertFile *K8sCertFileMeta `json:"tls-cert-file"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsCipherSuites should be TLSCipherSuites
+	TlsCipherSuites []string `json:"tls-cipher-suites"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
+	TlsPrivateKeyFile *K8sKeyFileMeta   `json:"tls-private-key-file"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	TokenAuthFile     *K8sTokenFileMeta `json:"token-auth-file"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	SkippedFlags      map[string]string `json:"skippedFlags,omitempty"`
 }
 
 func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApiserverConfig {
@@ -267,7 +267,7 @@ type K8sKubeSchedulerConfig struct {
 	AuthorizationKubeconfig         string             `json:"authorization-kubeconfig"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	BindAddress                     string             `json:"bind-address"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ClientCaFile                    *K8sCertFileMeta   `json:"client-ca-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config                          *FileMeta `json:"config"`                             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config                          *FileMeta          `json:"config"`                             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	FeatureGates                    string             `json:"feature-gates"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Kubeconfig                      *K8sKubeconfigMeta `json:"kubeconfig"`                         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Profiling                       bool               `json:"profiling"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -277,13 +277,13 @@ type K8sKubeSchedulerConfig struct {
 	RequestheaderGroupHeaders       []string           `json:"requestheader-group-headers"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	RequestheaderUsernameHeaders    []string           `json:"requestheader-username-headers"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	SecurePort                      int                `json:"secure-port"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCertFile should be TLSCertFile
-	TlsCertFile                     *K8sCertFileMeta   `json:"tls-cert-file"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCipherSuites should be TLSCipherSuites
-	TlsCipherSuites                 []string           `json:"tls-cipher-suites"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
-	TlsPrivateKeyFile               *K8sKeyFileMeta    `json:"tls-private-key-file"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	SkippedFlags                    map[string]string  `json:"skippedFlags,omitempty"`
+	// struct field TlsCertFile should be TLSCertFile
+	TlsCertFile *K8sCertFileMeta `json:"tls-cert-file"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsCipherSuites should be TLSCipherSuites
+	TlsCipherSuites []string `json:"tls-cipher-suites"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
+	TlsPrivateKeyFile *K8sKeyFileMeta   `json:"tls-private-key-file"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	SkippedFlags      map[string]string `json:"skippedFlags,omitempty"`
 }
 
 func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSchedulerConfig {
@@ -396,17 +396,17 @@ type K8sKubeControllerManagerConfig struct {
 	RootCaFile                      *K8sCertFileMeta   `json:"root-ca-file"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	SecurePort                      int                `json:"secure-port"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ServiceAccountPrivateKeyFile    *K8sKeyFileMeta    `json:"service-account-private-key-file"`   // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field ServiceClusterIpRange should be ServiceClusterIPRange
-	ServiceClusterIpRange           string             `json:"service-cluster-ip-range"`           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	TerminatedPodGcThreshold        int                `json:"terminated-pod-gc-threshold"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCertFile should be TLSCertFile
-	TlsCertFile                     *K8sCertFileMeta   `json:"tls-cert-file"`                      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCipherSuites should be TLSCipherSuites
-	TlsCipherSuites                 []string           `json:"tls-cipher-suites"`                  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
-	TlsPrivateKeyFile               *K8sKeyFileMeta    `json:"tls-private-key-file"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	UseServiceAccountCredentials    bool               `json:"use-service-account-credentials"`    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	SkippedFlags                    map[string]string  `json:"skippedFlags,omitempty"`
+	// struct field ServiceClusterIpRange should be ServiceClusterIPRange
+	ServiceClusterIpRange    string `json:"service-cluster-ip-range"`    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	TerminatedPodGcThreshold int    `json:"terminated-pod-gc-threshold"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsCertFile should be TLSCertFile
+	TlsCertFile *K8sCertFileMeta `json:"tls-cert-file"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsCipherSuites should be TLSCipherSuites
+	TlsCipherSuites []string `json:"tls-cipher-suites"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
+	TlsPrivateKeyFile            *K8sKeyFileMeta   `json:"tls-private-key-file"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	UseServiceAccountCredentials bool              `json:"use-service-account-credentials"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	SkippedFlags                 map[string]string `json:"skippedFlags,omitempty"`
 }
 
 func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8sKubeControllerManagerConfig {
@@ -529,7 +529,7 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 // K8sKubeProxyConfig exported type should have comment or be unexported
 type K8sKubeProxyConfig struct {
 	BindAddress      string             `json:"bind-address"`      // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config           *FileMeta `json:"config"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config           *FileMeta          `json:"config"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	FeatureGates     string             `json:"feature-gates"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	HostnameOverride string             `json:"hostname-override"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Kubeconfig       *K8sKubeconfigMeta `json:"kubeconfig"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -576,18 +576,18 @@ func (l *loader) newK8sKubeProxyConfig(flags map[string]string) *K8sKubeProxyCon
 
 // K8sKubeletConfig exported type should have comment or be unexported
 type K8sKubeletConfig struct {
-	Address                        string             `json:"address"`                           // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AnonymousAuth                  bool               `json:"anonymous-auth"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	AuthorizationMode              string             `json:"authorization-mode"`                // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ClientCaFile                   *K8sCertFileMeta   `json:"client-ca-file"`                    // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	Config                         *FileMeta `json:"config"`                            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	EventBurst                     int                `json:"event-burst"`                       // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field EventQps should be EventQPS
+	Address           string           `json:"address"`            // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	AnonymousAuth     bool             `json:"anonymous-auth"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	AuthorizationMode string           `json:"authorization-mode"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	ClientCaFile      *K8sCertFileMeta `json:"client-ca-file"`     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	Config            *FileMeta        `json:"config"`             // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	EventBurst        int              `json:"event-burst"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field EventQps should be EventQPS
 	EventQps                       int                `json:"event-qps"`                         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	FeatureGates                   string             `json:"feature-gates"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	HostnameOverride               string             `json:"hostname-override"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	ImageCredentialProviderBinDir  *K8sDirMeta        `json:"image-credential-provider-bin-dir"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	ImageCredentialProviderConfig  *FileMeta `json:"image-credential-provider-config"`  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	ImageCredentialProviderConfig  *FileMeta          `json:"image-credential-provider-config"`  // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	Kubeconfig                     *K8sKubeconfigMeta `json:"kubeconfig"`                        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	MakeIptablesUtilChains         bool               `json:"make-iptables-util-chains"`         // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	MaxPods                        int                `json:"max-pods"`                          // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
@@ -597,13 +597,13 @@ type K8sKubeletConfig struct {
 	RotateCertificates             bool               `json:"rotate-certificates"`               // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	RotateServerCertificates       bool               `json:"rotate-server-certificates"`        // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
 	StreamingConnectionIdleTimeout time.Duration      `json:"streaming-connection-idle-timeout"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCertFile should be TLSCertFile
-	TlsCertFile                    *K8sCertFileMeta   `json:"tls-cert-file"`                     // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsCipherSuites should be TLSCipherSuites
-	TlsCipherSuites                []string           `json:"tls-cipher-suites"`                 // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
-	TlsPrivateKeyFile              *K8sKeyFileMeta    `json:"tls-private-key-file"`              // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
-	SkippedFlags                   map[string]string  `json:"skippedFlags,omitempty"`
+	// struct field TlsCertFile should be TLSCertFile
+	TlsCertFile *K8sCertFileMeta `json:"tls-cert-file"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsCipherSuites should be TLSCipherSuites
+	TlsCipherSuites []string `json:"tls-cipher-suites"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	// struct field TlsPrivateKeyFile should be TLSPrivateKeyFile
+	TlsPrivateKeyFile *K8sKeyFileMeta   `json:"tls-private-key-file"` // versions: v1.27.3, v1.26.6, v1.25.11, v1.24.15, v1.23.17
+	SkippedFlags      map[string]string `json:"skippedFlags,omitempty"`
 }
 
 func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig {
@@ -731,13 +731,13 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 
 // K8sEtcdConfig exported type should have comment or be unexported
 type K8sEtcdConfig struct {
-// struct field AutoTls should be AutoTLS
-	AutoTls            bool              `json:"auto-tls"`              // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	CertFile           *K8sCertFileMeta  `json:"cert-file"`             // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	ClientCertAuth     bool              `json:"client-cert-auth"`      // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	DataDir            *K8sDirMeta       `json:"data-dir"`              // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-	KeyFile            *K8sKeyFileMeta   `json:"key-file"`              // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
-// struct field PeerAutoTls should be PeerAutoTLS
+	// struct field AutoTls should be AutoTLS
+	AutoTls        bool             `json:"auto-tls"`         // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
+	CertFile       *K8sCertFileMeta `json:"cert-file"`        // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
+	ClientCertAuth bool             `json:"client-cert-auth"` // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
+	DataDir        *K8sDirMeta      `json:"data-dir"`         // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
+	KeyFile        *K8sKeyFileMeta  `json:"key-file"`         // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
+	// struct field PeerAutoTls should be PeerAutoTLS
 	PeerAutoTls        bool              `json:"peer-auto-tls"`         // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
 	PeerCertFile       *K8sCertFileMeta  `json:"peer-cert-file"`        // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32
 	PeerClientCertAuth bool              `json:"peer-client-cert-auth"` // versions: v3.5.7, v3.4.18, v3.3.17, v3.2.32

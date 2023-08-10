@@ -22,7 +22,7 @@ import (
 )
 
 const (
-// KubeletCheckName exported const should have comment (or a comment on this block) or be unexported
+	// KubeletCheckName exported const should have comment (or a comment on this block) or be unexported
 	KubeletCheckName = "kubelet_core"
 )
 

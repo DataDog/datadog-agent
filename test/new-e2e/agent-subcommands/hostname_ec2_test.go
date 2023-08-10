@@ -33,7 +33,7 @@ func (v *agentHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
 	hostname := v.Env().Agent.Hostname()
 
 	// Default configuration of hostname for EC2 instances is the resource-id
-// var resourceId should be resourceID
+	// var resourceId should be resourceID
 	resourceId := metadata.Get("instance-id")
 	assert.Equal(v.T(), hostname, resourceId)
 }
@@ -80,7 +80,7 @@ func (v *agentHostnameSuite) TestAgentConfigPreferImdsv2() {
 	metadata := client.NewEC2Metadata(v.Env().VM)
 
 	hostname := v.Env().Agent.Hostname()
-// var resourceId should be resourceID
+	// var resourceId should be resourceID
 	resourceId := metadata.Get("instance-id")
 	assert.Equal(v.T(), hostname, resourceId)
 }

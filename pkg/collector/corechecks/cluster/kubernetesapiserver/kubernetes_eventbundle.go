@@ -20,13 +20,13 @@ import (
 )
 
 type kubernetesEventBundle struct {
-	involvedObject v1.ObjectReference   // Parent object for this event bundle
-	component      string               // Used to identify the Kubernetes component which generated the event
-	timeStamp      float64              // Used for the new events in the bundle to specify when they first occurred
-	lastTimestamp  float64              // Used for the modified events in the bundle to specify when they last occurred
-	countByAction  map[string]int       // Map of count per action to aggregate several events from the same ObjUid in one event
-	alertType      event.AlertType // The Datadog event type
-	hostInfo       eventHostInfo        // Host information extracted from the event, where applicable
+	involvedObject v1.ObjectReference // Parent object for this event bundle
+	component      string             // Used to identify the Kubernetes component which generated the event
+	timeStamp      float64            // Used for the new events in the bundle to specify when they first occurred
+	lastTimestamp  float64            // Used for the modified events in the bundle to specify when they last occurred
+	countByAction  map[string]int     // Map of count per action to aggregate several events from the same ObjUid in one event
+	alertType      event.AlertType    // The Datadog event type
+	hostInfo       eventHostInfo      // Host information extracted from the event, where applicable
 }
 
 func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {

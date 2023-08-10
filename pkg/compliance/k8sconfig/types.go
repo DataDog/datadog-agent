@@ -16,7 +16,7 @@ import (
 type K8sNodeConfig struct {
 	Version            string               `json:"version"`
 	ManagedEnvironment *K8sManagedEnvConfig `json:"managedEnvironment,omitempty"`
-	KubeletService     *FileMeta   `json:"kubeletService,omitempty"`
+	KubeletService     *FileMeta            `json:"kubeletService,omitempty"`
 	AdminKubeconfig    *K8sKubeconfigMeta   `json:"adminKubeconfig,omitempty"`
 	Components         struct {
 		Etcd                  *K8sEtcdConfig                  `json:"etcd,omitempty"`
@@ -119,11 +119,11 @@ type K8sCertFileMeta struct {
 	DirGroup    string `json:"dirGroup,omitempty"`
 	DirMode     uint32 `json:"dirMode,omitempty"`
 	Certificate struct {
-		Fingerprint    string    `json:"fingerprint"`
-		SerialNumber   string    `json:"serialNumber,omitempty"`
-// struct field SubjectKeyId should be SubjectKeyID
-		SubjectKeyId   string    `json:"subjectKeyId,omitempty"`
-// struct field AuthorityKeyId should be AuthorityKeyID
+		Fingerprint  string `json:"fingerprint"`
+		SerialNumber string `json:"serialNumber,omitempty"`
+		// struct field SubjectKeyId should be SubjectKeyID
+		SubjectKeyId string `json:"subjectKeyId,omitempty"`
+		// struct field AuthorityKeyId should be AuthorityKeyID
 		AuthorityKeyId string    `json:"authorityKeyId,omitempty"`
 		CommonName     string    `json:"commonName"`
 		Organization   []string  `json:"organization,omitempty"`

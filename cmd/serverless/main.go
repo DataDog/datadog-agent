@@ -217,7 +217,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
-// var coldStartSpanId should be coldStartSpanID
+	// var coldStartSpanId should be coldStartSpanID
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})

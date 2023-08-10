@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
-  // A blank import should be only in a main or test package, or have a comment justifying it
+	// A blank import should be only in a main or test package, or have a comment justifying it
 	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 

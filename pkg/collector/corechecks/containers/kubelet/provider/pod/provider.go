@@ -81,7 +81,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
 				continue
 			}
-// var cId should be cID
+			// var cId should be cID
 			cId, err := kubelet.KubeContainerIDToTaggerEntityID(cStatus.ID)
 			if err != nil {
 				// could not correctly parse container ID
@@ -202,7 +202,7 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 	if !r.podHasRunningContainers[pod.Metadata.UID] {
 		return
 	}
-// var podId should be podID
+	// var podId should be podID
 	podId := pod.Metadata.UID
 	if podId == "" {
 		log.Debug("skipping pod with no uid")

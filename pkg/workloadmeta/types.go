@@ -887,8 +887,8 @@ type Process struct {
 	EntityID // EntityID is the PID for now
 	EntityMeta
 
-	NsPid        int32
-// struct field ContainerId should be ContainerID
+	NsPid int32
+	// struct field ContainerId should be ContainerID
 	ContainerId  string
 	CreationTime time.Time
 	Language     *languagemodels.Language

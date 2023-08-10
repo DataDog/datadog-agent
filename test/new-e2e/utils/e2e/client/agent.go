@@ -42,7 +42,7 @@ func NewAgent(installer *agent.Installer) *Agent {
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
 func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	var err error
-// var privateSshKey should be privateSSHKey
+	// var privateSshKey should be privateSSHKey
 	var privateSshKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")

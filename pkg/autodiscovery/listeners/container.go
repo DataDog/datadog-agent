@@ -61,7 +61,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	var annotations map[string]string
 	var pod *workloadmeta.KubernetesPod
 	if findKubernetesInLabels(container.Labels) {
-// don't use underscores in Go names; var kube_pod should be kubePod
+		// don't use underscores in Go names; var kube_pod should be kubePod
 		kube_pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
 			pod = kube_pod

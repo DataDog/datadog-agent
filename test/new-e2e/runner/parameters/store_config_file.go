@@ -37,6 +37,7 @@ type ConfigParams struct {
 	AWS   AWS   `yaml:"aws"`
 	Agent Agent `yaml:"agent"`
 }
+
 // AWS exported type should have comment or be unexported
 type AWS struct {
 	Account       string `yaml:"account"`
@@ -55,8 +56,8 @@ var _ valueStore = &ConfigFileValueStore{}
 
 // ConfigFileValueStore exported type should have comment or be unexported
 type ConfigFileValueStore struct {
-	config          Config
-// struct field stackParamsJson should be stackParamsJSON
+	config Config
+	// struct field stackParamsJson should be stackParamsJSON
 	stackParamsJson string
 }
 

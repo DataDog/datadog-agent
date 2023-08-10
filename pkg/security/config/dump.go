@@ -94,7 +94,7 @@ type StorageFormat int
 
 const (
 	// Json is used to request the JSON format
-// const Json should be JSON
+	// const Json should be JSON
 	Json StorageFormat = iota // json
 	// Protobuf is used to request the protobuf format
 	Protobuf // protobuf

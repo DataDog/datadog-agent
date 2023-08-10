@@ -191,7 +191,7 @@ func createJSONPayloadMatcher(prefix string) interface{} {
 
 func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string) bool {
 	for _, compressedPayload := range payloads {
-		payload, err := compression.Decompress(compressedPayload.GetContent());
+		payload, err := compression.Decompress(compressedPayload.GetContent())
 		if err != nil {
 			return false
 		}
@@ -211,7 +211,7 @@ func createJSONBytesPayloadMatcher(prefix string) interface{} {
 func createProtoscopeMatcher(protoscopeDef string) interface{} {
 	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
-			payload, err := compression.Decompress(compressedPayload.GetContent());
+			payload, err := compression.Decompress(compressedPayload.GetContent())
 			if err != nil {
 				return false
 			}

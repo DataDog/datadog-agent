@@ -118,7 +118,7 @@ func (ic *InterfaceConfigs) UnmarshalYAML(unmarshal func(interface{}) error) err
 	var ifConfigs []snmpintegration.InterfaceConfig
 	err := unmarshal(&ifConfigs)
 	if err != nil {
-// var ifConfigJson should be ifConfigJSON
+		// var ifConfigJson should be ifConfigJSON
 		var ifConfigJson string
 		err := unmarshal(&ifConfigJson)
 		if err != nil {

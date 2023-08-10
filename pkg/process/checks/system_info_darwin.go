@@ -48,7 +48,7 @@ func patchCPUInfo(gopsutilCPUInfo []cpu.InfoStat) ([]cpu.InfoStat, error) {
 
 	cpuStat := make([]cpu.InfoStat, 0, physicalCoreCount)
 	for i := 0; i < physicalCoreCount; i++ {
-// var currentCpuInfo should be currentCPUInfo
+		// var currentCpuInfo should be currentCPUInfo
 		currentCpuInfo := cpuInfo
 		currentCpuInfo.Cores = threadCount / int32(physicalCoreCount)
 		cpuStat = append(cpuStat, currentCpuInfo)

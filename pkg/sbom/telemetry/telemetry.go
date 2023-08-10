@@ -73,7 +73,7 @@ var (
 		commonOpts,
 	)
 
-// exported comment on var SBOMCacheEntries should be of the form "SBOMCacheEntries ..."
+	// exported comment on var SBOMCacheEntries should be of the form "SBOMCacheEntries ..."
 	// SBOM number of cache keys stored in memory
 	SBOMCacheEntries = telemetry.NewGaugeWithOpts(
 		subsystem,

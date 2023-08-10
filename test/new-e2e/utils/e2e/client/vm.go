@@ -35,7 +35,7 @@ func NewVM(infraVM commonvm.VM) *VM {
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
 func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	var err error
-// var privateSshKey should be privateSSHKey
+	// var privateSshKey should be privateSSHKey
 	var privateSshKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")

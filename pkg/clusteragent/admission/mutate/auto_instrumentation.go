@@ -48,9 +48,9 @@ const (
 	dotnetClrEnableProfilingKey   = "CORECLR_ENABLE_PROFILING"
 	dotnetClrEnableProfilingValue = "1"
 
-// const dotnetClrProfilerIdKey should be dotnetClrProfilerIDKey
-	dotnetClrProfilerIdKey   = "CORECLR_PROFILER"
-// const dotnetClrProfilerIdValue should be dotnetClrProfilerIDValue
+	// const dotnetClrProfilerIdKey should be dotnetClrProfilerIDKey
+	dotnetClrProfilerIdKey = "CORECLR_PROFILER"
+	// const dotnetClrProfilerIdValue should be dotnetClrProfilerIDValue
 	dotnetClrProfilerIdValue = "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
 
 	dotnetClrProfilerPathKey   = "CORECLR_PROFILER_PATH"

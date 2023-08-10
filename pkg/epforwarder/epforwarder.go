@@ -44,12 +44,12 @@ const (
 	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
 	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 
-  // EventTypeContainerLifecycle exported const should have comment (or a comment on this block) or be unexported
+	// EventTypeContainerLifecycle exported const should have comment (or a comment on this block) or be unexported
 	EventTypeContainerLifecycle = "container-lifecycle"
-  // EventTypeContainerImages exported const should have comment (or a comment on this block) or be unexported
-	EventTypeContainerImages    = "container-images"
-  // EventTypeContainerSBOM exported const should have comment (or a comment on this block) or be unexported
-	EventTypeContainerSBOM      = "container-sbom"
+	// EventTypeContainerImages exported const should have comment (or a comment on this block) or be unexported
+	EventTypeContainerImages = "container-images"
+	// EventTypeContainerSBOM exported const should have comment (or a comment on this block) or be unexported
+	EventTypeContainerSBOM = "container-sbom"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{

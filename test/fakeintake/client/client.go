@@ -50,7 +50,7 @@ import (
 	"regexp"
 	"strings"
 
-// Client exported type should have comment or be unexported
+	// Client exported type should have comment or be unexported
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )

@@ -44,12 +44,12 @@ type ColdStartSpanCreator struct {
 	LambdaSpanChan        <-chan *pb.Span
 	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
 	syncSpanDurationMutex sync.Mutex
-// struct field ColdStartSpanId should be ColdStartSpanID
-	ColdStartSpanId       uint64
-	lambdaSpan            *pb.Span
-	initDuration          float64
-	StopChan              chan struct{}
-	initStartTime         time.Time
+	// struct field ColdStartSpanId should be ColdStartSpanID
+	ColdStartSpanId uint64
+	lambdaSpan      *pb.Span
+	initDuration    float64
+	StopChan        chan struct{}
+	initStartTime   time.Time
 }
 
 // Run exported method should have comment or be unexported

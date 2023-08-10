@@ -21,8 +21,8 @@ const (
 
 	// Email Flare Subcommand
 	Email = "email"
-  // Send exported const should have comment (or a comment on this block) or be unexported
-	Send  = "send"
+	// Send exported const should have comment (or a comment on this block) or be unexported
+	Send = "send"
 
 	// PoliciesDir Runtime Subcommand
 	PoliciesDir        = "policies-dir"

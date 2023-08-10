@@ -218,7 +218,7 @@ func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modify
 		if span.Name != "aws.lambda" || span.Type != "serverless" {
 			return
 		}
-// var currentReqId should be currentReqID
+		// var currentReqId should be currentReqID
 		if currentReqId, spanReqId := ctx.LastRequestID(), span.Meta["request_id"]; currentReqId != spanReqId {
 			log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
 			return

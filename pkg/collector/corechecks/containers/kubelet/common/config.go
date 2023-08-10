@@ -13,7 +13,7 @@ import (
 )
 
 const (
-// KubeletMetricsPrefix exported const should have comment (or a comment on this block) or be unexported
+	// KubeletMetricsPrefix exported const should have comment (or a comment on this block) or be unexported
 	KubeletMetricsPrefix = "kubernetes_core."
 )
 

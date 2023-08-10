@@ -153,7 +153,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 
 // updateTagsInContainer runs a script inside the container that handles updating the agent with the given tags
 func updateTagsInContainer(container garden.Container, tags []string) (int, error) {
-// don't use underscores in Go names; var shell_path should be shellPath
+	// don't use underscores in Go names; var shell_path should be shellPath
 	shell_path := config.Datadog.GetString("cloud_foundry_container_tagger.shell_path")
 	process, err := container.Run(garden.ProcessSpec{
 		Path: shell_path,

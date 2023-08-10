@@ -146,7 +146,7 @@ func GenerateSpanId() uint64 {
 	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
 	if isSnapStart {
 		max := new(big.Int).SetUint64(math.MaxUint64)
-// var randId should be randID
+		// var randId should be randID
 		if randId, err := rand.Int(rand.Reader, max); err != nil {
 			log.Debugf("Failed to generate a secure random span id: %v", err)
 		} else {

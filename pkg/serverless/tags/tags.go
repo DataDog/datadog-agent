@@ -26,8 +26,8 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
-// InitType exported const should have comment (or a comment on this block) or be unexported
-	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
+	// InitType exported const should have comment (or a comment on this block) or be unexported
+	InitType = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"

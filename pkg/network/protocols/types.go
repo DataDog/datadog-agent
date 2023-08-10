@@ -54,7 +54,7 @@ func (p ProtocolType) String() string {
 
 // Stack exported type should have comment or be unexported
 type Stack struct {
-// struct field Api should be API
+	// struct field Api should be API
 	Api         ProtocolType
 	Application ProtocolType
 	Encryption  ProtocolType

@@ -61,19 +61,19 @@ func GetAlertTypeFromString(val string) (AlertType, error) {
 
 // Event holds an event (w/ serialization to DD agent 5 intake format)
 type Event struct {
-	Title            string         `json:"msg_title"`
-	Text             string         `json:"msg_text"`
-	Ts               int64          `json:"timestamp"`
-	Priority         Priority       `json:"priority,omitempty"`
-	Host             string         `json:"host"`
-	Tags             []string       `json:"tags,omitempty"`
-	AlertType        AlertType      `json:"alert_type,omitempty"`
-	AggregationKey   string         `json:"aggregation_key,omitempty"`
-	SourceTypeName   string         `json:"source_type_name,omitempty"`
-	EventType        string         `json:"event_type,omitempty"`
-	OriginFromUDS    string         `json:"-"`
-	OriginFromClient string         `json:"-"`
-	Cardinality      string         `json:"-"`
+	Title            string    `json:"msg_title"`
+	Text             string    `json:"msg_text"`
+	Ts               int64     `json:"timestamp"`
+	Priority         Priority  `json:"priority,omitempty"`
+	Host             string    `json:"host"`
+	Tags             []string  `json:"tags,omitempty"`
+	AlertType        AlertType `json:"alert_type,omitempty"`
+	AggregationKey   string    `json:"aggregation_key,omitempty"`
+	SourceTypeName   string    `json:"source_type_name,omitempty"`
+	EventType        string    `json:"event_type,omitempty"`
+	OriginFromUDS    string    `json:"-"`
+	OriginFromClient string    `json:"-"`
+	Cardinality      string    `json:"-"`
 }
 
 // Return a JSON string or "" in case of error during the Marshaling

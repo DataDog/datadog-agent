@@ -23,8 +23,8 @@ import (
 
 const (
 	generateConstantsAnnotationPrefix = "// generate_constants:"
-// SECLDocForLength exported const should have comment (or a comment on this block) or be unexported
-	SECLDocForLength                  = "SECLDoc[length] Definition:`Length of the corresponding string`"
+	// SECLDocForLength exported const should have comment (or a comment on this block) or be unexported
+	SECLDocForLength = "SECLDoc[length] Definition:`Length of the corresponding string`"
 )
 
 type documentation struct {

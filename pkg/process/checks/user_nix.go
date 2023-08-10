@@ -24,10 +24,10 @@ import (
 type LookupIdProbe struct {
 	config config.Reader
 
-// struct field lookupIdCache should be lookupIDCache
+	// struct field lookupIdCache should be lookupIDCache
 	lookupIdCache *cache.Cache
-// struct field lookupId should be lookupID
-	lookupId      func(uid string) (*user.User, error)
+	// struct field lookupId should be lookupID
+	lookupId func(uid string) (*user.User, error)
 }
 
 // NewLookupIdProbe exported function should have comment or be unexported

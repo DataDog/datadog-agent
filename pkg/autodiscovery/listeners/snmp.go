@@ -427,7 +427,7 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		if len(ifConfigs) == 0 {
 			return "", nil
 		}
-// var ifConfigsJson should be ifConfigsJSON
+		// var ifConfigsJson should be ifConfigsJSON
 		ifConfigsJson, err := json.Marshal(ifConfigs)
 		if err != nil {
 			return "", fmt.Errorf("error marshalling interface_configs: %s", err)

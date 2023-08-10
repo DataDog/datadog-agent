@@ -76,7 +76,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 	domain := requestContext.DomainName
 	httpurl := fmt.Sprintf("%s%s", domain, eventPayload.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
-// var apiId should be apiID
+	// var apiId should be apiID
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domain)
 	inferredSpan.Span.Name = "aws.apigateway"
@@ -110,7 +110,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	domainName := requestContext.DomainName
 	httpurl := fmt.Sprintf("%s%s", domainName, path)
 	startTime := calculateStartTime(requestContext.TimeEpoch)
-// var apiId should be apiID
+	// var apiId should be apiID
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domainName)
 	inferredSpan.Span.Name = "aws.httpapi"
@@ -142,7 +142,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	routeKey := requestContext.RouteKey
 	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, routeKey)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
-// var apiId should be apiID
+	// var apiId should be apiID
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", requestContext.DomainName)
 	inferredSpan.Span.Name = "aws.apigateway.websocket"

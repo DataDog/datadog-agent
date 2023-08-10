@@ -14,6 +14,7 @@ import (
 
 // MetadataAvailDiagnose (Metadata availability subcommand)
 type MetadataAvailDiagnose func() error
+
 // MetadataAvailDiagnoseCatalog exported type should have comment or be unexported
 type MetadataAvailDiagnoseCatalog map[string]MetadataAvailDiagnose
 

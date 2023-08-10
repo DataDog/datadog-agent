@@ -91,7 +91,7 @@ func TestLookupUserWithId(t *testing.T) {
 }
 
 func TestLookupIdConfigSetting(t *testing.T) {
-// var testLookupIdFunc should be testLookupIDFunc
+	// var testLookupIdFunc should be testLookupIDFunc
 	testLookupIdFunc := func(uid string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
 
 	t.Run("enabled", func(t *testing.T) {

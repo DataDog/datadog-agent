@@ -63,11 +63,11 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
 	m.On("ServiceCheck",
-		mock.AnythingOfType("string"),                          // checkName (e.g: docker.exit)
-		mock.AnythingOfType("servicecheck.Status"),             // (e.g: servicecheck.OK)
-		mock.AnythingOfType("string"),                          // Hostname
-		mock.AnythingOfType("[]string"),                        // Tags
-		mock.AnythingOfType("string"),                          // message
+		mock.AnythingOfType("string"),              // checkName (e.g: docker.exit)
+		mock.AnythingOfType("servicecheck.Status"), // (e.g: servicecheck.OK)
+		mock.AnythingOfType("string"),              // Hostname
+		mock.AnythingOfType("[]string"),            // Tags
+		mock.AnythingOfType("string"),              // message
 	).Return()
 	m.On("Event", mock.AnythingOfType("event.Event")).Return()
 	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`

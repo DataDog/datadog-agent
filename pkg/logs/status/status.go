@@ -50,7 +50,7 @@ type Source struct {
 
 // Tailer exported type should have comment or be unexported
 type Tailer struct {
-// struct field Id should be ID
+	// struct field Id should be ID
 	Id   string              `json:"id"`
 	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`

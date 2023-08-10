@@ -54,8 +54,10 @@ var ErrIncompatibleEnvironment = errors.New("environment not compatible this typ
 
 // DockerProvider exported type should have comment or be unexported
 type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
+
 // KubernetesProvider exported type should have comment or be unexported
 type KubernetesProvider func(context.Context) (kubedynamic.Interface, error)
+
 // LinuxAuditProvider exported type should have comment or be unexported
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
 

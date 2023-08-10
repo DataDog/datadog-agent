@@ -16,12 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed testfixtures/test_config_with_stackparams.yaml
 // don't use underscores in Go names; var config_with_stackparams should be configWithStackparams
+//
+//go:embed testfixtures/test_config_with_stackparams.yaml
 var config_with_stackparams []byte
 
-//go:embed testfixtures/test_config_no_aws_account.yaml
 // don't use underscores in Go names; var config_no_aws_account should be configNoAwsAccount
+//
+//go:embed testfixtures/test_config_no_aws_account.yaml
 var config_no_aws_account []byte
 
 func Test_parseConfigFileContent(t *testing.T) {

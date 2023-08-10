@@ -164,7 +164,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	orderedExporterIDs := make(map[string][]string)
 
 	for _, flow := range flows {
-// var exporterIpAddress should be exporterIPAddress
+		// var exporterIpAddress should be exporterIPAddress
 		exporterIpAddress := common.IPBytesToString(flow.ExporterAddr)
 		if exporterIpAddress == "" || strings.HasPrefix(exporterIpAddress, "?") {
 			log.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
@@ -187,7 +187,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	}
 	for namespace, ids := range orderedExporterIDs {
 		var netflowExporters []metadata.NetflowExporter
-// range var exporterId should be exporterID
+		// range var exporterId should be exporterID
 		for _, exporterId := range ids {
 			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
 		}

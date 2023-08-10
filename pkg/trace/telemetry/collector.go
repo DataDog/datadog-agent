@@ -25,13 +25,13 @@ import (
 // Error codes associated with each startup error
 // The full list, and associated description is contained in the Tracking APM Onboarding RFC
 const (
-	GenericError               = 1
-	CantCreateLogger           = 8
-	TraceAgentNotEnabled       = 9
-	CantWritePIDFile           = 10
-	CantSetupAutoExit          = 11
-	CantConfigureDogstatsd     = 12
-	CantCreateRCCLient         = 13
+	GenericError           = 1
+	CantCreateLogger       = 8
+	TraceAgentNotEnabled   = 9
+	CantWritePIDFile       = 10
+	CantSetupAutoExit      = 11
+	CantConfigureDogstatsd = 12
+	CantCreateRCCLient     = 13
 	// const CantStartHttpServer should be CantStartHTTPServer
 	CantStartHttpServer        = 14
 	CantStartUdsServer         = 15
@@ -41,10 +41,10 @@ const (
 
 // OnboardingEvent contains
 type OnboardingEvent struct {
-	RequestType string                 `json:"request_type"`
+	RequestType string `json:"request_type"`
 	// struct field ApiVersion should be APIVersion
-	ApiVersion  string                 `json:"api_version"`
-	Payload     OnboardingEventPayload `json:"payload,omitempty"`
+	ApiVersion string                 `json:"api_version"`
+	Payload    OnboardingEventPayload `json:"payload,omitempty"`
 }
 
 // OnboardingEventPayload ...

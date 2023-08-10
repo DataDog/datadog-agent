@@ -19,10 +19,10 @@ import (
 // - display warnings when deprecated flags are encountered
 func FixDeprecatedFlags(args []string, w io.Writer) []string {
 	var (
-		replacePid        = cli.ReplaceFlagExact("--pidfile")
-		replaceInfo       = cli.ReplaceFlagExact("info")
-		replaceVersion    = cli.ReplaceFlagExact("version")
-// var replaceCpuProfile should be replaceCPUProfile
+		replacePid     = cli.ReplaceFlagExact("--pidfile")
+		replaceInfo    = cli.ReplaceFlagExact("info")
+		replaceVersion = cli.ReplaceFlagExact("version")
+		// var replaceCpuProfile should be replaceCPUProfile
 		replaceCpuProfile = cli.ReplaceFlagExact("--cpu-profile")
 		replaceMemProfile = cli.ReplaceFlagExact("--mem-profile")
 	)

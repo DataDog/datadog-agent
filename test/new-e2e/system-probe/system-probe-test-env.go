@@ -15,7 +15,7 @@ package systemProbe
 
 import (
 	"context"
-  // A blank import should be only in a main or test package, or have a comment justifying it
+	// A blank import should be only in a main or test package, or have a comment justifying it
 	_ "embed"
 	"fmt"
 	"os"
@@ -84,11 +84,11 @@ type TestEnv struct {
 var (
 	// MicroVMsDependenciesPath exported var should have comment or be unexported
 	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
-  // CustomAMIWorkingDir exported var should have comment or be unexported
-	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
+	// CustomAMIWorkingDir exported var should have comment or be unexported
+	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 
-  // CI_PROJECT_DIR exported var should have comment or be unexported
-// don't use ALL_CAPS in Go names; use CamelCase
+	// CI_PROJECT_DIR exported var should have comment or be unexported
+	// don't use ALL_CAPS in Go names; use CamelCase
 	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")

@@ -21,9 +21,9 @@ const (
 )
 
 type spanModifier struct {
-	tags            map[string]string
-	lambdaSpanChan  chan<- *pb.Span
-// struct field coldStartSpanId should be coldStartSpanID
+	tags           map[string]string
+	lambdaSpanChan chan<- *pb.Span
+	// struct field coldStartSpanId should be coldStartSpanID
 	coldStartSpanId uint64
 }
 

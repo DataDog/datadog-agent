@@ -27,15 +27,15 @@ func setupTest() {
 func TestProxyNotLoaded(t *testing.T) {
 	setupTest()
 
-// var proxyHttp should be proxyHTTP
+	// var proxyHttp should be proxyHTTP
 	proxyHttp := "abc:1234"
-// var proxyHttps should be proxyHTTPS
+	// var proxyHttps should be proxyHTTPS
 	proxyHttps := "abc:5678"
 	t.Setenv("DD_PROXY_HTTP", proxyHttp)
 	t.Setenv("DD_PROXY_HTTPS", proxyHttps)
-// var proxyHttpConfig should be proxyHTTPConfig
+	// var proxyHttpConfig should be proxyHTTPConfig
 	proxyHttpConfig := config.Datadog.GetString("proxy.http")
-// var proxyHttpsConfig should be proxyHTTPSConfig
+	// var proxyHttpsConfig should be proxyHTTPSConfig
 	proxyHttpsConfig := config.Datadog.GetString("proxy.https")
 	assert.Equal(t, 0, len(proxyHttpConfig))
 	assert.Equal(t, 0, len(proxyHttpsConfig))
@@ -44,16 +44,16 @@ func TestProxyNotLoaded(t *testing.T) {
 func TestProxyLoaded(t *testing.T) {
 	setupTest()
 
-// var proxyHttp should be proxyHTTP
+	// var proxyHttp should be proxyHTTP
 	proxyHttp := "abc:1234"
-// var proxyHttps should be proxyHTTPS
+	// var proxyHttps should be proxyHTTPS
 	proxyHttps := "abc:5678"
 	t.Setenv("DD_PROXY_HTTP", proxyHttp)
 	t.Setenv("DD_PROXY_HTTPS", proxyHttps)
 	setupProxy()
-// var proxyHttpConfig should be proxyHTTPConfig
+	// var proxyHttpConfig should be proxyHTTPConfig
 	proxyHttpConfig := config.Datadog.GetString("proxy.http")
-// var proxyHttpsConfig should be proxyHTTPSConfig
+	// var proxyHttpsConfig should be proxyHTTPSConfig
 	proxyHttpsConfig := config.Datadog.GetString("proxy.https")
 	assert.Equal(t, proxyHttp, proxyHttpConfig)
 	assert.Equal(t, proxyHttps, proxyHttpsConfig)

@@ -480,7 +480,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-// range var checkId should be checkID
+	// range var checkId should be checkID
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {

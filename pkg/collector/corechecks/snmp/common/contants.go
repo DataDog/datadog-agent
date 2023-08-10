@@ -22,11 +22,11 @@ type IfAdminStatus int
 
 // This const block should have a comment or be unexported
 const (
-// don't use underscores in Go names; const AdminStatus_Up should be AdminStatusUp
-	AdminStatus_Up      IfAdminStatus = 1
-// don't use underscores in Go names; const AdminStatus_Down should be AdminStatusDown
-	AdminStatus_Down    IfAdminStatus = 2
-// don't use underscores in Go names; const AdminStatus_Testing should be AdminStatusTesting
+	// don't use underscores in Go names; const AdminStatus_Up should be AdminStatusUp
+	AdminStatus_Up IfAdminStatus = 1
+	// don't use underscores in Go names; const AdminStatus_Down should be AdminStatusDown
+	AdminStatus_Down IfAdminStatus = 2
+	// don't use underscores in Go names; const AdminStatus_Testing should be AdminStatusTesting
 	AdminStatus_Testing IfAdminStatus = 3
 )
 
@@ -51,19 +51,19 @@ type IfOperStatus int
 
 // This const block should have a comment or be unexported
 const (
-// don't use underscores in Go names; const OperStatus_Up should be OperStatusUp
-	OperStatus_Up             IfOperStatus = 1
-// don't use underscores in Go names; const OperStatus_Down should be OperStatusDown
-	OperStatus_Down           IfOperStatus = 2
-// don't use underscores in Go names; const OperStatus_Testing should be OperStatusTesting
-	OperStatus_Testing        IfOperStatus = 3
-// don't use underscores in Go names; const OperStatus_Unknown should be OperStatusUnknown
-	OperStatus_Unknown        IfOperStatus = 4
-// don't use underscores in Go names; const OperStatus_Dormant should be OperStatusDormant
-	OperStatus_Dormant        IfOperStatus = 5
-// don't use underscores in Go names; const OperStatus_NotPresent should be OperStatusNotPresent
-	OperStatus_NotPresent     IfOperStatus = 6
-// don't use underscores in Go names; const OperStatus_LowerLayerDown should be OperStatusLowerLayerDown
+	// don't use underscores in Go names; const OperStatus_Up should be OperStatusUp
+	OperStatus_Up IfOperStatus = 1
+	// don't use underscores in Go names; const OperStatus_Down should be OperStatusDown
+	OperStatus_Down IfOperStatus = 2
+	// don't use underscores in Go names; const OperStatus_Testing should be OperStatusTesting
+	OperStatus_Testing IfOperStatus = 3
+	// don't use underscores in Go names; const OperStatus_Unknown should be OperStatusUnknown
+	OperStatus_Unknown IfOperStatus = 4
+	// don't use underscores in Go names; const OperStatus_Dormant should be OperStatusDormant
+	OperStatus_Dormant IfOperStatus = 5
+	// don't use underscores in Go names; const OperStatus_NotPresent should be OperStatusNotPresent
+	OperStatus_NotPresent IfOperStatus = 6
+	// don't use underscores in Go names; const OperStatus_LowerLayerDown should be OperStatusLowerLayerDown
 	OperStatus_LowerLayerDown IfOperStatus = 7
 )
 
@@ -92,12 +92,12 @@ type InterfaceStatus string
 
 // This const block should have a comment or be unexported
 const (
-// don't use underscores in Go names; const InterfaceStatus_Up should be InterfaceStatusUp
-	InterfaceStatus_Up      InterfaceStatus = "up"
-// don't use underscores in Go names; const InterfaceStatus_Down should be InterfaceStatusDown
-	InterfaceStatus_Down    InterfaceStatus = "down"
-// don't use underscores in Go names; const InterfaceStatus_Warning should be InterfaceStatusWarning
+	// don't use underscores in Go names; const InterfaceStatus_Up should be InterfaceStatusUp
+	InterfaceStatus_Up InterfaceStatus = "up"
+	// don't use underscores in Go names; const InterfaceStatus_Down should be InterfaceStatusDown
+	InterfaceStatus_Down InterfaceStatus = "down"
+	// don't use underscores in Go names; const InterfaceStatus_Warning should be InterfaceStatusWarning
 	InterfaceStatus_Warning InterfaceStatus = "warning"
-// don't use underscores in Go names; const InterfaceStatus_Off should be InterfaceStatusOff
-	InterfaceStatus_Off     InterfaceStatus = "off"
+	// don't use underscores in Go names; const InterfaceStatus_Off should be InterfaceStatusOff
+	InterfaceStatus_Off InterfaceStatus = "off"
 )

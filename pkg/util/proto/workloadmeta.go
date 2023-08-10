@@ -513,7 +513,7 @@ func toWorkloadmetaEventType(protoEventType pb.WorkloadmetaEventType) (workloadm
 }
 
 func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Container, error) {
-// var entityId should be entityID
+	// var entityId should be entityID
 	entityId, err := toWorkloadmetaEntityID(protoContainer.EntityId)
 	if err != nil {
 		return nil, err
@@ -676,7 +676,7 @@ func toWorkloadmetaContainerHealth(protoContainerHealth pb.ContainerHealth) (wor
 }
 
 func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloadmeta.KubernetesPod, error) {
-// var entityId should be entityID
+	// var entityId should be entityID
 	entityId, err := toWorkloadmetaEntityID(protoKubernetesPod.EntityId)
 	if err != nil {
 		return nil, err
@@ -725,7 +725,7 @@ func toWorkloadmetaOrchestratorContainer(protoOrchestratorContainer *pb.Orchestr
 }
 
 func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, error) {
-// var entityId should be entityID
+	// var entityId should be entityID
 	entityId, err := toWorkloadmetaEntityID(protoECSTask.EntityId)
 	if err != nil {
 		return nil, err

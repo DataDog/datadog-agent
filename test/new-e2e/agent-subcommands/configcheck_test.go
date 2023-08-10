@@ -26,9 +26,9 @@ func TestAgentConfigCheckSuite(t *testing.T) {
 }
 
 type CheckConfigOutput struct {
-	CheckName  string
-	Filepath   string
-// struct field InstanceId should be InstanceID
+	CheckName string
+	Filepath  string
+	// struct field InstanceId should be InstanceID
 	InstanceId string
 	Settings   string
 }

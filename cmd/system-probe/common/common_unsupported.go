@@ -8,6 +8,6 @@
 package common
 
 const (
-// DefaultLogFile exported const should have comment (or a comment on this block) or be unexported
+	// DefaultLogFile exported const should have comment (or a comment on this block) or be unexported
 	DefaultLogFile = ""
 )
