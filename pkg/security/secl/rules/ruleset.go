@@ -750,6 +750,7 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
+// StopEventCollector exported method should have comment or be unexported
 func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
 }

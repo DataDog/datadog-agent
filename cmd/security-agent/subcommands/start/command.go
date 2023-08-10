@@ -72,7 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(params),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(params.ConfigFilePaths),
-					LogParams:    log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+					LogParams:    log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle,
 				forwarder.Bundle,

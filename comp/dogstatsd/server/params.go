@@ -5,6 +5,7 @@
 
 package server
 
+// Params exported type should have comment or be unexported
 type Params struct {
 	Serverless bool
 }

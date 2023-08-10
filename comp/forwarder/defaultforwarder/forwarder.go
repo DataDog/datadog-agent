@@ -22,6 +22,7 @@ func newForwarder(dep dependencies) Component {
 	return NewForwarder(dep.Config, dep.Log, dep.Params)
 }
 
+// NewForwarder exported function should have comment or be unexported
 func NewForwarder(config config.Component, log log.Component, params Params) Component {
 	if params.UseNoopForwarder {
 		return NoopForwarder{}

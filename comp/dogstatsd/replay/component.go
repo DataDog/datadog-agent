@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package server implements a component to run the dogstatsd capture/replay
+// Package replay implements a component to run the dogstatsd capture/replay
 package replay
 
 import (
@@ -54,7 +54,7 @@ var Module = fxutil.Component(
 	fx.Provide(newTrafficCapture),
 )
 
-// // MockModule defines the fx options for the mock component.
+// MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
 	fx.Provide(newMockTrafficCapture),
 )

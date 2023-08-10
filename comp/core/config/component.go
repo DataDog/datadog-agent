@@ -24,6 +24,7 @@ import (
 
 // team: agent-shared-components
 
+// LogConfig exported type should have comment or be unexported
 type LogConfig config.Reader
 
 // Component is the component type.

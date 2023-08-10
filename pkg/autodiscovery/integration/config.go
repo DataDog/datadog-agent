@@ -21,8 +21,7 @@ import (
 )
 
 const (
-	// exported comment on const FakeConfigHash should be of the form "FakeConfigHash ..."
-	// Used in unit tests
+	// FakeConfigHash Used in unit tests
 	FakeConfigHash = 1
 )
 

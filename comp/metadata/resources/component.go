@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package runner implements a component to generate the 'resources' metadata payload.
+// Package resources implements a component to generate the 'resources' metadata payload.
 package resources
 
 import (

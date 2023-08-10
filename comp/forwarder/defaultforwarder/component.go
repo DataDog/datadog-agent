@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package defaultForwarder implements a component to send payloads to the backend
+// Package defaultforwarder implements a component to send payloads to the backend
 package defaultforwarder
 
 import (

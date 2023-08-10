@@ -21,6 +21,7 @@ func NewParams(options ...func(*Params)) Params {
 	return params
 }
 
+// WithSysProbeConfFilePath exported function should have comment or be unexported
 func WithSysProbeConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.sysProbeConfFilePath = confFilePath

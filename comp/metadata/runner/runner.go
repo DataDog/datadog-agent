@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 )
 
+// MetadataProvider exported type should have comment or be unexported
 type MetadataProvider func(context.Context) time.Duration
 
 type runner struct {

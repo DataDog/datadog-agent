@@ -45,7 +45,7 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
-		LogParams:    log.LogForOneShot(LoggerName, "off", true)}
+		LogParams:    log.ForOneShot(LoggerName, "off", true)}
 }
 
 // MakeCommand makes the top-level Cobra command for this app.

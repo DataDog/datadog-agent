@@ -5,6 +5,7 @@
 
 package rules
 
+// CollectedEvent exported type should have comment or be unexported
 type CollectedEvent struct {
 	Type       string
 	EvalResult bool

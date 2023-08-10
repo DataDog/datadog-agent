@@ -42,7 +42,7 @@ type providerDef struct {
 	getTags func(context.Context) ([]string, error)
 }
 
-func getProvidersDefinitions(conf config.ConfigReader) map[string]*providerDef {
+func getProvidersDefinitions(conf config.Reader) map[string]*providerDef {
 	providers := make(map[string]*providerDef)
 
 	if conf.GetBool("collect_gce_tags") {
@@ -98,7 +98,7 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 // - First one controlled by `cached` boolean, used for performances (cache all tags)
 // - Second one per provider, to avoid missing host tags for 30 minutes when a component fails (for instance, Cluster Agent).
 // This second layer is always on.
-func GetHostTags(ctx context.Context, cached bool, conf config.ConfigReader) *Tags {
+func GetHostTags(ctx context.Context, cached bool, conf config.Reader) *Tags {
 	if cached {
 		if x, found := cache.Cache.Get(tagsCacheKey); found {
 			tags := x.(*Tags)

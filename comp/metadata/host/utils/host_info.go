@@ -7,6 +7,7 @@
 // https://github.com/shirou/gopsutil .  This code is licensed under the New BSD License
 // copyright WAKAYAMA Shirou, and the gopsutil contributors
 
+// Package utils TODO comment
 package utils
 
 import "github.com/DataDog/datadog-agent/pkg/util/cache"

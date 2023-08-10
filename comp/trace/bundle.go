@@ -25,7 +25,7 @@ var Bundle = fxutil.Bundle(
 	coreconfig.Module,
 )
 
-// Bundle defines the fx options for this bundle.
+// MockBundle defines the fx options for this bundle.
 var MockBundle = fxutil.Bundle(
 	config.MockModule,
 	coreconfig.MockModule,

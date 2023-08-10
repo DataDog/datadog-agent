@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
+// Params exported type should have comment or be unexported
 type Params struct {
 	UseNoopForwarder bool
 	// TODO: (components) When the code of the forwarder will be
@@ -20,10 +21,12 @@ type Params struct {
 	Options *Options
 }
 
+// NewParams exported function should have comment or be unexported
 func NewParams(config config.Component, log log.Component) Params {
 	return Params{Options: NewOptions(config, log, getMultipleEndpoints(config, log))}
 }
 
+// NewParamsWithResolvers exported function should have comment or be unexported
 func NewParamsWithResolvers(config config.Component, log log.Component) Params {
 	keysPerDomain := getMultipleEndpoints(config, log)
 	return Params{Options: NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))}

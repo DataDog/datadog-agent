@@ -30,8 +30,10 @@ func (e *SettingNotFoundError) Error() string {
 	return fmt.Sprintf("setting %s not found", e.name)
 }
 
+// Source exported type should have comment or be unexported
 type Source string
 
+// This const exported block should be commented or unexported
 const (
 	// The default source is set as an empty string so that if the source isn't properly initialized, it is considered SourceDefault
 	SourceDefault Source = ""
@@ -93,7 +95,7 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 	return value, nil
 }
 
-// GetRuntimeSetting returns the source of the last change of a runtime configurable setting
+// GetRuntimeSource returns the source of the last change of a runtime configurable setting
 func GetRuntimeSource(setting string) (Source, error) {
 	if _, ok := runtimeSettings[setting]; !ok {
 		return SourceDefault, &SettingNotFoundError{name: setting}

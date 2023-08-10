@@ -98,7 +98,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("dogstatsd")),
 		),
-		fx.Supply(logComponent.LogForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
+		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module,
 		logComponent.Module,
 		fx.Supply(dogstatsdServer.Params{

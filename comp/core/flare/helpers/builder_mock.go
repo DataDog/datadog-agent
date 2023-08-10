@@ -14,12 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// FlareBuilderMock exported type should have comment or be unexported
 type FlareBuilderMock struct {
 	Fb   FlareBuilder
 	Root string
 	t    *testing.T
 }
 
+// NewFlareBuilderMock exported function should have comment or be unexported
 func NewFlareBuilderMock(t *testing.T, local bool) *FlareBuilderMock {
 	root := t.TempDir()
 
@@ -58,7 +60,7 @@ func (m *FlareBuilderMock) AssertFileContent(content string, paths ...string) {
 	}
 }
 
-// AssertFileContent asserts that a file exists within the flare and has the correct content
+// AssertFileContentMatch asserts that a file exists within the flare and has the correct content
 func (m *FlareBuilderMock) AssertFileContentMatch(pattern string, paths ...string) {
 	path := m.filePath(paths...)
 

@@ -39,7 +39,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(params.ConfPath)),
 		coreconfig.Module,
 		// TODO: (component)
-		// fx.Supply(log.LogForOneShot(params.LoggerName, "off", true)),
+		// fx.Supply(log.ForOneShot(params.LoggerName, "off", true)),
 		// log.Module,
 	)
 }

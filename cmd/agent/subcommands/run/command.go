@@ -135,7 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 		)
@@ -254,7 +254,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParamsWithSecrets(""),
 			SysprobeConfigParams: sysprobeconfig.NewParams(),
-			LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+			LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 		}),
 		getSharedFxOption(),
 	)

@@ -109,6 +109,7 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
+// WithRetention exported function should have comment or be unexported
 func WithRetention(retention time.Duration) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -165,6 +166,7 @@ func (fi *Server) URL() string {
 	return fi.url
 }
 
+// IsRunning exported method should have comment or be unexported
 func (fi *Server) IsRunning() bool {
 	return fi.URL() != ""
 }

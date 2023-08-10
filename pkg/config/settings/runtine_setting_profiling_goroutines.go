@@ -16,6 +16,7 @@ type ProfilingGoroutines struct {
 	source       Source
 }
 
+// NewProfilingGoroutines exported function should have comment or be unexported
 func NewProfilingGoroutines() *ProfilingGoroutines {
 	return &ProfilingGoroutines{source: SourceDefault}
 }
@@ -61,6 +62,7 @@ func (r *ProfilingGoroutines) Set(value interface{}, source Source) error {
 	return nil
 }
 
+// GetSource exported method should have comment or be unexported
 func (r *ProfilingGoroutines) GetSource() Source {
 	return r.source
 }

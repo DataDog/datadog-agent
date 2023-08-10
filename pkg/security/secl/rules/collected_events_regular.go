@@ -9,13 +9,16 @@ package rules
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
+// EventCollector exported type should have comment or be unexported
 type EventCollector struct {
 }
 
+// CollectEvent exported method should have comment or be unexported
 func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
 	// no-op
 }
 
+// Stop exported method should have comment or be unexported
 func (ec *EventCollector) Stop() []CollectedEvent {
 	return nil
 }

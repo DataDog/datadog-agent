@@ -40,7 +40,7 @@ type trafficCapture struct {
 	sync.RWMutex
 }
 
-// TODO: (components) - remove once serverless is an FX app
+// NewServerlessTrafficCapture TODO: (components) - remove once serverless is an FX app
 func NewServerlessTrafficCapture() Component {
 	return newTrafficCaptureCompat(config.Datadog)
 }

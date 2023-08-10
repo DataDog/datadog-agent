@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
+// Detector exported type should have comment or be unexported
 type Detector interface {
 	DetectLanguage(pid int) (languagemodels.Language, error)
 }

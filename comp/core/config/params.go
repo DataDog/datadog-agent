@@ -86,6 +86,7 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 	return params
 }
 
+// NewClusterAgentParams exported function should have comment or be unexported
 func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
 	params.ConfFilePath = configFilePath
@@ -93,42 +94,49 @@ func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Para
 	return params
 }
 
+// WithConfigName exported function should have comment or be unexported
 func WithConfigName(name string) func(*Params) {
 	return func(b *Params) {
 		b.configName = name
 	}
 }
 
+// WithConfigMissingOK exported function should have comment or be unexported
 func WithConfigMissingOK(v bool) func(*Params) {
 	return func(b *Params) {
 		b.configMissingOK = v
 	}
 }
 
+// WithIgnoreErrors exported function should have comment or be unexported
 func WithIgnoreErrors(v bool) func(*Params) {
 	return func(b *Params) {
 		b.ignoreErrors = v
 	}
 }
 
+// WithSecurityAgentConfigFilePaths exported function should have comment or be unexported
 func WithSecurityAgentConfigFilePaths(securityAgentConfigFilePaths []string) func(*Params) {
 	return func(b *Params) {
 		b.securityAgentConfigFilePaths = securityAgentConfigFilePaths
 	}
 }
 
+// WithConfigLoadSecurityAgent exported function should have comment or be unexported
 func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*Params) {
 	return func(b *Params) {
 		b.configLoadSecurityAgent = configLoadSecurityAgent
 	}
 }
 
+// WithConfFilePath exported function should have comment or be unexported
 func WithConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.ConfFilePath = confFilePath
 	}
 }
 
+// WithConfigLoadSecrets exported function should have comment or be unexported
 func WithConfigLoadSecrets(configLoadSecrets bool) func(*Params) {
 	return func(b *Params) {
 		b.configLoadSecrets = configLoadSecrets

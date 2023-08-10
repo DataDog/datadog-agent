@@ -38,7 +38,7 @@ func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-// TODO: serverless must be eventually migrated to fx, this workaround
+// NewServerlessConfig TODO: serverless must be eventually migrated to fx, this workaround
 //
 //	will then become obsolete - ts should not be created
 //	directly in this fashion.

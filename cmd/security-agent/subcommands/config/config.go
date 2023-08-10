@@ -55,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -73,7 +73,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle,
 				)
 			},
@@ -92,7 +92,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle,
 				)
 			},
@@ -111,7 +111,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-						LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle,
 				)
 			},

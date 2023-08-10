@@ -61,7 +61,7 @@ type serverDebug struct {
 	dogstatsdDebugLogger slog.LoggerInterface
 }
 
-// TODO: (components) - remove once serverless is an FX app
+// NewServerlessServerDebug TODO: (components) - remove once serverless is an FX app
 func NewServerlessServerDebug() Component {
 	return newServerDebugCompat(logComponent.NewTemporaryLoggerWithoutInit(), config.Datadog)
 }

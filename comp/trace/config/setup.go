@@ -92,7 +92,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
-		return nil, fmt.Errorf("No core config found! Bailing out.")
+		return nil, fmt.Errorf("no core config found! Bailing out")
 	}
 
 	if !coreConfigObject.GetBool("disable_file_logging") {

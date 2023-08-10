@@ -17,6 +17,7 @@ type RuntimeBlockProfileRate struct {
 	source       Source
 }
 
+// NewRuntimeBlockProfileRate exported function should have comment or be unexported
 func NewRuntimeBlockProfileRate() *RuntimeBlockProfileRate {
 	return &RuntimeBlockProfileRate{source: SourceDefault}
 }
@@ -64,6 +65,7 @@ func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
 	return err
 }
 
+// GetSource exported method should have comment or be unexported
 func (r *RuntimeBlockProfileRate) GetSource() Source {
 	return r.source
 }

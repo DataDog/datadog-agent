@@ -5,6 +5,7 @@
 
 // Mapping feature is inspired by https://github.com/prometheus/statsd_exporter
 
+// Package mapper TODO comment
 package mapper
 
 import (

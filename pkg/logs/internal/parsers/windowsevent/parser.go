@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package windowsevent TODO comment
 package windowsevent
 
 import (
@@ -13,6 +14,7 @@ import (
 type windowseventParser struct {
 }
 
+// New exported function should have comment or be unexported
 func New() parsers.Parser {
 	return &windowseventParser{}
 }

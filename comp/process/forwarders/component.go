@@ -15,6 +15,7 @@ import (
 
 // team: processes
 
+// Component exported type should have comment or be unexported
 type Component interface {
 	GetEventForwarder() defaultforwarder.Component
 	GetProcessForwarder() defaultforwarder.Component
@@ -27,6 +28,7 @@ var Module = fxutil.Component(
 	fx.Provide(newForwarders),
 )
 
+// MockModule exported var should have comment or be unexported
 var MockModule = fxutil.Component(
 	fx.Provide(newMockForwarders),
 )

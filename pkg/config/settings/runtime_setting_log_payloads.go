@@ -16,6 +16,7 @@ type LogPayloadsRuntimeSetting struct {
 	source Source
 }
 
+// NewLogPayloadsRuntimeSetting exported function should have comment or be unexported
 func NewLogPayloadsRuntimeSetting() *LogPayloadsRuntimeSetting {
 	return &LogPayloadsRuntimeSetting{source: SourceDefault}
 }
@@ -54,6 +55,7 @@ func (l *LogPayloadsRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
+// GetSource exported method should have comment or be unexported
 func (l *LogPayloadsRuntimeSetting) GetSource() Source {
 	return l.source
 }

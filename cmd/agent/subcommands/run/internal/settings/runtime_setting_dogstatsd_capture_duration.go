@@ -19,6 +19,7 @@ type DsdCaptureDurationRuntimeSetting struct {
 	source pkgsettings.Source
 }
 
+// NewDsdCaptureDurationRuntimeSetting exported function should have comment or be unexported
 func NewDsdCaptureDurationRuntimeSetting(value string) *DsdCaptureDurationRuntimeSetting {
 	return &DsdCaptureDurationRuntimeSetting{
 		value:  value,
@@ -67,6 +68,7 @@ func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source pkgsettings
 	return nil
 }
 
+// GetSource exported method should have comment or be unexported
 func (l *DsdCaptureDurationRuntimeSetting) GetSource() pkgsettings.Source {
 	return l.source
 }

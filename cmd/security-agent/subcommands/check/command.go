@@ -57,7 +57,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
 			ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-			LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
+			LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
@@ -81,7 +81,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 
 			bundleParams := bundleParamsFactory()
 			if checkArgs.verbose {
-				bundleParams.LogParams = log.LogForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
+				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
 
 			return fxutil.OneShot(RunCheck,

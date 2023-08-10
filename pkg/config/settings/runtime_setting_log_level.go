@@ -18,6 +18,7 @@ type LogLevelRuntimeSetting struct {
 	source    Source
 }
 
+// NewLogLevelRuntimeSetting exported function should have comment or be unexported
 func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
 	return &LogLevelRuntimeSetting{source: SourceDefault}
 }
@@ -46,6 +47,7 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
+// GetSource exported method should have comment or be unexported
 func (l *LogLevelRuntimeSetting) GetSource() Source {
 	return l.source
 }

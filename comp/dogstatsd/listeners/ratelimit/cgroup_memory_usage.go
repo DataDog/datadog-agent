@@ -5,6 +5,7 @@
 
 //go:build !linux
 
+// Package ratelimit TODO comment
 package ratelimit
 
 import (

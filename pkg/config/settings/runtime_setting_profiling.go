@@ -24,6 +24,7 @@ type ProfilingRuntimeSetting struct {
 	source       Source
 }
 
+// NewProfilingRuntimeSetting exported function should have comment or be unexported
 func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRuntimeSetting {
 	return &ProfilingRuntimeSetting{
 		SettingName: settingName,
@@ -125,6 +126,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
+// GetSource exported method should have comment or be unexported
 func (l *ProfilingRuntimeSetting) GetSource() Source {
 	return l.source
 }

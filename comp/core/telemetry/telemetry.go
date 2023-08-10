@@ -56,7 +56,7 @@ func newTelemetry() Component {
 	}
 }
 
-// TODO (components): Remove this when all telemetry is migrated to the component
+// GetCompatComponent TODO (components): Remove this when all telemetry is migrated to the component
 func GetCompatComponent() Component {
 	return newTelemetry()
 }

@@ -75,7 +75,7 @@ var (
 var trace *httptrace.ClientTrace
 var traceOnce sync.Once
 
-// Trace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
+// GetClientTrace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
 func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 	traceOnce.Do(func() {
 		trace = &httptrace.ClientTrace{

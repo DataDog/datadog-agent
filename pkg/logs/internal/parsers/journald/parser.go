@@ -5,6 +5,7 @@
 
 // go:build systemd
 
+// Package journald TODO comment
 package journald
 
 import (
@@ -15,6 +16,7 @@ import (
 type journaldParser struct {
 }
 
+// New exported function should have comment or be unexported
 func New() parsers.Parser {
 	return &journaldParser{}
 }

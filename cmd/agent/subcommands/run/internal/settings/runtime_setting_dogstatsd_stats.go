@@ -63,6 +63,7 @@ func (s *DsdStatsRuntimeSetting) Set(v interface{}, source settings.Source) erro
 	return nil
 }
 
+// GetSource exported method should have comment or be unexported
 func (s *DsdStatsRuntimeSetting) GetSource() settings.Source {
 	return s.source
 }

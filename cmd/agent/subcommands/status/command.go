@@ -68,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
 					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.LogForOneShot(command.LoggerName, "off", true)}),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},

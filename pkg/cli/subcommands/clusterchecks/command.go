@@ -81,7 +81,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 func bundleParams(globalParams GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-		LogParams:    log.LogForOneShot(loggerName, defaultLogLevel, true),
+		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
 	}
 }
 

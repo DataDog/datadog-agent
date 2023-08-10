@@ -69,6 +69,7 @@ func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source Source) error {
 	return nil
 }
 
+// GetSource exported method should have comment or be unexported
 func (l *ActivityDumpRuntimeSetting) GetSource() Source {
 	return l.source
 }

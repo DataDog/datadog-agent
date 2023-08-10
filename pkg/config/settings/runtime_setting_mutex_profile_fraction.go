@@ -17,6 +17,7 @@ type RuntimeMutexProfileFraction struct {
 	source       Source
 }
 
+// NewRuntimeMutexProfileFraction exported function should have comment or be unexported
 func NewRuntimeMutexProfileFraction() *RuntimeMutexProfileFraction {
 	return &RuntimeMutexProfileFraction{source: SourceDefault}
 }
@@ -64,6 +65,7 @@ func (r *RuntimeMutexProfileFraction) Set(value interface{}, source Source) erro
 	return err
 }
 
+// GetSource exported method should have comment or be unexported
 func (r *RuntimeMutexProfileFraction) GetSource() Source {
 	return r.source
 }

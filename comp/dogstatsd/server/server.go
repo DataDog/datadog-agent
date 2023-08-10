@@ -182,7 +182,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 	packets.InitTelemetry(get("telemetry.dogstatsd.listeners_channel_latency_buckets"))
 }
 
-// TODO: (components) - remove once serverless is an FX app
+// NewServerlessServer TODO: (components) - remove once serverless is an FX app
 func NewServerlessServer() Component {
 	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverDebug.NewServerlessServerDebug(), true)
 }
