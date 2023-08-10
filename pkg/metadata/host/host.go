@@ -107,9 +107,6 @@ func getLogsMeta() *LogsMeta {
 // ProxyBehaviorChanged is true in the metadata if there would be any errors or warnings indicating that there would a
 // behavior change if 'no_proxy_nonexact_match' was enabled.
 func getProxyMeta() *ProxyMeta {
-	httputils.NoProxyMapMutex.Lock()
-	defer httputils.NoProxyMapMutex.Unlock()
-
 	NoProxyNonexactMatchExplicitlySetState := false
 	NoProxyNonexactMatch := false
 	if config.Datadog.IsSet("no_proxy_nonexact_match") {
@@ -119,7 +116,7 @@ func getProxyMeta() *ProxyMeta {
 
 	return &ProxyMeta{
 		NoProxyNonexactMatch:              NoProxyNonexactMatch,
-		ProxyBehaviorChanged:              len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0,
+		ProxyBehaviorChanged:              httputils.GetNumberOfWarnings() > 0,
 		NoProxyNonexactMatchExplicitlySet: NoProxyNonexactMatchExplicitlySetState,
 	}
 }
