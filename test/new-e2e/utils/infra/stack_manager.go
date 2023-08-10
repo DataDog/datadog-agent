@@ -158,7 +158,7 @@ func (sm *StackManager) ForceRemoveStack(ctx context.Context, name string) error
 
 	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
 	defer cancel()
-	return stack.WorkSpace().RemoveStack(ctx, stack.Name(), optremove.Force())
+	return stack.Workspace().RemoveStack(deleteContext, stack.Name(), optremove.Force())
 }
 
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
