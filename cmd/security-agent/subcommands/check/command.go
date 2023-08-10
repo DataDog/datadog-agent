@@ -5,6 +5,7 @@
 
 //go:build !windows && kubeapiserver
 
+// Package check TODO comment
 package check
 
 import (

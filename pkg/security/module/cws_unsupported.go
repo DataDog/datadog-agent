@@ -5,6 +5,7 @@
 
 //go:build !linux
 
+// Package module TODO comment
 package module
 
 import (

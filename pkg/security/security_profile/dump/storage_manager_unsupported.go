@@ -5,6 +5,7 @@
 
 //go:build !linux
 
+// Package dump TODO comment
 package dump
 
 import (
