@@ -131,6 +131,6 @@ static __always_inline bool __enqueue_event(batch_data_t *batch, void *event, si
 
 #define _STR(x) #x
 #define _LOG(protocol, message, args...) \
-    log_debug(_STR(protocol) " " message "\n", args);
+    log_debug(_STR(protocol) " " message, args);
 
 #endif
