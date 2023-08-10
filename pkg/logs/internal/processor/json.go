@@ -31,6 +31,7 @@ type jsonPayload struct {
 	Tags                    string `json:"ddtags"`
 	AgentIngestionTimestamp int64  `json:"agentingestiontimestamp"`
 	AgentTimestamp          int64  `json:"agenttimestamp"`
+	AgentRndId              string `json:"agentrndid"`
 }
 
 // Encode encodes a message into a JSON byte array.
@@ -49,5 +50,6 @@ func (j *jsonEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, 
 		Tags:                    msg.Origin.TagsToString(),
 		AgentIngestionTimestamp: msg.IngestionTimestamp / nanoToMillis,
 		AgentTimestamp:          msg.Timestamp.UnixNano() / nanoToMillis,
+		AgentRndId:              msg.AgentRndId,
 	})
 }

@@ -37,6 +37,8 @@ type Message struct {
 	// Optional.
 	// Used in the Serverless Agent
 	Lambda *Lambda
+	// Tmp value to give each message a unique ID
+	AgentRndId string
 }
 
 // Lambda is a struct storing information about the Lambda function and function execution.

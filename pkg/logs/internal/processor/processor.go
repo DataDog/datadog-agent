@@ -7,7 +7,9 @@ package processor
 
 import (
 	"context"
+	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -16,6 +18,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
+
+const (
+	charset          = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	randStringLength = 5
+)
+
+func randString(r *rand.Rand) string {
+	b := make([]byte, randStringLength)
+	for i := range b {
+		b[i] = charset[r.Intn(len(charset))]
+	}
+	return string(b)
+}
 
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
@@ -76,7 +91,10 @@ func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for msg := range p.inputChan {
+		msg.AgentRndId = randString(r)
 		p.processMessage(msg)
 		p.mu.Lock() // block here if we're trying to flush synchronously
 		//nolint:staticcheck
