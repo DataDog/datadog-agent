@@ -127,10 +127,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessEventsCheckInterval,
 		},
 		{
-			key:          "language_detection.enabled",
-			defaultValue: false,
-		},
-		{
 			key:          "process_config.language_detection.grpc_port",
 			defaultValue: DefaultProcessEntityStreamPort,
 		},
@@ -428,12 +424,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_EVENT_COLLECTION_INTERVAL",
 			value:    "20s",
 			expected: 20 * time.Second,
-		},
-		{
-			key:      "language_detection.enabled",
-			env:      "DD_language_detection.enabled",
-			value:    "true",
-			expected: true,
 		},
 		{
 			key:      "process_config.language_detection.grpc_port",
