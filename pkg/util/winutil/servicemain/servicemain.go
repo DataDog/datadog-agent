@@ -26,6 +26,8 @@ type Service interface {
 	// Init() implements application initialization and is run when the service status is SERVICE_START_PENDING.
 	// The service status is set to SERVICE_RUNNING when Init() returns successfully.
 	// See ErrCleanStopAfterInit if you need to exit without calling Service.Run() or throwing an error.
+	//
+	// This function will block service tools like PowerShell's `Start-Service` until it returns.
 	Init() error
 
 	// Run() implements all application logic and is run when the service status is SERVICE_RUNNING.

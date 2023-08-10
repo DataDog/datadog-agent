@@ -183,7 +183,9 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 	// Wait for exit signal
 	select {
 	case <-exitSignal:
+		log.Info("Received exit signal, shutting down...")
 	case <-ctx.Done():
+		log.Info("Received stop from service manager, shutting down...")
 	}
 
 	err = app.Stop(context.Background())

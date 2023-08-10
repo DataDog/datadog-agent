@@ -168,8 +168,11 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 				// Wait for stop signal
 				select {
 				case <-signals.Stopper:
+					log.Info("Received stop command, shutting down...")
 				case <-signals.ErrorStopper:
+					_ = log.Critical("The Agent has encountered an error, shutting down...")
 				case <-ctx.Done():
+					log.Info("Received stop from service manager, shutting down...")
 				}
 
 				return nil
