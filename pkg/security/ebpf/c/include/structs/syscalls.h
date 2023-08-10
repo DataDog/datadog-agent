@@ -121,6 +121,7 @@ struct syscall_cache_t {
 
         struct {
             u32 is_thread;
+            u32 is_kthread;
         } fork;
 
         struct {
