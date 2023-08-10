@@ -90,7 +90,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	}, time.Second*10, time.Second, "")
 }
 
-func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNameSpace() {
+func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace() {
 	t := s.T()
 	_, err := os.Stat("/usr/bin/busybox")
 	if err != nil {
