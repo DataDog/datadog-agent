@@ -6,7 +6,7 @@
 package server
 
 import (
-	"errors"
+	"fmt"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -32,37 +32,24 @@ func (fi *PayloadParser) getJsonPayload(route string) ([]api.ParsedPayload, erro
 	if ok {
 		return payload, nil
 	}
-	return nil, errors.New("invalid route")
+	return nil, fmt.Errorf("route %s isn't supported", route)
 }
 
-func (fi *PayloadParser) isValidRoute(route string) bool {
+func (fi *PayloadParser) IsRouteHandled(route string) bool {
 	_, ok := fi.parserMap[route]
 	return ok
 }
 
 func (fi *PayloadParser) getLogPayLoadJson(payload api.Payload) (interface{}, error) {
-	logs, err := aggregator.ParseLogPayload(payload)
-	if err != nil {
-		return nil, err
-	}
-	return logs, err
+	return aggregator.ParseLogPayload(payload)
 }
 
 func (fi *PayloadParser) getMetricPayLoadJson(payload api.Payload) (interface{}, error) {
-	MetricOutput, err := aggregator.ParseMetricSeries(payload)
-	if err != nil {
-		return nil, err
-	}
-	return MetricOutput, err
+	return aggregator.ParseMetricSeries(payload)
 }
 
 func (fi *PayloadParser) getCheckRunPayLoadJson(payload api.Payload) (interface{}, error) {
-	CheckOutput, err := aggregator.ParseCheckRunPayload(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	return CheckOutput, err
+	return aggregator.ParseCheckRunPayload(payload)
 }
 
 func (fi *PayloadParser) parse(payload api.Payload, route string) {
@@ -75,9 +62,7 @@ func (fi *PayloadParser) parse(payload api.Payload, route string) {
 
 	if payloadFunc, ok := fi.parserMap[route]; ok {
 		parsedPayload.Data, _ = payloadFunc(payload)
-	} else {
-		return
+		fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], parsedPayload)
 	}
 
-	fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], parsedPayload)
 }

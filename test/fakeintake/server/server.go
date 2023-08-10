@@ -263,7 +263,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
-	} else if fi.payloadParser.isValidRoute(route) {
+	} else if fi.payloadParser.IsRouteHandled(route) {
 		payloads, _ := fi.safeGetJsonPayloads(route)
 		// If no payload for a valid route exist yet, payloads will be null
 		// build response
