@@ -187,7 +187,7 @@ def auto_cancel_previous_pipelines(ctx):
             print(
                 f'Gracefully canceling jobs that are not canceled on pipeline {pipeline["id"]} ({pipeline["web_url"]})'
             )
-            gracefully_cancel_pipeline(gitlab, pipeline)
+            gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
         except Exception:
             print(f'{pipeline["sha"]} is not an ancestor of {git_sha}')
 
