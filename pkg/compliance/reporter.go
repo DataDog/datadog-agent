@@ -66,7 +66,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	logChan := pipelineProvider.NextPipelineChan()
 
 	tags := []string{
-		common.QueryAccountIdTag(),
+		common.QueryAccountIDTag(),
 		fmt.Sprintf("host:%s", hostname),
 	}
 

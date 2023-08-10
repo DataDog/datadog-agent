@@ -66,6 +66,13 @@ func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+// Health exported method should have comment or be unexported
+func (agent *AgentCommandRunner) Health() (string, error) {
+	arguments := []string{"health"}
+	output, err := agent.executeAgentCmdWithError(arguments)
+	return output, err
+}
+
 // ConfigCheck exported method should have comment or be unexported
 func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("configcheck", commandArgs...)

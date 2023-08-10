@@ -13,25 +13,30 @@ import (
 type ProfilingGoroutines struct {
 	Config       config.ReaderWriter
 	ConfigPrefix string
+	source       Source
+}
+
+func NewProfilingGoroutines() *ProfilingGoroutines {
+	return &ProfilingGoroutines{source: SourceDefault}
 }
 
 // Name returns the name of the runtime setting
-func (r ProfilingGoroutines) Name() string {
+func (r *ProfilingGoroutines) Name() string {
 	return "internal_profiling_goroutines"
 }
 
 // Description returns the runtime setting's description
-func (r ProfilingGoroutines) Description() string {
+func (r *ProfilingGoroutines) Description() string {
 	return "This setting controls whether internal profiling will collect goroutine stacktraces (requires profiling restart)"
 }
 
 // Hidden returns whether this setting is hidden from the list of runtime settings
-func (r ProfilingGoroutines) Hidden() bool {
+func (r *ProfilingGoroutines) Hidden() bool {
 	return true
 }
 
 // Get returns the current value of the runtime setting
-func (r ProfilingGoroutines) Get() (interface{}, error) {
+func (r *ProfilingGoroutines) Get() (interface{}, error) {
 	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
@@ -40,7 +45,7 @@ func (r ProfilingGoroutines) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (r ProfilingGoroutines) Set(value interface{}) error {
+func (r *ProfilingGoroutines) Set(value interface{}, source Source) error {
 	enabled, err := GetBool(value)
 	if err != nil {
 		return err
@@ -51,6 +56,11 @@ func (r ProfilingGoroutines) Set(value interface{}) error {
 		cfg = r.Config
 	}
 	cfg.Set(r.ConfigPrefix+"internal_profiling.enable_goroutine_stacktraces", enabled)
+	r.source = source
 
 	return nil
+}
+
+func (r *ProfilingGoroutines) GetSource() Source {
+	return r.source
 }

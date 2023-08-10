@@ -7,8 +7,9 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // StatCounterWrapper is a convenience type that allows for migrating telemetry to
@@ -19,9 +20,9 @@ type StatCounterWrapper struct {
 }
 
 // Inc exported method should have comment or be unexported
-func (sgw *StatCounterWrapper) Inc() {
+func (sgw *StatCounterWrapper) Inc(tags ...string) {
 	sgw.stat.Inc()
-	sgw.counter.Inc()
+	sgw.counter.Inc(tags...)
 }
 
 // Delete exported method should have comment or be unexported
@@ -31,9 +32,9 @@ func (sgw *StatCounterWrapper) Delete() {
 }
 
 // Add exported method should have comment or be unexported
-func (sgw *StatCounterWrapper) Add(v int64) {
+func (sgw *StatCounterWrapper) Add(v int64, tags ...string) {
 	sgw.stat.Add(v)
-	sgw.counter.Add(float64(v))
+	sgw.counter.Add(float64(v), tags...)
 }
 
 // Load exported method should have comment or be unexported

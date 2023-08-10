@@ -399,3 +399,59 @@ func TestParseLambdaPayload(t *testing.T) {
 	assert.Equal(t, []byte("{"), ParseLambdaPayload([]byte("{")))
 	assert.Equal(t, []byte("}"), ParseLambdaPayload([]byte("}")))
 }
+
+func TestLanguageTag(t *testing.T) {
+	testCases := []struct {
+		runtime     string
+		expectedTag string
+	}{
+		{runtime: "dotnet6", expectedTag: "dotnet"},
+		{runtime: "java11", expectedTag: "java"},
+		{runtime: "ruby2.7", expectedTag: "ruby"},
+		{runtime: "go1.x", expectedTag: "go"},
+	}
+
+	for _, tc := range testCases {
+		currentExecutionInfo := &ExecutionStartInfo{}
+		t.Setenv(functionNameEnvVar, "TestFunction")
+		testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
+
+		startTime := time.Now()
+		startDetails := &InvocationStartDetails{
+			StartTime:          startTime,
+			InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		}
+		startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+
+		duration := 1 * time.Second
+		endTime := startTime.Add(duration)
+		var tracePayload *api.Payload
+		mockProcessTrace := func(payload *api.Payload) {
+			tracePayload = payload
+		}
+
+		endDetails := &InvocationEndDetails{
+			EndTime:            endTime,
+			IsError:            false,
+			RequestID:          "test-request-id",
+			ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+			Coldstart:          true,
+			ProactiveInit:      false,
+			Runtime:            tc.runtime, // add runtime
+		}
+
+		endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+		executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+		assert.Equal(t, "aws.lambda", executionSpan.Name)
+		assert.Equal(t, "aws.lambda", executionSpan.Service)
+		assert.Equal(t, "TestFunction", executionSpan.Resource)
+		assert.Equal(t, "serverless", executionSpan.Type)
+		assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
+		assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+		assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+		assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+		assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+
+		assert.Equal(t, tc.expectedTag, executionSpan.Meta["language"]) // expected tag from runtime
+	}
+}

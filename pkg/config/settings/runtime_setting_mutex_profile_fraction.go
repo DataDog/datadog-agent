@@ -14,20 +14,25 @@ import (
 type RuntimeMutexProfileFraction struct {
 	Config       config.ReaderWriter
 	ConfigPrefix string
+	source       Source
+}
+
+func NewRuntimeMutexProfileFraction() *RuntimeMutexProfileFraction {
+	return &RuntimeMutexProfileFraction{source: SourceDefault}
 }
 
 // Name returns the name of the runtime setting
-func (r RuntimeMutexProfileFraction) Name() string {
+func (r *RuntimeMutexProfileFraction) Name() string {
 	return "runtime_mutex_profile_fraction"
 }
 
 // Description returns the runtime setting's description
-func (r RuntimeMutexProfileFraction) Description() string {
+func (r *RuntimeMutexProfileFraction) Description() string {
 	return "This setting controls the fraction of mutex contention events that are reported in the internal mutex profile"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
-func (r RuntimeMutexProfileFraction) Hidden() bool {
+func (r *RuntimeMutexProfileFraction) Hidden() bool {
 	// Go runtime will start accumulating profile data as soon as this option is set to a
 	// non-zero value. There is a risk that left on over a prolonged period of time, it
 	// may negatively impact agent performance.
@@ -35,12 +40,12 @@ func (r RuntimeMutexProfileFraction) Hidden() bool {
 }
 
 // Get returns the current value of the runtime setting
-func (r RuntimeMutexProfileFraction) Get() (interface{}, error) {
+func (r *RuntimeMutexProfileFraction) Get() (interface{}, error) {
 	return profiling.GetMutexProfileFraction(), nil
 }
 
 // Set changes the value of the runtime setting
-func (r RuntimeMutexProfileFraction) Set(value interface{}) error {
+func (r *RuntimeMutexProfileFraction) Set(value interface{}, source Source) error {
 	rate, err := GetInt(value)
 	if err != nil {
 		return err
@@ -54,6 +59,11 @@ func (r RuntimeMutexProfileFraction) Set(value interface{}) error {
 		cfg = r.Config
 	}
 	cfg.Set(r.ConfigPrefix+"internal_profiling.mutex_profile_fraction", rate)
+	r.source = source
 
 	return err
+}
+
+func (r *RuntimeMutexProfileFraction) GetSource() Source {
+	return r.source
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
@@ -31,8 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -89,8 +88,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 
 	// Now that the logger is configured log host info
-	hostStatus := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostStatus.Platform)
+	log.Infof("running on platform: %s", hostMetadataUtils.GetPlatformName())
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -156,7 +154,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		// Initialize the remote-config client to update the runtime settings
 		fx.Invoke(func(rc rcclient.Component) {
 			if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
-				if err := rc.Listen("process-agent", []data.Product{data.ProductAgentConfig}); err != nil {
+				if err := rc.Start("process-agent"); err != nil {
 					log.Errorf("Couldn't start the remote-config client of the process agent: %s", err)
 				}
 			}

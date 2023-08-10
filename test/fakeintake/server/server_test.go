@@ -24,7 +24,6 @@ import (
 
 func TestServer(t *testing.T) {
 	t.Skip("unstable on windows unit test")
-
 	t.Run("should accept payloads on any route", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()))
 
@@ -243,6 +242,73 @@ func TestServer(t *testing.T) {
 
 		fi.handleFlushPayloads(response, request)
 		assert.Equal(t, http.StatusAccepted, response.Code, "unexpected code")
+	})
+
+	t.Run("should clean payloads older than 15 minutes", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock))
+		fi.Start()
+
+		postSomePayloads(t, fi)
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/series", nil)
+		assert.NoError(t, err, "Error creating GET request")
+
+		clock.Add(10 * time.Minute)
+
+		response10Min := httptest.NewRecorder()
+		var getResponse10Min api.APIFakeIntakePayloadsGETResponse
+
+		fi.handleGetPayloads(response10Min, request)
+		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
+
+		assert.Len(t, getResponse10Min.Payloads, 2, "should contain two elements before cleanup %+v", getResponse10Min)
+
+		clock.Add(10 * time.Minute)
+
+		response20Min := httptest.NewRecorder()
+		var getResponse20Min api.APIFakeIntakePayloadsGETResponse
+
+		fi.handleGetPayloads(response20Min, request)
+		json.NewDecoder(response20Min.Body).Decode(&getResponse10Min)
+
+		assert.Empty(t, getResponse20Min.Payloads, "should be empty after cleanup")
+		fi.Stop()
+	})
+
+	t.Run("should clean payloads older than 15 minutes and keep recent payloads", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock))
+		fi.Start()
+
+		postSomePayloads(t, fi)
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/series", nil)
+		assert.NoError(t, err, "Error creating GET request")
+
+		clock.Add(10 * time.Minute)
+
+		postSomePayloads(t, fi)
+
+		response10Min := httptest.NewRecorder()
+		var getResponse10Min api.APIFakeIntakePayloadsGETResponse
+
+		fi.handleGetPayloads(response10Min, request)
+		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
+
+		assert.Len(t, getResponse10Min.Payloads, 4, "should contain 4 elements before cleanup")
+
+		clock.Add(10 * time.Minute)
+
+		response20Min := httptest.NewRecorder()
+		var getResponse20Min api.APIFakeIntakePayloadsGETResponse
+
+		fi.handleGetPayloads(response20Min, request)
+		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
+
+		assert.Len(t, getResponse20Min.Payloads, 2, "should contain 2 elements after cleanup of only older elements")
+
+		fi.Stop()
 	})
 }
 
