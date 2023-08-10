@@ -166,7 +166,6 @@ type BaseEvent struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	PIDContext             PIDContext             `field:"-" json:"-"`
 	SpanContext            SpanContext            `field:"-" json:"-"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
 	ContainerContext       *ContainerContext      `field:"container" event:"*"`
@@ -174,6 +173,7 @@ type BaseEvent struct {
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
+	PIDContext        PIDContext         `field:"-" json:"-"`
 	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
 
 	// mark event with having error
