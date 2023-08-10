@@ -9,8 +9,8 @@ package net
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}
@@ -49,6 +49,6 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 }
 
 // DetectLanguage is not supported
-func (r *RemoteSysProbeUtil) DetectLanguage() error {
-	return ebpf.ErrNotImplemented
+func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
+	return nil, ebpf.ErrNotImplemented
 }

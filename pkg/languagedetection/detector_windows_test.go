@@ -52,7 +52,7 @@ func TestDetectLanguage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			process := []*procutil.Process{makeProcess(tc.cmdline, "")}
 			expected := []*languagemodels.Language{{Name: tc.expected}}
-			assert.Equal(t, expected, DetectLanguage(process))
+			assert.Equal(t, expected, DetectLanguage(process, nil))
 		})
 	}
 }
