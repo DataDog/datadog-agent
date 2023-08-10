@@ -8,7 +8,6 @@ package client
 import (
 	"errors"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCm
 	return agent
 }
 
-func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
+func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) (string, error) {
 	if !agent.isReady {
 		err := agent.waitForReadyTimeout(1 * time.Minute)
 		require.NoErrorf(agent.t, err, "the agent is not ready")
@@ -46,25 +45,40 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
 	output, err := agent.executeAgentCmdWithError(arguments)
+	return output, err
+}
+
+func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
+	output, err := agent.executeCommand("version", commandArgs...)
 	require.NoError(agent.t, err)
 	return output
 }
 
-func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
-	return agent.executeCommand("version", commandArgs...)
-}
-
-func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string {
-	output := agent.executeCommand("hostname", commandArgs...)
-	return strings.Trim(output, "\n")
-}
-
 func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
-	return agent.executeCommand("config", commandArgs...)
+	output, err := agent.executeCommand("config", commandArgs...)
+	require.NoError(agent.t, err)
+	return output
 }
 
 func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
-	return agent.executeCommand("configcheck", commandArgs...)
+	output, err := agent.executeCommand("configcheck", commandArgs...)
+	require.NoError(agent.t, err)
+	return output
+}
+
+func (agent *AgentCommandRunner) Health() (string, error) {
+	output, err := agent.executeCommand("health")
+	return output, err
+}
+
+func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) (string, error) {
+	output, err := agent.executeCommand("hostname", commandArgs...)
+	return output, err
+}
+
+func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) (string, error) {
+	output, err := agent.executeCommand("secret", commandArgs...)
+	return output, err
 }
 
 // IsReady runs status command and returns true if the agent is ready.
@@ -87,7 +101,9 @@ func (s *Status) isReady() (bool, error) {
 }
 
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
-	return newStatus(agent.executeCommand("status", commandArgs...))
+	output, err := agent.executeCommand("status", commandArgs...)
+	require.NoError(agent.t, err)
+	return newStatus(output)
 }
 
 // WaitForReady blocks up to timeout waiting for agent to be ready.
