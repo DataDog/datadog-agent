@@ -406,7 +406,9 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				module.EventTypes[e] = common.NewEventTypeMetada()
 				dejavu = make(map[string]bool) // clear dejavu map when it's a new event type
 			}
-			module.EventTypes[e].Doc = fieldCommentText
+			if e != "*" {
+				module.EventTypes[e].Doc = fieldCommentText
+			}
 		}
 
 		if isEmbedded := len(field.Names) == 0; isEmbedded {
