@@ -8,8 +8,6 @@
 package probes
 
 import (
-	"strings"
-
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -66,7 +64,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_new_exec_interp",
+				EBPFFuncName: "hook_setup_new_exec_interp",
 			},
 		},
 		{
@@ -154,30 +152,6 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		},
 		SyscallFuncName: "execveat",
 	}, fentry, Entry|SupportFentry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fork",
-	}, fentry, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "vfork",
-	}, fentry, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "clone",
-	}, fentry, Entry|SupportFentry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "clone3",
-	}, fentry, Entry|SupportFentry)...)
 
 	for _, name := range []string{
 		"setuid",
@@ -198,10 +172,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setresgid16",
 		"capset",
 	} {
-		flags := EntryAndExit
-		if !strings.HasSuffix(name, "16") {
-			flags |= SupportFentry
-		}
+		flags := EntryAndExit | SupportFentry | SupportFexit
 
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

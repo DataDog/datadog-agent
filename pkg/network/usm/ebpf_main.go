@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,7 +50,7 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	enabledProtocols  map[protocols.ProtocolType]protocols.Protocol
+	enabledProtocols  []protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
 
 	buildMode buildMode
@@ -98,7 +99,7 @@ type subprogram interface {
 	Stop()
 }
 
-func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: sslSockByCtxMap},
@@ -140,17 +141,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
 	if goTLSProg != nil {
 		subprograms = append(subprograms, goTLSProg)
-	}
-	javaTLSProg := newJavaTLSProgram(c)
-	subprogramProbesResolvers = append(subprogramProbesResolvers, javaTLSProg)
-	if javaTLSProg != nil {
-		subprograms = append(subprograms, javaTLSProg)
-		tailCalls = append(tailCalls, getJavaTlsTailCallRoutes()...)
-	}
-	openSSLProg := newSSLProgram(c, mgr, sockFD, bpfTelemetry)
-	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
-	if openSSLProg != nil {
-		subprograms = append(subprograms, openSSLProg)
 	}
 
 	program := &ebpfProgram{
@@ -324,19 +314,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		},
 	}
 
-	// Set some eBPF constants to tell the protocol dispatcher which ones are
-	// enabled. These needs to be set here, even if some protocols are not
-	// enabled, to make sure they exist. Without this, the dispatcher would try
-	// to check non-existing constants, which is not possible and an error.
-	addBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
-	addBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
-	addBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")
 	// Some parts of USM (https capturing, and part of the classification) use `read_conn_tuple`, and has some if
 	// clauses that handled IPV6, for USM we care (ATM) only from TCP connections, so adding the sole config about tcpv6.
-	addBoolConst(&options, e.cfg.CollectTCPv6Conns, "tcpv6_enabled")
+	utils.AddBoolConst(&options, e.cfg.CollectTCPv6Conns, "tcpv6_enabled")
 
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
-	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
+	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 
 	for _, s := range e.subprograms {
 		s.ConfigureOptions(&options)
@@ -359,6 +342,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			log.Debugf("disabled map: %v", m.Name)
 		}
 
+		for _, probe := range p.Probes {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
+		}
+
 		for _, tc := range p.TailCalls {
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
 		}
@@ -373,18 +360,4 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
-}
-
-func addBoolConst(options *manager.Options, flag bool, name string) {
-	val := uint64(1)
-	if !flag {
-		val = uint64(0)
-	}
-
-	options.ConstantEditors = append(options.ConstantEditors,
-		manager.ConstantEditor{
-			Name:  name,
-			Value: val,
-		},
-	)
 }

@@ -23,6 +23,7 @@ type ExecutionContext struct {
 	coldstartRequestID string
 	lastLogRequestID   string
 	lastOOMRequestID   string
+	runtime            string
 	coldstart          bool
 	proactiveInit      bool
 	initTime           time.Time
@@ -39,6 +40,7 @@ type State struct {
 	ColdstartRequestID string
 	LastLogRequestID   string
 	LastOOMRequestID   string
+	Runtime            string
 	Coldstart          bool
 	ProactiveInit      bool
 	InitTime           time.Time
@@ -56,6 +58,7 @@ func (ec *ExecutionContext) GetCurrentState() State {
 		ColdstartRequestID: ec.coldstartRequestID,
 		LastLogRequestID:   ec.lastLogRequestID,
 		LastOOMRequestID:   ec.lastOOMRequestID,
+		Runtime:            ec.runtime,
 		Coldstart:          ec.coldstart,
 		ProactiveInit:      ec.proactiveInit,
 		InitTime:           ec.initTime,
@@ -135,6 +138,13 @@ func (ec *ExecutionContext) UpdateOutOfMemoryRequestID(requestId string) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	ec.lastOOMRequestID = requestId
+}
+
+// UpdateRuntime updates the execution context with the runtime information
+func (ec *ExecutionContext) UpdateRuntime(runtime string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.runtime = runtime
 }
 
 // getPersistedStateFilePath returns the full path and filename of the

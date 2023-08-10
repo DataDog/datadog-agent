@@ -72,7 +72,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getUnlinkProbes(fentry)...)
 	allProbes = append(allProbes, getXattrProbes(fentry)...)
 	allProbes = append(allProbes, getIoctlProbes()...)
-	allProbes = append(allProbes, getSELinuxProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes(fentry)...)
 	allProbes = append(allProbes, getBPFProbes(fentry)...)
 	allProbes = append(allProbes, getPTraceProbes(fentry)...)
 	allProbes = append(allProbes, getMMapProbes(fentry)...)
@@ -158,7 +158,7 @@ type MapSpecEditorOpts struct {
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"syscalls": {
-			MaxEntries: 1024,
+			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"proc_cache": {
@@ -244,11 +244,11 @@ func AllRingBuffers() []*manager.RingBuffer {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableMaps bool, fentry bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps)...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps, fentry)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes()...)
@@ -263,6 +263,9 @@ func AllBPFProbeWriteUserProgramFunctions() []string {
 		"kprobe_dentry_resolver_erpc_write_user",
 		"kprobe_dentry_resolver_parent_erpc_write_user",
 		"kprobe_dentry_resolver_segment_erpc_write_user",
+		"fentry_dentry_resolver_erpc_write_user",
+		"fentry_dentry_resolver_parent_erpc_write_user",
+		"fentry_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

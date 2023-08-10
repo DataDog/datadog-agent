@@ -14,7 +14,7 @@ var rmdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_inode_rmdir",
+			EBPFFuncName: "hook_security_inode_rmdir",
 		},
 	},
 	{
@@ -26,7 +26,7 @@ var rmdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_do_rmdir",
+			EBPFFuncName: "rethook_do_rmdir",
 		},
 	},
 }
@@ -37,6 +37,6 @@ func getRmdirProbe(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "rmdir",
-	}, fentry, EntryAndExit|SupportFentry)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return rmdirProbes
 }
