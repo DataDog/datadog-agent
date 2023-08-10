@@ -131,7 +131,7 @@ func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
 	}
-	return config.Datadog.GetBool("workloadmeta.remote_process_collector.enabled")
+	return config.Datadog.GetBool("process_config.language_detection.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {

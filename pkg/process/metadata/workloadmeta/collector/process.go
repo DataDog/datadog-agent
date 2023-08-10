@@ -113,14 +113,14 @@ func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 
 // Enabled checks to see if we should enable the local process collector.
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
-// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `workloadmeta.remote_process_collector.enabled`
+// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `process_config.language_detection.enabled`
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
 func Enabled(cfg config.ConfigReader) bool {
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
 
-	if !cfg.GetBool("workloadmeta.remote_process_collector.enabled") {
+	if !cfg.GetBool("process_config.language_detection.enabled") {
 		return false
 	}
 	return true
