@@ -6,10 +6,12 @@
 package languagedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -23,6 +25,9 @@ type languageFromCLI struct {
 	validator func(exe string) bool
 }
 
+// rubyPattern is a regexp validator for the ruby prefix
+var rubyPattern = regexp.MustCompile(`^ruby\d+\.\d+$`)
+
 // knownPrefixes maps languages names to their prefix
 var knownPrefixes = map[string]languageFromCLI{
 	"python": {name: languagemodels.Python},
@@ -31,6 +36,9 @@ var knownPrefixes = map[string]languageFromCLI{
 			return false
 		}
 		return true
+	}},
+	"ruby": {name: languagemodels.Ruby, validator: func(exe string) bool {
+		return rubyPattern.MatchString(exe)
 	}},
 }
 
@@ -45,20 +53,21 @@ var exactMatches = map[string]languageFromCLI{
 	"node": {name: languagemodels.Node},
 
 	"dotnet": {name: languagemodels.Dotnet},
+
+	"ruby":  {name: languagemodels.Ruby},
+	"rubyw": {name: languagemodels.Ruby},
 }
 
-func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
-	exe := getExe(cmdline)
-
+func languageNameFromCommand(command string) languagemodels.LanguageName {
 	// First check to see if there is an exact match
-	if lang, ok := exactMatches[exe]; ok {
+	if lang, ok := exactMatches[command]; ok {
 		return lang.name
 	}
 
 	for prefix, language := range knownPrefixes {
-		if strings.HasPrefix(exe, prefix) {
+		if strings.HasPrefix(command, prefix) {
 			if language.validator != nil {
-				isValidResult := language.validator(exe)
+				isValidResult := language.validator(command)
 				if !isValidResult {
 					continue
 				}
@@ -91,7 +100,12 @@ func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReade
 	unknownPids := make([]int32, 0, len(procs))
 	langsToModify := make(map[int32]*languagemodels.Language, len(procs))
 	for i, proc := range procs {
-		lang := &languagemodels.Language{Name: languageNameFromCommandLine(proc.Cmdline)}
+		exe := getExe(proc.Cmdline)
+		languageName := languageNameFromCommand(exe)
+		if languageName == languagemodels.Unknown {
+			languageName = languageNameFromCommand(proc.Comm)
+		}
+		lang := &languagemodels.Language{Name: languageName}
 		langs[i] = lang
 		if lang.Name == languagemodels.Unknown {
 			unknownPids = append(unknownPids, proc.Pid)

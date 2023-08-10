@@ -8,7 +8,6 @@
 package languagedetection
 
 import (
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -24,77 +23,108 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func makeProcess(cmdline []string) *procutil.Process {
-	return &procutil.Process{
-		Pid:     rand.Int31(),
-		Cmdline: cmdline,
-	}
-}
-
-func TestLanguageFromCommandline(t *testing.T) {
+func TestDetectLanguage(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		cmdline  []string
+		comm     string
 		expected languagemodels.LanguageName
 	}{
 		{
 			name:     "python2",
 			cmdline:  []string{"/opt/Python/2.7.11/bin/python2.7", "/opt/foo/bar/baz", "--config=asdf"},
+			comm:     "baz",
 			expected: languagemodels.Python,
 		},
 		{
 			name:     "Java",
 			cmdline:  []string{"/usr/bin/Java", "-Xfoo=true", "org.elasticsearch.bootstrap.Elasticsearch"},
+			comm:     "java",
 			expected: languagemodels.Java,
 		},
 		{
 			name:     "Unknown",
 			cmdline:  []string{"mine-bitcoins", "--all"},
+			comm:     "mine-bitcoins",
 			expected: languagemodels.Unknown,
 		},
 		{
 			name:     "Python with space and special chars in path",
 			cmdline:  []string{"//..//path/\"\\ to/Python", "asdf"},
+			comm:     "asdf",
 			expected: languagemodels.Python,
 		},
 		{
 			name:     "args in first element",
 			cmdline:  []string{"/usr/bin/Python myapp.py --config=/etc/mycfg.yaml"},
+			comm:     "myapp.py",
 			expected: languagemodels.Python,
 		},
 		{
 			name:     "javac is not Java",
 			cmdline:  []string{"javac", "main.Java"},
+			comm:     "javac",
 			expected: languagemodels.Unknown,
 		},
 		{
 			name:     "py is Python",
 			cmdline:  []string{"py", "test.py"},
+			comm:     "test.py",
 			expected: languagemodels.Python,
 		},
 		{
 			name:     "py is not a prefix",
 			cmdline:  []string{"pyret", "main.pyret"},
+			comm:     "pyret",
 			expected: languagemodels.Unknown,
 		},
 		{
 			name:     "node",
 			cmdline:  []string{"node", "/etc/app/index.js"},
+			comm:     "node",
 			expected: languagemodels.Node,
 		},
 		{
 			name:     "npm",
 			cmdline:  []string{"npm", "start"},
+			comm:     "npm",
 			expected: languagemodels.Node,
 		},
 		{
 			name:     "dotnet",
 			cmdline:  []string{"dotnet", "myApp"},
+			comm:     "dotnet",
 			expected: languagemodels.Dotnet,
+		},
+		{
+			name:     "ruby",
+			cmdline:  []string{"ruby", "prog.rb"},
+			comm:     "ruby",
+			expected: languagemodels.Ruby,
+		},
+		{
+			name:     "rails",
+			cmdline:  []string{"puma", "5.6.6", "(tcp://localhost:3000)", "[app]"},
+			comm:     "ruby",
+			expected: languagemodels.Ruby,
+		},
+		{
+			name:     "irb",
+			cmdline:  []string{"irb"},
+			comm:     "ruby2.7",
+			expected: languagemodels.Ruby,
+		},
+		{
+			name:     "jruby",
+			cmdline:  []string{"java", "-Djruby.home=/usr/share/jruby", "-Djruby.lib=/usr/share/jruby/lib", "org.jruby.Main", "prog.rb"},
+			comm:     "java",
+			expected: languagemodels.Java, // TODO: not yet implemented
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, languageNameFromCommandLine(tc.cmdline))
+			process := []*procutil.Process{makeProcess(tc.cmdline, tc.comm)}
+			expected := []*languagemodels.Language{{Name: tc.expected}}
+			assert.Equal(t, expected, DetectLanguage(process, nil))
 		})
 	}
 }
@@ -145,29 +175,95 @@ func TestGetExe(t *testing.T) {
 }
 
 func BenchmarkDetectLanguage(b *testing.B) {
-	commands := [][]string{
-		{"Python", "--version"},
-		{"python3", "--version"},
-		{"py", "--version"},
-		{"Python", "-c", "import platform; print(platform.python_version())"},
-		{"python3", "-c", "import platform; print(platform.python_version())"},
-		{"py", "-c", "import platform; print(platform.python_version())"},
-		{"Python", "-c", "import sys; print(sys.version)"},
-		{"python3", "-c", "import sys; print(sys.version)"},
-		{"py", "-c", "import sys; print(sys.version)"},
-		{"Python", "-c", "print('Python')"},
-		{"python3", "-c", "print('Python')"},
-		{"py", "-c", "print('Python')"},
-		{"Java", "-version"},
-		{"Java", "-jar", "myapp.jar"},
-		{"Java", "-cp", ".", "MyClass"},
-		{"javac", "MyClass.Java"},
-		{"javap", "-c", "MyClass"},
+	commands := []struct {
+		cmdline []string
+		comm    string
+	}{
+		{
+			cmdline: []string{"Python", "--version"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"python3", "--version"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"py", "--version"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"Python", "-c", "import platform; print(platform.python_version())"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"python3", "-c", "import platform; print(platform.python_version())"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"py", "-c", "import platform; print(platform.python_version())"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"Python", "-c", "import sys; print(sys.version)"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"python3", "-c", "import sys; print(sys.version)"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"py", "-c", "import sys; print(sys.version)"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"Python", "-c", "print('Python')"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"python3", "-c", "print('Python')"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"py", "-c", "print('Python')"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"Java", "-version"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"Java", "-jar", "myapp.jar"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"Java", "-cp", ".", "MyClass"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"javac", "MyClass.Java"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"javap", "-c", "MyClass"},
+			comm:    "",
+		},
+		{
+			cmdline: []string{"ruby", "prog.rb"},
+			comm:    "ruby",
+		},
+		{
+			cmdline: []string{"puma", "5.6.6", "(tcp://localhost:3000)", "[app]"},
+			comm:    "ruby",
+		},
+		{
+			cmdline: []string{"irb"},
+			comm:    "ruby2.7",
+		},
 	}
 
 	var procs []*procutil.Process
 	for _, command := range commands {
-		procs = append(procs, makeProcess(command))
+		procs = append(procs, makeProcess(command.cmdline, command.comm))
 	}
 
 	b.StartTimer()
@@ -226,7 +322,7 @@ func TestBinaryAnalysisClient(t *testing.T) {
 		{"my-internal-go-service", "-p", "8080"},
 		{"xonotic"},
 	} {
-		procs = append(procs, makeProcess(command))
+		procs = append(procs, makeProcess(command, command[0]))
 	}
 
 	cfg := config.Mock(t)
