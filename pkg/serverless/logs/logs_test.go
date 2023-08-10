@@ -788,17 +788,17 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 	go lc.processLogMessages(logMessages)
 
 	expectedLogs := map[string][]string{
-		"myRequestID-1": []string{
+		"myRequestID-1": {
 			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageOne),
 			createStringRecordForTimeoutLog(&reportLogMessageOne),
 		},
-		"myRequestID-2": []string{
+		"myRequestID-2": {
 			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageTwo),
 		},
 	}
 	expectedErrors := map[string][]bool{
-		"myRequestID-1": []bool{false, true},
-		"myRequestID-2": []bool{false},
+		"myRequestID-1": {false, true},
+		"myRequestID-2": {false},
 	}
 
 	for reqId, logsSlice := range expectedLogs {
