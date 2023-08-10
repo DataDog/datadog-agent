@@ -166,7 +166,7 @@ class GithubAPI:
                     raise Exit(message='No usable installation found', code=1)
                 installation_id = installations[0]
             return Auth.AppAuth(
-                int(os.environ['GITHUB_APP_ID']), base64.b64decode(os.environ['GITHUB_KEY_B64'])
+                int(os.environ['GITHUB_APP_ID']), base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
             ).get_installation_auth(installation_id)
         if platform.system() == "Darwin":
             try:
