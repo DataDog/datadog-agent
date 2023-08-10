@@ -6,8 +6,10 @@
 package languagedetection
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -68,8 +70,22 @@ func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
 	return languagemodels.Unknown
 }
 
+const subsystem = "language_detection"
+
+var (
+	detectLanguageRuntimeMs = telemetry.NewHistogram(subsystem, "detect_language_ms", nil,
+		"The amount of time it took for the call to DetectLanguage to complete.", nil)
+	systemProbeLanguageDetectionMs = telemetry.NewHistogram(subsystem, "system_probe_rpc_ms", nil,
+		"The amount of time it took for the process agent to message the system probe.", nil)
+)
+
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
 func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReader) []*languagemodels.Language {
+	detectLanguageStart := time.Now()
+	defer func() {
+		detectLanguageRuntimeMs.Observe(float64(time.Since(detectLanguageStart).Milliseconds()))
+	}()
+
 	log.Trace("[language detection] Running language detection")
 	langs := make([]*languagemodels.Language, len(procs))
 	unknownPids := make([]int32, 0, len(procs))
@@ -84,6 +100,11 @@ func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReade
 	}
 
 	if privilegedLanguageDetectionEnabled(sysprobeConfig) {
+		rpcStart := time.Now()
+		defer func() {
+			systemProbeLanguageDetectionMs.Observe(float64(time.Since(rpcStart).Milliseconds()))
+		}()
+
 		log.Trace("[language detection] Requesting language from system probe")
 		util, err := net.GetRemoteSystemProbeUtil(
 			sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
