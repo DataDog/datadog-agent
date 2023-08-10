@@ -20,6 +20,7 @@ from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
+from .kernel_matrix_testing.init_kmt import get_active_branch_name
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -689,22 +690,57 @@ def go_package_dirs(packages, build_tags):
 
     return target_packages
 
+BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
+def clean_build(ctx, target_packages):
+    if not os.path.exists(KITCHEN_ARTIFACT_DIR):
+        return True
+
+    if not os.path.exists(BUILD_COMMIT):
+        return True
+
+    # if this build happens on a new commit do it cleanly
+    with open(BUILD_COMMIT, 'r') as f:
+        build_commit = f.read().rstrip()
+        curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
+        if curr_commit != build_commit:
+            return True
+
+    return False
+
+def full_pkg_path(name):
+    return os.path.join(os.getcwd(), name[name.index("pkg"):])
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages=""):
     """
     Compile test suite for kitchen
     """
-
-    # Clean up previous build
-    if os.path.exists(KITCHEN_ARTIFACT_DIR):
-        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
-
     build_tags = [NPM_TAG]
     if not windows:
         build_tags.append(BPF_TAG)
 
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
+
+    # Clean up previous build
+    if packages == "" or clean_build(ctx, target_packages):
+        print("hit remove")
+        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+    elif packages != "":
+        packages = [ full_pkg_path(name) for name in packages.split(",") ]
+        for pkg in packages:
+            if pkg not in target_packages:
+                raise Exit(f"Unknown target packages {pkg} specified")
+        target_packages = packages
+
+    if os.path.exists(BUILD_COMMIT):
+        os.remove(BUILD_COMMIT)
+
+    os.makedirs(KITCHEN_ARTIFACT_DIR, exist_ok=True)
+
+    # clean target_packages only
+    for pkg_dir in target_packages:
+        if os.path.exists(pkg_dir):
+            shutil.rmtree(pkg_dir)
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
@@ -760,6 +796,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
+    ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
 
 
 @task

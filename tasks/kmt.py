@@ -94,10 +94,10 @@ def update_resources(ctx, backup=True):
         raise Exit("[-] Update aborted")
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
-        destroy_stack(ctx, stack=stack, force=True)
+        destroy_stack(ctx, stack=os.path.basename(stack), force=True)
 
     update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR, backup)
-    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR, backup)
+    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR, not backup)
 
 
 @task
@@ -286,7 +286,7 @@ def run_cmd_remote(ctx, stack, cmd, arch, ip, ssh_key):
 def copy_dependencies(ctx, stack, vms, ssh_key):
     local_cp = False
     ssh_key_path = ssh_key_to_path(ssh_key)
-    
+
     for arch, _, ip in vms:
         if arch == "local":
             local_cp = True
@@ -333,8 +333,8 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False):
         copy_dependencies(ctx, stack, target_vms, ssh_key)
         run_cmd_vms(ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True)
 
-    run_cmd_vms(ctx, stack, f"apt install rsync", target_vms, ssh_key)
-    run_cmd_vms(ctx, stack, "update-alternatives --set iptables /usr/sbin/iptables-legacy", target_vms, ssh_key)
+#    run_cmd_vms(ctx, stack, f"apt install rsync", target_vms, ssh_key)
+#    run_cmd_vms(ctx, stack, "update-alternatives --set iptables /usr/sbin/iptables-legacy", target_vms, ssh_key)
 
     sync_source(
         ctx,
