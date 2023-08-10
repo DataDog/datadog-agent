@@ -79,16 +79,11 @@ func TestBasicShellCommandObfuscation(t *testing.T) {
 			expected:          "ENV=? LD_PRELOAD=YYY ls",
 			obfuscatedIndices: "4:4",
 		},
-		/*
-			This test doesn't work because the lexer badly catch multiple environment variables that refers to variables
-			For example here: ENV2 is considered as a Field and not as a ShellVariable
-
-			{
-				command:           "ENV=$hey ENV2=$other LD_PRELOAD=YYY ls",
-				expected:          "ENV=? ENV2=? LD_PRELOAD=YYY ls",
-				obfuscatedIndices: "4:4 11:6",
-			},
-		*/
+		{
+			command:           "ENV=$hey ENV2=$other LD_PRELOAD=YYY ENV3='quoted string' ls",
+			expected:          "ENV=? ENV2=? LD_PRELOAD=YYY ENV3=? ls",
+			obfuscatedIndices: "4:4 11:6 33:15",
+		},
 		{
 			command:           "md5 --pass=pony",
 			expected:          "md5 ?",
@@ -113,6 +108,152 @@ func TestBasicShellCommandObfuscation(t *testing.T) {
 			command:           "cmd --token; cmd --pass=x ; LD_PRELOAD=$token cmd2 hello world",
 			expected:          "cmd --token; cmd --pass=? ; LD_PRELOAD=$token cmd2 hello world",
 			obfuscatedIndices: "24:1",
+		},
+
+		// Subcommands tests
+		{
+			command:           "for i in `seq 1 5`; do echo \"Iteration: $i\" --pass=pony; done",
+			expected:          "for i in `seq 1 5`; do echo \"Iteration: $i\" --pass=?; done",
+			obfuscatedIndices: "51:4",
+		},
+		{
+			command:           "echo hello `",
+			expected:          "echo hello `",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "echo `cmd hello --pass secret",
+			expected:          "echo `cmd hello --pass ?",
+			obfuscatedIndices: "23:6",
+		},
+		{
+			command:           "echo `cmd hello --pass secret`",
+			expected:          "echo `cmd hello --pass ?`",
+			obfuscatedIndices: "23:6",
+		},
+		{
+			command:           "echo `cmd hello` --pass secret",
+			expected:          "echo `cmd hello` --pass ?",
+			obfuscatedIndices: "24:6",
+		},
+		{
+			command:           "echo `md5 hello",
+			expected:          "echo `md5 ?",
+			obfuscatedIndices: "10:5",
+		},
+		{
+			command:           "echo `md5 hello`",
+			expected:          "echo `md5 ?`",
+			obfuscatedIndices: "10:5",
+		},
+		/*
+			The current implementation doesn't support nested subcommands of backticks
+			{
+				command:           "echo `md5 hello \\`ls\\``",
+				expected:          "echo `md5 ? ?`",
+				obfuscatedIndices: "10:5 12:4",
+			},
+		*/
+		{
+			command:           "cmd --pass $(md5 file1 file2 file3)",
+			expected:          "cmd --pass ?",
+			obfuscatedIndices: "11:24",
+		},
+		{
+			command:           "cmd --pass=$(md5 file1 file2 file3)",
+			expected:          "cmd --pass=?",
+			obfuscatedIndices: "11:24",
+		},
+		{
+			command:           "cmd $(md5 file1 file2 file3) --pass hello",
+			expected:          "cmd $(md5 ? ? ?) --pass ?",
+			obfuscatedIndices: "10:5 12:5 14:5 24:5",
+		},
+		{
+			command:           "ENV=XXX cmd $(echo 'hello') --pass=secret",
+			expected:          "ENV=? cmd $(echo 'hello') --pass=?",
+			obfuscatedIndices: "4:3 33:6",
+		},
+		{
+			command:           "cmd $(echo $(md5 'file.txt'))",
+			expected:          "cmd $(echo $(md5 ?))",
+			obfuscatedIndices: "17:10",
+		},
+		{
+			command:           "cmd $(md5 file1 file2 file3) hello",
+			expected:          "cmd $(md5 ? ? ?) hello",
+			obfuscatedIndices: "10:5 12:5 14:5",
+		},
+		{
+			command:           "cmd $(md5 $(echo 'file.txt'))",
+			expected:          "cmd $(md5 ?)",
+			obfuscatedIndices: "10:18",
+		},
+		{
+			command:           "cmd $(echo $(echo $(md5 'file.txt')))",
+			expected:          "cmd $(echo $(echo $(md5 ?)))",
+			obfuscatedIndices: "24:10",
+		},
+		{
+			command:           "echo hello $(",
+			expected:          "echo hello $(",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "echo hello $(md5 file",
+			expected:          "echo hello $(md5 ?",
+			obfuscatedIndices: "17:4",
+		},
+		{
+			command:           "$(echo `md5 file`) hello",
+			expected:          "$(echo `md5 ?`) hello",
+			obfuscatedIndices: "12:4",
+		},
+		{
+			command:           "cmd \"$(echo file1 $(md5 file2) file3)\" hello",
+			expected:          "cmd \"$(echo file1 $(md5 ?) file3)\" hello",
+			obfuscatedIndices: "24:5",
+		},
+		{
+			command:           "cmd \"$(md5 file1 $(md5 file2) file3)\" hello",
+			expected:          "cmd \"$(md5 ? ? ?)\" hello",
+			obfuscatedIndices: "11:5 13:12 15:5",
+		},
+		{
+			command:           "cmd \"$(echo file1 `$(md5 file2)` `echo file3`)\" hello",
+			expected:          "cmd \"$(echo file1 `$(md5 ?)` `echo file3`)\" hello",
+			obfuscatedIndices: "25:5",
+		},
+		{
+			command:           "cmd \"$(echo file1 `$(echo $(md5 file2))` `echo $(md5) file3`)\" hello '$(md5 file4)'",
+			expected:          "cmd \"$(echo file1 `$(echo $(md5 ?))` `echo $(md5) file3`)\" hello '$(md5 file4)'",
+			obfuscatedIndices: "32:5",
+		},
+
+		{
+			command:           "ENV=${ENV:-production} ./script.sh --password=pony",
+			expected:          "ENV=? ./script.sh --password=?",
+			obfuscatedIndices: "4:18 29:4",
+		},
+		{
+			command:           "echo $((2+3))",
+			expected:          "echo $((2+3))",
+			obfuscatedIndices: "",
+		},
+		{
+			command:           "cmd $((2+3)) --pass=pony",
+			expected:          "cmd $((2+3)) --pass=?",
+			obfuscatedIndices: "20:4",
+		},
+		{
+			command:           "cmd --pass `echo $(md5 file1)` `cmd --password $(md5 file2) --pass=\"$(md5 file3)\" --token $(md5 file4)` `md5 $(md5 file5) --pass` `cmd $(echo $(md5 file6 --pass)) --pass`",
+			expected:          "cmd --pass ? `cmd --password ? --pass=? --token ?` `md5 ? ?` `cmd $(echo $(md5 ? ?)) --pass`",
+			obfuscatedIndices: "11:19 29:12 38:14 48:12 56:12 58:6 79:5 81:6",
+		},
+		{
+			command:           "cmd --pass=$(md5 file1) --password=`md5 file2` --pass $(md5 file3) --password=$(md5 file4) --pass=`md5 file5`",
+			expected:          "cmd --pass=? --password=? --pass ? --password=? --pass=?",
+			obfuscatedIndices: "11:12 24:11 33:12 46:12 55:11",
 		},
 
 		// Tests without any obfuscation

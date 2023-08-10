@@ -45,7 +45,7 @@ var (
 		"dollar":               regexp.MustCompile(`^\s*\$`),
 		"redirection":          regexp.MustCompile(`^\s*(&>)|(([0-9])?((>\|)|([<>]&[0-9\-]?)|([<>]?>)|(<(<(<)?(-)?)?)))`),
 		"anyToken":             regexp.MustCompile(`[` + IFS + "`" + `"'&|=$()<>;]`),
-		"control":              regexp.MustCompile(`^\s*([\n;|]|&[^>])+`),
+		"control":              regexp.MustCompile(`^([\n;|]|&[^>])+`),
 	} // Regex patterns
 )
 
@@ -83,11 +83,11 @@ func nextToken(scanner *ShellScanner, state struct{ current ShellTokenKind }) *S
 	var token *Match
 
 	if state.current != DoubleQuote && state.current != SingleQuote {
-		if token = scanner.Scan(expressions["whiteSpace"]); token != nil {
-			return &ShellToken{WhiteSpace, token.String(), pos, scanner.Index()}
-		}
 		if token = scanner.Scan(expressions["control"]); token != nil {
 			return &ShellToken{Control, token.String(), pos, scanner.Index()}
+		}
+		if token = scanner.Scan(expressions["whiteSpace"]); token != nil {
+			return &ShellToken{WhiteSpace, token.String(), pos, scanner.Index()}
 		}
 	}
 
@@ -193,35 +193,60 @@ func tokenize(token *ShellToken, state *State, ret []ShellToken) []ShellToken {
 		}
 	}
 
-	// Handle shell subcommands
-	if token.kind == Field && len(ret) > 0 && ret[len(ret)-1].kind == DoubleQuote && strings.Contains(token.val, "$(") {
-		reg := regexp.MustCompile(`\$\(([^)]*)\)`)
+	// Handle shell subcommands $() in double quoted strings
+	if token.kind == Field && len(ret) > 0 && ret[len(ret)-1].kind == DoubleQuote {
+		reg := regexp.MustCompile(`\$\(`)
 		matches := reg.FindAllStringSubmatchIndex(token.val, -1)
 
-		index := 0
+		endOfLastSubcommand := 0
 		for _, match := range matches {
-			previous := token.val[index:match[0]]
-			preToken := ShellToken{Field, previous, token.start + index, token.start + len(previous) + index}
+			// Don't take match if it inside another subcommand that has already been tokenized
+			if match[0] < endOfLastSubcommand {
+				continue
+			}
 
-			// Parse shell subcommand of the match of index 0
-			subCmdTokens := parseShell(token.val[match[0]:match[1]]) // TODO NOT SURE ABOUT THAT
+			dollarCharIndex := match[0]
+			closingParenthesisIndex := getClosingParenthesisIndex(token.val, dollarCharIndex+1)
+			if closingParenthesisIndex == -1 {
+				// Did not find closing parentheses
+				continue
+			}
+
+			// We now need to split the existing token into a maximum of 3 parts
+			// The part before the subcommand (field), the subcommand itself (list of tokens) and the part after the subcommand (field)
+
+			if dollarCharIndex > endOfLastSubcommand {
+				// There is a part before the subcommand
+				previous := token.val[endOfLastSubcommand:dollarCharIndex]
+				preToken := ShellToken{Field, previous, token.start + endOfLastSubcommand, token.start + dollarCharIndex}
+				ret = append(ret, preToken)
+			}
+
+			// Tokenize shell subcommand (without fully parsing it and change the states of tokens)
+			subCmdTokens := tokenizeShell(token.val[dollarCharIndex:closingParenthesisIndex])
 
 			// Dummy array for applying real changes
+			// Update offsets (start, end) of subcommand tokens
 			var finalSubCmdTokens []ShellToken
 
-			offset := index + len(previous)
+			offset := token.start + dollarCharIndex
 			for _, tok := range subCmdTokens {
-				tok.start += token.start + offset
-				tok.end += token.start + offset
+				tok.start += offset
+				tok.end += offset
 
 				// append
 				finalSubCmdTokens = append(finalSubCmdTokens, tok)
 			}
 
-			ret = append(ret, preToken)
 			ret = append(ret, finalSubCmdTokens...)
+			endOfLastSubcommand = closingParenthesisIndex
+		}
 
-			index = finalSubCmdTokens[len(finalSubCmdTokens)-1].end
+		if endOfLastSubcommand < len(token.val)-1 {
+			// There is a part after the last subcommand
+			after := token.val[endOfLastSubcommand:]
+			postToken := ShellToken{Field, after, token.start + endOfLastSubcommand, token.end}
+			ret = append(ret, postToken)
 		}
 	} else {
 		ret = append(ret, *token)
@@ -230,13 +255,29 @@ func tokenize(token *ShellToken, state *State, ret []ShellToken) []ShellToken {
 	return ret
 }
 
+func getClosingParenthesisIndex(str string, start int) int {
+	open := 1
+	for i := start + 1; i < len(str); i++ {
+		if str[i] == '(' {
+			open++
+		} else if str[i] == ')' {
+			open--
+		}
+
+		if open == 0 {
+			return i + 1
+		}
+	}
+
+	return -1
+}
+
 // changeStates changes tokens kind based on their context and state
 // remove whitespaces and set executable tokens
 func changeStates(ret []ShellToken) []ShellToken {
 	var withoutWhitespaces []ShellToken
 	stateList := []ShellTokenKind{VariableDefinition}
 	codeExecutionBackticks := false
-	codeExecutionDollar := false
 
 	for i := 0; i < len(ret); i++ {
 		t := ret[i]
@@ -258,6 +299,7 @@ func changeStates(ret []ShellToken) []ShellToken {
 				stateList = append(stateList, t.kind)
 			}
 		}
+
 		if t.kind == Backticks {
 			if codeExecutionBackticks {
 				codeExecutionBackticks = false
@@ -266,23 +308,25 @@ func changeStates(ret []ShellToken) []ShellToken {
 				stateList[len(stateList)-1] = VariableDefinition
 			}
 		}
+
 		if t.kind == Dollar {
 			if i < len(ret)-1 && ret[i+1].kind == ParentheseOpen {
-				if codeExecutionDollar {
-					codeExecutionDollar = false
-				} else {
-					codeExecutionDollar = true
-					stateList[len(stateList)-1] = VariableDefinition
-				}
+				stateList[len(stateList)-1] = VariableDefinition
 			} else if i < len(ret)-1 && ret[i+1].kind == Field {
-				ret[i+1].kind = ShellVariable
+				if len(ret[i+1].val) > 0 && ret[i+1].val[0] == '{' {
+					// Special case if the field is a shell expansion (with the '{' character)
+					ret[i+1].kind = Executable
+				} else {
+					// Otherwise that's a shell variable
+					ret[i+1].kind = ShellVariable
+				}
 			}
 		}
 
 		if t.kind == Control {
 			stateList[len(stateList)-1] = VariableDefinition
 		} else if len(stateList) > 0 && stateList[len(stateList)-1] == VariableDefinition {
-			if t.kind == Field || t.kind == ShellVariable {
+			if t.kind == Field {
 				if len(ret) > i+1 && ret[i+1].kind == Equal {
 					t.kind = VariableDefinition
 					withoutWhitespaces = append(withoutWhitespaces, t)
@@ -310,8 +354,7 @@ func changeStates(ret []ShellToken) []ShellToken {
 	return withoutWhitespaces
 }
 
-// parseShell parses a shell command and returns a list of tokens
-func parseShell(cmd string) []ShellToken {
+func tokenizeShell(cmd string) []ShellToken {
 	state := State{current: 0}
 
 	scanner := NewShellScanner(cmd)
@@ -328,6 +371,13 @@ func parseShell(cmd string) []ShellToken {
 		ret = tokenize(token, &state, ret)
 	}
 
+	return ret
+}
+
+// parseShell parses a shell command and returns a list of tokens
+func parseShell(cmd string) []ShellToken {
+
+	ret := tokenizeShell(cmd)
 	// Stage 2.2 find what is executable and remove whitespace
 	return changeStates(ret)
 }
