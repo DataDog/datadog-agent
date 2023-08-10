@@ -29,6 +29,17 @@ var (
 	agentCfg *model.AgentConfiguration
 )
 
+type connectionsModeler struct {
+	httpEncoder                 *httpEncoder
+	http2Encoder                *http2Encoder
+	kafkaEncoder                *kafkaEncoder
+	connTelemetryMap            map[string]int64
+	compilationTelemetryByAsset map[string]*model.RuntimeCompilationTelemetry
+	kernelHeaderFetchResult     model.KernelHeaderFetchResult
+	coreTelemetryByAsset        map[string]model.COREResult
+	agentCfg                    *model.AgentConfiguration
+}
+
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
 	Marshal(conns *network.Connections) ([]byte, error)
@@ -58,30 +69,37 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-func modelConnections(conns *network.Connections) *model.Connections {
+func initConnectionsModeler(conns *network.Connections) *connectionsModeler {
+	modeler := &connectionsModeler{
+		httpEncoder:                 newHTTPEncoder(conns.HTTP),
+		http2Encoder:                newHTTP2Encoder(conns.HTTP2),
+		kafkaEncoder:                newKafkaEncoder(conns.Kafka),
+		connTelemetryMap:            FormatConnectionTelemetry(conns.ConnTelemetry),
+		compilationTelemetryByAsset: FormatCompilationTelemetry(conns.CompilationTelemetryByAsset),
+		kernelHeaderFetchResult:     model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult),
+		coreTelemetryByAsset:        FormatCORETelemetry(conns.CORETelemetryByAsset),
+	}
+
 	cfgOnce.Do(func() {
-		agentCfg = &model.AgentConfiguration{
+		modeler.agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
 			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
 			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
 		}
 	})
+	return modeler
+}
 
+func (c connectionsModeler) modelConnections(conns *network.Connections) *model.Connections {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
-	httpEncoder := newHTTPEncoder(conns.HTTP)
-	defer httpEncoder.Close()
-	kafkaEncoder := newKafkaEncoder(conns.Kafka)
-	defer kafkaEncoder.Close()
-	http2Encoder := newHTTP2Encoder(conns.HTTP2)
-	defer http2Encoder.Close()
 
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
+		agentConns[i] = FormatConnection(conn, routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
@@ -94,10 +112,6 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.Conns = agentConns
 	payload.Domains = dnsFormatter.Domains()
 	payload.Dns = dnsFormatter.DNS()
-	payload.ConnTelemetryMap = FormatConnectionTelemetry(conns.ConnTelemetry)
-	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
-	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
-	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
 	payload.PrebuiltEBPFAssets = conns.PrebuiltAssets
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()

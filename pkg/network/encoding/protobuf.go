@@ -18,7 +18,8 @@ const ContentTypeProtobuf = "application/protobuf"
 type protoSerializer struct{}
 
 func (protoSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	payload := modelConnections(conns)
+	connectionsModeler := initConnectionsModeler(conns)
+	payload := connectionsModeler.modelConnections(conns)
 	buf, err := proto.Marshal(payload)
 	returnToPool(payload)
 	return buf, err
