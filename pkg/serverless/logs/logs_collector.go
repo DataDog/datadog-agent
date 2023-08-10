@@ -54,8 +54,7 @@ type LambdaLogsCollector struct {
 	executionContext       *executioncontext.ExecutionContext
 	lambdaInitMetricChan   chan<- *LambdaInitMetric
 
-	arn         string
-	errorStatus string
+	arn string
 
 	// handleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
 	handleRuntimeDone func()
@@ -180,7 +179,7 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			}
 
 			// Create the timeout log from the REPORT log if a timeout status is detected
-			isTimeoutLog := message.logType == logTypePlatformReport && lc.errorStatus == timeoutStatus
+			isTimeoutLog := message.logType == logTypePlatformReport && message.objectRecord.status == timeoutStatus
 			if isTimeoutLog {
 				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(createStringRecordForTimeoutLog(&message)), message.time, lc.arn, message.objectRecord.requestID, isTimeoutLog)
 			}
@@ -241,9 +240,6 @@ func (lc *LambdaLogsCollector) processMessage(
 			memorySize := message.objectRecord.reportLogItem.memorySizeMB
 			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
 			status := message.objectRecord.status
-			if status != successStatus {
-				lc.errorStatus = status
-			}
 			reportOutOfMemory := memoryUsed > 0 && memoryUsed >= memorySize
 
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
