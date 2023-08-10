@@ -17,7 +17,6 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -155,9 +154,6 @@ func getInstallMethod(infoPath string) *InstallMethod {
 
 	// if we could not get install info
 	if err != nil {
-		inventories.SetAgentMetadata(inventories.AgentInstallMethodTool, "undefined")
-		inventories.SetAgentMetadata(inventories.AgentInstallMethodToolVersion, "")
-		inventories.SetAgentMetadata(inventories.AgentInstallMethodInstallerVersion, "")
 		// consider install info is kept "undefined"
 		return &InstallMethod{
 			ToolVersion:      "undefined",
@@ -166,9 +162,6 @@ func getInstallMethod(infoPath string) *InstallMethod {
 		}
 	}
 
-	inventories.SetAgentMetadata(inventories.AgentInstallMethodTool, install.Method.Tool)
-	inventories.SetAgentMetadata(inventories.AgentInstallMethodToolVersion, install.Method.ToolVersion)
-	inventories.SetAgentMetadata(inventories.AgentInstallMethodInstallerVersion, install.Method.InstallerVersion)
 	return &InstallMethod{
 		ToolVersion:      install.Method.ToolVersion,
 		Tool:             &install.Method.Tool,
