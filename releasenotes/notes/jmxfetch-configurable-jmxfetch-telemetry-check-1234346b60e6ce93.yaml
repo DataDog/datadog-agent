@@ -1,0 +1,6 @@
+features:
+  - |
+    Adds a configurable jmxfetch telemetry check that collects more data on the
+    running jmxfetch JVM in addition to data about the JVMs jmxfetch is monitoring.
+    It can be configured by enabling the jmx_telemetry_enabled option in the agent.
+
