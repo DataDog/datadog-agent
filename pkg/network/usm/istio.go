@@ -118,7 +118,7 @@ func (m *istioMonitor) Start() {
 		}
 	}()
 
-	log.Debugf("Istio monitoring enabled")
+	log.Debug("Istio monitoring enabled")
 }
 
 func (m *istioMonitor) Stop() {
