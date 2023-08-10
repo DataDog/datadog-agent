@@ -18,6 +18,7 @@ require (
 	github.com/DataDog/test-infra-definitions v0.0.0-20230728091556-54fc37760174
 	github.com/aws/aws-sdk-go-v2 v1.19.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.28
+	github.com/DataDog/test-infra-definitions v0.0.0-20230808113023-1843f4c1a69b
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
