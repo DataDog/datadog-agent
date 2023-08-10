@@ -88,7 +88,7 @@ func TestEndInvocation(t *testing.T) {
 	lastRequestID := d.ExecutionContext.GetCurrentState().LastRequestID
 	coldStartTags := d.ExecutionContext.GetColdStartTagsForRequestID(lastRequestID)
 
-	assert.Equal(m.lastEndDetails.Coldstart, coldStartTags.IsColdstart)
+	assert.Equal(m.lastEndDetails.ColdStart, coldStartTags.IsColdStart)
 	assert.Equal(m.lastEndDetails.ProactiveInit, coldStartTags.IsProactiveInit)
 	assert.Equal(m.lastEndDetails.Runtime, d.ExecutionContext.GetCurrentState().Runtime)
 }

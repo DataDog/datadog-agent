@@ -222,14 +222,14 @@ func (lc *LambdaLogsCollector) processMessage(
 
 	if lc.enhancedMetricsEnabled {
 		proactiveInit := false
-		coldstart := false
+		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
 			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
 			proactiveInit = coldStartTags.IsProactiveInit
-			coldstart = coldStartTags.IsColdstart
+			coldStart = coldStartTags.IsColdStart
 		}
-		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldstart, proactiveInit)
+		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		outOfMemoryRequestId := ""
 
 		if message.logType == logTypeFunction {
