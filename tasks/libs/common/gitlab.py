@@ -122,6 +122,13 @@ class Gitlab(RemoteAPI):
         path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/cancel"
         return self.make_request(path, json_output=True, method="POST")
 
+    def cancel_job(self, job_id):
+        """
+        Cancels a given job
+        """
+        path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/cancel"
+        return self.make_request(path, json_output=True, method="POST")
+
     def commit(self, commit_sha):
         """
         Gets info for a given commit sha.

@@ -28,6 +28,7 @@ from .libs.pipeline_tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
+    gracefully_cancel_pipeline,
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
@@ -182,8 +183,8 @@ def auto_cancel_previous_pipelines(ctx):
     for pipeline in pipelines_without_current:
         # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
         if ctx.run(f'git merge-base --is-ancestor {pipeline["sha"]} {git_sha}'):
-            print(f'Canceling pipeline ${pipeline["id"]} (${pipeline["web_url"]})')
-            gitlab.cancel_pipeline(pipeline["id"])
+            print(f'Gracefully canceling pipeline {pipeline["id"]} ({pipeline["web_url"]})')
+            gracefully_cancel_pipeline(pipeline["id"])
 
 
 @task

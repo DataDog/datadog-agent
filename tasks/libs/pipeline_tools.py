@@ -62,6 +62,19 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
             print(f"Pipeline {color_message(pipeline['id'], 'bold')} will keep running.\n")
 
 
+def gracefully_cancel_pipeline(gitlab, pipeline):
+    """
+    Gracefully cancel pipeline
+    - Cancel all the jobs that did not start to run yet
+    - Do not cancel jobs containing 'cleanup' in their name
+    """
+    jobs = gitlab.all_jobs(pipeline["id"])
+
+    for job in jobs:
+        if job["status"] == "pending" and "cleanup" not in job["name"]:
+            gitlab.cancel_job(job["id"])
+
+
 def trigger_agent_pipeline(
     gitlab,
     ref=DEFAULT_BRANCH,
