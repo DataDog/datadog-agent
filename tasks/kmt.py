@@ -26,6 +26,7 @@ except ImportError:
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
+GOVERSION=1.19
 
 
 @task
@@ -208,6 +209,8 @@ def compiler_built(ctx):
 
 @task
 def build_compiler(ctx):
+    ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")", warn=True, hide=True)
+    ctx.run("docker image rm kmt:compile", warn=True, hide=True)
     ctx.run("docker build -f ../datadog-agent-buildimages/system-probe_x64/Dockerfile -t kmt:compile .")
 
 
@@ -343,7 +346,7 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False):
 
 
 @task
-def test(ctx, stack=None, packages=None, run=None, retry=1, rebuild_deps=False, vms="", ssh_key=""):
+def test(ctx, stack=None, packages=None, run=None, retry=2, rebuild_deps=False, vms="", ssh_key="", go_version=GOVERSION):
    stack = check_and_get_stack(stack)
    if not stacks.stack_exists(stack):
        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -355,7 +358,7 @@ def test(ctx, stack=None, packages=None, run=None, retry=1, rebuild_deps=False, 
            f"-include-packages {packages}" if packages else "",
            f"-run-tests {run}" if run else "",
            ]
-   run_cmd_vms(ctx, stack, f"bash /micro-vm-init.sh 1.19 {retry} {platform.machine()} {' '.join(args)}", target_vms, "", allow_fail=True)
+   run_cmd_vms(ctx, stack, f"bash /micro-vm-init.sh {go_version} {retry} {platform.machine()} {' '.join(args)}", target_vms, "", allow_fail=True)
 
 
 @task
@@ -364,5 +367,6 @@ def clean(ctx, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
+    ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {KMT_SHARED_DIR}/*.tar.gz", warn=True)
