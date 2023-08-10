@@ -74,6 +74,14 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 	// XXX: this test is expected to fail because 'etc/security-agent.yaml' is not found. See #18463
 	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | sudo tee /etc/datadog-agent/system-probe.yaml`, systemProbeConfiguration))
 	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | sudo tee /etc/datadog-agent/security-agent.yaml`, securityAgentConfiguration))
+	v.Env().VM.Execute("sudo mkdir -p /opt/datadog-agent/checks.d /opt/datadog-agent/bin/agent/dist/conf.d")
+	v.Env().VM.Execute("sudo touch /opt/datadog-agent/bin/agent/dist/conf.d/test.yaml")
+	v.Env().VM.Execute("sudo touch /opt/datadog-agent/bin/agent/dist/conf.d/test.yml")
+	v.Env().VM.Execute("sudo touch /opt/datadog-agent/bin/agent/dist/conf.d/test.yml.test")
+	v.Env().VM.Execute("sudo touch /opt/datadog-agent/checks.d/test.yaml")
+
+	extraCustomConfigFiles := []string{"etc/confd/dist/test.yaml", "etc/confd/dist/test.yml", "etc/confd/dist/test.yml.test", "etc/confd/checksd/test.yaml"}
+
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig(string(agentConfiguration))))
 
 	err := v.Env().Agent.WaitForReady()
@@ -87,6 +95,7 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
 	assertFilesExist(v.T(), flare, allConfigFiles)
+	assertFilesExist(v.T(), flare, extraCustomConfigFiles)
 
 	assertProcessCheckShouldBeEnabled(v.T(), flare, "process", "process_config.process_collection.enabled", true)
 	assertProcessCheckShouldBeEnabled(v.T(), flare, "container", "process_config.container_collection.enabled", false)
