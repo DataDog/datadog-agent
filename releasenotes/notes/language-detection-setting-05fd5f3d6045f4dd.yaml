@@ -8,5 +8,4 @@
 ---
 upgrade:
   - |
-    The `workloadmeta.remote_process_collector.enabled` and `process_config.language_detection.enabled` settings were renamed to
-    `language_detection.enabled`.
+    Streamlined settings by renaming `workloadmeta.remote_process_collector.enabled` and `process_config.language_detection.enabled` to `language_detection.enabled`.
