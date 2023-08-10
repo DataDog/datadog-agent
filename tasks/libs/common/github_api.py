@@ -155,19 +155,19 @@ class GithubAPI:
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
         if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
+            appAuth = Auth.AppAuth(
+                os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
+            )
             installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
             if installation_id is None:
                 # Even if we don't know the installation id, there's an API endpoint to
                 # retrieve it, given the other credentials (app id + key).
-                appAuth = Auth.AppAuth(int(os.environ['GITHUB_APP_ID']), base64.b64decode(os.environ['GITHUB_KEY_B64']))
                 integration = GithubIntegration(auth=appAuth)
                 installations = integration.get_installations()
                 if len(installations) == 0:
                     raise Exit(message='No usable installation found', code=1)
                 installation_id = installations[0]
-            return Auth.AppAuth(
-                int(os.environ['GITHUB_APP_ID']), base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
-            ).get_installation_auth(installation_id)
+            return appAuth.get_installation_auth(int(installation_id))
         if platform.system() == "Darwin":
             try:
                 output = subprocess.check_output(
