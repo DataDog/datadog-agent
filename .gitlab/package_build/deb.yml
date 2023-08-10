@@ -8,10 +8,11 @@
 
 .agent_build_common_deb:
   script:
-    - echo "About to build for $RELEASE_VERSION"
+    - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -25,6 +26,8 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess-debug.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.o.${PACKAGE_ARCH} /tmp/system-probe/usm.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-debug.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns.o.${PACKAGE_ARCH} /tmp/system-probe/dns.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns-debug.o.${PACKAGE_ARCH} /tmp/system-probe/dns-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.o.${PACKAGE_ARCH} /tmp/system-probe/conntrack.o
@@ -34,14 +37,19 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/oom-kill-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/ebpf-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/ebpf-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/ebpf-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/ebpf-debug-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-debug-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-fentry-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-fentry-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-fentry-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-fentry-debug-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-debug-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.c.${PACKAGE_ARCH} /tmp/system-probe/usm.c
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries.c.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill.c.${PACKAGE_ARCH} /tmp/system-probe/oom-kill.c
@@ -56,6 +64,10 @@
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
     - !reference [.upload_sbom_artifacts]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 8
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -67,17 +79,15 @@ agent_deb-x64-a6:
     !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 agent_deb-x64-a7:
@@ -86,17 +96,15 @@ agent_deb-x64-a7:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 agent_deb-arm64-a6:
@@ -105,7 +113,7 @@ agent_deb-arm64-a6:
     !reference [.on_all_builds_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -114,7 +122,6 @@ agent_deb-arm64-a6:
     DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_arm64.deb'
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 agent_deb-arm64-a7:
@@ -123,7 +130,7 @@ agent_deb-arm64-a7:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -132,11 +139,11 @@ agent_deb-arm64-a7:
     DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 .iot_agent_build_common_deb:
   script:
+    - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
@@ -154,6 +161,10 @@ agent_deb-arm64-a7:
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-iot-agent*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
     - !reference [.upload_sbom_artifacts]
+  variables:
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -165,7 +176,7 @@ iot_agent_deb-x64:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
@@ -177,7 +188,7 @@ iot_agent_deb-arm64:
     !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
@@ -190,7 +201,7 @@ iot_agent_deb-armhf:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: armhf
@@ -201,13 +212,12 @@ dogstatsd_deb-x64:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -230,11 +240,11 @@ dogstatsd_deb-arm64:
     !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
+  tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*

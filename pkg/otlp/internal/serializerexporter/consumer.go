@@ -17,11 +17,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
@@ -62,11 +62,11 @@ func (c *serializerConsumer) enrichedTags(dimensions *otlpmetrics.Dimensions) []
 	return enrichedTags
 }
 
-func (c *serializerConsumer) ConsumeAPMStats(ss pb.ClientStatsPayload) {
+func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
 	ss.Tags = append(ss.Tags, c.extraTags...)
 	body := new(bytes.Buffer)
-	if err := msgp.Encode(body, &ss); err != nil {
+	if err := msgp.Encode(body, ss); err != nil {
 		log.Errorf("Error encoding ClientStatsPayload: %v", err)
 		return
 	}
@@ -119,6 +119,20 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
+}
+
+// addRuntimeTelemetryMetric to know if an Agent is using OTLP runtime metrics.
+func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, languageTags []string) {
+	for _, lang := range languageTags {
+		c.series = append(c.series, &metrics.Serie{
+			Name:           "datadog.agent.otlp.runtime_metrics",
+			Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("language:%v", lang)}),
+			Host:           hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
 }
 
 // Send exports all data recorded by the consumer. It does not reset the consumer.

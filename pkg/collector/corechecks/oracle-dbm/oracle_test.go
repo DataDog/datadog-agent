@@ -3,26 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build oracle
+//go:build oracle_test
 
 package oracle
 
 import (
 	"database/sql"
 	"fmt"
-	"log"
-	"testing"
-	"time"
-
-	"github.com/jmoiron/sqlx"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	//"log"
+	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	_ "github.com/godror/godror"
 )
 
@@ -120,15 +122,20 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 }
 
 func initAndStartAgentDemultiplexer() {
-	aggregator.InitAndStartAgentDemultiplexer(nil, demuxOpts(), "")
+	//deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	//demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
+
+	//aggregator.InitAndStartAgentDemultiplexer(nil, nil, demuxOpts(), "")
 }
 
 func TestChkRun(t *testing.T) {
-	initAndStartAgentDemultiplexer()
+	//initAndStartAgentDemultiplexer()
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
+	opts.DontStartForwarders = true
+	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
 
 	chk.dbmEnabled = true
-	//chk.config.QueryMetrics = true
-
 	chk.config.InstanceConfig.InstantClient = false
 
 	type RowsStruct struct {
@@ -167,7 +174,8 @@ func TestLicense(t *testing.T) {
 	if err != nil {
 		fmt.Printf("failed to ping oracle instance: %s", err)
 	}
-	row := db.QueryRow(`SELECT SUM(detected_usages) 
+	var usedFeaturesCount int
+	err = db.Get(&usedFeaturesCount, `SELECT NVL(SUM(detected_usages),0)
 	FROM dba_feature_usage_statistics
  	WHERE name in (
 		'ADDM', 
@@ -185,10 +193,8 @@ func TestLicense(t *testing.T) {
 		'SQL Tuning Set (user)'
 		)
  `)
-	var usedFeaturesCount int
-	err = row.Scan(&usedFeaturesCount)
 	if err != nil {
-		fmt.Printf("failed to query hostname and version: %s", err)
+		fmt.Printf("failed to query license info: %s", err)
 	}
 	assert.Equal(t, 0, usedFeaturesCount)
 }
@@ -201,17 +207,17 @@ func TestBindingSimple(t *testing.T) {
 		db, _ := connectToDB(driver)
 		stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
 		if err != nil {
-			log.Fatalf("preparing statement with driver %s %s", driver, err)
+			fmt.Printf("preparing statement with driver %s %s", driver, err)
 		}
 		row := stmt.QueryRow(1)
 		if row.Err() != nil {
-			log.Fatalf("row error with driver %s %s", driver, row.Err())
+			fmt.Printf("row error with driver %s %s", driver, row.Err())
 			return
 		}
 		var retValue int
 		err = row.Scan(&retValue)
 		if err != nil {
-			log.Fatalf("scanning with driver %s %s", driver, err)
+			fmt.Printf("scanning with driver %s %s", driver, err)
 		}
 		assert.Equal(t, retValue, result, driver)
 	}
@@ -228,7 +234,7 @@ func TestSQLXIn(t *testing.T) {
 
 		rows, err = db.Query(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (:1)", result), slice...)
 		if err != nil {
-			log.Fatalf("row error with driver %s %s", driver, err)
+			fmt.Printf("row error with driver %s %s", driver, err)
 			return
 		}
 
@@ -237,7 +243,7 @@ func TestSQLXIn(t *testing.T) {
 		err = rows.Scan(&retValue)
 		rows.Close()
 		if err != nil {
-			log.Fatalf("scan error %s", err)
+			fmt.Printf("scan error %s", err)
 		}
 		assert.Equal(t, retValue, result, driver)
 
@@ -254,7 +260,7 @@ func TestSQLXIn(t *testing.T) {
 		err = rows.Scan(&retValue)
 		rows.Close()
 		if err != nil {
-			log.Fatalf("scan error %s", err)
+			fmt.Printf("scan error %s", err)
 		}
 		assert.Equal(t, retValue, result, driver)
 	}

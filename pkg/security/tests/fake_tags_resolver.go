@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// This fake resolver will give a different image_name for each different container ID
+
 // Resolver represents a cache resolver
 type FakeResolver struct {
 	sync.Mutex
@@ -58,4 +60,40 @@ func (t *FakeResolver) GetValue(id string, tag string) string {
 // NewFakeResolver returns a new tags resolver
 func NewFakeResolver() tags.Resolver {
 	return &FakeResolver{}
+}
+
+// This fake resolver will allways give the same image_name, no matter the container ID
+
+// Resolver represents a cache resolver
+type FakeMonoResolver struct {
+}
+
+// Start the resolver
+func (t *FakeMonoResolver) Start(ctx context.Context) error {
+	return nil
+}
+
+// Stop the resolver
+func (t *FakeMonoResolver) Stop() error {
+	return nil
+}
+
+// Resolve returns the tags for the given id
+func (t *FakeMonoResolver) Resolve(containerID string) []string {
+	return []string{"container_id:" + containerID, "image_name:fake_ubuntu"}
+}
+
+// ResolveWithErr returns the tags for the given id
+func (t *FakeMonoResolver) ResolveWithErr(id string) ([]string, error) {
+	return t.Resolve(id), nil
+}
+
+// GetValue return the tag value for the given id and tag name
+func (t *FakeMonoResolver) GetValue(id string, tag string) string {
+	return utils.GetTagValue(tag, t.Resolve(id))
+}
+
+// NewFakeMonoResolver returns a new tags resolver
+func NewFakeMonoResolver() tags.Resolver {
+	return &FakeMonoResolver{}
 }

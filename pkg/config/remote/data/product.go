@@ -21,6 +21,10 @@ const (
 	ProductAPMTracing Product = "APM_TRACING"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
+	// ProductAgentTask is to receive agent task instruction, like a flare
+	ProductAgentTask Product = "AGENT_TASK"
+	// ProductAgentConfig is to receive agent configurations, like the log level
+	ProductAgentConfig = "AGENT_CONFIG"
 )
 
 // ProductListToString converts a product list to string list

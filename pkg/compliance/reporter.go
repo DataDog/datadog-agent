@@ -6,9 +6,14 @@
 package compliance
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -16,25 +21,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
-
-// Reporter is the interface of the output structure that the agent will send
-// the resulting evaluation results in a marshalled form.
-type Reporter interface {
-	Endpoints() *config.Endpoints
-	ReportRaw(content []byte, service string, tags ...string)
-}
 
 type LogReporter struct {
 	logSource *sources.LogSource
 	logChan   chan *message.Message
 	endpoints *config.Endpoints
+	tags      []string
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, context *client.DestinationsContext) (*LogReporter, error) {
+func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) (*LogReporter, error) {
+	hostname, err := hostname.Get(context.Background())
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
 	health := health.RegisterLiveness(sourceType)
 
 	// setup the auditor
@@ -42,7 +48,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext)
 	pipelineProvider.Start()
 
 	stopper.Add(pipelineProvider)
@@ -58,10 +64,24 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	)
 	logChan := pipelineProvider.NextPipelineChan()
 
+	tags := []string{
+		common.QueryAccountIDTag(),
+		fmt.Sprintf("host:%s", hostname),
+	}
+
+	// merge tags from config
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
+		if strings.HasPrefix(tag, "host") {
+			continue
+		}
+		tags = append(tags, tag)
+	}
+
 	return &LogReporter{
 		logSource: logSource,
 		logChan:   logChan,
 		endpoints: endpoints,
+		tags:      tags,
 	}, nil
 }
 
@@ -69,12 +89,14 @@ func (r *LogReporter) Endpoints() *config.Endpoints {
 	return r.endpoints
 }
 
-func (r *LogReporter) ReportRaw(content []byte, service string, tags ...string) {
+func (r *LogReporter) ReportEvent(event interface{}) {
+	buf, err := json.Marshal(event)
+	if err != nil {
+		log.Errorf("failed to serialize compliance event: %v", err)
+		return
+	}
 	origin := message.NewOrigin(r.logSource)
-	origin.SetTags(tags)
-	origin.SetService(service)
-	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
+	origin.SetTags(r.tags)
+	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
 	r.logChan <- msg
 }
-
-var _ Reporter = &LogReporter{}

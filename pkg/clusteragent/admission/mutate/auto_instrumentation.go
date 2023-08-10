@@ -31,7 +31,7 @@ const (
 
 	// Java config
 	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
-	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar"
+	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log"
 
 	// Node config
 	nodeOptionsKey   = "NODE_OPTIONS"
@@ -319,6 +319,13 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 		}
 	}
 
+	// try to inject all if the annotation is set
+	if err := injectLibConfig(pod, "all"); err != nil {
+		metrics.LibInjectionErrors.Inc("all")
+		lastError = err
+		log.Errorf("Cannot inject library configuration into pod %s: %s", podString(pod), err)
+	}
+
 	injectLibVolume(pod)
 
 	return lastError
@@ -373,7 +380,7 @@ func initResources() (corev1.ResourceRequirements, bool, error) {
 	return resources, hasResources, nil
 }
 
-// injectLibRequirements injects the minimal config requirements to enable instrumentation
+// injectLibRequirements injects the minimal config requirements (env vars and volume mounts) to enable instrumentation
 func injectLibRequirements(pod *corev1.Pod, ctrName string, envVars []envVar) error {
 	for i, ctr := range pod.Spec.Containers {
 		if ctrName != "" && ctrName != ctr.Name {
@@ -416,7 +423,7 @@ func injectLibConfig(pod *corev1.Pod, lang language) error {
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, lang)
 	confString, found := pod.GetAnnotations()[configAnnotKey]
 	if !found {
-		log.Debugf("Config annotation key %q not found on pod %s, skipping config injection", configAnnotKey, podString(pod))
+		log.Tracef("Config annotation key %q not found on pod %s, skipping config injection", configAnnotKey, podString(pod))
 		return nil
 	}
 	log.Infof("Config annotation key %q found on pod %s, config: %q", configAnnotKey, podString(pod), confString)

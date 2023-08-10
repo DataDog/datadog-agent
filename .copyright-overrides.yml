@@ -131,6 +131,24 @@ github.com/google/go-containerregistry:
  - "Copyright 2020 Google LLC All Rights Reserved."
  - "Copyright 2021 Google LLC All Rights Reserved."
  - "Copyright 2022 Google LLC All Rights Reserved."
+github.com/google/go-containerregistry/internal/compression:
+ - "Copyright 2018 Google LLC All Rights Reserved."
+ - "Copyright 2019 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
+ - "Copyright 2021 Google LLC All Rights Reserved."
+ - "Copyright 2022 Google LLC All Rights Reserved."
+github.com/google/go-containerregistry/internal/zstd:
+ - "Copyright 2018 Google LLC All Rights Reserved."
+ - "Copyright 2019 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
+ - "Copyright 2021 Google LLC All Rights Reserved."
+ - "Copyright 2022 Google LLC All Rights Reserved."
+github.com/google/go-containerregistry/pkg/compression:
+ - "Copyright 2018 Google LLC All Rights Reserved."
+ - "Copyright 2019 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
+ - "Copyright 2021 Google LLC All Rights Reserved."
+ - "Copyright 2022 Google LLC All Rights Reserved."
 github.com/google/licenseclassifier/v2:
  - "Copyright 2017 Google LLC All Rights Reserved."
  - "Copyright 2020 Google LLC All Rights Reserved."
@@ -184,25 +202,6 @@ github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/spdx/tools-golang: Copyright (c) 2018 The Authors
 github.com/google/flatbuffers: Copyright (c) 2014 Google
 
-# FIXME(AP-2060): inv generate-licenses and inv lint-licenses can generate invalid csv
-# while parsing some files. For instance, in the README.md of github.com/klauspost/compress/s2,
-# there is an example section which contains:
-#    // We are only interested in the contents.
-#    // Assume that files start with "// Copyright (c) 2023".
-#    // Search for the longest match for that.
-#    // This may save a few bytes.
-#    dict := s2.MakeDict(insp.Content(), []byte("// Copyright (c) 2023"))
-# This causes the tasks to add 'Copyright (c) 2023". | Copyright (c) 2023"))' to the copyright
-# information for that file, resulting in an invalid csv (due to the quotes).
-# Until this is fixed, override the copyright value to avoid parsing these files.
-github.com/klauspost/compress/s2:
-  - "Copyright (c) 2011 The Snappy-Go Authors. All rights reserved"
-  - "Copyright (c) 2012 The Go Authors. All rights reserved"
-  - "Copyright (c) 2015 Klaus Post"
-  - "Copyright (c) 2019 Klaus Post. All rights reserved"
-  - "Copyright 2016 The filepathx Authors"
-  - "Copyright 2016-2017 The New York Times Company"
-
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:
 #  * https://github.com/godror/knownpb/blob/main/timestamppb/timestamp_test.go
@@ -217,3 +216,26 @@ github.com/google/gnostic/extensions: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/jsonschema: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/openapiv2: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/openapiv3: Copyright 2017-2020, Google LLC.
+github.com/google/s2a-go: Copyright (c) 2020 Google
+github.com/google/s2a-go/fallback: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/authinfo: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/handshaker: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/handshaker/service: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/common_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/s2a_context_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/s2a_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/common_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/s2a_context_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/s2a_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record/internal/aeadcrypter: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record/internal/halfconn: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/tokenmanager: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/certverifier: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/remotesigner: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/tlsconfigstore: Copyright (c) 2020 Google
+github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v1: Copyright 2018 New York University
+go.opentelemetry.io/otel/semconv/internal: Copyright The OpenTelemetry Authors
+go.opentelemetry.io/otel/semconv/v1.12.0: Copyright The OpenTelemetry Authors
+golang.org/x/crypto/chacha20poly1305: Copyright (c) 2009 The Go Authors. All rights reserved

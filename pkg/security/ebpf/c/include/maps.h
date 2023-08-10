@@ -7,10 +7,9 @@
 #include "constants/enums.h"
 #include "structs/all.h"
 
-BPF_ARRAY_MAP(path_id, u32, 1)
+BPF_ARRAY_MAP(path_id, u32, PATH_ID_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
 BPF_ARRAY_MAP(buffer_selector, u32, 4)
-BPF_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH*2], 1)
 BPF_ARRAY_MAP(inode_disc_revisions, u32, REVISION_ARRAY_SIZE)
 BPF_ARRAY_MAP(discarders_revision, u32, 1)
@@ -42,12 +41,9 @@ BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
 BPF_LRU_MAP(tgid_fd_map_id, struct bpf_tgid_fd_t, u32, 4096)
 BPF_LRU_MAP(tgid_fd_prog_id, struct bpf_tgid_fd_t, u32, 4096)
-BPF_LRU_MAP(syscalls, u64, struct syscall_cache_t, 1024)
-BPF_LRU_MAP(proc_cache, u32, struct proc_cache_t, 16384)
-BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 16384)
+BPF_LRU_MAP(proc_cache, u32, struct proc_cache_t, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_ignored, u32, u32, 16738)
-BPF_LRU_MAP(exec_count_fb, struct exec_path, u64, 2048)
-BPF_LRU_MAP(exec_count_bb, struct exec_path, u64, 2048)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)
 BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 4096)
@@ -67,7 +63,10 @@ BPF_LRU_MAP(security_profiles, struct container_context_t, struct security_profi
 BPF_LRU_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
+BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
+BPF_PERCPU_ARRAY_MAP(dr_erpc_state, u32, struct dr_erpc_state_t, 1)
+BPF_PERCPU_ARRAY_MAP(syscalls_stats, u32, u32, EVENT_MAX)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, u32, struct cgroup_tracing_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
 BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
@@ -84,8 +83,10 @@ BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, u32, struct selinux_write_buffer_t, 1
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_callbacks, EVENT_MAX)
+BPF_PROG_ARRAY(dentry_resolver_fentry_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_progs, 5)
+BPF_PROG_ARRAY(dentry_resolver_fentry_progs, 5)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 2)
 BPF_PROG_ARRAY(classifier_router, 100)
 BPF_PROG_ARRAY(sys_exit_progs, 64)

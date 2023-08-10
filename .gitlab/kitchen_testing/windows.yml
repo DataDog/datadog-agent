@@ -29,7 +29,7 @@
     - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2008r2,win2012,win2012r2"
+    KITCHEN_OSVERS: "win2012,win2012r2"
   before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - cd $DD_AGENT_TESTING_DIR
@@ -57,8 +57,7 @@
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
-  # Kitchen tests on old OSes fail due a Rubygems API deprecation: https://blog.rubygems.org/2023/04/07/dependency-api-deprecation-delayed.html
-  allow_failure: true
+  allow_failure: false
 
 # Base test for Next Gen installer - only difference with the standard one
 # is that we override the WINDOWS_AGENT_FILE name.
@@ -71,8 +70,7 @@
     - export NG_INSTALLER=true
     - echo $WINDOWS_AGENT_FILE
     - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
-  # Until the code is stabilized
-  allow_failure: true
+  allow_failure: false
 
 # Base test for Next Gen installer with NPM - only difference with the standard one
 # is that we override the WINDOWS_AGENT_FILE name.

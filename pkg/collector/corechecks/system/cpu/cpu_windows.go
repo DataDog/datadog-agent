@@ -13,9 +13,8 @@ package cpu
 
 import (
 	"fmt"
-	"strconv"
 
-	"github.com/DataDog/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -27,7 +26,7 @@ import (
 const cpuCheckName = "cpu"
 
 // For testing purposes
-var cpuInfo = cpu.GetCpuInfo
+var cpuInfo = cpu.CollectInfo
 
 // Check doesn't need additional fields
 type Check struct {
@@ -149,12 +148,12 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	}
 
 	// do nothing
-	info, err := cpuInfo()
+	info := cpuInfo()
+	cpucount, err := info.CPULogicalProcessors.Value()
 	if err != nil {
-		return fmt.Errorf("cpu.Check: could not query CPU info")
+		return fmt.Errorf("cpu.Check: could not get number of CPU: %w", err)
 	}
-	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
-	c.nbCPU = cpucount
+	c.nbCPU = float64(cpucount)
 
 	// Create PDH query
 	c.pdhQuery, err = pdhutil.CreatePdhQuery()

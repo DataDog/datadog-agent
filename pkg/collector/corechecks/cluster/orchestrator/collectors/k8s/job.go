@@ -58,12 +58,9 @@ func (c *JobCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *JobCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Batch().V1().Jobs()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Batch().V1().Jobs()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *JobCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *JobCollector) Metadata() *collectors.CollectorMetadata {

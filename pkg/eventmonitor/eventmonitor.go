@@ -149,8 +149,6 @@ func (m *EventMonitor) Start() error {
 			log.Errorf("unable to start %s event consumer: %v", em.ID(), err)
 		}
 	}
-	// Apply rules to the snapshotted data
-	m.Probe.PlaySnapshot()
 
 	m.wg.Add(1)
 	go m.statsSender()
@@ -160,6 +158,9 @@ func (m *EventMonitor) Start() error {
 
 // Close the module
 func (m *EventMonitor) Close() {
+	// stop so that consumers won't receive events anymore
+	m.Probe.Stop()
+
 	// stop event consumers
 	for _, em := range m.eventConsumers {
 		em.Stop()

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -52,7 +53,8 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	demux := initAgentDemultiplexer(NewForwarderTest(), opts, "")
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, "")
 
 	batch := testDemuxSamples(t)
 
@@ -71,7 +73,8 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	opts := demuxTestOptions()
 	mockSerializer := &MockSerializerIterableSerie{}
 	opts.EnableNoAggregationPipeline = true
-	demux := initAgentDemultiplexer(NewForwarderTest(), opts, "")
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.Run()
@@ -96,8 +99,9 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
-	demux := InitAndStartAgentDemultiplexer(forwarder, opts, "")
+	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
 	demux.Stop(false)
 }
@@ -111,7 +115,7 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 		supported     bool
 	}{
 		{metrics.GaugeType, metrics.APIGaugeType, true},
-		{metrics.CounterType, metrics.APICountType, true},
+		{metrics.CounterType, metrics.APIRateType, true},
 		{metrics.RateType, metrics.APIRateType, true},
 		{metrics.MonotonicCountType, metrics.APIGaugeType, false},
 		{metrics.CountType, metrics.APIGaugeType, false},

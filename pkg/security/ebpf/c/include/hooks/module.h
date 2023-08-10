@@ -22,15 +22,15 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
     return 0;
 }
 
-SYSCALL_KPROBE0(init_module) {
+HOOK_SYSCALL_ENTRY0(init_module) {
     return trace_init_module(1);
 }
 
-SYSCALL_KPROBE0(finit_module) {
+HOOK_SYSCALL_ENTRY0(finit_module) {
     return trace_init_module(0);
 }
 
-int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct file *f) {
+int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, int dr_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -44,60 +44,49 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     syscall->resolver.dentry = syscall->init_module.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_INIT_MODULE : 0;
     syscall->resolver.iteration = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, dr_type);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_INIT_MODULE);
+
     return 0;
 }
 
+// fentry blocked by: parse args special bug
 SEC("kprobe/parse_args")
-int kprobe_parse_args(struct pt_regs *ctx){
-    char *args = (char *) PT_REGS_PARM2(ctx);
-    u32 is_truncated = 0;
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
-    if (!syscall) {
-        return 0;
-    }
-    int len = bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args)+1, args);
-    if (len==129) {
-        is_truncated = 1;
-    }
-    syscall->init_module.args_truncated = is_truncated;
-    return 0;
-}
-
-SEC("kprobe/security_kernel_module_from_file")
-int kprobe_security_kernel_module_from_file(struct pt_regs *ctx) {
-    struct file *f = (struct file *)PT_REGS_PARM1(ctx);
-    return trace_kernel_file(ctx, f);
-}
-
-SEC("kprobe/security_kernel_read_file")
-int kprobe_security_kernel_read_file(struct pt_regs *ctx) {
-    struct file *f = (struct file *)PT_REGS_PARM1(ctx);
-    return trace_kernel_file(ctx, f);
-}
-
-int __attribute__((always_inline)) trace_module(struct module *mod) {
+int kprobe_parse_args(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
 
-    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &mod->name[0]);
+    char *name = (char *)PT_REGS_PARM1(ctx);
+    char *args = (char *)PT_REGS_PARM2(ctx);
+
+    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), name);
+
+    int len = bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
+    if (len == sizeof(syscall->init_module.args)) {
+        syscall->init_module.args_truncated = 1;
+    }
     return 0;
 }
 
-SEC("kprobe/do_init_module")
-int kprobe_do_init_module(struct pt_regs *ctx) {
-    struct module *mod = (struct module *)PT_REGS_PARM1(ctx);
-    return trace_module(mod);
+#ifndef USE_FENTRY
+HOOK_ENTRY("security_kernel_module_from_file")
+int hook_security_kernel_module_from_file(ctx_t *ctx) {
+    struct file *f = (struct file *)CTX_PARM1(ctx);
+    return trace_kernel_file(ctx, f, DR_KPROBE_OR_FENTRY);
 }
+#endif
 
-SEC("kprobe/module_put")
-int kprobe_module_put(struct pt_regs *ctx) {
-    struct module *mod = (struct module *)PT_REGS_PARM1(ctx);
-    return trace_module(mod);
+HOOK_ENTRY("security_kernel_read_file")
+int hook_security_kernel_read_file(ctx_t *ctx) {
+    struct file *f = (struct file *)CTX_PARM1(ctx);
+    return trace_kernel_file(ctx, f, DR_KPROBE_OR_FENTRY);
 }
 
 int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
@@ -111,7 +100,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
         .file = syscall->init_module.file,
         .loaded_from_memory = syscall->init_module.loaded_from_memory,
     };
-    
+
     bpf_probe_read_str(&event.args, sizeof(event.args), &syscall->init_module.args);
     event.args_truncated = syscall->init_module.args_truncated;
 
@@ -133,7 +122,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
     return 0;
 }
 
-// only loaded on rhel-7 based kernels
+// only attached on rhel-7 based kernels
 SEC("tracepoint/module/module_load")
 int module_load(struct tracepoint_module_module_load_t *args) {
     // check if the tracepoint is hit by a kworker
@@ -154,15 +143,15 @@ int module_load(struct tracepoint_module_module_load_t *args) {
     return trace_init_module_ret(args, 0, modname);
 }
 
-SYSCALL_KRETPROBE(init_module) {
-    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
+HOOK_SYSCALL_EXIT(init_module) {
+    return trace_init_module_ret(ctx, (int)SYSCALL_PARMRET(ctx), NULL);
 }
 
-SYSCALL_KRETPROBE(finit_module) {
-    return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
+HOOK_SYSCALL_EXIT(finit_module) {
+    return trace_init_module_ret(ctx, (int)SYSCALL_PARMRET(ctx), NULL);
 }
 
-SYSCALL_KPROBE1(delete_module, const char *, name_user) {
+HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
     struct policy_t policy = fetch_policy(EVENT_DELETE_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_DELETE_MODULE)) {
         return 0;
@@ -198,8 +187,8 @@ int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval
     return 0;
 }
 
-SYSCALL_KRETPROBE(delete_module) {
-    return trace_delete_module_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(delete_module) {
+    return trace_delete_module_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_init_module_exit")

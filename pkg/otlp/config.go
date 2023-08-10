@@ -70,6 +70,7 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
+	censusConfig := readConfigSection(cfg, config.OTLPCensusReceiverSection)
 
 	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
 	if err != nil {
@@ -78,6 +79,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 
 	metricsEnabled := cfg.GetBool(config.OTLPMetricsEnabled)
 	tracesEnabled := cfg.GetBool(config.OTLPTracesEnabled)
+	logsEnabled := cfg.GetBool(config.OTLPLogsEnabled)
 	if !metricsEnabled && !tracesEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
@@ -85,23 +87,35 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	debugConfig := readConfigSection(cfg, config.OTLPDebug)
 
 	return PipelineConfig{
-		OTLPReceiverConfig: otlpConfig.ToStringMap(),
-		TracePort:          tracePort,
-		MetricsEnabled:     metricsEnabled,
-		TracesEnabled:      tracesEnabled,
-		Metrics:            metricsConfig.ToStringMap(),
-		Debug:              debugConfig.ToStringMap(),
+		OTLPReceiverConfig:       otlpConfig.ToStringMap(),
+		OpenCensusReceiverConfig: censusConfig.ToStringMap(),
+		OpenCensusEnabled:        hasSection(cfg, "opencensus"),
+		TracePort:                tracePort,
+		MetricsEnabled:           metricsEnabled,
+		TracesEnabled:            tracesEnabled,
+		LogsEnabled:              logsEnabled,
+		Metrics:                  metricsConfig.ToStringMap(),
+		Debug:                    debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Config) bool {
+	return hasSection(cfg, config.OTLPReceiverSubSectionKey)
+}
+
+// HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
+func HasLogsSectionEnabled(cfg config.Config) bool {
+	return hasSection(cfg, config.OTLPLogsEnabled) && cfg.GetBool(config.OTLPLogsEnabled)
+}
+
+func hasSection(cfg config.Config, section string) bool {
 	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
 	// from unmarshaling/validation done by the Collector code.
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := readConfigSection(cfg, config.OTLPSection).ToStringMap()[config.OTLPReceiverSubSectionKey]
+	_, ok := readConfigSection(cfg, config.OTLPSection).ToStringMap()[section]
 	return ok
 }
 

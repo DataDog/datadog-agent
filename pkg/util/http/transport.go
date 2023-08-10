@@ -122,7 +122,7 @@ func CreateHTTPTransport() *http.Transport {
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 5,
 		// This parameter is set to avoid connections sitting idle in the pool indefinitely
-		IdleConnTimeout:       90 * time.Second,
+		IdleConnTimeout:       45 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}

@@ -20,6 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -127,6 +128,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 	} else if !ok {
 		return nil, fmt.Errorf("failed to get map '%s'", oomMapName)
 	}
+	ebpfcheck.AddNameMappings(m, "oom_kill")
 
 	return &OOMKillProbe{
 		m:      m,
@@ -135,6 +137,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 }
 
 func (k *OOMKillProbe) Close() {
+	ebpfcheck.RemoveNameMappings(k.m)
 	if err := k.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping OOM Kill: %s", err)
 	}
@@ -146,14 +149,16 @@ func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
 	it := k.oomMap.Iterate()
 	for it.Next(unsafe.Pointer(&pid), unsafe.Pointer(&stat)) {
 		results = append(results, convertStats(stat))
-
-		if err := k.oomMap.Delete(unsafe.Pointer(&pid)); err != nil {
-			log.Warnf("failed to delete stat: %s", err)
-		}
 	}
 
 	if err := it.Err(); err != nil {
 		log.Warnf("failed to iterate on OOM stats while flushing: %s", err)
+	}
+
+	for _, r := range results {
+		if err := k.oomMap.Delete(unsafe.Pointer(&r.Pid)); err != nil {
+			log.Warnf("failed to delete stat: %s", err)
+		}
 	}
 
 	return results

@@ -1,3 +1,4 @@
+import os
 import sys
 import tempfile
 import zipfile
@@ -101,7 +102,7 @@ def get_macos_workflow_run_for_ref(workflow="macos.yaml", github_action_ref="mas
 
 def follow_workflow_run(run_id):
     """
-    Follow the workflow run until completion.
+    Follow the workflow run until completion and return its conclusion.
     """
 
     try:
@@ -136,12 +137,7 @@ def follow_workflow_run(run_id):
         conclusion = run["conclusion"]
 
         if status == "completed":
-            if conclusion == "success":
-                print(color_message("Workflow run succeeded", "green"))
-                return
-            else:
-                print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
-                raise Exit(code=1)
+            return conclusion
         else:
             print(f"Workflow still running... ({minutes}m)")
             # For some unknown reason, in Gitlab these lines do not get flushed, leading to not being
@@ -152,14 +148,28 @@ def follow_workflow_run(run_id):
         sleep(60)
 
 
+def print_workflow_conclusion(conclusion):
+    """
+    Print the workflow conclusion
+    """
+    if conclusion == "success":
+        print(color_message("Workflow run succeeded", "green"))
+    else:
+        print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
+
+
 def download_artifacts(run_id, destination="."):
     """
     Download all artifacts for a given job in the specified location.
     """
     print(color_message(f"Downloading artifacts for run {run_id} to {destination}", "blue"))
-
     github_workflows = create_or_refresh_macos_build_github_workflows()
     run_artifacts = github_workflows.workflow_run_artifacts(run_id)
+    if len(run_artifacts["artifacts"]) == 0:
+        raise ConnectionError
+
+    print("Found the following artifacts: ", run_artifacts)
+
     if run_artifacts is None:
         print("Workflow run not found.")
         raise Exit(code=1)
@@ -170,7 +180,30 @@ def download_artifacts(run_id, destination="."):
             # Download artifact
             github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
             zip_path = github_workflows.download_artifact(artifact["id"], tmpdir)
+            print("Downloading artifact: ", artifact)
 
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(destination)
+
+
+def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_interval=10):
+
+    import requests
+
+    retry = retry_count
+
+    while retry > 0:
+        try:
+            download_artifacts(run_id, destination)
+            print(color_message(f"Successfully downloaded artifacts for run {run_id} to {destination}", "blue"))
+            return
+        except (requests.exceptions.RequestException, ConnectionError):
+            retry -= 1
+            print(f'Connectivity issue while downloading the artifact, retrying... {retry} attempts left')
+            sleep(retry_interval)
+        except Exception as e:
+            print("Exception that is not a connectivity issue: ", type(e).__name__, " - ", e)
+            raise e
+    print(f'Download failed {retry_count} times, stop retry and exit')
+    raise Exit(code=os.EX_TEMPFAIL)

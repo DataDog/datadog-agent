@@ -6,7 +6,6 @@
 package log
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -27,6 +26,7 @@ const (
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
 	sourceEnvVar        = "DD_SOURCE"
 	sourceName          = "Datadog Agent"
+	maxBufferSize       = 256 * 1024 // Max log size is 256KB: https://docs.datadoghq.com/agent/logs/log_transport/?tab=https
 )
 
 // Config holds the log configuration
@@ -40,9 +40,10 @@ type Config struct {
 
 // CustomWriter wraps the log config to allow stdout/stderr redirection
 type CustomWriter struct {
-	LogConfig  *Config
-	LineBuffer bytes.Buffer
-	IsError    bool
+	LogConfig    *Config
+	LineBuffer   bytes.Buffer
+	ShouldBuffer bool
+	IsError      bool
 }
 
 // CreateConfig builds and returns a log config
@@ -95,19 +96,48 @@ func SetupLog(conf *Config, tags map[string]string) {
 }
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
+	return cw.writeWithMaxBufferSize(p, maxBufferSize)
+}
+
+func (cw *CustomWriter) writeWithMaxBufferSize(p []byte, maxBufferSize int) (n int, err error) {
 	fmt.Print(string(p))
-	cw.LineBuffer.Write(p)
-	scanner := bufio.NewScanner(&cw.LineBuffer)
-	for scanner.Scan() {
-		logLine := scanner.Bytes()
-		// Don't write anything if we don't actually have a message.
-		// This can happen in the case of consecutive newlines.
-		if len(logLine) == 0 {
-			continue
-		}
-		Write(cw.LogConfig, logLine, cw.IsError)
+
+	if len(p) > maxBufferSize {
+		log.Errorf("Received a log chunk over %d kb. Truncating", maxBufferSize)
+		p = p[:maxBufferSize]
 	}
+
+	if !cw.ShouldBuffer {
+		Write(cw.LogConfig, p, cw.IsError)
+		return len(p), nil
+	}
+
+	// Prevent buffer overflow, flush the buffer if writing the current chunk
+	// will exceed maxBufferSize
+	if cw.LineBuffer.Len()+len(p) > maxBufferSize {
+		log.Errorf("Log buffer exceeds %d kb. Flushing log buffer", maxBufferSize)
+		Write(cw.LogConfig, getByteArrayClone(cw.LineBuffer.Bytes()), cw.IsError)
+		cw.LineBuffer.Reset()
+	}
+
+	// Only flush the log buffer if the chunk to be appended ends in a newline.
+	// Otherwise, the chunk only represents part of a log. Push it into the buffer and wait
+	// for the rest of the log before flushing.
+	cw.LineBuffer.Write(p)
+	if string(p[len(p)-1]) != "\n" {
+		return len(p), nil
+	}
+
+	Write(cw.LogConfig, getByteArrayClone(cw.LineBuffer.Bytes()), cw.IsError)
+	cw.LineBuffer.Reset()
+
 	return len(p), nil
+}
+
+func getByteArrayClone(src []byte) []byte {
+	clone := make([]byte, len(src))
+	copy(clone, src)
+	return clone
 }
 
 func isEnabled(envValue string) bool {

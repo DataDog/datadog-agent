@@ -319,38 +319,6 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	return metaList, nil
 }
 
-func getNode(as *APIClient, nodeName string) (*corev1.Node, error) {
-	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
-		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
-	}
-	node, err := as.InformerFactory.Core().V1().Nodes().Lister().Get(nodeName)
-	if err != nil {
-		return nil, err
-	}
-	if node == nil {
-		return nil, fmt.Errorf("cannot get node %s from the informer's cache", nodeName)
-	}
-	return node, nil
-}
-
-// GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
-func GetNodeLabels(as *APIClient, nodeName string) (map[string]string, error) {
-	node, err := getNode(as, nodeName)
-	if err != nil {
-		return nil, err
-	}
-	return node.Labels, nil
-}
-
-// GetNodeAnnotations retrieves the annotations of the queried node from the cache of the shared informer.
-func GetNodeAnnotations(as *APIClient, nodeName string) (map[string]string, error) {
-	node, err := getNode(as, nodeName)
-	if err != nil {
-		return nil, err
-	}
-	return node.Annotations, nil
-}
-
 // GetNamespaceLabels retrieves the labels of the queried namespace from the cache of the shared informer.
 func GetNamespaceLabels(nsName string) (map[string]string, error) {
 	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {

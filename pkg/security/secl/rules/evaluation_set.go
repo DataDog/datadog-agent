@@ -7,6 +7,7 @@ package rules
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/hashicorp/go-multierror"
@@ -53,13 +54,18 @@ func (ps *EvaluationSet) GetPolicies() []*Policy {
 	return policies
 }
 
+type ruleIndexEntry struct {
+	value  eval.RuleSetTagValue
+	ruleID eval.RuleID
+}
+
 func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
 	var (
 		errs       *multierror.Error
 		rules      = make(map[eval.RuleSetTagValue][]*RuleDefinition)
 		allMacros  []*MacroDefinition
 		macroIndex = make(map[string]*MacroDefinition)
-		rulesIndex = make(map[eval.RuleSetTagValue]map[eval.RuleID]*RuleDefinition)
+		rulesIndex = make(map[ruleIndexEntry]*RuleDefinition)
 	)
 
 	parsingContext := ast.NewParsingContext()
@@ -90,16 +96,12 @@ func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpt
 				tagValue = DefaultRuleSetTagValue
 			}
 
-			if _, ok := rulesIndex[tagValue]; !ok {
-				rulesIndex[tagValue] = make(map[string]*RuleDefinition)
-			}
-
-			if existingRule := rulesIndex[tagValue][rule.ID]; existingRule != nil {
+			if existingRule := rulesIndex[ruleIndexEntry{tagValue, rule.ID}]; existingRule != nil {
 				if err := existingRule.MergeWith(rule); err != nil {
 					errs = multierror.Append(errs, err)
 				}
 			} else {
-				rulesIndex[tagValue][rule.ID] = rule
+				rulesIndex[ruleIndexEntry{tagValue, rule.ID}] = rule
 				rules[tagValue] = append(rules[tagValue], rule)
 			}
 		}

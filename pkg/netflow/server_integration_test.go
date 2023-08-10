@@ -15,16 +15,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52055)
+	port := testutil.GetFreePort()
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -40,7 +43,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()
@@ -51,6 +55,10 @@ network_devices:
 	server, err := NewNetflowServer(sender, epForwarder)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
+
+	server.flowAgg.TimeNowFunction = func() time.Time {
+		return flushTime
+	}
 
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation
@@ -72,7 +80,7 @@ network_devices:
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52056)
+	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -88,7 +96,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()
@@ -118,7 +127,7 @@ network_devices:
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52057)
+	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -134,7 +143,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()

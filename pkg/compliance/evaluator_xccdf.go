@@ -20,9 +20,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
+	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
+)
+
+const (
+	enableSysChar = false
 )
 
 const (
@@ -43,6 +51,7 @@ type oscapIORule struct {
 type oscapIOResult struct {
 	Rule   string
 	Result int
+	Data   map[string]interface{}
 }
 
 var (
@@ -56,6 +65,7 @@ type oscapIO struct {
 	RuleCh   chan *oscapIORule
 	ResultCh chan *oscapIOResult
 	ErrorCh  chan error
+	DoneCh   chan bool
 }
 
 // From pkg/collector/corechecks/embed/process_agent.go.
@@ -74,6 +84,7 @@ func newOSCAPIO(file string) *oscapIO {
 		RuleCh:   make(chan *oscapIORule, 0),
 		ResultCh: make(chan *oscapIOResult, 0),
 		ErrorCh:  make(chan error, 0),
+		DoneCh:   make(chan bool, 0),
 	}
 }
 
@@ -91,6 +102,9 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	}
 
 	args := []string{}
+	if enableSysChar {
+		args = append(args, "-syschar")
+	}
 	args = append(args, p.File)
 
 	binPath, err := getOSCAPIODefaultBinPath()
@@ -126,13 +140,27 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		return err
 	}
 
-	scanner := bufio.NewScanner(stdout)
+	r := bufio.NewReader(stdout)
 	go func() {
-		for scanner.Scan() {
-			log.Debugf("<- %s", scanner.Text())
-			line := strings.Split(scanner.Text(), " ")
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				p.ErrorCh <- fmt.Errorf("error reading line: '%v'", s)
+				continue
+			}
+			s = strings.TrimRight(s, "\n")
+
+			if s == "" {
+				continue
+			}
+
+			log.Debugf("<- %s", s)
+			line := strings.Split(s, " ")
 			if len(line) != 2 {
-				p.ErrorCh <- fmt.Errorf("invalid output: %v", line)
+				p.ErrorCh <- fmt.Errorf("invalid output: '%v'", line)
 				continue
 			}
 			result, err := strconv.Atoi(line[1])
@@ -140,7 +168,26 @@ func (p *oscapIO) Run(ctx context.Context) error {
 				p.ErrorCh <- fmt.Errorf("strconv.Atoi '%s': %v", line[1], err)
 				continue
 			}
-			p.ResultCh <- &oscapIOResult{Rule: line[0], Result: result}
+
+			data := make(map[string]interface{}, 0)
+
+			if enableSysChar {
+				doc, err := scap.ReadDocument(r)
+				if err != nil {
+					p.ErrorCh <- fmt.Errorf("scap.ReadDocument: %v", err)
+					continue
+				}
+
+				syschar, err := scap.SysChar(doc)
+				if err != nil {
+					p.ErrorCh <- fmt.Errorf("scap.SysChar: %v", err)
+					continue
+				}
+
+				data["system_characteristics"] = syschar
+			}
+
+			p.ResultCh <- &oscapIOResult{Rule: line[0], Result: result, Data: data}
 		}
 	}()
 
@@ -151,17 +198,31 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Stop oscap-io process after 60 minutes of inactivity.
+	timeout := 60 * time.Minute
+
 	go func() {
+		t := time.NewTimer(timeout)
 		for {
-			rule := <-p.RuleCh
-			if rule == nil {
+			select {
+			case <-t.C:
+				log.Warnf("oscap-io has been inactive for %s; exiting", timeout)
+				err := p.Kill()
+				if err != nil {
+					log.Warnf("failed to kill process: %v", err)
+				}
 				return
-			}
-			log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
-			_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
-			if err != nil {
-				log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
-				return
+			case rule := <-p.RuleCh:
+				if rule == nil {
+					return
+				}
+				log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
+				_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
+				if err != nil {
+					log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
+					return
+				}
+				t.Reset(timeout)
 			}
 		}
 	}()
@@ -178,20 +239,25 @@ func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
 	oscapIOs[p.File] = nil
-	close(p.RuleCh)
-	close(p.ResultCh)
-	close(p.ErrorCh)
+	close(p.DoneCh)
 }
 
-func EvaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmark, rule *Rule) []*CheckEvent {
+func (p *oscapIO) Kill() error {
+	if err := p.cmd.Process.Kill(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	if !rule.IsXCCDF() {
 		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)
 		return nil
 	}
-	return evaluateXCCDFRule(ctx, hostname, benchmark, rule, rule.InputSpecs[0].XCCDF)
+	return evaluateXCCDFRule(ctx, hostname, statsdClient, benchmark, rule, rule.InputSpecs[0].XCCDF)
 }
 
-func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmark, rule *Rule, spec *InputSpecXCCDF) []*CheckEvent {
+func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule, spec *InputSpecXCCDF) []*CheckEvent {
 	oscapIOsMu.Lock()
 	file := filepath.Join(benchmark.dirname, spec.Name)
 	p := oscapIOs[file]
@@ -216,9 +282,17 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 		reqs = append(reqs, &oscapIORule{Profile: spec.Profile, Rule: spec.Rule})
 	}
 
+	start := time.Now()
 	for _, req := range reqs {
 		select {
 		case <-ctx.Done():
+			return nil
+		case <-p.DoneCh:
+			// The oscap-io process has been terminated.
+			for _, req := range reqs {
+				log.Warnf("dropping rule '%s %s'", req.Profile, req.Rule)
+			}
+			close(p.RuleCh)
 			return nil
 		case p.RuleCh <- req:
 		}
@@ -231,7 +305,16 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 		case <-ctx.Done():
 			return nil
 		case <-c:
-			log.Warnf("timed out waiting for expected results")
+			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
+			// If no result has been received, it's likely for the oscap-io process to be stuck, so we kill it.
+			oscapIOsMu.Lock()
+			oscapIOs[p.File] = nil
+			oscapIOsMu.Unlock()
+			err := p.Kill()
+			if err != nil {
+				log.Warnf("failed to kill process: %v", err)
+			}
+			return nil
 		case err := <-p.ErrorCh:
 			log.Warnf("error: %v", err)
 			events = append(events, NewCheckError(XCCDFEvaluator, err, hostname, "host", rule, benchmark))
@@ -242,9 +325,9 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 			var event *CheckEvent
 			switch ruleResult.Result {
 			case XCCDF_RESULT_PASS:
-				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, nil, hostname, "host", rule, benchmark)
+				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_FAIL:
-				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, nil, hostname, "host", rule, benchmark)
+				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
 				errReason := fmt.Errorf("XCCDF_RESULT_ERROR")
 				event = NewCheckError(XCCDFEvaluator, errReason, hostname, "host", rule, benchmark)
@@ -256,6 +339,20 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 			if event != nil {
 				events = append(events, event)
 			}
+		}
+	}
+
+	if statsdClient != nil {
+		tags := []string{
+			"rule_id:" + rule.ID,
+			"rule_input_type:xccdf",
+			"agent_version:" + version.AgentVersion,
+		}
+		if err := statsdClient.Count(metrics.MetricInputsHits, int64(len(reqs)), tags, 1.0); err != nil {
+			log.Errorf("failed to send input metric: %v", err)
+		}
+		if err := statsdClient.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
+			log.Errorf("failed to send input metric: %v", err)
 		}
 	}
 

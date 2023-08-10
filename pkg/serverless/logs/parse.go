@@ -20,10 +20,15 @@ type platformObjectRecord struct {
 	startLogItem    startLogItem     // present in LogTypePlatformStart only
 	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
 	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
-	status          string           // recordStatus is the status of either an init or invocation phase
+	status          string           // status is the status of either an init or invocation phase
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
+// initDurationMs is sent at the very end of the tx
+// but initDurationTelemetry is also the duration in ms
+// and along with initStartTime, are provided by TelemetryAPI
+// early in the invocation, which is a bit confusing
+// TODO Astuyve - refactor out initDurationMs to draw from TelemetryAPI
 type reportLogMetrics struct {
 	durationMs            float64
 	billedDurationMs      int
@@ -31,6 +36,7 @@ type reportLogMetrics struct {
 	maxMemoryUsedMB       int
 	initDurationMs        float64
 	initDurationTelemetry float64
+	initStartTime         time.Time
 }
 
 // runtimeDoneItem contains metrics found in a LogTypePlatformRuntimeDone log
@@ -74,9 +80,15 @@ const (
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
 	// logTypePlatformInitReport is received when init finishes
 	logTypePlatformInitReport = "platform.initReport"
+	// logTypePlatformInitStart is received when init starts
+	logTypePlatformInitStart = "platform.initStart"
 
-	// errorStatus indicates the function has errored out
+	// success indicates the init or invoke phase was successful
+	successStatus string = "success"
+	// errorStatus indicates the init or invoke phase has errored out
 	errorStatus string = "error"
+	// timeoutStatus indicates the init or invoke phase has timed out
+	timeoutStatus string = "timeout"
 )
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
@@ -110,7 +122,7 @@ func (l *LambdaLogAPIMessage) UnmarshalJSON(data []byte) error {
 		l.handleDroppedRecord(j)
 	case logTypeFunction, logTypeExtension:
 		l.handleFunctionAndExtensionRecord(j, typ)
-	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone, logTypePlatformInitReport:
+	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone, logTypePlatformInitReport, logTypePlatformInitStart:
 		l.handlePlatformRecord(j, typ)
 	default:
 		// we're not parsing this kind of message yet
@@ -154,6 +166,8 @@ func (l *LambdaLogAPIMessage) handlePlatformRecord(data map[string]interface{}, 
 		l.handlePlatformRuntimeDone(objectRecord)
 	case logTypePlatformInitReport:
 		l.handlePlatformInitReport(objectRecord)
+	case logTypePlatformInitStart:
+		l.handlePlatformInitStart(objectRecord)
 	}
 }
 
@@ -173,7 +187,7 @@ func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]inter
 	}
 	metrics, ok := objectRecord["metrics"].(map[string]interface{})
 	if !ok {
-		log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+		log.Errorf("LogMessage.UnmarshalJSON: can't read the metrics object %v", objectRecord)
 		return
 	}
 	if v, ok := metrics["durationMs"].(float64); ok {
@@ -192,6 +206,10 @@ func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]inter
 		l.objectRecord.reportLogItem.initDurationMs = v
 	}
 	log.Debugf("Enhanced metrics: %+v\n", l.objectRecord.reportLogItem)
+}
+
+func (l *LambdaLogAPIMessage) handlePlatformInitStart(objectRecord map[string]interface{}) {
+	l.objectRecord.reportLogItem.initStartTime = l.time
 }
 
 func (l *LambdaLogAPIMessage) handlePlatformRuntimeDone(objectRecord map[string]interface{}) {

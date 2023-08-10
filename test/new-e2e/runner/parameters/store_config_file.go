@@ -34,8 +34,10 @@ type ConfigParams struct {
 	Agent Agent `yaml:"agent"`
 }
 type AWS struct {
+	Account       string `yaml:"account"`
 	KeyPairName   string `yaml:"keyPairName"`
 	PublicKeyPath string `yaml:"publicKeyPath"`
+	TeamTag       string `yaml:"teamTag"`
 }
 
 type Agent struct {
@@ -97,6 +99,14 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.AWS.PublicKeyPath
 	case StackParameters:
 		value = s.stackParamsJson
+	case Environments:
+		if s.config.ConfigParams.AWS.Account != "" {
+			value = "aws/" + s.config.ConfigParams.AWS.Account
+		}
+	case ExtraResourcesTags:
+		if s.config.ConfigParams.AWS.TeamTag != "" {
+			value = "team:" + s.config.ConfigParams.AWS.TeamTag
+		}
 	}
 
 	if value == "" {

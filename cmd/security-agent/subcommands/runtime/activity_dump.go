@@ -9,6 +9,8 @@ package runtime
 
 import (
 	"fmt"
+	"os"
+	"sync"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -21,7 +23,9 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,7 +36,9 @@ type activityDumpCliParams struct {
 	containerID              string
 	comm                     string
 	file                     string
-	timeout                  int
+	file2                    string
+	timeout                  string
+	format                   string
 	differentiateArgs        bool
 	localStorageDirectory    string
 	localStorageFormats      []string
@@ -51,7 +57,7 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(generateCommands(globalParams)...)
 	activityDumpCmd.AddCommand(listCommands(globalParams)...)
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
-
+	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
 	return []*cobra.Command{activityDumpCmd}
 }
 
@@ -156,11 +162,11 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"",
 		"a container identifier can be used to filter the activity dump from a specific container.",
 	)
-	activityDumpGenerateDumpCmd.Flags().IntVar(
+	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
 		flags.Timeout,
-		60,
-		"timeout for the activity dump in minutes",
+		"1m",
+		"timeout for the activity dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.differentiateArgs,
@@ -268,6 +274,183 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	return []*cobra.Command{activityDumpGenerateEncodingCmd}
 }
 
+func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpCliParams{
+		GlobalParams: globalParams,
+	}
+
+	activityDumpDiffCmd := &cobra.Command{
+		Use:   "diff",
+		Short: "compute the diff between two activity dumps",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(diffActivityDump,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle,
+			)
+		},
+	}
+
+	activityDumpDiffCmd.Flags().StringVar(
+		&cliParams.file,
+		flags.Origin,
+		"",
+		"path to the first activity dump file",
+	)
+
+	activityDumpDiffCmd.Flags().StringVar(
+		&cliParams.file2,
+		flags.Target,
+		"",
+		"path to the second activity dump file",
+	)
+
+	activityDumpDiffCmd.Flags().StringVar(
+		&cliParams.format,
+		"format",
+		"json",
+		"output formeat",
+	)
+
+	return []*cobra.Command{activityDumpDiffCmd}
+}
+
+const (
+	addedADNode   activity_tree.NodeGenerationType = 100
+	removedADNode activity_tree.NodeGenerationType = 101
+)
+
+func markADSubtree(n *activity_tree.ProcessNode, state activity_tree.NodeGenerationType) {
+	n.GenerationType = state
+	for _, child := range n.Children {
+		markADSubtree(child, state)
+	}
+}
+
+func diffADDNSNodes(p1, p2 map[string]*activity_tree.DNSNode, states map[string]bool, processID utils.GraphID) (nodes map[string]*activity_tree.DNSNode) {
+	nodes = make(map[string]*activity_tree.DNSNode)
+
+	for domain, n := range p2 {
+		if p1[domain] != nil {
+			newNode := *n
+			nodes[domain] = &newNode
+			continue
+		}
+
+		states[processID.Derive(utils.NewNodeIDFromPtr(n)).String()] = true
+		nodes[domain] = n
+	}
+
+	for domain, n := range p1 {
+		if p2[domain] != nil {
+			continue
+		}
+
+		id := processID.Derive(utils.NewNodeIDFromPtr(n)).String()
+		states[id] = false
+		nodes[domain] = n
+	}
+
+	return nodes
+}
+
+func diffADSubtree(p1, p2 []*activity_tree.ProcessNode, states map[string]bool) (nodes []*activity_tree.ProcessNode) {
+NEXT:
+	for _, n := range p2 {
+		for _, n2 := range p1 {
+			if n.Matches(&n2.Process, false) {
+				newNode := *n
+				processID := utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode))
+				newNode.Children = diffADSubtree(n.Children, n2.Children, states)
+				newNode.DNSNames = diffADDNSNodes(n.DNSNames, n2.DNSNames, states, processID)
+				nodes = append(nodes, &newNode)
+				continue NEXT
+			}
+		}
+
+		nodes = append(nodes, n)
+		markADSubtree(n, addedADNode)
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(n)).String()] = true
+	}
+
+NEXT2:
+	for _, n := range p1 {
+		for _, n2 := range p2 {
+			if n.Matches(&n2.Process, false) {
+				continue NEXT2
+			}
+		}
+
+		nodes = append(nodes, n)
+		markADSubtree(n, removedADNode)
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(n)).String()] = false
+	}
+
+	return
+}
+
+func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[string]bool) *dump.ActivityDump {
+	return &dump.ActivityDump{
+		Mutex: new(sync.Mutex),
+		ActivityTree: &activity_tree.ActivityTree{
+			ProcessNodes: diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
+		},
+	}
+}
+
+func diffActivityDump(log log.Component, config config.Component, args *activityDumpCliParams) error {
+	ad := dump.NewEmptyActivityDump(nil)
+	if err := ad.Decode(args.file); err != nil {
+		return err
+	}
+
+	ad2 := dump.NewEmptyActivityDump(nil)
+	if err := ad2.Decode(args.file2); err != nil {
+		return err
+	}
+
+	states := make(map[string]bool)
+	diff := computeActivityDumpDiff(ad, ad2, states)
+
+	switch args.format {
+	case "dot":
+		graph := diff.ToGraph()
+		for i := range graph.Nodes {
+			n := graph.Nodes[i]
+			if state, found := states[n.ID.String()]; found {
+				if state {
+					n.FillColor = "green"
+				} else {
+					n.FillColor = "red"
+				}
+			}
+		}
+		buffer, err := graph.EncodeDOT(dump.ActivityDumpGraphTemplate)
+		if err != nil {
+			return err
+		}
+		os.Stdout.Write(buffer.Bytes())
+	case "protobuf":
+		buffer, err := diff.EncodeProtobuf()
+		if err != nil {
+			return err
+		}
+		os.Stdout.Write(buffer.Bytes())
+	case "json":
+		buffer, err := diff.EncodeJSON("  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(buffer.String())
+	default:
+		return fmt.Errorf("unknown format '%s'", args.format)
+	}
+
+	return nil
+}
+
 func generateActivityDump(log log.Component, config config.Component, activityDumpArgs *activityDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
@@ -283,12 +466,12 @@ func generateActivityDump(log log.Component, config config.Component, activityDu
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		Comm:              activityDumpArgs.comm,
 		ContainerID:       activityDumpArgs.containerID,
-		Timeout:           int32(activityDumpArgs.timeout),
+		Timeout:           activityDumpArgs.timeout,
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
 		Storage:           storage,
 	})
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.Error) > 0 {
 		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
@@ -325,7 +508,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 
 	} else {
 		// encoding request will be handled locally
-		ad := dump.NewEmptyActivityDump()
+		ad := dump.NewEmptyActivityDump(nil)
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
@@ -349,7 +532,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 			return fmt.Errorf("couldn't load configuration: %w", err)
 
 		}
-		storage, err := dump.NewActivityDumpStorageManager(cfg, nil, nil)
+		storage, err := dump.NewSecurityAgentCommandStorageManager(cfg)
 		if err != nil {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
@@ -385,7 +568,7 @@ func listActivityDumps(log log.Component, config config.Component) error {
 
 	output, err := client.ListActivityDumps()
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.Error) > 0 {
 		return fmt.Errorf("activity dump list request failed: %s", output.Error)
@@ -433,7 +616,7 @@ func stopActivityDump(log log.Component, config config.Component, activityDumpAr
 
 	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.comm)
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.Error) > 0 {
 		return fmt.Errorf("activity dump stop request failed: %s", output.Error)

@@ -29,7 +29,11 @@
 #define LAYER_APPLICATION_MAX (LAYER_APPLICATION_BIT + MAX_ENTRIES_PER_LAYER)
 #define LAYER_ENCRYPTION_MAX  (LAYER_ENCRYPTION_BIT + MAX_ENTRIES_PER_LAYER)
 
-#define FLAG_FULLY_CLASSIFIED 1
+#define FLAG_FULLY_CLASSIFIED       1 << 0
+#define FLAG_USM_ENABLED            1 << 1
+#define FLAG_NPM_ENABLED            1 << 2
+#define FLAG_TCP_CLOSE_DELETION     1 << 3
+#define FLAG_SOCKET_FILTER_DELETION 1 << 4
 
 // The enum below represents all different protocols we're able to
 // classify. Entries are segmented such that it is possible to infer the
@@ -112,21 +116,5 @@ typedef enum {
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;
-
-__maybe_unused static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
-    switch(proto) {
-    case PROTOCOL_HTTP:
-        return PROG_HTTP;
-    case PROTOCOL_HTTP2:
-        return PROG_HTTP2;
-    case PROTOCOL_KAFKA:
-        return PROG_KAFKA;
-    default:
-        if (proto != PROTOCOL_UNKNOWN) {
-            log_debug("protocol doesn't have a matching program: %d\n", proto);
-        }
-        return PROG_UNKNOWN;
-    }
-}
 
 #endif

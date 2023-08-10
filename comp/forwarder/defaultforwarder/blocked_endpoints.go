@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type block struct {
@@ -26,7 +26,7 @@ type blockedEndpoints struct {
 	m                sync.RWMutex
 }
 
-func newBlockedEndpoints(config config.Component) *blockedEndpoints {
+func newBlockedEndpoints(config config.Component, log log.Component) *blockedEndpoints {
 	backoffFactor := config.GetFloat64("forwarder_backoff_factor")
 	if backoffFactor < 2 {
 		log.Warnf("Configured forwarder_backoff_factor (%v) is less than 2; 2 will be used", backoffFactor)
@@ -55,7 +55,7 @@ func newBlockedEndpoints(config config.Component) *blockedEndpoints {
 
 	return &blockedEndpoints{
 		errorPerEndpoint: make(map[string]*block),
-		backoffPolicy:    backoff.NewPolicy(backoffFactor, backoffBase, backoffMax, recInterval, recoveryReset),
+		backoffPolicy:    backoff.NewExpBackoffPolicy(backoffFactor, backoffBase, backoffMax, recInterval, recoveryReset),
 	}
 }
 

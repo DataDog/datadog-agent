@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package datadog.process;
+
+option go_package = "pkg/proto/pbgo/process"; // golang
+
+message ProcessStreamResponse {
+  int32 eventID = 1;
+  repeated ProcessEventSet setEvents = 2;
+  repeated ProcessEventUnset unsetEvents = 3;
+}
+
+message ProcessEventSet {
+  int32 pid = 1;
+  int32 nspid = 2;
+  string containerId = 3;
+  int64 creationTime = 4;
+  Language language = 5;
+}
+
+message ProcessEventUnset {
+  int32 pid = 1;
+}
+
+message Language {
+  string name = 1;
+}
+
+service ProcessEntityStream {
+  rpc StreamEntities (ProcessStreamEntitiesRequest) returns (stream ProcessStreamResponse);
+}
+
+message ProcessStreamEntitiesRequest {}

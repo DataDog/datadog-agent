@@ -96,6 +96,16 @@ func fakePodWithAnnotation(k, v string) *corev1.Pod {
 	return withContainer(pod, "-container")
 }
 
+func fakePodWithAnnotations(as map[string]string) *corev1.Pod {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "pod",
+			Annotations: as,
+		},
+	}
+	return withContainer(pod, "-container")
+}
+
 func fakePodWithEnv(name, env string) *corev1.Pod {
 	return fakePodWithContainer(name, corev1.Container{Name: name + "-container", Env: []corev1.EnvVar{fakeEnv(env)}})
 }

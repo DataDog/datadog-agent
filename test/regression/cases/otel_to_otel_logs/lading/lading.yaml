@@ -9,11 +9,11 @@ generator:
       parallel_connections: 5
       method:
         post:
-          maximum_prebuild_cache_size_bytes: "8 Mb"
+          maximum_prebuild_cache_size_bytes: "512 Mb"
           variant: "opentelemetry_traces"
 
 blackhole:
-  # AMP ingest listener
+  # API ingest listener
   - http:
       binding_addr: "127.0.0.1:9091"
       body_variant: "nothing"

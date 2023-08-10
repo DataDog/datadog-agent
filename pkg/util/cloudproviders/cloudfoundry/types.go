@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudfoundry-community/go-cfclient"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -583,7 +583,7 @@ func (c *CFClient) ListSidecarsByApp(query url.Values, appGUID string) ([]CFSide
 		r := c.NewRequest("GET", requestURL+"?"+query.Encode())
 		resp, err := c.DoRequest(r)
 		if err != nil {
-			return nil, fmt.Errorf("Error requesting sidecars for app: %s", err)
+			return nil, fmt.Errorf("Error requesting sidecars for app %s: %s", appGUID, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {

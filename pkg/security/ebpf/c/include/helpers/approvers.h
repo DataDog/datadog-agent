@@ -4,16 +4,16 @@
 #include "constants/enums.h"
 #include "maps.h"
 
-int __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
+void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
     if (approver_stats == NULL) {
-        return 0;
+        return;
     }
 
     u32 key = event_type;
     struct approver_stats_t *stats = bpf_map_lookup_elem(approver_stats, &key);
     if (stats == NULL) {
-        return 0;
+        return;
     }
 
     if (approver_type == BASENAME_APPROVER_TYPE) {
@@ -21,8 +21,6 @@ int __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 ap
     } else if (approver_type == FLAG_APPROVER_TYPE) {
         __sync_fetch_and_add(&stats->event_approved_by_flag, 1);
     }
-
-    return 0;
 }
 
 void get_dentry_name(struct dentry *dentry, void *buffer, size_t n);
@@ -138,7 +136,7 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
 #ifdef DEBUG
-        bpf_printk("open flags %d approved\n", syscall->open.flags);
+        bpf_printk("open flags %d approved", syscall->open.flags);
 #endif
         return 1;
     }

@@ -139,9 +139,10 @@ func resetPackageVars() {
 	secretCache = map[string]string{}
 	secretOrigin = make(handleToContext)
 	secretFetcher = fetchSecret
-	secretBackendTimeout = 0
+	secretBackendTimeout = 5
 	scrubberAddReplacer = scrubber.AddStrippedKeys
 	removeTrailingLinebreak = false
+	SecretBackendOutputMaxSize = 1024 * 1024
 }
 
 func TestIsEnc(t *testing.T) {

@@ -13,57 +13,79 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	crd "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 )
+
+func newCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
+	bundle := &CollectorBundle{
+		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
+		check:              chk,
+		inventory:          inventory.NewCollectorInventory(),
+		runCfg: &collectors.CollectorRunConfig{
+			APIClient:                   chk.apiClient,
+			ClusterID:                   chk.clusterID,
+			Config:                      chk.orchestratorConfig,
+			MsgGroupRef:                 chk.groupID,
+			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+		},
+		stopCh:              chk.stopCh,
+		manifestBuffer:      NewManifestBuffer(chk),
+		activatedCollectors: map[string]struct{}{},
+	}
+	bundle.importCollectorsFromInventory()
+	bundle.prepareExtraSyncTimeout()
+	return bundle
+}
 
 // TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again
 func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var wg sync.WaitGroup
 
 	client := fake.NewSimpleClientset()
-	informerFactory := informers.NewSharedInformerFactory(client, 0)
-	cl := &apiserver.APIClient{Cl: client, InformerFactory: informerFactory, UnassignedPodInformerFactory: informerFactory}
+	vpaClient := vpa.NewSimpleClientset()
+	crdClient := crd.NewSimpleClientset()
+	cl := &apiserver.APIClient{Cl: client, VPAClient: vpaClient, CRDClient: crdClient}
 	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
-	bundle := NewCollectorBundle(orchCheck)
+	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
+	bundle := newCollectorBundle(orchCheck)
 	err := bundle.Initialize()
 	assert.NoError(t, err)
 
 	wg.Add(2)
 
-	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
-	_, err = nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	// getting rescheduled.
+	orchCheck.Cancel()
+
+	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
+	bundle.stopCh = make(chan struct{})
+	err = bundle.Initialize()
+	assert.NoError(t, err)
+
+	_, err = bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			wg.Done()
 		},
 	})
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	writeNode(t, client, "1")
-
-	// getting rescheduled.
-	orchCheck.Cancel()
-	// This part is not optimal as the cancel closes a channel which gets propagated everywhere that might take some time.
-	// If things are too fast the close is not getting propagated fast enough.
-	// But even if we are too fast and don't catch that part it will not lead to a false positive
-	time.Sleep(1 * time.Millisecond)
-	err = bundle.Initialize()
-	assert.NoError(t, err)
 	writeNode(t, client, "2")
 
-	wg.Wait()
+	assert.True(t, waitTimeout(&wg, 2*time.Second))
+
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {
@@ -76,4 +98,19 @@ func writeNode(t *testing.T, client *fake.Clientset, version string) {
 	}
 	_, err := client.CoreV1().Nodes().Create(context.TODO(), &kubeN, metav1.CreateOptions{})
 	assert.NoError(t, err)
+}
+
+// waitTimeout returns true if wg is completed and false if time is up
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }

@@ -35,7 +35,7 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	}, 1*time.Second, 10*time.Millisecond)
 
 	// Verify that the IP from the connections above maps to the right name
-	payload := []util.Address{srcAddr, destAddr}
+	payload := map[util.Address]struct{}{srcAddr: {}, destAddr: {}}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
 	assert.Contains(t, names[destAddr], ToHostname(destName))

@@ -15,7 +15,8 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
-func ProtoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
+// ProtoToSecurityProfile decodes a Security Profile from its protobuf representation
+func ProtoToSecurityProfile(output *SecurityProfile, pathsReducer *activity_tree.PathsReducer, input *proto.SecurityProfile) {
 	if input == nil {
 		return
 	}
@@ -30,6 +31,6 @@ func ProtoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 	output.Syscalls = make([]uint32, len(input.Syscalls))
 	copy(output.Syscalls, input.Syscalls)
 
-	output.ActivityTree = activity_tree.NewActivityTree(output, "security_profile")
+	output.ActivityTree = activity_tree.NewActivityTree(output, pathsReducer, "security_profile")
 	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)
 }

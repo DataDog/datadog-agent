@@ -58,12 +58,9 @@ func (c *NodeCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *NodeCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Nodes()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *NodeCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *NodeCollector) Metadata() *collectors.CollectorMetadata {

@@ -27,6 +27,7 @@ type SecurityModuleClient interface {
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
 	GetStatus(ctx context.Context, in *GetStatusParams, opts ...grpc.CallOption) (*Status, error)
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
+	GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportResultMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error)
@@ -36,6 +37,9 @@ type SecurityModuleClient interface {
 	StopActivityDump(ctx context.Context, in *ActivityDumpStopParams, opts ...grpc.CallOption) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(ctx context.Context, in *TranscodingRequestParams, opts ...grpc.CallOption) (*TranscodingRequestMessage, error)
 	GetActivityDumpStream(ctx context.Context, in *ActivityDumpStreamParams, opts ...grpc.CallOption) (SecurityModule_GetActivityDumpStreamClient, error)
+	// Security Profiles
+	ListSecurityProfiles(ctx context.Context, in *SecurityProfileListParams, opts ...grpc.CallOption) (*SecurityProfileListMessage, error)
+	SaveSecurityProfile(ctx context.Context, in *SecurityProfileSaveParams, opts ...grpc.CallOption) (*SecurityProfileSaveMessage, error)
 }
 
 type securityModuleClient struct {
@@ -108,6 +112,15 @@ func (c *securityModuleClient) GetStatus(ctx context.Context, in *GetStatusParam
 func (c *securityModuleClient) RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error) {
 	out := new(SecuritySelfTestResultMessage)
 	err := c.cc.Invoke(ctx, "/api.SecurityModule/RunSelfTest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) GetRuleSetReport(ctx context.Context, in *GetRuleSetReportParams, opts ...grpc.CallOption) (*GetRuleSetReportResultMessage, error) {
+	out := new(GetRuleSetReportResultMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/GetRuleSetReport", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +222,24 @@ func (x *securityModuleGetActivityDumpStreamClient) Recv() (*ActivityDumpStreamM
 	return m, nil
 }
 
+func (c *securityModuleClient) ListSecurityProfiles(ctx context.Context, in *SecurityProfileListParams, opts ...grpc.CallOption) (*SecurityProfileListMessage, error) {
+	out := new(SecurityProfileListMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/ListSecurityProfiles", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) SaveSecurityProfile(ctx context.Context, in *SecurityProfileSaveParams, opts ...grpc.CallOption) (*SecurityProfileSaveMessage, error) {
+	out := new(SecurityProfileSaveMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/SaveSecurityProfile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SecurityModuleServer is the server API for SecurityModule service.
 // All implementations must embed UnimplementedSecurityModuleServer
 // for forward compatibility
@@ -218,6 +249,7 @@ type SecurityModuleServer interface {
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
 	GetStatus(context.Context, *GetStatusParams) (*Status, error)
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
+	GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportResultMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
 	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error)
@@ -227,6 +259,9 @@ type SecurityModuleServer interface {
 	StopActivityDump(context.Context, *ActivityDumpStopParams) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(context.Context, *TranscodingRequestParams) (*TranscodingRequestMessage, error)
 	GetActivityDumpStream(*ActivityDumpStreamParams, SecurityModule_GetActivityDumpStreamServer) error
+	// Security Profiles
+	ListSecurityProfiles(context.Context, *SecurityProfileListParams) (*SecurityProfileListMessage, error)
+	SaveSecurityProfile(context.Context, *SecurityProfileSaveParams) (*SecurityProfileSaveMessage, error)
 	mustEmbedUnimplementedSecurityModuleServer()
 }
 
@@ -248,6 +283,9 @@ func (UnimplementedSecurityModuleServer) GetStatus(context.Context, *GetStatusPa
 }
 func (UnimplementedSecurityModuleServer) RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunSelfTest not implemented")
+}
+func (UnimplementedSecurityModuleServer) GetRuleSetReport(context.Context, *GetRuleSetReportParams) (*GetRuleSetReportResultMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRuleSetReport not implemented")
 }
 func (UnimplementedSecurityModuleServer) ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
@@ -272,6 +310,12 @@ func (UnimplementedSecurityModuleServer) TranscodingRequest(context.Context, *Tr
 }
 func (UnimplementedSecurityModuleServer) GetActivityDumpStream(*ActivityDumpStreamParams, SecurityModule_GetActivityDumpStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetActivityDumpStream not implemented")
+}
+func (UnimplementedSecurityModuleServer) ListSecurityProfiles(context.Context, *SecurityProfileListParams) (*SecurityProfileListMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSecurityProfiles not implemented")
+}
+func (UnimplementedSecurityModuleServer) SaveSecurityProfile(context.Context, *SecurityProfileSaveParams) (*SecurityProfileSaveMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveSecurityProfile not implemented")
 }
 func (UnimplementedSecurityModuleServer) mustEmbedUnimplementedSecurityModuleServer() {}
 
@@ -375,6 +419,24 @@ func _SecurityModule_RunSelfTest_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SecurityModuleServer).RunSelfTest(ctx, req.(*RunSelfTestParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_GetRuleSetReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRuleSetReportParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).GetRuleSetReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/GetRuleSetReport",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).GetRuleSetReport(ctx, req.(*GetRuleSetReportParams))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -526,6 +588,42 @@ func (x *securityModuleGetActivityDumpStreamServer) Send(m *ActivityDumpStreamMe
 	return x.ServerStream.SendMsg(m)
 }
 
+func _SecurityModule_ListSecurityProfiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SecurityProfileListParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).ListSecurityProfiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/ListSecurityProfiles",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).ListSecurityProfiles(ctx, req.(*SecurityProfileListParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_SaveSecurityProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SecurityProfileSaveParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).SaveSecurityProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/SaveSecurityProfile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).SaveSecurityProfile(ctx, req.(*SecurityProfileSaveParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SecurityModule_ServiceDesc is the grpc.ServiceDesc for SecurityModule service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -548,6 +646,10 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RunSelfTest",
 			Handler:    _SecurityModule_RunSelfTest_Handler,
+		},
+		{
+			MethodName: "GetRuleSetReport",
+			Handler:    _SecurityModule_GetRuleSetReport_Handler,
 		},
 		{
 			MethodName: "ReloadPolicies",
@@ -576,6 +678,14 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TranscodingRequest",
 			Handler:    _SecurityModule_TranscodingRequest_Handler,
+		},
+		{
+			MethodName: "ListSecurityProfiles",
+			Handler:    _SecurityModule_ListSecurityProfiles_Handler,
+		},
+		{
+			MethodName: "SaveSecurityProfile",
+			Handler:    _SecurityModule_SaveSecurityProfile_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -12,8 +12,9 @@ import (
 	"path"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	ec2vm "github.com/DataDog/test-infra-definitions/aws/scenarios/vm/ec2VM"
-	"github.com/DataDog/test-infra-definitions/datadog/agent/docker"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -93,10 +94,10 @@ func NewTestEnv() (*TestEnv, error) {
 		envVars := map[string]string{"DATA_DIR": dataPath, "CONFIG_DIR": configPath}
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}
 		composeDependencies = append(composeDependencies, fileCommands...)
-		_, err = docker.NewAgentDockerInstaller(
-			vm.UnixVM,
-			docker.WithComposeContent(snmpCompose, envVars),
-			docker.WithPulumiResources(pulumi.DependsOn(composeDependencies)),
+		_, err = docker.NewDaemon(
+			ctx,
+			dockerparams.WithComposeContent(snmpCompose, envVars),
+			dockerparams.WithPulumiResources(pulumi.DependsOn(composeDependencies)),
 		)
 		return err
 	}, false)

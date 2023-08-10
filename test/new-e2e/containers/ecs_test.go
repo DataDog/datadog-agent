@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	"github.com/DataDog/test-infra-definitions/aws/scenarios/ecs"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
 	"github.com/cenkalti/backoff"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -24,6 +24,8 @@ import (
 )
 
 func TestAgentOnECS(t *testing.T) {
+	t.Parallel()
+
 	// Creating the stack
 	stackConfig := runner.ConfigMap{
 		"ddinfra:aws/ecs/linuxECSOptimizedNodeGroup": auto.ConfigValue{Value: "false"},

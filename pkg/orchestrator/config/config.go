@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -21,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -160,7 +161,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 
 // NewOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder() forwarder.Forwarder {
+func NewOrchestratorForwarder(log log.Component) forwarder.Forwarder {
 	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		return nil
 	}
@@ -172,10 +173,10 @@ func NewOrchestratorForwarder() forwarder.Forwarder {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(keysPerDomain))
+	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-	return forwarder.NewDefaultForwarder(config.Datadog, orchestratorForwarderOpts)
+	return forwarder.NewDefaultForwarder(config.Datadog, log, orchestratorForwarderOpts)
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
@@ -186,11 +187,11 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 	val := config.Datadog.GetInt(configKey)
 
 	if val <= 0 {
-		log.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
+		pkglog.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
 		return
 	}
 	if val > upperBound {
-		log.Warnf("Ignoring invalid value for setting %s (exceeds maximum allowed value %d)", configKey, upperBound)
+		pkglog.Warnf("Ignoring invalid value for setting %s (exceeds maximum allowed value %d)", configKey, upperBound)
 		return
 	}
 

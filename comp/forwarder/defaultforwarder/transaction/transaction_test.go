@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -51,7 +53,8 @@ func TestProcess(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfig.Mock(t)
-	err := transaction.Process(context.Background(), mockConfig, client)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.Nil(t, err)
 }
 
@@ -65,7 +68,8 @@ func TestProcessInvalidDomain(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfig.Mock(t)
-	err := transaction.Process(context.Background(), mockConfig, client)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.Nil(t, err)
 }
 
@@ -79,7 +83,8 @@ func TestProcessNetworkError(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfig.Mock(t)
-	err := transaction.Process(context.Background(), mockConfig, client)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
 }
 
@@ -100,21 +105,22 @@ func TestProcessHTTPError(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfig.Mock(t)
-	err := transaction.Process(context.Background(), mockConfig, client)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), mockConfig, client)
+	err = transaction.Process(context.Background(), mockConfig, log, client)
 	assert.Nil(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), mockConfig, client)
+	err = transaction.Process(context.Background(), mockConfig, log, client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), mockConfig, client)
+	err = transaction.Process(context.Background(), mockConfig, log, client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 }
@@ -131,7 +137,8 @@ func TestProcessCancel(t *testing.T) {
 	cancel()
 
 	mockConfig := pkgconfig.Mock(t)
-	err := transaction.Process(ctx, mockConfig, client)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	err := transaction.Process(ctx, mockConfig, log, client)
 	assert.Nil(t, err)
 }
 

@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
@@ -31,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -118,7 +119,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	outputDatadogEnvVariablesForDebugging()
 
 	if !hasApiKey() {
-		log.Errorf("Can't start the Datadog extension as no API has been detected")
+		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
 		// we still need to register the extension but let's return after (no-op)
 		id, registrationError := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
 		if registrationError != nil {
@@ -134,11 +135,12 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
+	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
 	} else {
-		serverlessDaemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
+		serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 		serverlessDaemon.StartLogCollection()
 	}
 	// serverless parts
@@ -212,12 +214,12 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
-	initDurationChan := make(chan float64)
+	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), initDurationChan)
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
@@ -296,11 +298,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Wait()
 
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
-		LambdaSpanChan:   lambdaSpanChan,
-		InitDurationChan: initDurationChan,
-		TraceAgent:       serverlessDaemon.TraceAgent,
-		StopChan:         make(chan struct{}),
-		ColdStartSpanId:  coldStartSpanId,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		TraceAgent:           serverlessDaemon.TraceAgent,
+		StopChan:             make(chan struct{}),
+		ColdStartSpanId:      coldStartSpanId,
 	}
 
 	log.Debug("Starting ColdStartSpanCreator")

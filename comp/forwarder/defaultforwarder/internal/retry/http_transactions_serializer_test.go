@@ -14,8 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const apiKey1 = "apiKey1"
@@ -36,8 +38,8 @@ func TestHTTPSerializeDeserializeWithResolverOverride(t *testing.T) {
 func runTestHTTPSerializeDeserializeWithResolver(t *testing.T, d string, r resolver.DomainResolver) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests(d)
-
-	serializer := NewHTTPTransactionsSerializer(r)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	serializer := NewHTTPTransactionsSerializer(log, r)
 
 	a.NoError(serializer.Add(tr))
 	bytes, err := serializer.GetBytesAndReset()
@@ -62,7 +64,8 @@ func runTestHTTPSerializeDeserializeWithResolver(t *testing.T, d string, r resol
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	initialTransaction := createHTTPTransactionTests(domain)
-	serializer := NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domain, nil))
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, nil))
 
 	a.NoError(serializer.Add(initialTransaction))
 	a.NoError(serializer.Add(initialTransaction))
@@ -83,8 +86,8 @@ func TestPartialDeserialize(t *testing.T) {
 
 func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
-
-	serializer := NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domain, []string{apiKey1, apiKey2}))
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, []string{apiKey1, apiKey2}))
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)))
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey2}}, domain)))
@@ -95,7 +98,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r.NoError(err)
 	r.Equal(0, errorCount)
 
-	serializerMissingAPIKey := NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domain, []string{apiKey1}))
+	serializerMissingAPIKey := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, []string{apiKey1}))
 	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.NoError(err)
 	r.Equal(1, errorCount)

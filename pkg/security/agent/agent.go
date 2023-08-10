@@ -44,14 +44,20 @@ type RuntimeSecurityAgent struct {
 	storage *dump.ActivityDumpStorageManager
 }
 
+// RSAOptions represents the runtime security agent options
+type RSAOptions struct {
+	LogProfiledWorkloads    bool
+	IgnoreDDAgentContainers bool
+}
+
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string, logProfiledWorkloads bool) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(hostname string, opts RSAOptions) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry, err := newTelemetry(logProfiledWorkloads)
+	telemetry, err := newTelemetry(opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}

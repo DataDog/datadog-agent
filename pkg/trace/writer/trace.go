@@ -13,15 +13,13 @@ import (
 	"sync"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -248,7 +246,7 @@ func (w *TraceWriter) flush() {
 		TracerPayloads:     w.tracerPayloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
-	b, err := proto.Marshal(&p)
+	b, err := p.MarshalVT()
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return

@@ -198,6 +198,13 @@
         "async": {
           "type": "boolean",
           "description": "True if the event was asynchronous"
+        },
+        "matched_rules": {
+          "items": {
+            "$ref": "#/$defs/MatchedRule"
+          },
+          "type": "array",
+          "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
         }
       },
       "additionalProperties": false,
@@ -310,6 +317,17 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+          "type": "string",
+          "description": "State of the hashes or reason why they weren't computed"
         }
       },
       "additionalProperties": false,
@@ -408,6 +426,17 @@
           "type": "string",
           "description": "System package version"
         },
+        "hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+          "type": "string",
+          "description": "State of the hashes or reason why they weren't computed"
+        },
         "destination": {
           "$ref": "#/$defs/File",
           "description": "Target file information"
@@ -415,10 +444,6 @@
         "new_mount_id": {
           "type": "integer",
           "description": "New Mount ID"
-        },
-        "group_id": {
-          "type": "integer",
-          "description": "Group ID"
         },
         "device": {
           "type": "integer",
@@ -543,6 +568,36 @@
       ],
       "description": "MProtectEventSerializer serializes a mmap event to JSON"
     },
+    "MatchedRule": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID of the rule"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the rule"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Tags of the rule"
+        },
+        "policy_name": {
+          "type": "string",
+          "description": "Name of the policy that introduced the rule"
+        },
+        "policy_version": {
+          "type": "string",
+          "description": "Version of the policy that introduced the rule"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "MatchedRuleSerializer serializes a rule"
+    },
     "ModuleEvent": {
       "properties": {
         "name": {
@@ -581,9 +636,6 @@
         "mount_id": {
           "type": "integer"
         },
-        "group_id": {
-          "type": "integer"
-        },
         "parent_mount_id": {
           "type": "integer"
         },
@@ -613,7 +665,6 @@
       "type": "object",
       "required": [
         "mount_id",
-        "group_id",
         "parent_mount_id",
         "bind_src_mount_id",
         "device"
@@ -812,6 +863,10 @@
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
         },
+        "is_exec_child": {
+          "type": "boolean",
+          "description": "Indicates wether the process is an exec child of its parent"
+        },
         "source": {
           "type": "string",
           "description": "Process source"
@@ -931,6 +986,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "is_exec_child": {
+          "type": "boolean",
+          "description": "Indicates wether the process is an exec child of its parent"
         },
         "source": {
           "type": "string",

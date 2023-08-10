@@ -12,7 +12,9 @@
 #ifndef _WIN32
 // clang-format off
 // handler stuff
+#ifdef HAS_BACKTRACE_LIB
 #include <execinfo.h>
+#endif
 #include <csignal>
 #include <cstring>
 #include <sys/types.h>
@@ -325,6 +327,11 @@ char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->getCheckWarnings(AS_TYPE(RtLoaderPyObject, check));
 }
 
+char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
+{
+    return AS_TYPE(RtLoader, rtloader)->getCheckDiagnoses(AS_TYPE(RtLoaderPyObject, check));
+}
+
 /*
  * error API
  */
@@ -371,11 +378,14 @@ static inline void core(int sig)
 #    define STACKTRACE_SIZE 500
 void signalHandler(int sig, siginfo_t *, void *)
 {
+#    ifdef HAS_BACKTRACE_LIB
     void *buffer[STACKTRACE_SIZE];
     char **symbols;
 
     size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
+#    endif
     std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << std::endl;
+#    ifdef HAS_BACKTRACE_LIB
     symbols = backtrace_symbols(buffer, nptrs);
     if (symbols == NULL) {
         std::cerr << "Error getting backtrace symbols" << std::endl;
@@ -387,6 +397,7 @@ void signalHandler(int sig, siginfo_t *, void *)
 
         _free(symbols);
     }
+#    endif
 
     // dump core if so configured
     __sync_synchronize();

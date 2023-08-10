@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"sync"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
 // prebuiltModulesInUse is a global object which is responsible for keeping a list of all the prebuilt ebpf assets in use.
 // This is used to report ebpf asset telemetry
-var prebuiltModulesInUse = []string{}
+var prebuiltModulesInUse = map[string]struct{}{}
 var telemetrymu sync.Mutex
 
 func ModuleFileName(moduleName string, debug bool) string {
@@ -35,8 +37,7 @@ func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, er
 
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
-	prebuiltModulesInUse = append(prebuiltModulesInUse, moduleName)
-
+	prebuiltModulesInUse[moduleName] = struct{}{}
 	return ebpfReader, nil
 }
 
@@ -48,6 +49,11 @@ func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 // ReadHTTPModule from the asset file
 func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "usm", debug)
+}
+
+// ReadSharedLibrariesModule from the asset file
+func ReadSharedLibrariesModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "shared-libraries", debug)
 }
 
 // ReadDNSModule from the asset file
@@ -66,24 +72,12 @@ func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 
 // ReadConntrackBPFModule from the asset file
 func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "conntrack.o"
-	if debug {
-		file = "conntrack-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readModule(bpfDir, "conntrack", debug)
 }
 
 func GetModulesInUse() []string {
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
 
-	result := make([]string, len(prebuiltModulesInUse))
-	copy(result, prebuiltModulesInUse)
-	return result
+	return maps.Keys(prebuiltModulesInUse)
 }

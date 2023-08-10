@@ -520,7 +520,7 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
 
-            for (int jdx = 0; jdx < numWarnings && warnings[jdx]; jdx++) {
+            for (int jdx = 0; jdx < idx; jdx++) {
                 _free(warnings[jdx]);
             }
             _free(warnings);
@@ -534,6 +534,38 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
 done:
     Py_XDECREF(warns_list);
     return warnings;
+}
+
+char *Three::getCheckDiagnoses(RtLoaderPyObject *check)
+{
+    if (check == NULL) {
+        return NULL;
+    }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
+    char func_name[] = "get_diagnoses";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, func_name, NULL);
+    if (result == NULL || !PyUnicode_Check(result)) {
+        ret = _createInternalErrorDiagnoses(_fetchPythonError().c_str());
+        goto done;
+    }
+
+    ret = as_string(result);
+    if (ret == NULL) {
+        // as_string clears the error, so we can't fetch it here
+        ret = _createInternalErrorDiagnoses("error converting 'get_diagnoses' result to string");
+        goto done;
+    }
+
+done:
+    Py_XDECREF(result);
+    return ret;
 }
 
 // return new reference

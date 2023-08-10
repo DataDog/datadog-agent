@@ -31,6 +31,9 @@ const (
 	SnapshotInterfaces = "snapshot-interfaces"
 	RuleID             = "rule-id" // Also for compliance subcommand
 
+	// Runtime Policy Check Subcommand
+	EvaluateLoadedPolicies = "loaded-policies"
+
 	// Runtime Activity Dump Subcommand
 	Name              = "name"
 	ContainerID       = "containerID"
@@ -44,6 +47,14 @@ const (
 	RemoteFormat      = "remote-format"
 	Input             = "input"
 	Remote            = "remote"
+	Origin            = "origin"
+	Target            = "target"
+
+	// Security Profile Subcommand
+	SecurityProfileInput = "input"
+	IncludeCache         = "include-cache"
+	ImageName            = "name"
+	ImageTag             = "tag"
 
 	// Compliance Subcommand
 	SourceType   = "source-type"

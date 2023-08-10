@@ -12,12 +12,12 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -60,6 +60,7 @@ func initForwarderHealthExpvars() {
 // forwarderHealth report the health status of the Forwarder. A Forwarder is
 // unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
+	log                   log.Component
 	health                *health.Handle
 	stop                  chan bool
 	stopped               chan struct{}
@@ -111,7 +112,7 @@ func (fh *forwarderHealth) Stop() {
 }
 
 func (fh *forwarderHealth) healthCheckLoop() {
-	log.Debug("Waiting for APIkey validity to be confirmed.")
+	fh.log.Debug("Waiting for APIkey validity to be confirmed.")
 
 	validateTicker := time.NewTicker(fh.validationInterval)
 	defer validateTicker.Stop()
@@ -120,7 +121,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	valid := fh.hasValidAPIKey()
 	// If no key is valid, no need to keep checking, they won't magically become valid
 	if !valid {
-		log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+		fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 		return
 	}
 
@@ -131,7 +132,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 		case <-validateTicker.C:
 			valid := fh.hasValidAPIKey()
 			if !valid {
-				log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+				fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 				return
 			}
 		case <-fh.health.C:
@@ -214,7 +215,7 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 		for _, apiKey := range apiKeys {
 			v, err := fh.validateAPIKey(apiKey, domain)
 			if err != nil {
-				log.Debugf(
+				fh.log.Debugf(
 					"api_key '%s' for domain %s could not be validated: %s",
 					apiKey,
 					domain,
@@ -222,10 +223,10 @@ func (fh *forwarderHealth) hasValidAPIKey() bool {
 				)
 				apiError = true
 			} else if v {
-				log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)
+				fh.log.Debugf("api_key '%s' for domain %s is valid", apiKey, domain)
 				validKey = true
 			} else {
-				log.Warnf("api_key '%s' for domain %s is invalid", apiKey, domain)
+				fh.log.Warnf("api_key '%s' for domain %s is invalid", apiKey, domain)
 			}
 		}
 	}

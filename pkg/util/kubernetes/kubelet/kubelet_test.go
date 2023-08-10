@@ -432,7 +432,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_https_kubelet_port", -1)
-	mockConfig.Set("kubelet_wait_on_missing_container", 1)
+	mockConfig.Set("kubelet_wait_on_missing_container", 5)
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -559,6 +559,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	mockConfig.Set("kubelet_auth_token_path", "./testdata/fakeBearerToken")
 	mockConfig.Set("kubelet_tls_verify", false)
 	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubelet_client_ca", "./testdata/ca.crt")
 
 	ku := NewKubeUtil()
 	err = ku.init()
@@ -577,6 +578,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 		map[string]string{
 			"url":        fmt.Sprintf("https://127.0.0.1:%d", kubeletPort),
 			"verify_tls": "false",
+			"ca_cert":    "./testdata/ca.crt",
 			"token":      "fakeBearerToken",
 		}, ku.GetRawConnectionInfo())
 }
@@ -597,7 +599,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 
 	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_http_kubelet_port", -1)
-	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.Set("kubelet_auth_token_path", "./testdata/fakeBearerToken")
 	mockConfig.Set("kubelet_tls_verify", true)
 	mockConfig.Set("kubelet_client_crt", k.testingCertificate)
 	mockConfig.Set("kubelet_client_key", k.testingPrivateKey)
@@ -610,16 +612,20 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	<-k.Requests // Throwing away first GET
 
 	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletClient.kubeletURL)
-	assert.False(suite.T(), ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	if transport, ok := ku.kubeletClient.client.Transport.(*http.Transport); ok {
+		assert.False(suite.T(), transport.TLSClientConfig.InsecureSkipVerify)
+	}
 	b, code, err := ku.QueryKubelet(ctx, "/healthz")
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	r := <-k.Requests
-	assert.Equal(suite.T(), "", r.Header.Get(authorizationHeaderKey))
-	clientCerts := ku.kubeletClient.client.Transport.(*http.Transport).TLSClientConfig.Certificates
-	require.Equal(suite.T(), 1, len(clientCerts))
-	assert.Equal(suite.T(), clientCerts, s.TLS.Certificates)
+	assert.Equal(suite.T(), "Bearer fakeBearerToken", r.Header.Get(authorizationHeaderKey))
+	if transport, ok := ku.kubeletClient.client.Transport.(*http.Transport); ok {
+		clientCerts := transport.TLSClientConfig.Certificates
+		require.Equal(suite.T(), 1, len(clientCerts))
+		assert.Equal(suite.T(), clientCerts, s.TLS.Certificates)
+	}
 
 	require.EqualValues(suite.T(),
 		map[string]string{
@@ -628,6 +634,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 			"client_crt": k.testingCertificate,
 			"client_key": k.testingPrivateKey,
 			"ca_cert":    k.testingCertificate,
+			"token":      "fakeBearerToken",
 		}, ku.GetRawConnectionInfo())
 }
 
@@ -767,7 +774,9 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 4)
+	require.Len(suite.T(), pods.Items, 4)
+
+	assert.Equal(suite.T(), pods.ExpiredCount, 0)
 }
 
 func (suite *KubeletTestSuite) TestPodListExpire() {
@@ -805,12 +814,14 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 3)
+	require.Len(suite.T(), pods.Items, 3)
+
+	assert.Equal(suite.T(), pods.ExpiredCount, 1)
 
 	// Test we kept the right pods
 	expectedNames := []string{"dd-agent-ntepl", "hello5-1550509440-rlgvf", "hello8-1550505780-kdnjx"}
 	var podNames []string
-	for _, p := range pods {
+	for _, p := range pods.Items {
 		podNames = append(podNames, p.Metadata.Name)
 	}
 	assert.Equal(suite.T(), expectedNames, podNames)
@@ -851,9 +862,9 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 1)
+	require.Len(suite.T(), pods.Items, 1)
 
-	for _, po := range pods {
+	for _, po := range pods.Items {
 		require.NotNil(suite.T(), po)
 	}
 }
@@ -904,10 +915,10 @@ func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 9)
+	require.Len(suite.T(), pods.Items, 9)
 
 	found := false
-	for _, po := range pods {
+	for _, po := range pods.Items {
 		if po.Metadata.Name == "cassandra-0" {
 			found = po.Spec.Volumes[0].PersistentVolumeClaim.ClaimName == "cassandra-data-cassandra-0"
 			break

@@ -9,8 +9,8 @@ import (
 	"context"
 	"testing"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/stretchr/testify/assert"
@@ -141,7 +141,18 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key ?",
-		&config.ObfuscationConfig{Redis: config.Enablable{Enabled: true}},
+		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{Enabled: true}},
+	))
+
+	t.Run("redis/remove_all_args", testConfig(
+		"redis",
+		"redis.raw_command",
+		"SET key val",
+		"SET ?",
+		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{
+			Enabled:       true,
+			RemoveAllArgs: true,
+		}},
 	))
 
 	t.Run("redis/disabled", testConfig(
@@ -268,7 +279,7 @@ func TestSQLResourceWithoutQuery(t *testing.T) {
 
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
-	testCases := []struct {
+	testCases := []*struct {
 		span pb.Span
 	}{
 		{

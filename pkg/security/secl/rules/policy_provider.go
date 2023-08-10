@@ -20,4 +20,7 @@ type PolicyProvider interface {
 
 	Start()
 	Close() error
+
+	// Type returns the type of policy provider, like 'directoryPolicyProvider'
+	Type() string
 }

@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
@@ -156,6 +156,19 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
 	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("fake:").String())
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
+}
+
+func (suite *AgentTestSuite) TestGetPipelineProvider() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createAgent(endpoints)
+	agent.Start()
+
+	assert.NotNil(suite.T(), agent.GetPipelineProvider())
 }
 
 func TestAgentTestSuite(t *testing.T) {

@@ -98,6 +98,7 @@ class RemoteAPI(object):
             m = errno_regex.match(str(e))
             if not m:
                 print(f"Unknown error raised connecting to {self.api_name} ({url}): {e}")
+                raise e
 
             # Parse errno to give a better explanation
             # Requests doesn't have granularity at the level we want:

@@ -32,6 +32,7 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 		TracingHeaderTags              []TracingHeaderTagEntry
 		TracingPartialFlushMinSpans    *int
 		TracingDebug                   *bool
+		DataStreams                    *bool
 		TracingLogLevel                *string
 		TracingMethods                 []string
 		TracingPropagationStyleInject  []string
@@ -75,6 +76,7 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 				},
 				TracingPartialFlushMinSpans:    pointer.Ptr(100),
 				TracingDebug:                   pointer.Ptr(true),
+				DataStreams:                    pointer.Ptr(true),
 				TracingLogLevel:                pointer.Ptr("DEBUG"),
 				TracingMethods:                 []string{"modA.method", "modB.method"},
 				TracingPropagationStyleInject:  []string{"Datadog", "B3", "W3C"},
@@ -153,6 +155,10 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 					Name:  "DD_PROPAGATION_STYLE_EXTRACT",
 					Value: "W3C,B3,Datadog",
 				},
+				{
+					Name:  "DD_DATA_STREAMS_ENABLED",
+					Value: "true",
+				},
 			},
 		},
 		{
@@ -196,6 +202,7 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 				TracingHeaderTags:              tt.fields.TracingHeaderTags,
 				TracingPartialFlushMinSpans:    tt.fields.TracingPartialFlushMinSpans,
 				TracingDebug:                   tt.fields.TracingDebug,
+				DataStreams:                    tt.fields.DataStreams,
 				TracingLogLevel:                tt.fields.TracingLogLevel,
 				TracingMethods:                 tt.fields.TracingMethods,
 				TracingPropagationStyleInject:  tt.fields.TracingPropagationStyleInject,

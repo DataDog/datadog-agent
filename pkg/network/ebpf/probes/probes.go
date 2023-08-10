@@ -61,9 +61,6 @@ const (
 	// This probe is used for offset guessing only
 	SockGetSockOpt ProbeFuncName = "kprobe__sock_common_getsockopt"
 
-	// TCPSetState traces the tcp_set_state() kernel function
-	TCPSetState ProbeFuncName = "kprobe__tcp_set_state"
-
 	// TCPRecvMsg traces the tcp_recvmsg() kernel function
 	TCPRecvMsg ProbeFuncName = "kprobe__tcp_recvmsg"
 	// TCPRecvMsgPre410 traces the tcp_recvmsg() system call on kernels prior to 4.1.0. This is created because
@@ -97,6 +94,8 @@ const (
 	IP6MakeSkbReturn ProbeFuncName = "kretprobe__ip6_make_skb"
 	// IP6MakeSkbPre470 traces ip6_make_skb on kernel versions < 4.7
 	IP6MakeSkbPre470 ProbeFuncName = "kprobe__ip6_make_skb__pre_4_7_0"
+	// IP6MakeSkbPre5180 traces ip6_make_skb on kernel versions < 5.18
+	IP6MakeSkbPre5180 ProbeFuncName = "kprobe__ip6_make_skb__pre_5_18_0"
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeFuncName = "kprobe__udp_recvmsg"
@@ -182,6 +181,7 @@ type BPFMapName = string
 const (
 	ConnMap                           BPFMapName = "conn_stats"
 	TCPStatsMap                       BPFMapName = "tcp_stats"
+	TCPRetransmitsMap                 BPFMapName = "tcp_retransmits"
 	TCPConnectSockPidMap              BPFMapName = "tcp_ongoing_connect_pid"
 	ConnCloseEventMap                 BPFMapName = "conn_close_event"
 	TracerStatusMap                   BPFMapName = "tracer_status"

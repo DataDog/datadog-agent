@@ -9,6 +9,10 @@ package collectors
 
 import (
 	"fmt"
+	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -28,14 +32,6 @@ type Collector interface {
 	// Init is where the collector initialization happens. It is used to create
 	// informers and listers.
 	Init(*CollectorRunConfig)
-
-	// IsAvailable returns whether a collector is available.
-	// A typical use-case is checking whether the targeted apiGroup version
-	// used by the collector is available in the cluster.
-	// Should be called after Init.
-	// FIXME: to be removed after collector discovery has been the default for
-	// some time.
-	IsAvailable() bool
 
 	// Metadata is used to access information describing the collector.
 	Metadata() *CollectorMetadata
@@ -89,13 +85,23 @@ func (cm CollectorMetadata) FullName() string {
 	return cm.Name
 }
 
+// OrchestratorInformerFactory contains all informer factories used by the orchestration check
+type OrchestratorInformerFactory struct {
+	InformerFactory              informers.SharedInformerFactory
+	UnassignedPodInformerFactory informers.SharedInformerFactory
+	DynamicInformerFactory       dynamicinformer.DynamicSharedInformerFactory
+	CRDInformerFactory           externalversions.SharedInformerFactory
+	VPAInformerFactory           vpai.SharedInformerFactory
+}
+
 // CollectorRunConfig is the configuration used to initialize or run the
 // collector.
 type CollectorRunConfig struct {
-	APIClient   *apiserver.APIClient
-	ClusterID   string
-	Config      *config.OrchestratorConfig
-	MsgGroupRef *atomic.Int32
+	APIClient                   *apiserver.APIClient
+	ClusterID                   string
+	Config                      *config.OrchestratorConfig
+	MsgGroupRef                 *atomic.Int32
+	OrchestratorInformerFactory *OrchestratorInformerFactory
 }
 
 // CollectorRunResult contains information about what the collector has done.

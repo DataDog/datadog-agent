@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package rconfig
 
 import (
@@ -36,8 +34,8 @@ type RCPolicyProvider struct {
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
-	lastDefaults         map[string]state.ConfigCWSDD
-	lastCustoms          map[string]state.ConfigCWSCustom
+	lastDefaults         map[string]state.RawConfig
+	lastCustoms          map[string]state.RawConfig
 	debouncer            *debouncer.Debouncer
 }
 
@@ -69,13 +67,13 @@ func (r *RCPolicyProvider) Start() {
 
 	r.debouncer.Start()
 
-	r.client.RegisterCWSDDUpdate(r.rcDefaultsUpdateCallback)
-	r.client.RegisterCWSCustomUpdate(r.rcCustomsUpdateCallback)
+	r.client.Subscribe(state.ProductCWSDD, r.rcDefaultsUpdateCallback)
+	r.client.Subscribe(state.ProductCWSCustom, r.rcCustomsUpdateCallback)
 
 	r.client.Start()
 }
 
-func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.ConfigCWSDD) {
+func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig) {
 	r.Lock()
 	r.lastDefaults = configs
 	r.Unlock()
@@ -85,7 +83,7 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Con
 	r.debouncer.Call()
 }
 
-func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.ConfigCWSCustom) {
+func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig) {
 	r.Lock()
 	r.lastCustoms = configs
 	r.Unlock()
@@ -114,7 +112,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	load := func(id string, cfg []byte) {
 		reader := bytes.NewReader(cfg)
 
-		policy, err := rules.LoadPolicy(id, "remote-config", reader, macroFilters, ruleFilters)
+		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
@@ -152,4 +150,9 @@ func (r *RCPolicyProvider) Close() error {
 	r.debouncer.Stop()
 	r.client.Close()
 	return nil
+}
+
+// Type returns the type of this policy provider
+func (r *RCPolicyProvider) Type() string {
+	return rules.PolicyProviderTypeRC
 }

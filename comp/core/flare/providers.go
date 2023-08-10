@@ -33,6 +33,11 @@ func (f *flare) collectLogsFiles(fb flarehelpers.FlareBuilder) error {
 		jmxLogFile = f.params.defaultJMXLogFile
 	}
 
+	dogstatsdLogFile := f.config.GetString("dogstatsd_log_file")
+	if dogstatsdLogFile == "" {
+		dogstatsdLogFile = f.params.defaultDogstatsdLogFile
+	}
+
 	shouldIncludeFunc := func(path string) bool {
 		if filepath.Ext(path) == ".log" || getFirstSuffix(path) == ".log" {
 			return true
@@ -43,6 +48,7 @@ func (f *flare) collectLogsFiles(fb flarehelpers.FlareBuilder) error {
 	f.log.Flush()
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc)
 	return nil
 }
 
@@ -80,7 +86,7 @@ func (f *flare) collectConfigFiles(fb flarehelpers.FlareBuilder) error {
 		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml"))
 
 		// use best effort to include security-agent.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "system-probe.yaml"))
+		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml"))
 	}
 	return nil
 }

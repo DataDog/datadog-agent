@@ -486,14 +486,14 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
-## @param inventories_configuration_enabled - boolean - optional - default: false
-## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: false
-## The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+## @param inventories_configuration_enabled - boolean - optional - default: true
+## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: true
+## By default the Agent sends its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
 ## detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information.
 ##
 ## The Agent configuration is scrubbed of any sensitive information.
 #
-# inventories_configuration_enabled: false
+# inventories_configuration_enabled: true
 
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
@@ -1127,7 +1127,7 @@ api_key:
   # force_use_http: true
 
   ## @param force_use_tcp - boolean - optional - default: false
-  ## @env DD_LOGS_FORCE_USE_TCP - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
   ## to `true` to always send logs via TCP. If `use_http` is set to `true`, this parameter
   ## is ignored.
@@ -1287,9 +1287,95 @@ api_key:
   ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
   # obfuscation:
-  #     <OBFUSCATION_CONFIGURATION>
+  #     credit_cards:
+  ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for credit cards. Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
+  ##        Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
+  #         luhn: false
+  #
+  #     elasticsearch:
+  ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "elasticsearch". Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - client_id
+  ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
+  #     http:
+  ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional
+  ##        Enables obfuscation of query strings in URLs
+  #         remove_query_string: false
+  ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional
+  ##        If enabled, path segments in URLs containing digits are replaced by "?"
+  #         remove_path_with_digits: false
+  #
+  #     memcached:
+  ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "memcached". Disabled by default.
+  #         enabled: false
+  #
+  #     mongodb:
+  ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "mongodb". Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - document_id
+  ##        @param DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - object - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
+  #     redis:
+  ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "redis". Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
+  ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
+  #         remove_all_args: false
+  #
+  ##    @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
+  ##    Enables removing stack traces to replace them with "?". Disabled by default.
+  #     remove_stack_traces: false
+  #
+  #     sql_exec_plan:
+  ##        @param DD_APM_SQL_EXEC_PLAN_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for JSON query execution plans. Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - id1
+  ##        @param DD_APM_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
+  #     sql_exec_plan_normalize:
+  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for JSON query execution plans, including cost and row estimates.
+  ##        Produces a normalized execution plan. Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - id1
+  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
 
   ## @param filter_tags - object - optional
+  ## @env DD_APM_FILTER_TAG_REQUIRE - object - optional
+  ## @env DD_APM_FILTER_TAG_REJECT - object - optional
   ## Defines rules by which to filter traces based on tags.
   ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
   ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
@@ -1367,6 +1453,18 @@ api_key:
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
+
+  ## @param additional_endpoints - object - optional
+  ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
+  ## Enables sending data to multiple endpoints and/or with multiple API keys via dual shipping.
+  ## See https://docs.datadoghq.com/agent/guide/dual-shipping
+  #
+  # additional_endpoints:
+  #   "https://trace.agent.datadoghq.com":
+  #   - apikey2
+  #   - apikey3
+  #   "https://trace.agent.datadoghq.eu":
+  #   - apikey4
 
   ## @param debug - custom object - optional
   ## Specifies settings for the debug server of the trace agent.
@@ -1639,6 +1737,18 @@ api_key:
   #
   # log_file: /var/log/datadog/system-probe.log
 
+  ## @param langauge_detection - custom object - optional
+  ## Enter specific configurations for language detection
+  ## Uncomment this parameter and the one below to enable them.
+  #
+  # language_detection:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED - bool - optional - default: false
+    ## [Beta] Enables language detection via binary analysis in the system probe.
+    #
+    # enabled: false
+
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
@@ -1661,6 +1771,39 @@ api_key:
     ## Enable internal profiling for the System Probe process.
     #
     # enabled: false
+
+  ## @param memory_controller - custom object - optional
+  ## Cgroup memory controller for internal memory profiling.
+  ##
+  ## memory_controller:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable cgroup memory controller.
+    #
+    # enabled: false
+    #
+    ## @param thresholds - map of strings - optional
+    ## Thresholds and the respective active actions to trigger when
+    ## memory usage is above the specified threshold.
+    ## Threshold can be either an absolute value - such as 500MB or 2GB -
+    ## or a percentage of the cgroup allocated memory such as 50%.
+    ## The action can be:
+    ## - gc: to trigger the Go garbage collector
+    ## - profile: to generate a system-probe memory profile in /tmp
+    ## - log: to simply log that the threshold was reached
+    #
+    # thresholds:
+    #   500MB: gc
+    #   50%: profile
+
+    ## @param pressure_levels - map of strings - optional
+    ## Pressure levels and the respective active actions to trigger when
+    ## memory usage reaches the specified level.
+    ## The pressure level is 'low', 'medium' or 'critical'.
+    ## The actions are the same for thresholds (see above).
+    #
+    # pressure_levels:
+    #   medium: gc
 {{ end }}
 
 {{- if .NetworkModule }}
@@ -1825,12 +1968,9 @@ api_key:
 {{ end -}}
 
 {{- if .SecurityAgent -}}
-##########################################
-## Security Agent Runtime Configuration ##
-##                                      ##
-## Settings to sent logs to Datadog are ##
-## fetched from section `logs_config`   ##
-##########################################
+####################################
+## Runtime Security configuration ##
+####################################
 
 # runtime_security_config:
   ## @param enabled - boolean - optional - default: false
@@ -1842,6 +1982,16 @@ api_key:
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
   # socket: /opt/datadog-agent/run/runtime-security.sock
+
+##########################################
+## Compliance monitoring configuration  ##
+##########################################
+
+# compliance_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable Cloud Security Posture Management (CSPM).
+  #
+  # enabled: false
 {{ end -}}
 {{- if .Dogstatsd }}
 
@@ -1909,6 +2059,18 @@ api_key:
 ## Publish DogStatsD's internal stats as Go expvars.
 #
 # dogstatsd_stats_enable: false
+
+## @param dogstatsd_logging_enabled - boolean - optional - default: true
+## Set to true to write DogstatsD metrics received by the Agent to dogstats_stats log files.
+## Requires `dogstatsd_stats_enable: true`.
+#
+# dogstatsd_logging_enabled: true
+
+## @param dogstatsd_log_file_max_size - custom - optional - default: 10MB
+## Maximum size of dogstatsd log file. Use either a size (for example, 10MB) or
+## provide value in bytes (for example, 10485760.)
+#
+# dogstatsd_log_file_max_size: 10MB
 
 ## @param dogstatsd_queue_size - integer - optional - default: 1024
 ## @env DD_DOGSTATSD_QUEUE_SIZE - integer - optional - default: 1024
@@ -2089,6 +2251,17 @@ api_key:
 ## this option is set.
 #
 # jmx_use_container_support: false
+
+## @param jmx_max_ram_percentage - float - optional - default: 25.0
+## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25.0
+## When running in a container with jmx_use_container_support enabled, the JVM can
+## automatically declare the maximum heap size based off of a percentage of
+## total container allocated memory. This option is overwritten if 
+## you use -Xmx to manually define the size of the heap. This option applies
+## to containers with a total memory limit greater than ~250mb. If 
+## jmx_use_container_support is disabled this option has no effect.
+#
+# jmx_max_ram_percentage: 25.0
 
 ## @param jmx_log_file - string - optional
 ## @env DD_JMX_LOG_FILE - string - optional
@@ -3657,6 +3830,15 @@ api_key:
         #
         # cumulative_monotonic_mode: to_delta
 
+        ## @param initial_cumulative_monotonic_value - string - optional - default: auto
+        ## How to report the initial value for cumulative monotonic sums. Valid values are:
+        ##
+        ## - `auto` reports the initial value if its start timestamp is set and it happens after the process was started.
+        ## - `drop` always drops the initial value.
+        ## - `keep` always reports the initial value.
+        #
+        # initial_cumulative_monotonic_value: auto   
+
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
     ## See https://docs.datadoghq.com/metrics/otlp/?tab=summary for more details.
@@ -3717,7 +3899,19 @@ api_key:
       #
       # sampling_percentage: 100
 
-  ## @param debug - custom object - optional
+  ## @param logs - custom object - optional
+  ## Logs-specific configuration for OTLP ingest in the Datadog Agent.
+  #
+  # logs:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_LOGS_ENABLED - boolean - optional - default: true
+    ## Set to false to disable logs support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
+    #
+    # enabled: true
+
+## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:

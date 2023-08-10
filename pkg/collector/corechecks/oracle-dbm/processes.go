@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
@@ -37,7 +39,7 @@ type ProcessesRowDB struct {
 
 func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
-	err := c.db.Select(&rows, PGA_QUERY)
+	err := selectWrapper(c, &rows, PGA_QUERY)
 	if err != nil {
 		return fmt.Errorf("failed to collect processes info: %w", err)
 	}
@@ -51,10 +53,10 @@ func (c *Check) ProcessMemory() error {
 		if r.Program.Valid {
 			tags = append(tags, "program:"+r.Program.String)
 		}
-		sender.Gauge(fmt.Sprintf("%s.process.pga_used_mem", common.IntegrationName), r.PGAUsedMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_alloc_mem", common.IntegrationName), r.PGAAllocMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_mem", common.IntegrationName), r.PGAFreeableMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_max_mem", common.IntegrationName), r.PGAMaxMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_used_memory", common.IntegrationName), r.PGAUsedMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_allocated_memory", common.IntegrationName), r.PGAAllocMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_memory", common.IntegrationName), r.PGAFreeableMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_max_memory", common.IntegrationName), r.PGAMaxMem, "", tags)
 	}
 	sender.Commit()
 	return nil

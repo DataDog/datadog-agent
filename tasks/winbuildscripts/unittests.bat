@@ -7,17 +7,15 @@ if not exist c:\mnt\ goto nomntdir
 
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~1
 
-call %~p0extract-modcache.bat
-call %~p0extract-tools-modcache.bat
-
-mkdir \dev\go\src\github.com\DataDog\datadog-agent
-cd \dev\go\src\github.com\DataDog\datadog-agent
+set TEST_ROOT=c:\test-root
+mkdir %TEST_ROOT%\datadog-agent
+cd %TEST_ROOT%\datadog-agent
 xcopy /e/s/h/q c:\mnt\*.*
 
-REM Setup root certificates before tests
-Powershell -C "c:\mnt\tasks\winbuildscripts\setup_certificates.ps1" || exit /b 2
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache_tools
 
-Powershell -C "c:\mnt\tasks\winbuildscripts\unittests.ps1" || exit /b 3
+Powershell -C "%TEST_ROOT%\datadog-agent\tasks\winbuildscripts\unittests.ps1" || exit /b 2
 
 goto :EOF
 

@@ -26,6 +26,11 @@ func TestMaxUint16(t *testing.T) {
 	assert.Equal(t, uint16(10), MaxUint16(uint16(5), uint16(10)))
 }
 
+func TestMaxUint32(t *testing.T) {
+	assert.Equal(t, uint32(10), MaxUint32(uint32(10), uint32(5)))
+	assert.Equal(t, uint32(10), MaxUint32(uint32(5), uint32(10)))
+}
+
 func TestIPBytesToString(t *testing.T) {
 	assert.Equal(t, "0.0.0.0", IPBytesToString([]byte{0, 0, 0, 0}))
 	assert.Equal(t, "1.2.3.4", IPBytesToString([]byte{1, 2, 3, 4}))

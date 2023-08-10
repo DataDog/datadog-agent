@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/viper"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -25,14 +24,6 @@ type ModuleName string
 const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace = "system_probe_config"
-	spNS      = Namespace
-	netNS     = "network_config"
-	smNS      = "service_monitoring_config"
-	dsmNS     = "data_streams_config"
-	diNS      = "dynamic_instrumentation"
-
-	defaultConnsMessageBatchSize = 600
-	maxConnsMessageBatchSize     = 1000
 )
 
 // system-probe module names
@@ -40,15 +31,12 @@ const (
 	NetworkTracerModule          ModuleName = "network_tracer"
 	OOMKillProbeModule           ModuleName = "oom_kill_probe"
 	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule        ModuleName = "security_runtime"
 	ProcessModule                ModuleName = "process"
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
+	EBPFModule                   ModuleName = "ebpf"
+	LanguageDetectionModule      ModuleName = "language_detection"
 )
-
-func key(pieces ...string) string {
-	return strings.Join(pieces, ".")
-}
 
 // Config represents the configuration options for the system-probe
 type Config struct {
@@ -73,15 +61,15 @@ type Config struct {
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
-	return newSysprobeConfig(configPath, true)
+	return newSysprobeConfig(configPath)
 }
 
-// NewCustom creates a config object for system-probe. It assumes no configuration has been loaded as this point.
-func NewCustom(configPath string, loadSecrets bool) (*Config, error) {
-	return newSysprobeConfig(configPath, loadSecrets)
-}
+func newSysprobeConfig(configPath string) (*Config, error) {
+	// System probe is not supported on darwin, so we should fail gracefully in this case.
+	if runtime.GOOS == "darwin" {
+		return &Config{}, nil
+	}
 
-func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -97,17 +85,8 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", false, aconfig.Datadog.GetEnvVars())
 	if err != nil {
-		// System probe is not supported on darwin, so we should fail gracefully in this case.
-		if runtime.GOOS != "darwin" {
-			if errors.Is(err, os.ErrPermission) {
-				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-			} else {
-				log.Warnf("Error loading config: %v", err)
-			}
-		}
-
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
@@ -127,102 +106,61 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 
 func load() (*Config, error) {
 	cfg := aconfig.SystemProbe
+	Adjust(cfg)
 
 	c := &Config{
-		Enabled:             cfg.GetBool(key(spNS, "enabled")),
+		Enabled:             cfg.GetBool(spNS("enabled")),
 		EnabledModules:      make(map[ModuleName]struct{}),
-		ExternalSystemProbe: cfg.GetBool(key(spNS, "external")),
+		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
-		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
-		MaxConnsPerMessage: cfg.GetInt(key(spNS, "max_conns_per_message")),
+		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
+		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),
 		LogLevel:         cfg.GetString("log_level"),
-		DebugPort:        cfg.GetInt(key(spNS, "debug_port")),
-		TelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
+		DebugPort:        cfg.GetInt(spNS("debug_port")),
+		TelemetryEnabled: cfg.GetBool(spNS("telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 	}
 
-	// backwards compatible log settings
-	if !cfg.IsSet("log_level") && cfg.IsSet(key(spNS, "log_level")) {
-		c.LogLevel = cfg.GetString(key(spNS, "log_level"))
-		cfg.Set("log_level", c.LogLevel)
-	}
-	if !cfg.IsSet("log_file") && cfg.IsSet(key(spNS, "log_file")) {
-		c.LogFile = cfg.GetString(key(spNS, "log_file"))
-		cfg.Set("log_file", c.LogFile)
-	}
-
-	handleBackwardCompatibilityForUsmConfig(cfg)
-
-	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
-		log.Warn("Overriding the configured connections count per message limit because it exceeds maximum")
-		c.MaxConnsPerMessage = defaultConnsMessageBatchSize
-		cfg.Set(key(spNS, "max_conns_per_message"), c.MaxConnsPerMessage)
-	}
-
-	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
-	npmEnabled := cfg.GetBool("network_config.enabled")
-	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
-	dsmEnabled := cfg.GetBool(key(dsmNS, "enabled"))
-
-	if c.Enabled && !cfg.IsSet("network_config.enabled") && !usmEnabled && !dsmEnabled {
-		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
-		// enable the connections/network check.
-		log.Info("`system_probe_config.enabled` is deprecated, enable NPM with `network_config.enabled` instead")
-		// ensure others can key off of this single config value for NPM status
-		cfg.Set("network_config.enabled", true)
-		npmEnabled = true
-	}
+	npmEnabled := cfg.GetBool(netNS("enabled"))
+	usmEnabled := cfg.GetBool(smNS("enabled"))
+	dsmEnabled := cfg.GetBool(dsmNS("enabled"))
 
 	if npmEnabled || usmEnabled || dsmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
-	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {
+	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
 		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}
 	}
-	if cfg.GetBool(key(spNS, "enable_oom_kill")) {
+	if cfg.GetBool(spNS("enable_oom_kill")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
 
-	if cfg.GetBool("runtime_security_config.enabled") ||
-		cfg.GetBool("runtime_security_config.fim_enabled") ||
-		cfg.GetBool("event_monitoring_config.process.enabled") ||
-		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool("event_monitoring_config.network_process.enabled")) {
+	if cfg.GetBool(secNS("enabled")) ||
+		cfg.GetBool(secNS("fim_enabled")) ||
+		cfg.GetBool(evNS("process.enabled")) ||
+		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
-	if cfg.GetBool(key(spNS, "process_config.enabled")) {
+	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
 	}
-
-	if cfg.GetBool(key(diNS, "enabled")) {
+	if cfg.GetBool(diNS("enabled")) {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
-
-	if len(c.EnabledModules) > 0 {
-		c.Enabled = true
-		if err := ValidateSocketAddress(c.SocketAddress); err != nil {
-			log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
-			c.SocketAddress = defaultSystemProbeAddress
-		}
-	} else {
-		c.Enabled = false
-		c.SocketAddress = ""
+	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
+		c.EnabledModules[EBPFModule] = struct{}{}
+	}
+	if cfg.GetBool("system_probe_config.language_detection.enabled") {
+		c.EnabledModules[LanguageDetectionModule] = struct{}{}
 	}
 
-	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
-	cfg.Set(key(spNS, "enabled"), c.Enabled)
-
-	if cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
-		if !usmEnabled && !dsmEnabled {
-			log.Info("Both service monitoring and data streams monitoring are disabled, disabling process service inference")
-			cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
-		} else {
-			log.Info("process service inference is enabled")
-		}
-	}
+	c.Enabled = len(c.EnabledModules) > 0
+	// only allowed raw config adjustments here, otherwise use Adjust function
+	cfg.Set(spNS("enabled"), c.Enabled)
 
 	return c, nil
 }
@@ -233,19 +171,14 @@ func (c Config) ModuleIsEnabled(modName ModuleName) bool {
 	return ok
 }
 
-// SetupOptionalDatadogConfig loads the datadog.yaml config file but will not fail on a missing file
-func SetupOptionalDatadogConfig() error {
-	return SetupOptionalDatadogConfigWithDir(defaultConfigDir, "")
-}
-
-// SetupOptionalDatadogConfig loads the datadog.yaml config file from a given config directory but will not fail on a missing file
+// SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
 func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 	aconfig.Datadog.AddConfigPath(configDir)
 	if configFile != "" {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustomWithKnownEnvVars(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", false, aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {
@@ -262,17 +195,4 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		return err
 	}
 	return nil
-}
-
-func handleBackwardCompatibilityForUsmConfig(cfg aconfig.Config) {
-	// This code block handles the backward compatibility logic for the enable_http_monitoring configuration value
-	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
-	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
-		enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
-		log.Infof("%q is deprecated, use %q instead",
-			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
-		if !cfg.IsSet(enableHttpMonitoringKey) {
-			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
-		}
-	}
 }

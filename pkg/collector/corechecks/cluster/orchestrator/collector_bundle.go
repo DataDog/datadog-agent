@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
@@ -57,17 +57,17 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		check:              chk,
 		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
-			APIClient:   chk.apiClient,
-			ClusterID:   chk.clusterID,
-			Config:      chk.orchestratorConfig,
-			MsgGroupRef: chk.groupID,
+			APIClient:                   chk.apiClient,
+			ClusterID:                   chk.clusterID,
+			Config:                      chk.orchestratorConfig,
+			MsgGroupRef:                 chk.groupID,
+			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
 		},
-		stopCh:              make(chan struct{}),
+		stopCh:              chk.stopCh,
 		manifestBuffer:      NewManifestBuffer(chk),
 		collectorDiscovery:  discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors: map[string]struct{}{},
 	}
-
 	bundle.prepare()
 
 	return bundle
@@ -245,20 +245,12 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // synced.
 func (cb *CollectorBundle) Initialize() error {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
-	var availableCollectors []collectors.Collector
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
 	informerSynced := map[cache.SharedInformer]struct{}{}
 
 	for _, collector := range cb.collectors {
 		collector.Init(cb.runCfg)
-		if !collector.IsAvailable() {
-			_ = cb.check.Warnf("Collector %q is unavailable, skipping it", collector.Metadata().FullName())
-			continue
-		}
-
-		availableCollectors = append(availableCollectors, collector)
-
 		informer := collector.Informer()
 
 		if _, found := informerSynced[informer]; !found {
@@ -268,20 +260,15 @@ func (cb *CollectorBundle) Initialize() error {
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
 
-			// TODO: right now we use a stop channel which we don't close, that can lead to resource leaks
-			// A recent go-client update https://github.com/kubernetes/kubernetes/pull/104853 changed the behaviour so that
-			// we are not able to start informers anymore once they have been stopped. We will need to work around this. Once this is fixed we can properly release the resources during a check.Close().
 			go informer.Run(cb.stopCh)
 		}
 	}
-
-	cb.collectors = availableCollectors
 
 	return apiserver.SyncInformers(informersToSync, cb.extraSyncTimeout)
 }
 
 // Run is used to sequentially run all collectors in the bundle.
-func (cb *CollectorBundle) Run(sender aggregator.Sender) {
+func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 	// Start a thread to buffer manifests and kill it when the check is finished.
 	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {

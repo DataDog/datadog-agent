@@ -6,7 +6,9 @@
 package traps
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,12 +20,12 @@ import (
 type TrapForwarder struct {
 	trapsIn   PacketsChannel
 	formatter Formatter
-	sender    aggregator.Sender
+	sender    sender.Sender
 	stopChan  chan struct{}
 }
 
 // NewTrapForwarder creates a simple TrapForwarder instance
-func NewTrapForwarder(formatter Formatter, sender aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
+func NewTrapForwarder(formatter Formatter, sender sender.Sender, packets PacketsChannel) (*TrapForwarder, error) {
 	return &TrapForwarder{
 		trapsIn:   packets,
 		formatter: formatter,
@@ -44,6 +46,7 @@ func (tf *TrapForwarder) Stop() {
 }
 
 func (tf *TrapForwarder) run() {
+	flushTicker := time.NewTicker(10 * time.Second).C
 	for {
 		select {
 		case <-tf.stopChan:
@@ -51,6 +54,8 @@ func (tf *TrapForwarder) run() {
 			return
 		case packet := <-tf.trapsIn:
 			tf.sendTrap(packet)
+		case <-flushTicker:
+			tf.sender.Commit() // Commit metrics
 		}
 	}
 }
@@ -62,5 +67,6 @@ func (tf *TrapForwarder) sendTrap(packet *SnmpPacket) {
 		return
 	}
 	log.Tracef("send trap payload: %s", string(data))
+	tf.sender.Count("datadog.snmp_traps.forwarded", 1, "", packet.getTags())
 	tf.sender.EventPlatformEvent(data, epforwarder.EventTypeSnmpTraps)
 }

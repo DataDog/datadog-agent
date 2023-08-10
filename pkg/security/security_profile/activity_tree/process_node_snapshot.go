@@ -18,8 +18,10 @@ import (
 	"syscall"
 	"time"
 
+	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -29,12 +31,10 @@ import (
 )
 
 // snapshot uses procfs to retrieve information about the current process
-func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
-		if err := child.snapshot(owner, stats, newEvent); err != nil {
-			return err
-		}
+		child.snapshot(owner, stats, newEvent, reducer)
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -43,30 +43,25 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStat
 	p, err := process.NewProcess(int32(pn.Process.Pid))
 	if err != nil {
 		// the process doesn't exist anymore, ignore
-		return nil
+		return
 	}
 
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
-		if err = pn.snapshotFiles(p, stats, newEvent); err != nil {
-			return err
-		}
+		pn.snapshotFiles(p, stats, newEvent, reducer)
 	}
 
 	// snapshot sockets
 	if owner.IsEventTypeValid(model.BindEventType) {
-		if err = pn.snapshotBoundSockets(p, stats, newEvent); err != nil {
-			return err
-		}
+		pn.snapshotBoundSockets(p, stats, newEvent)
 	}
-	return nil
 }
 
-func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
-		return err
+		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
 
 	var files []string
@@ -75,16 +70,18 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	}
 
 	// list the mmaped files of the process
-	memoryMaps, err := p.MemoryMaps(false)
+	mmapedFiles, err := snapshotMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
 	if err != nil {
-		return err
+		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
 	}
 
-	for _, mm := range *memoryMaps {
-		if mm.Path != pn.Process.FileEvent.PathnameStr {
-			files = append(files, mm.Path)
-		}
+	if len(files) == 0 {
+		return
 	}
+	files = append(files, mmapedFiles...)
+
+	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	files = slices.Compact(files)
 
 	// insert files
 	var fileinfo os.FileInfo
@@ -109,30 +106,63 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
-		if err != nil {
-			evt.Open.File.PathnameStr = resolvedPath
+		if err == nil && len(resolvedPath) != 0 {
+			evt.Open.File.SetPathnameStr(resolvedPath)
 		} else {
-			evt.Open.File.PathnameStr = f
+			evt.Open.File.SetPathnameStr(f)
 		}
-		evt.Open.File.BasenameStr = path.Base(evt.Open.File.PathnameStr)
+		evt.Open.File.SetBasenameStr(path.Base(evt.Open.File.PathnameStr))
 		evt.Open.File.FileFields.Mode = uint16(stat.Mode)
 		evt.Open.File.FileFields.Inode = stat.Ino
 		evt.Open.File.FileFields.UID = stat.Uid
 		evt.Open.File.FileFields.GID = stat.Gid
 
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
+
+		if fileinfo.Mode().IsRegular() {
+			evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+		}
+
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false, reducer, nil)
 	}
-	return nil
 }
 
-func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+const MAX_MMAPED_FILES = 128
+
+func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
+	fakeprocess := legacyprocess.Process{Pid: pid}
+	stats, err := fakeprocess.MemoryMaps(false)
+	if err != nil || stats == nil {
+		return nil, err
+	}
+
+	files := make([]string, 0, MAX_MMAPED_FILES)
+	for _, mm := range *stats {
+		if len(files) >= MAX_MMAPED_FILES {
+			break
+		}
+
+		if len(mm.Path) == 0 {
+			continue
+		}
+
+		if mm.Path != processEventPath {
+			continue
+		}
+
+		files = append(files, mm.Path)
+	}
+	return files, nil
+}
+
+func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
 	if err != nil {
-		return err
+		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
+		return
 	}
 
 	// sockets have the following pattern "socket:[inode]"
@@ -141,7 +171,8 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 		if strings.HasPrefix(fd.Path, "socket:[") {
 			sock, err := strconv.Atoi(strings.TrimPrefix(fd.Path[:len(fd.Path)-1], "socket:["))
 			if err != nil {
-				return err
+				seclog.Warnf("error while parsing socket inode (pid: %v): %s", p.Pid, err)
+				continue
 			}
 			if sock < 0 {
 				continue
@@ -150,13 +181,13 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 		}
 	}
 	if len(sockets) <= 0 {
-		return nil
+		return
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
 	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
 	if err != nil {
-		return err
+		seclog.Warnf("error while opening procfs (pid: %v): %s", p.Pid, err)
 	}
 	// looking for AF_INET sockets
 	TCP, err := proc.NetTCP()
@@ -205,7 +236,6 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 		}
 		// not necessary found here, can be also another kind of socket (AF_UNIX, AF_NETLINK, etc)
 	}
-	return nil
 }
 
 func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *ActivityTreeStats, newEvent func() *model.Event) {

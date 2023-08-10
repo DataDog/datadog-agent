@@ -10,14 +10,14 @@ package events
 import (
 	"fmt"
 	"sync"
-	"time"
 	"unsafe"
+
+	"go.uber.org/atomic"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -40,10 +40,10 @@ type Consumer struct {
 	stopped     bool
 
 	// telemetry
-	then             time.Time
-	eventsCount      *telemetry.Metric
-	missesCount      *telemetry.Metric
-	kernelDropsCount *telemetry.Metric
+	metricGroup      *telemetry.MetricGroup
+	eventsCount      *telemetry.Counter
+	missesCount      *telemetry.Counter
+	kernelDropsCount *telemetry.Counter
 	batchSize        *atomic.Int64
 }
 
@@ -80,13 +80,11 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 	metricGroup := telemetry.NewMetricGroup(
 		fmt.Sprintf("usm.%s", proto),
 		telemetry.OptStatsd,
-		telemetry.OptExpvar,
-		telemetry.OptMonotonic,
 	)
 
-	eventsCount := metricGroup.NewMetric("events_captured")
-	missesCount := metricGroup.NewMetric("events_missed")
-	kernelDropsCount := metricGroup.NewMetric("kernel_dropped_events")
+	eventsCount := metricGroup.NewCounter("events_captured")
+	missesCount := metricGroup.NewCounter("events_missed")
+	kernelDropsCount := metricGroup.NewCounter("kernel_dropped_events")
 
 	return &Consumer{
 		proto:       proto,
@@ -97,6 +95,7 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 		batchReader: batchReader,
 
 		// telemetry
+		metricGroup:      metricGroup,
 		eventsCount:      eventsCount,
 		missesCount:      missesCount,
 		kernelDropsCount: kernelDropsCount,
@@ -106,7 +105,6 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 
 // Start consumption of eBPF events
 func (c *Consumer) Start() {
-	c.then = time.Now()
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
@@ -135,7 +133,7 @@ func (c *Consumer) Start() {
 				c.batchReader.ReadAll(func(cpu int, b *batch) {
 					c.process(cpu, b, true)
 				})
-				c.log()
+				log.Infof("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
 				close(done)
 			}
 		}
@@ -187,29 +185,6 @@ func (c *Consumer) process(cpu int, b *batch, syncing bool) {
 	for data := iter.Next(); data != nil; data = iter.Next() {
 		c.callback(data)
 	}
-}
-
-func (c *Consumer) log() {
-	var (
-		now      = time.Now()
-		elapsed  = now.Sub(c.then).Seconds()
-		captured = c.eventsCount.Delta()
-		missed   = c.missesCount.Delta()
-	)
-
-	if elapsed == 0 {
-		return
-	}
-
-	log.Infof("usm events summary: name=%q events_captured=%d(%.2f/s) events_missed=%d(%.2f/s)",
-		c.proto,
-		captured,
-		float64(captured)/float64(elapsed),
-		missed,
-		float64(missed)/float64(elapsed),
-	)
-
-	c.then = now
 }
 
 func batchFromEventData(data []byte) *batch {

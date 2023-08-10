@@ -124,6 +124,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
 	case OffsetNameLinuxBinprmEnvc:
 		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
+	case OffsetNameVmAreaStructFlags:
+		value = getVmAreaStructFlagsOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -160,7 +162,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		sizeOf = 584
-	case kv.IsRH8Kernel():
+	case kv.IsRH8Kernel() || kv.IsRH9Kernel():
 		sizeOf = 648
 	case kv.IsSuse12Kernel():
 		sizeOf = 560
@@ -177,9 +179,15 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		sizeOf = 584
+		if kv.Code.Patch() > 100 {
+			sizeOf = 592
+		} else {
+			sizeOf = 584
+		}
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		sizeOf = 616
+	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
+		sizeOf = 624
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
 		if ubuntuAbiVersionCheck(kv, increaseSizeAbiMinVersion) {
 			sizeOf = 608
@@ -224,6 +232,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		return 416
 	case kv.IsRH8Kernel():
 		return 392
+	case kv.IsRH9Kernel():
+		return 424
 	case kv.IsSuse12Kernel():
 		return 376
 	case kv.IsSuse15Kernel():
@@ -238,12 +248,16 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		return 368
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 400
+	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
+		return 408
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
 		return 368
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
 		return 376
-	case kv.IsUbuntuKernel():
+	case kv.IsUbuntuKernel() && kv.Code < kernel.Kernel5_19:
 		return 400 + getNoHzOffset()
+	case kv.IsUbuntuKernel() && kv.Code >= kernel.Kernel5_19:
+		return 408 + getNoHzOffset()
 	case kv.Code >= kernel.Kernel5_16:
 		return 416
 	}
@@ -291,8 +305,12 @@ func getBpfMapIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		return 52
-	case kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19) || kv.IsRH9Kernel():
 		return 60
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
+		return 68
+	case kv.Code >= kernel.Kernel6_2:
+		return 52
 	default:
 		return 48
 	}
@@ -306,6 +324,8 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 112
 	case kv.IsRH8Kernel():
 		nameOffset = 80
+	case kv.IsRH9Kernel():
+		nameOffset = 96
 	case kv.IsSuse15Kernel():
 		nameOffset = 88
 	case kv.IsSuse12Kernel():
@@ -331,7 +351,11 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 80
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		nameOffset = 88
-	case kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
+		nameOffset = 96
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
+		nameOffset = 104
+	case kv.Code >= kernel.Kernel6_2:
 		nameOffset = 96
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		return ErrorSentinel
@@ -417,6 +441,8 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 144
 	case kv.IsRH8Kernel():
 		nameOffset = 520
+	case kv.IsRH9Kernel():
+		nameOffset = 544
 	case kv.IsSuse15Kernel():
 		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
 			nameOffset = 424
@@ -444,8 +470,12 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 504
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_16):
 		nameOffset = 528
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_17):
 		nameOffset = 544
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_17, kernel.Kernel6_1):
+		nameOffset = 528
+	case kv.Code != 0 && kv.Code >= kernel.Kernel6_1:
+		nameOffset = 912
 	}
 
 	return nameOffset
@@ -633,12 +663,14 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	case kv.IsSuse15Kernel():
 		offset = 256
 
-	case kv.Code >= kernel.Kernel4_14 && kv.Code < kernel.Kernel5_8:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel5_8):
 		offset = 264
-	case kv.Code >= kernel.Kernel5_8 && kv.Code < kernel.Kernel5_12:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_12):
 		offset = 256
-	case kv.Code >= kernel.Kernel5_12:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_12, kernel.Kernel5_17):
 		offset = 208
+	case kv.Code >= kernel.Kernel5_17:
+		offset = 216
 	}
 
 	return offset
@@ -709,16 +741,18 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 }
 
 func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
-	offset := uint64(144)
-
 	switch {
 	case kv.IsCOSKernel():
-		offset = 168
+		return 168
 	case kv.IsRH7Kernel():
-		offset = 240
+		return 240
+	case kv.IsRH9Kernel():
+		fallthrough
+	case kv.Code >= kernel.Kernel5_19:
+		return 136
+	default:
+		return 144
 	}
-
-	return offset
 }
 
 func getSockCommonSKCFamilyOffset(kv *kernel.Version) uint64 {
@@ -738,8 +772,10 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		offset = 32
-	case kv.Code >= kernel.Kernel5_1:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_18):
 		offset = 40
+	case kv.Code >= kernel.Kernel5_18:
+		offset = 48
 	}
 
 	return offset
@@ -801,6 +837,8 @@ func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
 		return 80
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 96
+	case kv.Code >= kernel.Kernel5_16:
+		return 88
 	default:
 		return 80
 	}
@@ -867,6 +905,16 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 	}
 
 	return offset
+}
+
+func getVmAreaStructFlagsOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
+		return 32
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_2, kernel.Kernel6_3):
+		return 32
+	}
+	return 80
 }
 
 func getTaskStructPIDOffset(kv *kernel.Version) uint64 {

@@ -20,17 +20,53 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	sysctl "github.com/lorenzosaino/go-sysctl"
 )
 
 // Options wraps all configurable params for the HTTPServer
 type Options struct {
 	// If TLS is enabled, allows to upgrade the connections to http/2.
-	EnableHTTP2     bool
-	EnableTLS       bool
-	EnableKeepAlive bool
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	SlowResponse    time.Duration
+	EnableHTTP2        bool
+	EnableTLS          bool
+	EnableKeepAlive    bool
+	EnableTCPTimestamp *bool
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	SlowResponse       time.Duration
+}
+
+func isNetIPV4TCPTimestampEnabled(t *testing.T) bool {
+	oldTCPTS, err := sysctl.Get("net.ipv4.tcp_timestamps")
+	if err != nil {
+		t.Logf("can't get TCP timestamp %s", err)
+		return false
+	}
+	return oldTCPTS == "1"
+}
+
+func setNetIPV4TCPTimestamp(t *testing.T, enable bool) {
+	if os.Geteuid() != 0 {
+		if isNetIPV4TCPTimestampEnabled(t) != enable {
+			t.Skip("skipping as we don't have enough permission to change net.ipv4.tcp_timestamps")
+		}
+		return
+	}
+
+	tcpTimestampStr := "0"
+	if enable {
+		tcpTimestampStr = "1"
+	}
+
+	if err := sysctl.Set("net.ipv4.tcp_timestamps", tcpTimestampStr); err != nil {
+		t.Errorf("can't set old value of TCP timestamp %s", err)
+	}
+}
+
+func SetupNetIPV4TCPTimestamp(t *testing.T, enable bool) {
+	oldTCPTS := isNetIPV4TCPTimestampEnabled(t)
+	setNetIPV4TCPTimestamp(t, enable)
+	t.Cleanup(func() { setNetIPV4TCPTimestamp(t, oldTCPTS) })
 }
 
 // HTTPServer spins up a HTTP test server that returns the status code included in the URL
@@ -45,10 +81,18 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 			time.Sleep(options.SlowResponse)
 		}
 		statusCode := StatusFromPath(req.URL.Path)
-		w.WriteHeader(int(statusCode))
+		if statusCode == 0 {
+			t.Errorf("wrong request format %s", req.URL.Path)
+		} else {
+			w.WriteHeader(int(statusCode))
+		}
 
 		defer req.Body.Close()
 		io.Copy(w, req.Body)
+	}
+	/* Save and recover TCP timestamp option */
+	if options.EnableTCPTimestamp != nil {
+		SetupNetIPV4TCPTimestamp(t, *options.EnableTCPTimestamp)
 	}
 
 	srv := &http.Server{
@@ -91,11 +135,13 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 			return err
 		}
 	}
-	err := listenFn()
-	if err != nil {
+
+	if err := listenFn(); err != nil {
 		t.Fatalf("server listen: %s", err)
 	}
-	return func() { srv.Shutdown(context.Background()) }
+	return func() {
+		srv.Shutdown(context.Background())
+	}
 }
 
 var pathParser1 = regexp.MustCompile(`/(\d{3})/.+`)

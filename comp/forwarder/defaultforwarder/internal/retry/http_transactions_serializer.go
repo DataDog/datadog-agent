@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	proto "github.com/golang/protobuf/proto"
 )
@@ -32,6 +32,7 @@ const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
 // To support a new Transaction implementation, add a new
 // method `func (s *HTTPTransactionsSerializer) Add(transaction NEW_TYPE) error {`
 type HTTPTransactionsSerializer struct {
+	log                 log.Component
 	collection          HttpTransactionProtoCollection
 	apiKeyToPlaceholder *strings.Replacer
 	placeholderToAPIKey *strings.Replacer
@@ -39,10 +40,11 @@ type HTTPTransactionsSerializer struct {
 }
 
 // NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
-func NewHTTPTransactionsSerializer(resolver resolver.DomainResolver) *HTTPTransactionsSerializer {
+func NewHTTPTransactionsSerializer(log log.Component, resolver resolver.DomainResolver) *HTTPTransactionsSerializer {
 	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(resolver.GetAPIKeys())
 
 	return &HTTPTransactionsSerializer{
+		log: log,
 		collection: HttpTransactionProtoCollection{
 			Version: transactionsSerializerVersion,
 		},
@@ -125,7 +127,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 		}
 
 		if err != nil {
-			log.Errorf("Error when deserializing a transaction: %v", err)
+			s.log.Errorf("Error when deserializing a transaction: %v", err)
 			errorCount++
 			continue
 		}

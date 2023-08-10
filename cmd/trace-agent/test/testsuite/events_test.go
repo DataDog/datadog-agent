@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -58,8 +58,8 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.AgentPayload) {
-			if n := countEvents(&v); n != 0 {
+		waitForTrace(t, &runner, func(v *pb.AgentPayload) {
+			if n := countEvents(v); n != 0 {
 				t.Fatalf("expected no events, got %d", n)
 			}
 		})
@@ -76,8 +76,8 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.AgentPayload) {
-			if n := countEvents(&v); n != 1 {
+		waitForTrace(t, &runner, func(v *pb.AgentPayload) {
+			if n := countEvents(v); n != 1 {
 				t.Fatalf("expected 1 event, got %d", n)
 			}
 		})
@@ -93,8 +93,8 @@ func TestAPMEvents(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		waitForTrace(t, &runner, func(v pb.AgentPayload) {
-			if n := countEvents(&v); n != 5 {
+		waitForTrace(t, &runner, func(v *pb.AgentPayload) {
+			if n := countEvents(v); n != 5 {
 				t.Fatalf("expected 5 event, got %d", n)
 			}
 		})

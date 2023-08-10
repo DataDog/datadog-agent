@@ -11,18 +11,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
-	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/leaderelection"
-	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
-
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -31,6 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"golang.org/x/mod/semver"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
+	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/leaderelection"
+	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
 const (
@@ -82,7 +82,7 @@ func newLeaderEngine() *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
-	telemetry.Reset()
+	telemetryComponent.GetCompatComponent().Reset()
 }
 
 // GetLeaderEngine returns a leader engine client with default parameters.
@@ -116,9 +116,9 @@ func (le *LeaderEngine) init() error {
 	var err error
 
 	if le.HolderIdentity == "" {
-		le.HolderIdentity, err = os.Hostname()
+		le.HolderIdentity, err = getSelfPodName()
 		if err != nil {
-			log.Debugf("cannot get hostname: %s", err)
+			log.Debugf("cannot get pod name: %s", err)
 			return err
 		}
 	}
@@ -139,10 +139,15 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
+	serverVersion, err := common.KubeServerVersion(apiClient.DiscoveryCl, 10*time.Second)
+	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
+		log.Warn("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
+	}
+
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
 
-	usingLease, err := CanUseLease(apiClient.DiscoveryCl)
+	usingLease, err := CanUseLeases(apiClient.DiscoveryCl)
 	if err != nil {
 		log.Errorf("Unable to retrieve available resources: %v", err)
 		return err
@@ -260,7 +265,7 @@ func (le *LeaderEngine) Subscribe() <-chan struct{} {
 	return c
 }
 
-func CanUseLease(client discovery.DiscoveryInterface) (bool, error) {
+func detectLeases(client discovery.DiscoveryInterface) (bool, error) {
 	resourceList, err := client.ServerResourcesForGroupVersion("coordination.k8s.io/v1")
 	if kerrors.IsNotFound(err) {
 		return false, nil
@@ -275,6 +280,23 @@ func CanUseLease(client discovery.DiscoveryInterface) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// CanUseLeases returns if leases can be used for leader election. If the resource is defined in the config
+// It uses it. Otherwise it uses the discovery client for leader election.
+func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
+	resourceType := config.Datadog.GetString("leader_election_default_resource")
+	if resourceType == "lease" || resourceType == "leases" {
+		return true, nil
+	} else if resourceType == "configmap" || resourceType == "configmaps" {
+		return false, nil
+	}
+
+	if resourceType != "" {
+		log.Warnf("Unknown resource lock for leader election [%s]. Using the discovery client to select the lock", resourceType)
+	}
+
+	return detectLeases(client)
 }
 
 func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
@@ -313,7 +335,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	if err != nil {
 		return led, err
 	}
-	usingLease, err := CanUseLease(client.DiscoveryCl)
+	usingLease, err := CanUseLeases(client.DiscoveryCl)
 	if err != nil {
 		return led, err
 	}

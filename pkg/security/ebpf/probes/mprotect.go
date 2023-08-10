@@ -14,17 +14,17 @@ var mprotectProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_file_mprotect",
+			EBPFFuncName: "hook_security_file_mprotect",
 		},
 	},
 }
 
-func getMProtectProbes() []*manager.Probe {
+func getMProtectProbes(fentry bool) []*manager.Probe {
 	mprotectProbes = append(mprotectProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mprotect",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return mprotectProbes
 }

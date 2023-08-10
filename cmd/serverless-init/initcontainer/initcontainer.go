@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/afero"
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
@@ -44,15 +45,29 @@ func Run(cloudService cloudservice.CloudService, logConfig *serverlessLog.Config
 
 func execute(cloudService cloudservice.CloudService, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
 	commandName, commandArgs := buildCommandParam(args)
+
+	// Add our tracer settings
+	fs := afero.NewOsFs()
+	AutoInstrumentTracer(fs)
+
 	cmd := exec.Command(commandName, commandArgs...)
+
+	shouldBuffer := calculateShouldBuffer(commandName)
+
 	cmd.Stdout = &serverlessLog.CustomWriter{
 		LogConfig:  config,
 		LineBuffer: bytes.Buffer{},
+		// Dotnet occasionally writes to stdout in multiple chunks causing log splitting issues.
+		// This happens regardless of logging library (and happens with Console.WriteLine).
+		// ShouldBuffer tells the CustomWriter to buffer all log chunks that don't end in a newline,
+		// fixing log splitting in this scenario.
+		ShouldBuffer: shouldBuffer,
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
-		IsError:    true,
+		LogConfig:    config,
+		LineBuffer:   bytes.Buffer{},
+		ShouldBuffer: shouldBuffer,
+		IsError:      true,
 	}
 	err := cmd.Start()
 	if err != nil {
@@ -62,6 +77,10 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 	err = cmd.Wait()
 	flush(config.FlushTimeout, metricAgent, traceAgent)
 	return err
+}
+
+func calculateShouldBuffer(commandName string) bool {
+	return commandName == "dotnet"
 }
 
 func buildCommandParam(cmdArg []string) (string, []string) {
@@ -87,6 +106,12 @@ func handleSignals(cloudService cloudservice.CloudService, process *os.Process, 
 			if sig != syscall.SIGCHLD {
 				if process != nil {
 					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
+					_, err := process.Wait()
+					if err != nil {
+						serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
+					} else {
+						serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
+					}
 				}
 			}
 			if sig == syscall.SIGTERM {

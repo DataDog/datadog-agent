@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
 // Collector represents a group of information which can be collected
@@ -34,15 +35,42 @@ type Collector interface {
 	Collect() (interface{}, error)
 }
 
+// CollectorV2 is a compatibility layer between the old 'Collector' interface and
+// the way the new API is defined
+type CollectorV2[T utils.Jsonable] struct {
+	name    string
+	collect func() T
+}
+
+// Name returns the name of the CollectorV2
+func (collector *CollectorV2[T]) Name() string {
+	return collector.name
+}
+
+// Collect calls the CollectorV2's collect method and returns only its marshallable object and error
+func (collector *CollectorV2[T]) Collect() (interface{}, error) {
+	json, _, err := collector.collect().AsJSON()
+	return json, err
+}
+
 // SelectedCollectors represents a set of collector names
 type SelectedCollectors map[string]struct{}
 
 var collectors = []Collector{
-	&cpu.Cpu{},
+	&CollectorV2[*cpu.Info]{
+		name:    "cpu",
+		collect: cpu.CollectInfo,
+	},
 	&filesystem.FileSystem{},
-	&memory.Memory{},
+	&CollectorV2[*memory.Info]{
+		name:    "memory",
+		collect: memory.CollectInfo,
+	},
 	&network.Network{},
-	&platform.Platform{},
+	&CollectorV2[*platform.Info]{
+		name:    "platform",
+		collect: platform.CollectInfo,
+	},
 	&processes.Processes{},
 }
 

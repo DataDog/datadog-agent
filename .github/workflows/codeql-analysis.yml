@@ -23,7 +23,7 @@ jobs:
       - name: Setup Python3
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: '3.9.16'
 
       - name: Install Python requirements
         run: |
@@ -48,6 +48,11 @@ jobs:
           # Defining a fixed CodeQL bundle version
           tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-20230207/codeql-bundle-linux64.tar.gz
 
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c
+        with:
+          swap-size-gb: 10
+      
       - name: Build DataDog agent
         run: |
           invoke install-tools

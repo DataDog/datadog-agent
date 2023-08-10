@@ -13,13 +13,15 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
+
+// ServiceName specifies the service name used in the operating system.
+const ServiceName = "datadog-trace-agent"
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
@@ -37,8 +39,9 @@ type Endpoint struct {
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
-// App Services env var
-const azureAppServices = "DD_AZURE_APP_SERVICES"
+// App Services env vars
+const RunZip = "APPSVC_RUN_ZIP"
+const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -99,7 +102,7 @@ type ObfuscationConfig struct {
 
 	// Redis holds the configuration for obfuscating the "redis.raw_command" tag
 	// for spans of type "redis".
-	Redis Enablable `mapstructure:"redis"`
+	Redis RedisObfuscationConfig `mapstructure:"redis"`
 
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
@@ -143,6 +146,10 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			RemoveQueryString: o.HTTP.RemoveQueryString,
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
 		},
+		Redis: obfuscate.RedisConfig{
+			Enabled:       o.Redis.Enabled,
+			RemoveAllArgs: o.Redis.RemoveAllArgs,
+		},
 		Logger: new(debugLogger),
 	}
 }
@@ -177,6 +184,16 @@ type HTTPObfuscationConfig struct {
 // Enablable can represent any option that has an "enabled" boolean sub-field.
 type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
+}
+
+// RedisObfuscationConfig holds the configuration settings for Redis obfuscation
+type RedisObfuscationConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
@@ -430,8 +447,8 @@ type AgentConfig struct {
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
-	// RemoteSamplingClient retrieves sampling updates from the remote config backend
-	RemoteSamplingClient RemoteClient `json:"-"`
+	// RemoteConfigClient retrieves sampling updates from the remote config backend
+	RemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -451,7 +468,8 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	RegisterAPMUpdate(func(update map[string]state.APMSamplingConfig))
+	Subscribe(string, func(update map[string]state.RawConfig))
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 // Tag represents a key/value pair.
@@ -522,7 +540,7 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: inAzureAppServices(os.Getenv),
+		InAzureAppServices: InAzureAppServices(),
 
 		Features: make(map[string]struct{}),
 	}
@@ -584,11 +602,8 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
-func inAzureAppServices(getenv func(string) string) bool {
-	str := getenv(azureAppServices)
-	if val, err := strconv.ParseBool(str); err == nil {
-		return val
-	} else {
-		return false
-	}
+func InAzureAppServices() bool {
+	_, existsLinux := os.LookupEnv(RunZip)
+	_, existsWin := os.LookupEnv(AppLogsTrace)
+	return existsLinux || existsWin
 }

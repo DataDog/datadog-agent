@@ -5,9 +5,7 @@
 
 package traceutil
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-)
+import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
@@ -40,13 +38,11 @@ func (pt *ProcessedTrace) Clone() *ProcessedTrace {
 	ptClone := new(ProcessedTrace)
 	*ptClone = *pt
 	if pt.TraceChunk != nil {
-		c := new(pb.TraceChunk)
-		*c = *pt.TraceChunk
+		c := pt.TraceChunk.ShallowCopy()
 		ptClone.TraceChunk = c
 	}
 	if pt.Root != nil {
-		r := new(pb.Span)
-		*r = *pt.Root
+		r := pt.Root.ShallowCopy()
 		ptClone.Root = r
 	}
 	return ptClone

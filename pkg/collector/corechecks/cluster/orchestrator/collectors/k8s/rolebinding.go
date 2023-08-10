@@ -59,12 +59,9 @@ func (c *RoleBindingCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *RoleBindingCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().RoleBindings()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Rbac().V1().RoleBindings()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *RoleBindingCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *RoleBindingCollector) Metadata() *collectors.CollectorMetadata {

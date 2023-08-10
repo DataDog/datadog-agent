@@ -35,30 +35,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
-	pc.IsThread = false
 	parent.Retain()
-}
-
-// GetNextAncestorBinary returns the first ancestor with a different binary
-func (pc *ProcessContext) GetNextAncestorBinary() *ProcessCacheEntry {
-	current := pc
-	ancestor := pc.Ancestor
-	for ancestor != nil {
-		if ancestor.Inode == 0 {
-			return nil
-		}
-		if current.Inode != ancestor.Inode {
-			return ancestor
-		}
-		current = &ancestor.ProcessContext
-		ancestor = ancestor.Ancestor
-	}
-	return nil
-}
-
-// GetNextAncestorBinary returns the first ancestor with a different binary
-func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
-	return pc.ProcessContext.GetNextAncestorBinary()
 }
 
 // HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
@@ -89,12 +66,18 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
+// Replace previous entry values by the given one
+func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
+	pc.ExecTime = entry.ExecTime
+}
+
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetAncestor(pc)
 
-	// use exec time a exit time
+	// use exec time as exit time
 	pc.Exit(entry.ExecTime)
+	entry.Process.IsExecChild = !pc.IsThread
 
 	// keep some context
 	copyProcessContext(pc, entry)
@@ -125,9 +108,12 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.SetParentOfForkChild(pc)
 }
 
-// Equals returns whether process cache entries share the same values for comm and args/envs
+// Equals returns whether process cache entries share the same values for file and args/envs
 func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
-	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
+	return (pc.FileEvent.Equals(&entry.FileEvent) &&
+		pc.Credentials.Equals(&entry.Credentials) &&
+		pc.ArgsEntry.Equals(entry.ArgsEntry) &&
+		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
 // NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
@@ -231,7 +217,7 @@ func (p *EnvsEntry) Get(key string) string {
 func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	if p == o {
 		return true
-	} else if o == nil {
+	} else if p == nil || o == nil {
 		return false
 	}
 

@@ -10,11 +10,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -31,7 +31,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		return nil, nil
 	}
 
-	endpoints, context, err := command.NewLogContextCompliance(log)
+	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}

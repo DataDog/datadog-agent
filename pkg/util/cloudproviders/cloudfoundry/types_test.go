@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/bbs/models"
-	"github.com/cloudfoundry-community/go-cfclient"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/stretchr/testify/assert"
 )
 

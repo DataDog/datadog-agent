@@ -59,12 +59,9 @@ func (c *PersistentVolumeCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *PersistentVolumeCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().PersistentVolumes()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().PersistentVolumes()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *PersistentVolumeCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *PersistentVolumeCollector) Metadata() *collectors.CollectorMetadata {

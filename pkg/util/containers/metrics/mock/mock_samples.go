@@ -47,6 +47,7 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				SwapLimit:        pointer.Ptr(500.0),
 				Softlimit:        pointer.Ptr(40000.0),
 				RSS:              pointer.Ptr(300.0),
+				WorkingSet:       pointer.Ptr(350.0),
 				Cache:            pointer.Ptr(200.0),
 				Swap:             pointer.Ptr(0.0),
 				OOMEvents:        pointer.Ptr(10.0),

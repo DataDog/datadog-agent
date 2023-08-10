@@ -2,7 +2,12 @@ import os
 
 from invoke import Exit, task
 
-from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
+from .libs.github_actions_tools import (
+    download_artifacts_with_retry,
+    follow_workflow_run,
+    print_workflow_conclusion,
+    trigger_macos_workflow,
+)
 from .utils import DEFAULT_BRANCH, load_release_versions
 
 
@@ -15,6 +20,8 @@ def trigger_macos_build(
     python_runtimes="3",
     destination=".",
     version_cache=None,
+    retry_download=3,
+    retry_interval=10,
 ):
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
@@ -33,9 +40,14 @@ def trigger_macos_build(
         version_cache_file_content=version_cache,
     )
 
-    follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run_id)
 
-    download_artifacts(run_id, destination)
+    print_workflow_conclusion(workflow_conclusion)
+
+    download_artifacts_with_retry(run_id, destination, retry_download, retry_interval)
+
+    if workflow_conclusion != "success":
+        raise Exit(code=1)
 
 
 @task
@@ -45,6 +57,9 @@ def trigger_macos_test(
     release_version="nightly-a7",
     python_runtimes="3",
     destination=".",
+    version_cache=None,
+    retry_download=3,
+    retry_interval=10,
 ):
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
@@ -54,11 +69,17 @@ def trigger_macos_test(
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
+        version_cache_file_content=version_cache,
     )
 
-    follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run_id)
 
-    download_artifacts(run_id, destination)
+    print_workflow_conclusion(workflow_conclusion)
+
+    download_artifacts_with_retry(run_id, destination, retry_download, retry_interval)
+
+    if workflow_conclusion != "success":
+        raise Exit(code=1)
 
 
 @task
