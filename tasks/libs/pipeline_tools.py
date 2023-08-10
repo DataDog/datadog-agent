@@ -71,7 +71,7 @@ def gracefully_cancel_pipeline(gitlab, pipeline):
     jobs = gitlab.all_jobs(pipeline["id"])
 
     for job in jobs:
-        if job["status"] == "pending" and "cleanup" not in job["name"]:
+        if job["status"] != "running" and "cleanup" not in job["name"]:
             gitlab.cancel_job(job["id"])
 
 
