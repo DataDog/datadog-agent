@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -34,6 +36,7 @@ var MAX_OPEN_CONNECTIONS = 10
 // DEFAULT_SQL_TRACED_RUNS exported var should have comment or be unexported
 var DEFAULT_SQL_TRACED_RUNS = 10
 // DB_TIMEOUT exported var should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 var DB_TIMEOUT = "20000"
 
 // StatementsFilter The structure is filled by activity sampling and serves as a filter for query metrics

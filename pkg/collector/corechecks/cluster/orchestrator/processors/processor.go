@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build orchestrator
 
 package processors
@@ -31,6 +33,7 @@ type ProcessorContext struct {
 	HostName           string
 	MsgGroupID         int32
 	NodeType           orchestrator.NodeType
+// struct field ApiGroupVersionTag should be APIGroupVersionTag
 	ApiGroupVersionTag string
 }
 

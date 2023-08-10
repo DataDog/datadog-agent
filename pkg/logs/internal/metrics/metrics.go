@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package metrics TODO comment
 package metrics
 
@@ -63,6 +65,7 @@ var (
 	// TODO: Add LogsCollected for the total number of collected logs.
 	DestinationHttpRespByStatusAndUrl    = expvar.Map{}
 // TlmDestinationHttpRespByStatusAndUrl exported var should have comment or be unexported
+// var TlmDestinationHttpRespByStatusAndUrl should be TlmDestinationHTTPRespByStatusAndURL
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 )
 

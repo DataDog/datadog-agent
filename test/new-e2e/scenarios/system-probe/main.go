@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !windows
 // +build !windows
 
@@ -20,6 +22,7 @@ import (
 )
 
 // DD_AGENT_TESTING_DIR exported var should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 var DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 

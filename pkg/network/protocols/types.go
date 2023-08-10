@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package protocols
 
 // ProtocolType exported type should have comment or be unexported
@@ -52,6 +54,7 @@ func (p ProtocolType) String() string {
 
 // Stack exported type should have comment or be unexported
 type Stack struct {
+// struct field Api should be API
 	Api         ProtocolType
 	Application ProtocolType
 	Encryption  ProtocolType

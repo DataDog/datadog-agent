@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 // Package config TODO comment
@@ -137,6 +139,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	initCfg := InitConfig{}
 
 	// Defaults begin
+// don't use ALL_CAPS in Go names; use CamelCase
 	var DEFAULT_METRIC_COLLECTION_INTERVAL int64
 	DEFAULT_METRIC_COLLECTION_INTERVAL = 60
 	instance.MetricCollectionInterval = DEFAULT_METRIC_COLLECTION_INTERVAL

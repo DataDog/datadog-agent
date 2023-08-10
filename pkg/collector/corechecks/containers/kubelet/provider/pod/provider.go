@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubelet
 
 // Package pod TODO comment
@@ -79,6 +81,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
 				continue
 			}
+// var cId should be cID
 			cId, err := kubelet.KubeContainerIDToTaggerEntityID(cStatus.ID)
 			if err != nil {
 				// could not correctly parse container ID
@@ -110,6 +113,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
+// method parameter containerId should be containerID
 func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
@@ -133,6 +137,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
+// method parameter containerId should be containerID
 func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
@@ -176,6 +181,7 @@ func newRunningAggregator() *runningAggregator {
 	}
 }
 
+// method parameter containerId should be containerID
 func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStatus *kubelet.ContainerStatus, containerId string) {
 	if cStatus.State.Running == nil || time.Time.IsZero(cStatus.State.Running.StartedAt) {
 		return
@@ -196,6 +202,7 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 	if !r.podHasRunningContainers[pod.Metadata.UID] {
 		return
 	}
+// var podId should be podID
 	podId := pod.Metadata.UID
 	if podId == "" {
 		log.Debug("skipping pod with no uid")

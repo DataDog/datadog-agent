@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -16,6 +18,7 @@ import (
 )
 
 // OSSTATS_QUERY exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const OSSTATS_QUERY = `SELECT stat_name, value
   FROM v$osstat WHERE stat_name in ('NUM_CPUS','PHYSICAL_MEMORY_BYTES')`
 
@@ -26,6 +29,7 @@ type OSStatsRowDB struct {
 }
 
 // OS_Stats exported method should have comment or be unexported
+// don't use underscores in Go names; method OS_Stats should be OSStats
 func (c *Check) OS_Stats() error {
 	s, err := c.GetSender()
 	if err != nil {

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package http TODO comment
 package http
 
@@ -51,6 +53,7 @@ var (
 )
 
 // emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
+// var emptyJsonPayload should be emptyJSONPayload
 var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
 
 // Destination sends a payload over HTTP.

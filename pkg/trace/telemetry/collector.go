@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package telemetry TODO comment
 package telemetry
 
@@ -30,6 +32,7 @@ const (
 	CantSetupAutoExit          = 11
 	CantConfigureDogstatsd     = 12
 	CantCreateRCCLient         = 13
+	// const CantStartHttpServer should be CantStartHTTPServer
 	CantStartHttpServer        = 14
 	CantStartUdsServer         = 15
 	CantStartWindowsPipeServer = 16
@@ -39,6 +42,7 @@ const (
 // OnboardingEvent contains
 type OnboardingEvent struct {
 	RequestType string                 `json:"request_type"`
+	// struct field ApiVersion should be APIVersion
 	ApiVersion  string                 `json:"api_version"`
 	Payload     OnboardingEventPayload `json:"payload,omitempty"`
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !windows
 
 package checks
@@ -89,6 +91,7 @@ func TestLookupUserWithId(t *testing.T) {
 }
 
 func TestLookupIdConfigSetting(t *testing.T) {
+// var testLookupIdFunc should be testLookupIDFunc
 	testLookupIdFunc := func(uid string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
 
 	t.Run("enabled", func(t *testing.T) {

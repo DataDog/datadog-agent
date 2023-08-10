@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !windows
 
 package checks
@@ -18,14 +20,18 @@ import (
 )
 
 // LookupIdProbe exported type should have comment or be unexported
+// type LookupIdProbe should be LookupIDProbe
 type LookupIdProbe struct {
 	config config.Reader
 
+// struct field lookupIdCache should be lookupIDCache
 	lookupIdCache *cache.Cache
+// struct field lookupId should be lookupID
 	lookupId      func(uid string) (*user.User, error)
 }
 
 // NewLookupIdProbe exported function should have comment or be unexported
+// func NewLookupIdProbe should be NewLookupIDProbe
 func NewLookupIdProbe(coreConfig config.Reader) *LookupIdProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
 		log.Debug("Using cached calls to `user.LookupID`")
@@ -39,6 +45,7 @@ func NewLookupIdProbe(coreConfig config.Reader) *LookupIdProbe {
 	}
 }
 
+// method lookupIdWithCache should be lookupIDWithCache
 func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
 	result, ok := p.lookupIdCache.Get(uid)
 	if !ok {
@@ -63,6 +70,7 @@ func (p *LookupIdProbe) lookupIdWithCache(uid string) (*user.User, error) {
 }
 
 // LookupId exported method should have comment or be unexported
+// method LookupId should be LookupID
 func (p *LookupIdProbe) LookupId(uid string) (*user.User, error) {
 	if p.config.GetBool("process_config.cache_lookupid") {
 		return p.lookupIdWithCache(uid)

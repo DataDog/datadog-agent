@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package config
 
 import (
@@ -45,6 +47,7 @@ type LogsConfig struct {
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
 	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
+// struct field ConfigId should be ConfigID
 	ConfigId           string   `mapstructure:"config_id" json:"config_id"`                   // Journald
 	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units"`           // Journald
 	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units"`           // Journald

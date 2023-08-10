@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -32,6 +34,7 @@ type ActivitySnapshot struct {
 }
 
 // ACTIVITY_QUERY exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 	SYSDATE as now,
 	sid,
@@ -105,6 +108,7 @@ WHERE
 	AND status = 'ACTIVE'`
 
 // ACTIVITY_QUERY_DIRECT exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const ACTIVITY_QUERY_DIRECT = `SELECT /* DD_ACTIVITY_SAMPLING */
 s.sid,
 s.serial#,

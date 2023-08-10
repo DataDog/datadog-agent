@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package snmpparse TODO
 package snmpparse
 
@@ -150,6 +152,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 }
 
 // GetIPConfig exported function should have comment or be unexported
+// don't use underscores in Go names; func parameter ip_address should be ipAddress
 func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	ipAddressConfigs := []SNMPConfig{}
 	netAddressConfigs := []SNMPConfig{}

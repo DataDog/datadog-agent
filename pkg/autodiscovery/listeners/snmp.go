@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package listeners
 
 import (
@@ -425,6 +427,7 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		if len(ifConfigs) == 0 {
 			return "", nil
 		}
+// var ifConfigsJson should be ifConfigsJSON
 		ifConfigsJson, err := json.Marshal(ifConfigs)
 		if err != nil {
 			return "", fmt.Errorf("error marshalling interface_configs: %s", err)

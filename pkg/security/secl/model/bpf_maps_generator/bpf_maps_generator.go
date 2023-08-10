@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package main TODO comment
 package main
 
@@ -32,7 +34,8 @@ type tmplContext struct {
 	Entries     []mapEntry
 }
 
-const BPF_MAX_OBJ_SIZE = 15 // BPF_MAX_OBJ_SIZE 16 - 1 for the \0
+// BPF_MAX_OBJ_SIZE don't use ALL_CAPS in Go names; use CamelCase
+const BPF_MAX_OBJ_SIZE = 15 // 16 - 1 for the \0
 
 func main() {
 	var (

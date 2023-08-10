@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package tailers
 
 import (
@@ -24,6 +26,7 @@ func NewTestTailer1(id string) *TestTailer1 {
 	}
 }
 
+// method GetId should be GetID
 func (t *TestTailer1) GetId() string {
 	return t.id
 }
@@ -46,6 +49,7 @@ func NewTestTailer2(id string) *TestTailer2 {
 	}
 }
 
+// method GetId should be GetID
 func (t *TestTailer2) GetId() string {
 	return t.id
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package trace TODO comment
 package trace
 
@@ -42,6 +44,7 @@ type ColdStartSpanCreator struct {
 	LambdaSpanChan        <-chan *pb.Span
 	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
 	syncSpanDurationMutex sync.Mutex
+// struct field ColdStartSpanId should be ColdStartSpanID
 	ColdStartSpanId       uint64
 	lambdaSpan            *pb.Span
 	initDuration          float64

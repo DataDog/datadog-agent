@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package compliance
 
 import (
@@ -149,6 +151,7 @@ func (r *defaultResolver) Close() {
 	r.kubeClusterIDCache = ""
 }
 
+// don't use underscores in Go names; method parameter ctx_ should be ctx
 func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (ResolvedInputs, error) {
 	resolvingContext := struct {
 		RuleID            string                `json:"ruleID"`

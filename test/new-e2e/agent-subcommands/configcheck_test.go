@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package agentsubcommands
 
 import (
@@ -26,6 +28,7 @@ func TestAgentConfigCheckSuite(t *testing.T) {
 type CheckConfigOutput struct {
 	CheckName  string
 	Filepath   string
+// struct field InstanceId should be InstanceID
 	InstanceId string
 	Settings   string
 }

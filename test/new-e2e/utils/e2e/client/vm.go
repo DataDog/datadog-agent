@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package client contains clients used to communicate with the remote service
 package client
 
@@ -33,6 +35,7 @@ func NewVM(infraVM commonvm.VM) *VM {
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
 func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	var err error
+// var privateSshKey should be privateSSHKey
 	var privateSshKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")

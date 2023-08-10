@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:generate go run golang.org/x/tools/cmd/stringer -type=StorageFormat,StorageType -linecomment -output enum_string.go
 
 package config
@@ -92,6 +94,7 @@ type StorageFormat int
 
 const (
 	// Json is used to request the JSON format
+// const Json should be JSON
 	Json StorageFormat = iota // json
 	// Protobuf is used to request the protobuf format
 	Protobuf // protobuf

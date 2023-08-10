@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package checks
 
 import (
@@ -14,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// func testGroupId should be testGroupID
 func testGroupId(groupID int32) func() int32 {
 	return func() int32 {
 		return groupID

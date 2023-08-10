@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -16,6 +18,7 @@ import (
 )
 
 // PGA_QUERY exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const PGA_QUERY = `SELECT 
 	name pdb_name, 
 	pid, 

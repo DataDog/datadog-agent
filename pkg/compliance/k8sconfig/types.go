@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package k8sconfig
 
 import (
@@ -119,7 +121,9 @@ type K8sCertFileMeta struct {
 	Certificate struct {
 		Fingerprint    string    `json:"fingerprint"`
 		SerialNumber   string    `json:"serialNumber,omitempty"`
+// struct field SubjectKeyId should be SubjectKeyID
 		SubjectKeyId   string    `json:"subjectKeyId,omitempty"`
+// struct field AuthorityKeyId should be AuthorityKeyID
 		AuthorityKeyId string    `json:"authorityKeyId,omitempty"`
 		CommonName     string    `json:"commonName"`
 		Organization   []string  `json:"organization,omitempty"`

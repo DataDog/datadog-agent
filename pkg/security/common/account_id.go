@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package common TODO comment
 package common
 
@@ -20,11 +22,14 @@ import (
 
 type cloudProviderDetector struct {
 	name              string
+// struct field accountIdName should be accountIDName
 	accountIdName     string
 	callback          func(context.Context) bool
+// struct field accountIdCallback should be accountIDCallback
 	accountIdCallback func(context.Context) (string, error)
 }
 
+// func queryAccountId should be queryAccountID
 func queryAccountId(ctx context.Context) (string, string, error) {
 	detectors := []cloudProviderDetector{
 		{name: ec2.CloudProviderName, accountIdName: "account_id", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
@@ -50,12 +55,14 @@ func queryAccountId(ctx context.Context) (string, string, error) {
 	return "", "", fmt.Errorf("no cloud provider detected")
 }
 
+// var accountIdTagCache should be accountIDTagCache
 var accountIdTagCache struct {
 	sync.Once
 	value string
 }
 
 // QueryAccountIdTag returns the account id tag matching the current deployment
+// func QueryAccountIdTag should be QueryAccountIDTag
 func QueryAccountIdTag() string {
 	accountIdTagCache.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

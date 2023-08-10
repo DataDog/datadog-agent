@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package file
 
 import (
@@ -385,6 +387,7 @@ func (t *Tailer) Source() *sources.LogSource {
 }
 
 // GetId exported method should have comment or be unexported
+// method GetId should be GetID
 func (t *Tailer) GetId() string {
 	return t.file.GetScanKey()
 }

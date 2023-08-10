@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubeapiserver
 
 package telemetry
@@ -19,7 +21,9 @@ import (
 )
 
 const (
+// const testRcClientId should be testRcClientID
 	testRcClientId          = "YgRPh8NqGkvhXq71FvxVN"
+// const testKubernetesClusterId should be testKubernetesClusterID
 	testKubernetesClusterId = "2cb68cff-935e-4d09-8e57-7c2c5e0364d6"
 )
 

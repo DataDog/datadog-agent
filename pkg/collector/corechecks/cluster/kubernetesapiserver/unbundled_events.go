@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubeapiserver
 
 package kubernetesapiserver
@@ -104,6 +106,7 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 	}
 	switch obj.Kind {
 	case podKind:
+// var entityId should be entityID
 		entityId := fmt.Sprintf("kubernetes_pod_uid://%s", obj.UID)
 		entity, err := c.taggerInstance.GetEntity(entityId)
 		if err != nil {

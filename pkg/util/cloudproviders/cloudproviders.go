@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package cloudproviders TODO comment
 package cloudproviders
 
@@ -32,6 +34,7 @@ import (
 type cloudProviderDetector struct {
 	name              string
 	callback          func(context.Context) bool
+// struct field accountIdCallback should be accountIDCallback
 	accountIdCallback func(context.Context) (string, error)
 }
 

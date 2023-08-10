@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package limiter
 
 import (
@@ -104,6 +106,7 @@ func newLimiter(limit, global int, expireCountInterval int, keyTagName string, t
 // getSenderId finds sender identifier given a set of origin detection tags.
 //
 // If the key tag is not found, returns empty string.
+// method getSenderId should be getSenderID
 func (l *Limiter) getSenderId(tags []string) string {
 	for _, t := range tags {
 		if strings.HasPrefix(t, l.keyTagName) {

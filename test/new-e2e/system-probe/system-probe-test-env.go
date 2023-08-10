@@ -5,6 +5,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !windows
 // +build !windows
 
@@ -86,6 +88,7 @@ var (
 	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
 
   // CI_PROJECT_DIR exported var should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")

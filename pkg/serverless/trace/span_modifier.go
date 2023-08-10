@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package trace
 
 import (
@@ -21,6 +23,7 @@ const (
 type spanModifier struct {
 	tags            map[string]string
 	lambdaSpanChan  chan<- *pb.Span
+// struct field coldStartSpanId should be coldStartSpanID
 	coldStartSpanId uint64
 }
 

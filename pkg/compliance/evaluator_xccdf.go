@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !libopenscap || !cgo || !linux
 
 package compliance
@@ -35,12 +37,19 @@ const (
 
 // This const block should have a comment of be unexported
 const (
+// don't use ALL_CAPS in Go names; use CamelCase
 	XCCDF_RESULT_PASS = iota + 1
+// don't use ALL_CAPS in Go names; use CamelCase
 	XCCDF_RESULT_FAIL
+// don't use ALL_CAPS in Go names; use CamelCase
 	XCCDF_RESULT_ERROR
+// don't use ALL_CAPS in Go names; use CamelCase
 	XCCDF_RESULT_UNKNOWN
+// don't use ALL_CAPS in Go names; use CamelCase
 	XCCDF_RESULT_NOT_APPLICABLE
+// don't use ALL_CAPS in Go names; use CamelCase
 	XCCDF_RESULT_NOT_CHECKED
+// don't use ALL_CAPS in Go names; use CamelCase
 	XCCDF_RESULT_NOT_SELECTED
 )
 

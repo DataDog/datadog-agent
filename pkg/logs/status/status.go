@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package status
 
 import (
@@ -48,6 +50,7 @@ type Source struct {
 
 // Tailer exported type should have comment or be unexported
 type Tailer struct {
+// struct field Id should be ID
 	Id   string              `json:"id"`
 	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`

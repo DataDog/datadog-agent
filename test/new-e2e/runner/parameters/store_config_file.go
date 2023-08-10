@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package parameters
 
 import (
@@ -54,6 +56,7 @@ var _ valueStore = &ConfigFileValueStore{}
 // ConfigFileValueStore exported type should have comment or be unexported
 type ConfigFileValueStore struct {
 	config          Config
+// struct field stackParamsJson should be stackParamsJSON
 	stackParamsJson string
 }
 

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package telemetry
 
 import (
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// func parameter serverUrl should be serverURL
 func testCfg(serverUrl string) *config.AgentConfig {
 	cfg := config.New()
 	cfg.TelemetryConfig.Endpoints[0].Host = serverUrl

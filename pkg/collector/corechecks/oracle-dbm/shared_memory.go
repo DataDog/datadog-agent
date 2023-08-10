@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -16,6 +18,7 @@ import (
 )
 
 // QUERY_SHM exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const QUERY_SHM = `SELECT 
     c.name pdb_name, s.name, ROUND(bytes/1024/1024,2) size_
   FROM v$sgainfo s, v$containers c

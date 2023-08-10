@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubeapiserver
 
 // Package customresources TODO comment
@@ -25,10 +27,15 @@ import (
 )
 
 var (
+// var descApiServiceAnnotationsName should be descAPIServiceAnnotationsName
 	descApiServiceAnnotationsName     = "kube_apiservice_annotations"
+// var descApiServiceAnnotationsHelp should be descAPIServiceAnnotationsHelp
 	descApiServiceAnnotationsHelp     = "Kubernetes annotations converted to Prometheus labels."
+// var descApiServiceLabelsName should be descAPIServiceLabelsName
 	descApiServiceLabelsName          = "kube_apiservice_labels"
+// var descApiServiceLabelsHelp should be descAPIServiceLabelsHelp
 	descApiServiceLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
+// var descApiServiceLabelsDefaultLabels should be descAPIServiceLabelsDefaultLabels
 	descApiServiceLabelsDefaultLabels = []string{"apiservice"}
 )
 

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+//revive:disable:var-naming
+
 package proto
 
 import (
@@ -123,6 +125,7 @@ func toProtoEventType(eventType workloadmeta.EventType) (pb.WorkloadmetaEventTyp
 	return pb.WorkloadmetaEventType_EVENT_TYPE_ALL, fmt.Errorf("unknown event type: %d", eventType)
 }
 
+// func toProtoEntityIdFromContainer should be toProtoEntityIDFromContainer
 func toProtoEntityIdFromContainer(container *workloadmeta.Container) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(container.Kind)
 	if err != nil {
@@ -295,6 +298,7 @@ func toProtoEntityMetaFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPo
 	}
 }
 
+// func toProtoEntityIdFromKubernetesPod should be toProtoEntityIDFromKubernetesPod
 func toProtoEntityIdFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(kubernetesPod.Kind)
 	if err != nil {
@@ -363,6 +367,7 @@ func toProtoEntityMetaFromECSTask(ecsTask *workloadmeta.ECSTask) *pb.EntityMeta 
 	}
 }
 
+// func toProtoEntityIdFromECSTask should be toProtoEntityIDFromECSTask
 func toProtoEntityIdFromECSTask(ecsTask *workloadmeta.ECSTask) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(ecsTask.Kind)
 	if err != nil {
@@ -508,6 +513,7 @@ func toWorkloadmetaEventType(protoEventType pb.WorkloadmetaEventType) (workloadm
 }
 
 func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Container, error) {
+// var entityId should be entityID
 	entityId, err := toWorkloadmetaEntityID(protoContainer.EntityId)
 	if err != nil {
 		return nil, err
@@ -670,6 +676,7 @@ func toWorkloadmetaContainerHealth(protoContainerHealth pb.ContainerHealth) (wor
 }
 
 func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloadmeta.KubernetesPod, error) {
+// var entityId should be entityID
 	entityId, err := toWorkloadmetaEntityID(protoKubernetesPod.EntityId)
 	if err != nil {
 		return nil, err
@@ -718,6 +725,7 @@ func toWorkloadmetaOrchestratorContainer(protoOrchestratorContainer *pb.Orchestr
 }
 
 func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, error) {
+// var entityId should be entityID
 	entityId, err := toWorkloadmetaEntityID(protoECSTask.EntityId)
 	if err != nil {
 		return nil, err

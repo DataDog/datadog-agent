@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package tags_limiter TODO comment
+// don't use an underscore in package name
 package tags_limiter
 
 import (

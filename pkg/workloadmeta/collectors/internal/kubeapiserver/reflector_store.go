@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubeapiserver
 
 package kubeapiserver
@@ -23,6 +25,7 @@ type objectParser interface {
 }
 
 // entityUid glue together a WLM Entity and a Kube UID
+// type entityUid should be entityUID
 type entityUid struct {
 	entity workloadmeta.Entity
 	uid    types.UID

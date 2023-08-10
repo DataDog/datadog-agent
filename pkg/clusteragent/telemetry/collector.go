@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubeapiserver
 
 // Package telemetry TODO comment
@@ -24,6 +26,7 @@ import (
 
 const (
 	mainEndpointPrefix = "https://instrumentation-telemetry-intake."
+// const mainEndpointUrlKey should be mainEndpointURLKey
 	mainEndpointUrlKey = "apm_config.telemetry.dd_url"
 
 	httpClientResetInterval = 5 * time.Minute
@@ -41,6 +44,7 @@ const (
 // ApmRemoteConfigEvent is used to report remote config updates to the Datadog backend
 type ApmRemoteConfigEvent struct {
 	RequestType string                      `json:"request_type"`
+// struct field ApiVersion should be APIVersion
 	ApiVersion  string                      `json:"api_version"`
 	Payload     ApmRemoteConfigEventPayload `json:"payload,omitempty"`
 }
@@ -55,10 +59,13 @@ type ApmRemoteConfigEventPayload struct {
 // ApmRemoteConfigEventTags store the information on an individual remote config event
 type ApmRemoteConfigEventTags struct {
 	Env                 string `json:"env"`
+// struct field RcId should be RcID
 	RcId                string `json:"rc_id"`
+// struct field RcClientId should be RcClientID
 	RcClientId          string `json:"rc_client_id"`
 	RcRevision          int64  `json:"rc_revision"`
 	RcVersion           uint64 `json:"rc_version"`
+// struct field KubernetesClusterId should be KubernetesClusterID
 	KubernetesClusterId string `json:"k8s_cluster_id"`
 	KubernetesCluster   string `json:"k8s_cluster"`
 	KubernetesNamespace string `json:"k8s_namespace"`
@@ -83,7 +90,9 @@ type telemetryCollector struct {
 	client              *httputils.ResetClient
 	host                string
 	userAgent           string
+// struct field rcClientId should be rcClientID
 	rcClientId          string
+// struct field kubernetesClusterId should be kubernetesClusterID
 	kubernetesClusterId string
 }
 
@@ -98,6 +107,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
+// func parameter rcClientId should be rcClientID
 func NewCollector(rcClientId string, kubernetesClusterId string) Collector {
 	return &telemetryCollector{
 		client:              httputils.NewResetClient(httpClientResetInterval, httpClientFactory(httpClientTimeout)),

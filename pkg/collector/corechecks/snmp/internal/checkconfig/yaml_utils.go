@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package checkconfig
 
 import (
@@ -116,6 +118,7 @@ func (ic *InterfaceConfigs) UnmarshalYAML(unmarshal func(interface{}) error) err
 	var ifConfigs []snmpintegration.InterfaceConfig
 	err := unmarshal(&ifConfigs)
 	if err != nil {
+// var ifConfigJson should be ifConfigJSON
 		var ifConfigJson string
 		err := unmarshal(&ifConfigJson)
 		if err != nil {

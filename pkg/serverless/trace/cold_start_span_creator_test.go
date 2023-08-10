@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !windows
 
 package trace
@@ -41,6 +43,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
 	stopChan := make(chan struct{})
+// var coldStartSpanId should be coldStartSpanID
 	coldStartSpanId := random.Random.Uint64()
 	initReportStartTime := time.Now().Add(-1 * time.Second)
 	lambdaInitMetricDuration := &serverlessLog.LambdaInitMetric{
@@ -113,6 +116,7 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 		InitStartTime: initReportStartTime,
 	}
 	stopChan := make(chan struct{})
+// var coldStartSpanId should be coldStartSpanID
 	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
 		TraceAgent:           traceAgent,
@@ -175,6 +179,7 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 		InitStartTime: initReportStartTime,
 	}
 	stopChan := make(chan struct{})
+// var coldStartSpanId should be coldStartSpanID
 	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
 		TraceAgent:           traceAgent,
@@ -225,6 +230,7 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
 	stopChan := make(chan struct{})
+// var coldStartSpanId should be coldStartSpanID
 	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
 		TraceAgent:           traceAgent,
@@ -278,6 +284,7 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
 	stopChan := make(chan struct{})
+// var coldStartSpanId should be coldStartSpanID
 	coldStartSpanId := random.Random.Uint64()
 	initReportStartTime := time.Now().Add(-10 * time.Minute)
 	lambdaInitMetricDuration := &serverlessLog.LambdaInitMetric{

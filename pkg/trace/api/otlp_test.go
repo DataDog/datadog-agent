@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package api
 
 import (
@@ -1868,6 +1870,7 @@ func trimSpaces(str string) string {
 	return out.String()
 }
 
+// func parameter traceId should be traceID
 func makeSpanLinkSlice(t *testing.T, traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
 	s := ptrace.NewSpanLinkSlice()
 	l := s.AppendEmpty()

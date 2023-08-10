@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package executioncontext TODO comment
 package executioncontext
 
@@ -128,6 +130,7 @@ func (ec *ExecutionContext) UpdateEndTime(time time.Time) {
 
 // UpdateOutOfMemoryRequestID updates the execution context with the request ID if an
 // out of memory is detected either in the function or platform.report logs
+// method parameter requestId should be requestID
 func (ec *ExecutionContext) UpdateOutOfMemoryRequestID(requestId string) {
 	ec.m.Lock()
 	defer ec.m.Unlock()

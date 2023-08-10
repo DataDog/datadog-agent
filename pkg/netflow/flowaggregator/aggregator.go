@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package flowaggregator TODO comment
 package flowaggregator
 
@@ -162,6 +164,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	orderedExporterIDs := make(map[string][]string)
 
 	for _, flow := range flows {
+// var exporterIpAddress should be exporterIPAddress
 		exporterIpAddress := common.IPBytesToString(flow.ExporterAddr)
 		if exporterIpAddress == "" || strings.HasPrefix(exporterIpAddress, "?") {
 			log.Errorf("Invalid exporter Addr: %s", exporterIpAddress)
@@ -184,6 +187,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	}
 	for namespace, ids := range orderedExporterIDs {
 		var netflowExporters []metadata.NetflowExporter
+// range var exporterId should be exporterID
 		for _, exporterId := range ids {
 			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterId])
 		}

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -119,6 +121,7 @@ func (c *Check) CustomQueries() error {
 					}
 				} else if methodFunc, ok := methods[q.Columns[i].Type]; ok {
 					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
+// don't use underscores in Go names; var v_str should be vStr
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
 						if err != nil {
@@ -126,6 +129,7 @@ func (c *Check) CustomQueries() error {
 							errInQuery = true
 							break
 						}
+// don't use underscores in Go names; var v_gn should be vGn
 					} else if v_gn, ok := v.(godror.Number); ok {
 						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
 						if err != nil {

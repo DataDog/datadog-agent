@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package server
 
 import "net/http"
@@ -13,6 +15,7 @@ type httpResponse struct {
 	body        []byte
 }
 
+// func writeHttpResponse should be writeHTTPResponse
 func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
 	if response.contentType != "" {
 		w.Header().Set("Content-Type", response.contentType)

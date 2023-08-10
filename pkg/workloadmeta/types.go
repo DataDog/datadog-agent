@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package workloadmeta
 
 import (
@@ -886,6 +888,7 @@ type Process struct {
 	EntityMeta
 
 	NsPid        int32
+// struct field ContainerId should be ContainerID
 	ContainerId  string
 	CreationTime time.Time
 	Language     *languagemodels.Language

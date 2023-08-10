@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package cloudservice
 
 import (
@@ -14,6 +16,7 @@ import (
 
 // ContainerApp has helper functions for getting specific Azure Container App data
 type ContainerApp struct {
+// struct field SubscriptionId should be SubscriptionID
 	SubscriptionId string
 	ResourceGroup  string
 }
@@ -24,6 +27,7 @@ const (
 	ContainerAppDNSSuffix  = "CONTAINER_APP_ENV_DNS_SUFFIX"
 	ContainerAppRevision   = "CONTAINER_APP_REVISION"
 
+// const AzureSubscriptionIdEnvVar should be AzureSubscriptionIDEnvVar
 	AzureSubscriptionIdEnvVar = "DD_AZURE_SUBSCRIPTION_ID"
 	AzureResourceGroupEnvVar  = "DD_AZURE_RESOURCE_GROUP"
 )
@@ -87,6 +91,7 @@ func (c *ContainerApp) Init() error {
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
 	// return an error if these are not set.
+// var subscriptionId should be subscriptionID
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {

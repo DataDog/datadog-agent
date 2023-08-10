@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package containerimage TODO comment
 package containerimage
 
@@ -38,6 +40,7 @@ type Config struct {
 type configValueRange struct {
 	min      int
 	max      int
+// don't use underscores in Go names; struct field default_ should be default
 	default_ int
 }
 
@@ -61,6 +64,7 @@ var /* const */ (
 	}
 )
 
+// don't use underscores in Go names; func parameter range_ should be range
 func validateValue(val *int, range_ *configValueRange) {
 	if *val == 0 {
 		*val = range_.default_

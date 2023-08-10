@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package command
 
 import (
@@ -20,6 +22,7 @@ func FixDeprecatedFlags(args []string, w io.Writer) []string {
 		replacePid        = cli.ReplaceFlagExact("--pidfile")
 		replaceInfo       = cli.ReplaceFlagExact("info")
 		replaceVersion    = cli.ReplaceFlagExact("version")
+// var replaceCpuProfile should be replaceCPUProfile
 		replaceCpuProfile = cli.ReplaceFlagExact("--cpu-profile")
 		replaceMemProfile = cli.ReplaceFlagExact("--mem-profile")
 	)

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build orchestrator
 
 package processors
@@ -236,6 +238,7 @@ func TestSortedMarshal(t *testing.T) {
 	json, err := json.Marshal(p)
 	assert.NoError(t, err)
 
+// var expectedJson should be expectedJSON
 	expectedJson := `{
 						"metadata":{
 							"name":"test-pod",
@@ -254,6 +257,7 @@ func TestSortedMarshal(t *testing.T) {
 						},
 						"status":{}
 					}`
+// var actualJson should be actualJSON
 	actualJson := string(json)
 	assert.JSONEq(t, expectedJson, actualJson)
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -27,6 +29,7 @@ import (
  * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
  * For such statements, we will have to get the text from v$sql which has the complete text.
  */
+// don't use ALL_CAPS in Go names; use CamelCase
 const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id,
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
@@ -69,6 +72,7 @@ HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
 // QUERY_FMS_LAST_ACTIVE exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const QUERY_FMS_LAST_ACTIVE = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
@@ -118,6 +122,7 @@ GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_i
 FETCH FIRST :limit ROWS ONLY`
 
 // QUERY_SQLID exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length (sql_fulltext) sql_text_length,
 	parse_calls,
 	disk_reads,
@@ -158,6 +163,7 @@ WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
 // PLAN_QUERY including sql_id for indexed access
+// don't use ALL_CAPS in Go names; use CamelCase
 const PLAN_QUERY = `SELECT /* DD */
 	timestamp,
 	operation,
@@ -400,7 +406,9 @@ type PlanDefinition struct {
 	ObjectName       string  `json:"object_name,omitempty"`
 	ObjectAlias      string  `json:"object_alias,omitempty"`
 	ObjectType       string  `json:"object_type,omitempty"`
+// struct field PlanStepId should be PlanStepID
 	PlanStepId       int64   `json:"id,omitempty"`
+// struct field ParentId should be ParentID
 	ParentId         int64   `json:"parent_id,omitempty"`
 	Depth            int64   `json:"depth,omitempty"`
 	Position         int64   `json:"position,omitempty"`
@@ -472,7 +480,9 @@ type PlanStepRows struct {
 	ObjectName       sql.NullString  `db:"OBJECT_NAME"`
 	ObjectAlias      sql.NullString  `db:"OBJECT_ALIAS"`
 	ObjectType       sql.NullString  `db:"OBJECT_TYPE"`
+// struct field PlanStepId should be PlanStepID
 	PlanStepId       sql.NullInt64   `db:"ID"`
+// struct field ParentId should be ParentID
 	ParentId         sql.NullInt64   `db:"PARENT_ID"`
 	Depth            sql.NullInt64   `db:"DEPTH"`
 	Position         sql.NullInt64   `db:"POSITION"`

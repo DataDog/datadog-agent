@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package main TODO comment
 package main
 
@@ -445,6 +447,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 	const componentName = "etcd"
 	componentBin := path.Join(bindir, fmt.Sprintf("%s-%s", componentName, componentVersion))
 	componentTar := path.Join(bindir, fmt.Sprintf("%s-%s.tar.gz", componentName, componentVersion))
+// var componentUrl should be componentURL
 	componentUrl := fmt.Sprintf("https://github.com/etcd-io/etcd/releases/download/%s/etcd-%s-linux-%s.tar.gz",
 		componentVersion, componentVersion, arch)
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {
@@ -514,6 +517,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 
 func downloadKubeComponentAndExtractFlags(componentName, componentVersion string) *komponent {
 	componentBin := path.Join(bindir, fmt.Sprintf("%s-%s", componentName, componentVersion))
+// var componentUrl should be componentURL
 	componentUrl := fmt.Sprintf("https://dl.k8s.io/%s/bin/linux/%s/%s",
 		componentVersion, arch, componentName)
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {

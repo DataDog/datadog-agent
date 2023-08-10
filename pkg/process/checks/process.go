@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package checks
 
 import (
@@ -103,6 +105,7 @@ type ProcessCheck struct {
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
+// struct field lookupIdProbe should be lookupIDProbe
 	lookupIdProbe *LookupIdProbe
 
 	extractors []metadata.Extractor
@@ -429,6 +432,7 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
+// func parameter lookupIdProbe should be lookupIDProbe
 	lookupIdProbe *LookupIdProbe,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)

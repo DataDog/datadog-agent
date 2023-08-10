@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package model
 
 import (
@@ -23,6 +25,7 @@ var (
 )
 
 // DNS_PREALLOC_SIZE exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const DNS_PREALLOC_SIZE = 256
 
 func decodeDNSName(raw []byte) (string, error) {

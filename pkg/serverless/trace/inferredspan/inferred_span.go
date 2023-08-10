@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package inferredspan
 
 import (
@@ -139,10 +141,12 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 }
 
 // GenerateSpanId creates a secure random span id in specific scenarios, otherwise return a pseudo random id
+// func GenerateSpanId should be GenerateSpanID
 func GenerateSpanId() uint64 {
 	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
 	if isSnapStart {
 		max := new(big.Int).SetUint64(math.MaxUint64)
+// var randId should be randID
 		if randId, err := rand.Int(rand.Reader, max); err != nil {
 			log.Debugf("Failed to generate a secure random span id: %v", err)
 		} else {

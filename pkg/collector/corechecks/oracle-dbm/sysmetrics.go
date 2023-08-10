@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build oracle
 
 package oracle
@@ -17,6 +19,7 @@ import (
 )
 
 // SYSMETRICS_QUERY exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const SYSMETRICS_QUERY = `SELECT 
 	metric_name,
 	value, 
@@ -44,6 +47,7 @@ type sysMetricsDefinition struct {
 }
 
 // SYSMETRICS_COLS exported var should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Average Active Sessions":                       {DDmetric: "active_sessions"},
 	"Average Synchronous Single-Block Read Latency": {DDmetric: "avg_synchronous_single_block_read_latency", DBM: true},

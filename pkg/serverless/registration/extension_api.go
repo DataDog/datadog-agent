@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package registration TODO comment
 package registration
 
@@ -110,6 +112,7 @@ func NoOpProcessEvent(ctx context.Context, id ID) error {
 }
 
 // NextUrl returns the /next endpoint
+// func NextUrl should be NextURL
 func NextUrl() string {
 	return BuildURL(routeEventNext)
 }

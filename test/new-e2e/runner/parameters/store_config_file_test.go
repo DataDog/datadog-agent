@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package parameters
 
 import (
@@ -15,9 +17,11 @@ import (
 )
 
 //go:embed testfixtures/test_config_with_stackparams.yaml
+// don't use underscores in Go names; var config_with_stackparams should be configWithStackparams
 var config_with_stackparams []byte
 
 //go:embed testfixtures/test_config_no_aws_account.yaml
+// don't use underscores in Go names; var config_no_aws_account should be configNoAwsAccount
 var config_no_aws_account []byte
 
 func Test_parseConfigFileContent(t *testing.T) {

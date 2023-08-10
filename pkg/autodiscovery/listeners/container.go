@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !serverless
 
 package listeners
@@ -59,6 +61,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	var annotations map[string]string
 	var pod *workloadmeta.KubernetesPod
 	if findKubernetesInLabels(container.Labels) {
+// don't use underscores in Go names; var kube_pod should be kubePod
 		kube_pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
 			pod = kube_pod

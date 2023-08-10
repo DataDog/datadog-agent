@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package httpsec
 
 import (
@@ -216,6 +218,7 @@ func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modify
 		if span.Name != "aws.lambda" || span.Type != "serverless" {
 			return
 		}
+// var currentReqId should be currentReqID
 		if currentReqId, spanReqId := ctx.LastRequestID(), span.Meta["request_id"]; currentReqId != spanReqId {
 			log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
 			return

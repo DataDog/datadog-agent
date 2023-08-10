@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubeapiserver
 
 package patch
@@ -22,6 +24,7 @@ type ControllerContext struct {
 	K8sClient           kubernetes.Interface
 	RcClient            *remote.Client
 	ClusterName         string
+// struct field ClusterId should be ClusterID
 	ClusterId           string
 	StopCh              chan struct{}
 }

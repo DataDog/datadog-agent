@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package main TODO comment
 package main
 
@@ -157,6 +159,7 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	return arnObject.Region, nil
 }
 
+// func hasApiKey should be hasAPIKey
 func hasApiKey() bool {
 	return config.Datadog.IsSet("api_key") ||
 		len(os.Getenv(kmsAPIKeyEnvVar)) > 0 ||

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 // Package api TODO comment
 package api
 
@@ -51,6 +53,7 @@ type API interface {
 
 // Auth exported type should have comment or be unexported
 type Auth struct {
+// struct field ApiKey should be APIKey
 	ApiKey    string
 	AppKey    string
 	UseAppKey bool

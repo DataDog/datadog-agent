@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build darwin
 
 package checks
@@ -46,6 +48,7 @@ func patchCPUInfo(gopsutilCPUInfo []cpu.InfoStat) ([]cpu.InfoStat, error) {
 
 	cpuStat := make([]cpu.InfoStat, 0, physicalCoreCount)
 	for i := 0; i < physicalCoreCount; i++ {
+// var currentCpuInfo should be currentCPUInfo
 		currentCpuInfo := cpuInfo
 		currentCpuInfo.Cores = threadCount / int32(physicalCoreCount)
 		cpuStat = append(cpuStat, currentCpuInfo)
