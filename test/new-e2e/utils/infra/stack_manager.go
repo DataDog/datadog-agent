@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto/optremove"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
@@ -147,6 +148,17 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 	}
 
 	return sm.deleteStack(ctx, name, stack)
+}
+
+func (sm *StackManager) ForceRemoveStack(ctx context.Context, name string) error {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	stack := sm.stacks[name]
+
+	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
+	defer cancel()
+	return stack.WorkSpace().RemoveStack(ctx, stack.Name(), optremove.Force())
 }
 
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
