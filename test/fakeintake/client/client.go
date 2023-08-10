@@ -1,7 +1,3 @@
-// APIFakeIntakeRouteStatsGETResponse exported type should have comment or be unexported
-// RouteStat exported type should have comment or be unexported
-// APIFakeIntakePayloadsGETResponse exported type should have comment or be unexported
-// Payload exported type should have comment or be unexported
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
