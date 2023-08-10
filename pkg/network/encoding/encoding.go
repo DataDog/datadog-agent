@@ -26,7 +26,7 @@ var (
 
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
-	Marshal(conns *network.Connections) ([]byte, error)
+	Marshal(conns *model.Connections) ([]byte, error)
 	ContentType() string
 }
 
@@ -53,7 +53,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-type connectionsModeler struct {
+type ConnectionsModeler struct {
 	httpEncoder                 *httpEncoder
 	http2Encoder                *http2Encoder
 	kafkaEncoder                *kafkaEncoder
@@ -65,8 +65,8 @@ type connectionsModeler struct {
 	prebuiltEBPFAssets          []string
 }
 
-func initConnectionsModeler(conns *network.Connections) *connectionsModeler {
-	return &connectionsModeler{
+func InitConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+	return &ConnectionsModeler{
 		httpEncoder:                 newHTTPEncoder(conns.HTTP),
 		http2Encoder:                newHTTP2Encoder(conns.HTTP2),
 		kafkaEncoder:                newKafkaEncoder(conns.Kafka),
@@ -83,7 +83,7 @@ func initConnectionsModeler(conns *network.Connections) *connectionsModeler {
 	}
 }
 
-func (c *connectionsModeler) modelConnections(conns *network.Connections) *model.Connections {
+func (c *ConnectionsModeler) ModelConnections(conns *network.Connections) *model.Connections {
 	// TODO: Use pool with max batch size
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)

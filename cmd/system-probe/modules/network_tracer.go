@@ -288,7 +288,9 @@ func getClientID(req *http.Request) string {
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
-	buf, err := marshaler.Marshal(cs)
+	connectionsModeler := encoding.InitConnectionsModeler(cs)
+	payload := connectionsModeler.ModelConnections(cs)
+	buf, err := marshaler.Marshal(payload)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)

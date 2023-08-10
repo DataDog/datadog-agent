@@ -10,8 +10,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/jsonpb"
-
-	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // ContentTypeJSON holds the HTML content-type of a JSON payload
@@ -21,12 +19,10 @@ type jsonSerializer struct {
 	marshaller jsonpb.Marshaler
 }
 
-func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	connectionsModeler := initConnectionsModeler(conns)
-	payload := connectionsModeler.modelConnections(conns)
+func (j jsonSerializer) Marshal(conns *model.Connections) ([]byte, error) {
 	writer := new(bytes.Buffer)
-	err := j.marshaller.Marshal(writer, payload)
-	returnToPool(payload)
+	err := j.marshaller.Marshal(writer, conns)
+	returnToPool(conns)
 	return writer.Bytes(), err
 }
 

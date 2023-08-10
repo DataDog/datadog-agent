@@ -59,7 +59,9 @@ func TestDecode(t *testing.T) {
 	}
 
 	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
-	expected, err := marshaller.Marshal(in)
+	connectionsModeler := encoding.InitConnectionsModeler(in)
+	payload := connectionsModeler.ModelConnections(in)
+	expected, err := marshaller.Marshal(payload)
 	require.NoError(t, err)
 
 	writeConnections(rec, marshaller, in)
