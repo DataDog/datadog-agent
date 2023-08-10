@@ -293,6 +293,7 @@
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
+/pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/secrets/                           @DataDog/agent-shared-components
@@ -358,6 +359,7 @@
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
+/pkg/network/telemetry/                 @DataDog/ebpf-platform
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/bytecode/runtime/usm.go       @DataDog/Networks @DataDog/universal-service-monitoring
@@ -427,6 +429,7 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                       @DataDog/agent-e2e-testing
 /test/new-e2e/                          @DataDog/agent-e2e-testing
+/test/new-e2e/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/new-e2e/system-probe              @DataDog/ebpf-platform
