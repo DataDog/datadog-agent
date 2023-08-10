@@ -301,7 +301,7 @@ def copy_dependencies(ctx, stack, vms, ssh_key):
         ctx.run(f"cp kmt-deps/{stack}/dependencies-{platform.machine()}.tar.gz /opt/kernel-version-testing")
 
 @task
-def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False):
+def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, packages=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -321,7 +321,7 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False):
 
     docker_exec(
         ctx,
-        "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci",
+        f"cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci --packages={packages}",
         user="compiler",
     )
     if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz"):
