@@ -10,6 +10,7 @@ package time
 import (
 	"time"
 
+	// a blank import should be only in a main or test package, or have a comment justifying it
 	_ "unsafe"
 
 	"github.com/shirou/gopsutil/v3/host"

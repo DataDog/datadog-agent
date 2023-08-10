@@ -396,9 +396,8 @@ func checkPolicies(log log.Component, config config.Component, args *checkPolici
 		defer client.Close()
 
 		return checkPoliciesLoaded(client, os.Stdout)
-	} else {
-		return checkPoliciesLocal(args, os.Stdout)
 	}
+	return checkPoliciesLocal(args, os.Stdout)
 }
 
 func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {

@@ -671,7 +671,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	}
 	spm.initMetricsMap()
 
-	var profile *SecurityProfile = nil
+	var profile *SecurityProfile
 	for _, ti := range tests {
 		t.Run(ti.name, func(t *testing.T) {
 			if ti.newProfile || profile == nil {

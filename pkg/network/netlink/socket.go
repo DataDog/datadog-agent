@@ -110,17 +110,17 @@ func NewSocket(netNS netns.NsHandle) (*Socket, error) {
 }
 
 // fixMsg updates the fields of m using the logic specified in Send.
-func (c *Socket) fixMsg(m *netlink.Message, ml int) {
+func (s *Socket) fixMsg(m *netlink.Message, ml int) {
 	if m.Header.Length == 0 {
 		m.Header.Length = uint32(nlmsgAlign(ml))
 	}
 
 	if m.Header.Sequence == 0 {
-		m.Header.Sequence = c.seq.Add(1)
+		m.Header.Sequence = s.seq.Add(1)
 	}
 
 	if m.Header.PID == 0 {
-		m.Header.PID = c.pid
+		m.Header.PID = s.pid
 	}
 }
 

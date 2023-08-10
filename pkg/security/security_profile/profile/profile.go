@@ -158,10 +158,10 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 }
 
 // SendStats sends profile stats
-func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
-	profile.Lock()
-	defer profile.Unlock()
-	return profile.ActivityTree.SendStats(client)
+func (p *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	p.Lock()
+	defer p.Unlock()
+	return p.ActivityTree.SendStats(client)
 }
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile

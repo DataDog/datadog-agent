@@ -207,7 +207,7 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	rtloader *C.rtloader_t = nil
+	rtloader *C.rtloader_t
 
 	expvarPyInit  *expvar.Map
 	pyInitLock    sync.RWMutex
@@ -387,7 +387,7 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
-	var pyErr *C.char = nil
+	var pyErr *C.char
 
 	csPythonHome := TrackedCString(PythonHome)
 	defer C._free(unsafe.Pointer(csPythonHome))

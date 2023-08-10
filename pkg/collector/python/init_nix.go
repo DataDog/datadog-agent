@@ -33,7 +33,7 @@ func initializePlatform() error {
 			cCoreDump = 1
 		}
 
-		var handlerErr *C.char = nil
+		var handlerErr *C.char
 		if C.handle_crashes(C.int(cCoreDump), &handlerErr) == 0 {
 			log.Errorf("Unable to install crash handler, C-land stacktraces and dumps will be unavailable: %s", C.GoString(handlerErr))
 			if handlerErr != nil {

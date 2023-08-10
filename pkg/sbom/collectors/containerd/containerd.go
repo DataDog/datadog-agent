@@ -41,9 +41,8 @@ func (r *ScanRequest) Collector() string {
 func (r *ScanRequest) Type() string {
 	if r.FromFilesystem {
 		return sbom.ScanFilesystemType
-	} else {
-		return sbom.ScanDaemonType
 	}
+	return sbom.ScanDaemonType
 }
 
 func (r *ScanRequest) ID() string {

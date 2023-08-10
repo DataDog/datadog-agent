@@ -657,7 +657,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			activity_tree.WorkloadWarmup: nil,
 		},
 	}
-	var at *activity_tree.ActivityTree = nil
+	var at *activity_tree.ActivityTree
 
 	for _, ti := range tests {
 

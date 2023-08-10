@@ -68,8 +68,8 @@ type NetworkNamespace struct {
 }
 
 // ID returns the network namespace ID
-func (ns *NetworkNamespace) ID() uint32 {
-	return ns.nsID
+func (nn *NetworkNamespace) ID() uint32 {
+	return nn.nsID
 }
 
 // NewNetworkNamespace returns a new NetworkNamespace instance

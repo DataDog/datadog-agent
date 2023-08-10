@@ -522,8 +522,8 @@ func (c *PersistentCache) subCurrentCachedObjectTotalSize(val int) {
 }
 
 // collectTelemetry collects the database's size
-func (cache *PersistentCache) collectTelemetry() {
-	diskSize, err := cache.db.Size()
+func (c *PersistentCache) collectTelemetry() {
+	diskSize, err := c.db.Size()
 	if err != nil {
 		log.Errorf("could not collect telemetry: %v", err)
 	}

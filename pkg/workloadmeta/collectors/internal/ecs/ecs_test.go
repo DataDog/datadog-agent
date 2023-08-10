@@ -52,7 +52,7 @@ type fakev3or4EcsClient struct {
 	mockGetTaskWithTags func(context.Context) (*v3or4.Task, error)
 }
 
-func (store *fakev3or4EcsClient) GetTask(ctx context.Context) (*v3or4.Task, error) {
+func (c *fakev3or4EcsClient) GetTask(ctx context.Context) (*v3or4.Task, error) {
 	return nil, errors.New("unimplemented")
 }
 
@@ -60,7 +60,7 @@ func (c *fakev3or4EcsClient) GetTaskWithTags(ctx context.Context) (*v3or4.Task, 
 	return c.mockGetTaskWithTags(ctx)
 }
 
-func (store *fakev3or4EcsClient) GetContainer(ctx context.Context) (*v3or4.Container, error) {
+func (c *fakev3or4EcsClient) GetContainer(ctx context.Context) (*v3or4.Container, error) {
 	return nil, errors.New("unimplemented")
 }
 

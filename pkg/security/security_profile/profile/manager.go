@@ -524,7 +524,7 @@ func (m *SecurityProfileManager) SendStats() error {
 		if profileStats[profile.Status] == nil {
 			profileStats[profile.Status] = make(map[bool]float64)
 		}
-		profileStats[profile.Status][profile.loadedInKernel] += 1
+		profileStats[profile.Status][profile.loadedInKernel]++
 	}
 
 	for status, counts := range profileStats {
