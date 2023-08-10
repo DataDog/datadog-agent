@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewPodCheck returns an instance of the Pod check
@@ -47,17 +46,22 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *PodCheck) IsEnabled() bool {
-	// activate the pod collection if enabled and we have the cluster name set
-	orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
-	if !orchestratorEnabled {
-		return false
-	}
+	// TODO we need to clean up the previous pod check
+	// maybe for first deploy we leave it but have a config set
+	// to enable this or the new method
+	return false
 
-	if kubeClusterName == "" {
-		_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
-		return false
-	}
-	return true
+	// // activate the pod collection if enabled and we have the cluster name set
+	// orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
+	// if !orchestratorEnabled {
+	// 	return false
+	// }
+	//
+	// if kubeClusterName == "" {
+	// 	_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+	// 	return false
+	// }
+	// return true
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
