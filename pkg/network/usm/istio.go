@@ -80,8 +80,8 @@ func (m *istioMonitor) Start() {
 	processMonitor := monitor.GetProcessMonitor()
 
 	// Subscribe to process events
-	processMonitor.SubscribeExec(m.handleProcessExec)
-	processMonitor.SubscribeExit(m.handleProcessExit)
+	doneExec := processMonitor.SubscribeExec(m.handleProcessExec)
+	doneExit := processMonitor.SubscribeExit(m.handleProcessExit)
 
 	// Attach to existing processes
 	m.sync()
@@ -96,10 +96,13 @@ func (m *istioMonitor) Start() {
 
 		defer func() {
 			processSync.Stop()
-			// Cleaning up all active hooks
-			m.registry.Clear()
+			// Execute process monitor callback termination functions
+			doneExec()
+			doneExit()
 			// Stopping the process monitor (if we're the last instance)
 			processMonitor.Stop()
+			// Cleaning up all active hooks
+			m.registry.Clear()
 			// marking we're finished.
 			m.wg.Done()
 		}()
