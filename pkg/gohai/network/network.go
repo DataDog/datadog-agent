@@ -50,7 +50,7 @@ func CollectInfo() (*Info, error) {
 	info := &Info{}
 	err := fillNetworkInfo(info)
 	if err != nil {
-		return info, err
+		return nil, err
 	}
 
 	interfaces, err := getMultiNetworkInfo()
