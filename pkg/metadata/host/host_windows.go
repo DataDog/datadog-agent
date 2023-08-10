@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -52,7 +53,7 @@ func getSystemStats() *systemStats {
 			Platform:  runtime.GOOS,
 			Processor: modelName,
 			CPUCores:  c32,
-			Pythonv:   strings.Split(GetPythonVersion(), " ")[0],
+			Pythonv:   python.GetPythonVersion(),
 		}
 
 		// fill the platform dependent bits of info
