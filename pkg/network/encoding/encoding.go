@@ -6,10 +6,8 @@
 package encoding
 
 import (
-	"strings"
-	"sync"
-
 	"github.com/gogo/protobuf/jsonpb"
+	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -24,21 +22,7 @@ var (
 			EmitDefaults: true,
 		},
 	}
-
-	cfgOnce  = sync.Once{}
-	agentCfg *model.AgentConfiguration
 )
-
-type connectionsModeler struct {
-	httpEncoder                 *httpEncoder
-	http2Encoder                *http2Encoder
-	kafkaEncoder                *kafkaEncoder
-	connTelemetryMap            map[string]int64
-	compilationTelemetryByAsset map[string]*model.RuntimeCompilationTelemetry
-	kernelHeaderFetchResult     model.KernelHeaderFetchResult
-	coreTelemetryByAsset        map[string]model.COREResult
-	agentCfg                    *model.AgentConfiguration
-}
 
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
@@ -69,8 +53,20 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
+type connectionsModeler struct {
+	httpEncoder                 *httpEncoder
+	http2Encoder                *http2Encoder
+	kafkaEncoder                *kafkaEncoder
+	connTelemetryMap            map[string]int64
+	compilationTelemetryByAsset map[string]*model.RuntimeCompilationTelemetry
+	kernelHeaderFetchResult     model.KernelHeaderFetchResult
+	coreTelemetryByAsset        map[string]model.COREResult
+	agentCfg                    *model.AgentConfiguration
+	prebuiltEBPFAssets          []string
+}
+
 func initConnectionsModeler(conns *network.Connections) *connectionsModeler {
-	modeler := &connectionsModeler{
+	return &connectionsModeler{
 		httpEncoder:                 newHTTPEncoder(conns.HTTP),
 		http2Encoder:                newHTTP2Encoder(conns.HTTP2),
 		kafkaEncoder:                newKafkaEncoder(conns.Kafka),
@@ -78,19 +74,17 @@ func initConnectionsModeler(conns *network.Connections) *connectionsModeler {
 		compilationTelemetryByAsset: FormatCompilationTelemetry(conns.CompilationTelemetryByAsset),
 		kernelHeaderFetchResult:     model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult),
 		coreTelemetryByAsset:        FormatCORETelemetry(conns.CORETelemetryByAsset),
-	}
-
-	cfgOnce.Do(func() {
-		modeler.agentCfg = &model.AgentConfiguration{
+		prebuiltEBPFAssets:          conns.PrebuiltAssets,
+		agentCfg: &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
 			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
 			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
-		}
-	})
-	return modeler
+		},
+	}
 }
 
-func (c connectionsModeler) modelConnections(conns *network.Connections) *model.Connections {
+func (c *connectionsModeler) modelConnections(conns *network.Connections) *model.Connections {
+	// TODO: Use pool with max batch size
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 
@@ -107,14 +101,21 @@ func (c connectionsModeler) modelConnections(conns *network.Connections) *model.
 		routes[v.Idx] = &v.Route
 	}
 
+	// TODO: Use pool
 	payload := new(model.Connections)
-	payload.AgentConfiguration = agentCfg
+	payload.AgentConfiguration = c.agentCfg
 	payload.Conns = agentConns
 	payload.Domains = dnsFormatter.Domains()
 	payload.Dns = dnsFormatter.DNS()
-	payload.PrebuiltEBPFAssets = conns.PrebuiltAssets
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
+
+	// TODO: Add that only to the first batch
+	payload.ConnTelemetryMap = c.connTelemetryMap
+	payload.CompilationTelemetryByAsset = c.compilationTelemetryByAsset
+	payload.KernelHeaderFetchResult = c.kernelHeaderFetchResult
+	payload.CORETelemetryByAsset = c.coreTelemetryByAsset
+	payload.PrebuiltEBPFAssets = c.prebuiltEBPFAssets
 
 	return payload
 }
