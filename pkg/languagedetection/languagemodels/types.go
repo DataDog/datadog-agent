@@ -9,14 +9,17 @@ package languagemodels
 type LanguageName string
 
 const (
+	Go      LanguageName = "go"
 	Node    LanguageName = "node"
 	Dotnet  LanguageName = "dotnet"
 	Python  LanguageName = "python"
 	Java    LanguageName = "java"
+	Ruby    LanguageName = "ruby"
 	Unknown LanguageName = ""
 )
 
 // Language contains metadata collected from the call to `DetectLanguage`
 type Language struct {
-	Name LanguageName
+	Name    LanguageName
+	Version string
 }

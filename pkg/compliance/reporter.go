@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -65,7 +65,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	logChan := pipelineProvider.NextPipelineChan()
 
 	tags := []string{
-		common.QueryAccountIdTag(),
+		common.QueryAccountIDTag(),
 		fmt.Sprintf("host:%s", hostname),
 	}
 

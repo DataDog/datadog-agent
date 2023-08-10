@@ -306,6 +306,15 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 			return nil
 		case <-c:
 			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
+			// If no result has been received, it's likely for the oscap-io process to be stuck, so we kill it.
+			oscapIOsMu.Lock()
+			oscapIOs[p.File] = nil
+			oscapIOsMu.Unlock()
+			err := p.Kill()
+			if err != nil {
+				log.Warnf("failed to kill process: %v", err)
+			}
+			return nil
 		case err := <-p.ErrorCh:
 			log.Warnf("error: %v", err)
 			events = append(events, NewCheckError(XCCDFEvaluator, err, hostname, "host", rule, benchmark))

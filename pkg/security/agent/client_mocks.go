@@ -139,5 +139,4 @@ func (rsc *MockRuntimeSecurityClient) SaveSecurityProfile(name string, tag strin
 
 //nolint:revive
 func (rsc *MockRuntimeSecurityClient) Close() {
-	return
 }
