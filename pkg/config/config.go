@@ -1253,6 +1253,9 @@ func InitConfig(config Config) {
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
 
+	// Language Detection
+	config.BindEnvAndSetDefault("language_detection.enabled", false)
+
 	setupAPM(config)
 	SetupOTLP(config)
 	setupProcesses(config)
