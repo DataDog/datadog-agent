@@ -289,7 +289,7 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 					}
 
 					// Increment the index to the end of the value
-					index += nbrGrabbed
+					index = endValueToken
 				} else {
 					// Replace the next value with an obfuscated value
 					if index+1 < len(tokens) {
@@ -303,12 +303,39 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 						}
 
 						// Increment the index to the end of the value
-						index += nbrGrabbed
+						index = endValueToken
 					}
 				}
 			} else if token.kind == Control || token.kind == Redirection {
 				// We found a control or redirection token, we are not on a parameter anymore
 				foundBinary = false
+			} else if token.kind == Dollar && index+1 < len(tokens) && tokens[index+1].kind == ParentheseOpen {
+				// We are on a subcommand $()
+				newIndex, obfuscatedSlicesSubcommand := handleSubcommands(tokens, index, index+2, ParentheseOpen)
+				index = newIndex
+				obfuscatedSlices = append(obfuscatedSlices, obfuscatedSlicesSubcommand...)
+			} else if token.kind == Backticks {
+				// We are on a subcommand ``
+				newIndex, obfuscatedSlicesSubcommand := handleSubcommands(tokens, index, index+1, Backticks)
+				if newIndex == index {
+					// Failed to find the closing backticks, skip the token
+					// Infer that the token next to the backticks would be an executable
+					foundBinary = false
+				}
+
+				index = newIndex
+				obfuscatedSlices = append(obfuscatedSlices, obfuscatedSlicesSubcommand...)
+			} else if token.kind == ParentheseOpen {
+				// We are on a subcommand ()
+				newIndex, obfuscatedSlicesSubcommand := handleSubcommands(tokens, index, index+1, ParentheseOpen)
+				if newIndex == index {
+					// Failed to find the closing parenthesis, skip the token
+					// Infer that the token next to the parenthesis would be an executable
+					foundBinary = false
+				}
+
+				index = newIndex
+				obfuscatedSlices = append(obfuscatedSlices, obfuscatedSlicesSubcommand...)
 			}
 		}
 	}
@@ -316,8 +343,58 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 	return obfuscatedSlices
 }
 
+func handleSubcommands(tokens []ShellToken, index int, startIndex int, subcommandType ShellTokenKind) (int, []ObfuscatedSlice) {
+	// We are on a variable or a subcommand
+	// Get the next token to know if that's an open parenthesis and obfuscate the whole subcommand
+	var obfuscatedSlices []ObfuscatedSlice
+
+	openType := ParentheseOpen
+	closingType := ParentheseClose
+
+	if subcommandType == Backticks {
+		openType = Backticks
+		closingType = Backticks
+	}
+
+	// Get all tokens from that subcommand and call this function recursively
+	nbrOpenParentheses := 1
+
+	// Starting index changes depending on the type of subcommand
+	i := startIndex
+
+	for ; i < len(tokens); i++ {
+		if tokens[i].kind == closingType {
+			nbrOpenParentheses--
+		} else if tokens[i].kind == openType {
+			nbrOpenParentheses++
+		}
+
+		if nbrOpenParentheses == 0 {
+			// We found the end of the subcommand
+			endSubcommandToken := i
+
+			// Check if at least one token is between the open and close
+			if endSubcommandToken == startIndex {
+				break
+			}
+
+			// Slices of tokens that defines the subcommand
+			subcommandTokens := tokens[startIndex:endSubcommandToken] // without the open and close parentheses
+
+			// Call this function recursively
+			obfuscatedSlices = obfuscateShellCommandToken(subcommandTokens)
+
+			// Increment the index to the end of the subcommand
+			index = endSubcommandToken
+			break
+		}
+	}
+
+	return index, obfuscatedSlices
+}
+
 // grabFullArgument grabs the full argument from the given tokens starting at the given index.
-// returns the index of the last token of the argument.
+// returns the index of the last token of the argument and the number of tokens grabbed.
 // For examples:
 // - if the argument starting at index 3 is a Dollar token, then it should also grab the next token (calling itself recursively) as part of the argument.
 // - if the argument starting at index 3 is a Field token, then it should only grab the Field token.
@@ -333,14 +410,14 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 	for ; index < tokensLength; index++ {
 		kind := tokens[index].kind
 
-		// Grab only the current token
-		if kind == Field || kind == Equal || kind == ShellVariable {
-			return index, nbrGrabbed + 1
-		}
-
 		// We can't grab a control or redirection token
 		if kind == Control || kind == Redirection {
 			return index - 1, nbrGrabbed
+		}
+
+		// Grab only the current token
+		if kind == Field || kind == Equal || kind == ShellVariable {
+			return index, nbrGrabbed + 1
 		}
 
 		// Grab the next token
@@ -349,7 +426,8 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 			// continue
 		} else if kind == ParentheseOpen {
 			// Grab the whole parentheses content
-			for j := index + 1; j < tokensLength && tokens[j].kind != ParentheseClose; j++ {
+			j := index + 1
+			for ; j < tokensLength && tokens[j].kind != ParentheseClose; j++ {
 				if tokens[j].kind == Dollar {
 					// Grab the next token
 					nbrGrabbed++
@@ -359,7 +437,16 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 					newIndex, newNbrGrabbed := grabFullArgument(tokens, j)
 					nbrGrabbed += newNbrGrabbed
 					j = newIndex
+				} else {
+					nbrGrabbed++
 				}
+			}
+
+			index = j
+
+			// Add the last token if it is the same as the start token
+			if index < tokensLength && tokens[index].kind == ParentheseClose {
+				nbrGrabbed++
 			}
 
 			break
@@ -377,6 +464,9 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 				nbrGrabbed++
 			}
 
+			break
+		} else if kind == Executable {
+			nbrGrabbed++
 			break
 		} else {
 			// Not a known token kind

@@ -395,6 +395,456 @@ func TestParseBasicCommandsWithDollarExec(t *testing.T) {
 	}
 }
 
+func TestParseCommandsWithDollarExecInQuotedString(t *testing.T) {
+	tests := []testShellCommand{
+		{
+			command: "ping -c 2 127.0.0.1 \"$(cat /etc/passwd)\"",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "ping",
+				},
+				{
+					kind: Field,
+					val:  "-c",
+				},
+				{
+					kind: Field,
+					val:  "2",
+				},
+				{
+					kind: Field,
+					val:  "127.0.0.1",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "cat",
+				},
+				{
+					kind: Field,
+					val:  "/etc/passwd",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+			},
+		},
+		{
+			command: "ping -c 2 127.0.0.1 \"some text: $(cat /etc/passwd) and other text\"",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "ping",
+				},
+				{
+					kind: Field,
+					val:  "-c",
+				},
+				{
+					kind: Field,
+					val:  "2",
+				},
+				{
+					kind: Field,
+					val:  "127.0.0.1",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: Field,
+					val:  "some text: ",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "cat",
+				},
+				{
+					kind: Field,
+					val:  "/etc/passwd",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: Field,
+					val:  " and other text",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+			},
+		},
+		{
+			command: "echo \"$(echo hello) $(echo world)\"",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Field,
+					val:  "hello",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: Field,
+					val:  " ",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Field,
+					val:  "world",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+			},
+		},
+		{
+			command: "echo \"[DEBUG] $(echo hello) - $(echo $(echo $(echo world 1 2)))\" '$(echo nope)' $(echo plop) $(echo \"plop\")",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: Field,
+					val:  "[DEBUG] ",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Field,
+					val:  "hello",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: Field,
+					val:  " - ",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Field,
+					val:  "world",
+				},
+				{
+					kind: Field,
+					val:  "1",
+				},
+				{
+					kind: Field,
+					val:  "2",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: SingleQuote,
+					val:  "'",
+				},
+				{
+					kind: Field,
+					val:  "$(echo nope)",
+				},
+				{
+					kind: SingleQuote,
+					val:  "'",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Field,
+					val:  "plop",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: Field,
+					val:  "plop",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		assert.True(t, compareGeneratedTokens(test))
+	}
+}
+
+/*
+Test parsing a command with a quoted string and an escaped quoted string
+This test is not supported by the current parser, no check on escaping is done, meaning this test will fail
+
+func TestParseCommandWithQuotedStringAndEscapedQuotedString(t *testing.T) {
+	tests := []testShellCommand{
+		{
+			command: "echo \"$(echo \\\"test\\\")\"",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: Field,
+					val:  "test",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: DoubleQuote,
+					val:  "\"",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		assert.True(t, compareGeneratedTokens(test))
+	}
+}
+*/
+
+func TestParseCommandWithDollarExecWithinBackticks(t *testing.T) {
+	tests := []testShellCommand{
+		{
+			command: "echo `echo $(echo hello)`",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Backticks,
+					val:  "`",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Dollar,
+					val:  "$",
+				},
+				{
+					kind: ParentheseOpen,
+					val:  "(",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Field,
+					val:  "hello",
+				},
+				{
+					kind: ParentheseClose,
+					val:  ")",
+				},
+				{
+					kind: Backticks,
+					val:  "`",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		assert.True(t, compareGeneratedTokens(test))
+	}
+}
+
 func TestParseBasicCommandsWithBackticksAndDollarExec(t *testing.T) {
 	tests := []testShellCommand{
 		{
@@ -501,6 +951,60 @@ func TestParseBasicCommandsWithBackticksAndDollarExec(t *testing.T) {
 		assert.True(t, compareGeneratedTokens(test))
 	}
 }
+
+/*
+Unsupported test case:
+Backticks subcommands are supported but at the first level (not nested).
+Backticks that are escaped will be resolved are normal backticks, resulting of the end of the current backtick expression or the start.
+Executable tokens are not set as executable if they are in a backtick expression.
+We can't know the start and the end of a backtick expression if it's escaped.
+
+func TestParseBasicCommandsWithNestedBackticks(t *testing.T) {
+	tests := []testShellCommand{
+		{
+			command: "echo `echo `echo echo``",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Backticks,
+					val:  "`",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Backticks,
+					val:  "`",
+				},
+				{
+					kind: Executable,
+					val:  "echo",
+				},
+				{
+					kind: Field,
+					val:  "echo",
+				},
+				{
+					kind: Backticks,
+					val:  "`",
+				},
+				{
+					kind: Backticks,
+					val:  "`",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		assert.True(t, compareGeneratedTokens(test))
+	}
+}
+*/
 
 func TestParseBasicCommandsWithUnfinishedStringDoubleQuote(t *testing.T) {
 	tests := []testShellCommand{
@@ -752,7 +1256,7 @@ func TestParseCommandUsingVariables(t *testing.T) {
 					val:  "$",
 				},
 				{
-					kind: Executable,
+					kind: ShellVariable,
 					val:  "TOTO",
 				},
 			},
@@ -789,7 +1293,7 @@ func TestParseCommandUsingVariables(t *testing.T) {
 					val:  "$",
 				},
 				{
-					kind: Executable,
+					kind: ShellVariable,
 					val:  "TOTO",
 				},
 			},
@@ -1397,6 +1901,40 @@ func TestParseMultipleCommandsPipeline(t *testing.T) {
 				{
 					kind: Field,
 					val:  "a",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		assert.True(t, compareGeneratedTokens(test))
+	}
+}
+
+func TestParseCommandWithNewLines(t *testing.T) {
+	tests := []testShellCommand{
+		{
+			command: "cmd hello\ncat /etc/passwd",
+			tokens: []ShellToken{
+				{
+					kind: Executable,
+					val:  "cmd",
+				},
+				{
+					kind: Field,
+					val:  "hello",
+				},
+				{
+					kind: Control,
+					val:  "\n",
+				},
+				{
+					kind: Executable,
+					val:  "cat",
+				},
+				{
+					kind: Field,
+					val:  "/etc/passwd",
 				},
 			},
 		},
