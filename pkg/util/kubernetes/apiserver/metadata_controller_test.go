@@ -33,8 +33,7 @@ import (
 func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
-	metaController, informerFactory, err := newFakeMetadataController(client)
-	assert.NoError(t, err)
+	metaController, informerFactory := newFakeMetadataController(client)
 
 	// don't use the global store so we can can inspect the store without
 	// it being modified by other tests.
@@ -427,8 +426,7 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(context.TODO(), ep, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	metaController, informerFactory, err := newFakeMetadataController(client)
-	assert.NoError(t, err)
+	metaController, informerFactory := newFakeMetadataController(client)
 
 	stop := make(chan struct{})
 	defer close(stop)
@@ -470,16 +468,16 @@ func TestMetadataController(t *testing.T) {
 
 }
 
-func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory, error) {
+func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 1*time.Second)
 
-	metaController, err := NewMetadataController(
+	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
 		informerFactory.Core().V1().Namespaces(),
 		informerFactory.Core().V1().Endpoints(),
 	)
 
-	return metaController, informerFactory, err
+	return metaController, informerFactory
 }
 
 func newFakePod(namespace, name, uid, ip string) v1.Pod {

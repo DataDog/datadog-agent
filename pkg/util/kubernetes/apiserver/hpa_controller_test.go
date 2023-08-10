@@ -101,8 +101,8 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 		isLeaderFunc,
 		dcl,
 	)
-	if err := autoscalerController.enableHPA(client, informerFactory); err != nil {
-		log.Errorf("impossible to enable HPA informer: %s", err)
+	autoscalerController.enableHPA(client, informerFactory); err != nil {
+		log.Errorf("failed to enable HPA informer: %s", err)
 		autoscalerController.autoscalersListerSynced = func() bool { return false }
 		return autoscalerController, informerFactory
 	}
