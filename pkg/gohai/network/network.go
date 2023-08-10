@@ -47,8 +47,7 @@ type Info struct {
 
 // CollectInfo collects the network information.
 func CollectInfo() (*Info, error) {
-	info := &Info{}
-	err := fillNetworkInfo(info)
+	info, err := getNetworkInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -269,23 +268,27 @@ func macAddress() (string, error) {
 	return "", errors.New("not connected to the network")
 }
 
-func fillNetworkInfo(networkInfo *Info) error {
+func getNetworkInfo() (*Info, error) {
 	macaddress, err := macAddress()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	networkInfo.MacAddress = macaddress
 
 	ipAddress, err := externalIPAddress()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	networkInfo.IPAddress = ipAddress
 
 	ipAddressV6, err := externalIpv6Address()
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	networkInfo := &Info{
+		MacAddress: macaddress,
+		IPAddress:  ipAddress,
+	}
+
 	// We append an IPv6 address to the payload only if IPv6 is enabled
 	if ipAddressV6 != "" {
 		networkInfo.IPAddressV6 = utils.NewValue(ipAddressV6)
@@ -293,5 +296,5 @@ func fillNetworkInfo(networkInfo *Info) error {
 		networkInfo.IPAddressV6 = utils.NewErrorValue[string](ErrAddressNotFound)
 	}
 
-	return nil
+	return networkInfo, nil
 }
