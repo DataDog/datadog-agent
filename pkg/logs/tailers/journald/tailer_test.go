@@ -461,5 +461,6 @@ func TestTailerCanTailJournal(t *testing.T) {
 	json.Unmarshal(resultMessage.Content, &parsedContent)
 
 	assert.Equal(t, parsedContent["message"], "foobar")
+
 	tailer.Stop()
 }
