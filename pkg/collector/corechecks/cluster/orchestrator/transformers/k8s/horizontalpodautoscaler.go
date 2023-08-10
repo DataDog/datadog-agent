@@ -263,8 +263,7 @@ func extractHorizontalPodAutoscalerStatus(s *v2.HorizontalPodAutoscalerStatus) *
 	return &status
 }
 
-// extractMetricStatus converts Kubernetes MetricStatus to our custom HorizontalPodAutoscalerMetricSpec model
-// HorizontalPodAutoscalerMetricSpec is being resused since the model is simliar - the only difference is that the type is not used here
+// extractMetricStatus converts Kubernetes MetricStatus to our custom HorizontalPodAutoscalerMetricStatus model
 // https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L519
 func extractMetricStatus(ms []v2.MetricStatus) []*model.HorizontalPodAutoscalerMetricStatus {
 	if ms == nil {
@@ -294,7 +293,7 @@ func extractMetricStatus(ms []v2.MetricStatus) []*model.HorizontalPodAutoscalerM
 }
 
 // extractObjectMetricStatus converts Kubernetes ObjectMetricStatus to our custom one
-// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L249
+// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L465
 func extractObjectMetricStatus(s *v2.ObjectMetricStatus) *model.ObjectMetricStatus {
 	if s == nil {
 		return &model.ObjectMetricStatus{}
@@ -320,7 +319,7 @@ func extractObjectMetricStatus(s *v2.ObjectMetricStatus) *model.ObjectMetricStat
 }
 
 // extractPodsMetricStatus converts Kubernetes PodsMetricStatus to our custom one
-// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L262
+// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L476
 func extractPodsMetricStatus(s *v2.PodsMetricStatus) *model.PodsMetricStatus {
 	if s == nil {
 		return &model.PodsMetricStatus{}
@@ -338,7 +337,7 @@ func extractPodsMetricStatus(s *v2.PodsMetricStatus) *model.PodsMetricStatus {
 }
 
 // extractResourceMetricStatus converts Kubernetes ResourceMetricStatus to our custom one
-// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L276
+// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L488
 func extractResourceMetricStatus(s *v2.ResourceMetricStatus) *model.ResourceMetricStatus {
 	if s == nil {
 		return &model.ResourceMetricStatus{}
@@ -358,7 +357,7 @@ func extractResourceMetricStatus(s *v2.ResourceMetricStatus) *model.ResourceMetr
 }
 
 // extractContainerResourceMetricStatus converts Kubernetes ContainerResourceMetricStatus to our custom one
-// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L290
+// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L500
 func extractContainerResourceMetricStatus(s *v2.ContainerResourceMetricStatus) *model.ContainerResourceMetricStatus {
 	if s == nil {
 		return &model.ContainerResourceMetricStatus{}
@@ -373,8 +372,8 @@ func extractContainerResourceMetricStatus(s *v2.ContainerResourceMetricStatus) *
 	return &m
 }
 
-// extractExternalMetric converts Kubernetes ExternalMetricStatus to our custom one
-// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L302
+// extractExternalMetricStatus converts Kubernetes ExternalMetricStatus to our custom one
+// https://github.com/kubernetes/api/blob/v0.23.15/autoscaling/v2/types.go#L511
 func extractExternalMetricStatus(s *v2.ExternalMetricStatus) *model.ExternalMetricStatus {
 	if s == nil {
 		return &model.ExternalMetricStatus{}
