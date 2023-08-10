@@ -272,7 +272,10 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			if err != nil {
+				serverlessDaemon.SetLogsAgent(logsAgent)
+			}
 		}
 	}()
 

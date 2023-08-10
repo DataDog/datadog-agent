@@ -5,16 +5,23 @@
 
 //go:build !serverless
 
-package logs
+package agent
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 )
 
 func TestBuildEndpoints(t *testing.T) {
-	endpoints, err := buildEndpoints()
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule,
+	))
+
+	endpoints, err := buildEndpoints(config)
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 }
