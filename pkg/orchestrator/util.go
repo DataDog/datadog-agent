@@ -64,6 +64,8 @@ const (
 	K8sCR
 	// K8sVerticalPodAutoscaler represents a Kubernetes VerticalPod Autoscaler
 	K8sVerticalPodAutoscaler
+	// K8sHorizontalPodAutoscaler represents a Kubernetes Horizontal Pod Autoscaler
+	K8sHorizontalPodAutoscaler
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
