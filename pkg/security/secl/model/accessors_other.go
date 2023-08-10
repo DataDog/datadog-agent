@@ -7,7 +7,7 @@
 //go:build !linux && !windows
 // +build !linux,!windows
 
-package secl
+package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"

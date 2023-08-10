@@ -6,7 +6,7 @@
 //go:build !linux && !windows
 // +build !linux,!windows
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags '!linux,!windows' -types-file model.go -output accessors_other.go -field-handlers field_handlers_other.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags '<other>' -types-file model.go -output accessors_other.go -field-handlers field_handlers_other.go
 
 package model
 

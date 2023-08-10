@@ -44,7 +44,9 @@ const (
 
 	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
 	MaxTracedCgroupsCount = 128
+)
 
+const (
 	// EventFlagsAsync async event
 	EventFlagsAsync = 1 << iota
 

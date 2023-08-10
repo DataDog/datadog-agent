@@ -7,7 +7,7 @@
 //go:build !linux && !windows
 // +build !linux,!windows
 
-package secl
+package model
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields() {
