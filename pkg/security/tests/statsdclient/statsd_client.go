@@ -17,7 +17,7 @@ var _ statsd.ClientInterface = &StatsdClient{}
 
 // StatsdClient is a statsd client for used for tests
 type StatsdClient struct {
-	sync.RWMutex
+	lock   sync.RWMutex
 	counts map[string]int64
 }
 
@@ -30,8 +30,8 @@ func NewStatsdClient() *StatsdClient {
 
 // Get return the count
 func (s *StatsdClient) Get(key string) int64 {
-	s.RLock()
-	defer s.RUnlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 	return s.counts[key]
 }
 
@@ -39,8 +39,8 @@ func (s *StatsdClient) Get(key string) int64 {
 func (s *StatsdClient) GetByPrefix(prefix string) map[string]int64 {
 	result := make(map[string]int64)
 
-	s.RLock()
-	defer s.RUnlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	for key, value := range s.counts {
 		if strings.HasPrefix(key, prefix) {
@@ -54,8 +54,8 @@ func (s *StatsdClient) GetByPrefix(prefix string) map[string]int64 {
 
 // Gauge does nothing and returns nil
 func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate float64) error {
-	s.Lock()
-	defer s.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	if len(tags) == 0 {
 		s.counts[name] = int64(value)
@@ -69,8 +69,8 @@ func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate flo
 
 // Count does nothing and returns nil
 func (s *StatsdClient) Count(name string, value int64, tags []string, rate float64) error {
-	s.Lock()
-	defer s.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	if len(tags) == 0 {
 		s.counts[name] += value
@@ -144,8 +144,8 @@ func (s *StatsdClient) Close() error {
 
 // Flush does nothing and returns nil
 func (s *StatsdClient) Flush() error {
-	s.Lock()
-	defer s.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	s.counts = make(map[string]int64)
 	return nil
