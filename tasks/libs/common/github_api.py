@@ -4,8 +4,6 @@ import platform
 import re
 import subprocess
 
-import requests
-
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
 except ImportError:
@@ -121,6 +119,8 @@ class GithubAPI:
         """
         Downloads the artifact identified by artifact_id to destination_dir.
         """
+        import requests
+
         headers = {
             "Authorization": f'{self._auth.token_type} {self._auth.token}',
             "Accept": "application/vnd.github.v3+json",
