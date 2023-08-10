@@ -182,14 +182,20 @@ def auto_cancel_previous_pipelines(ctx):
 
     for pipeline in pipelines_without_current:
         # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
-        try:
-            ctx.run(f'git merge-base --is-ancestor {pipeline["sha"]} {git_sha}')
+        is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline["sha"]} {git_sha}', warn=True, hide="both")
+        if is_ancestor.exited == 0:
             print(
                 f'Gracefully canceling jobs that are not canceled on pipeline {pipeline["id"]} ({pipeline["web_url"]})'
             )
             gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
-        except Exception:
-            print(f'{pipeline["sha"]} is not an ancestor of {git_sha}')
+        elif is_ancestor.exited == 1:
+            print(f'{pipeline["sha"]} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline["id"]}')
+        elif is_ancestor.exited == 128:
+            print(
+                f'Could not determine if {pipeline["sha"]} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
+            )
+        else:
+            print(f'Unknown error returned: {is_ancestor.stderr} ')
 
 
 @task

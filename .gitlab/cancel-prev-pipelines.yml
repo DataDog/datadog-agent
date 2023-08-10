@@ -5,11 +5,11 @@ cancel-prev-pipelines:
   rules: # this should only run on dev branches
   - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
     when: never
-  - if: $CI_COMMIT_TAG
+  - <<: *if_tagged_commit
     when: never
-  - if: $CI_COMMIT_REF_NAME == "main"
+  - <<: *if_release_branch
     when: never
-  - if: $CI_COMMIT_REF_NAME =~ /^[6-7]\.[0-9]+.*/
+  - <<: *if_main_branch
     when: never
   - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
     when: never
