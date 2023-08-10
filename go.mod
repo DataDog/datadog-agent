@@ -242,7 +242,7 @@ require (
 	k8s.io/kubelet v0.27.2
 	k8s.io/metrics v0.27.2
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
-	sigs.k8s.io/custom-metrics-apiserver v1.27.0 // no 1.26 version :(
+	sigs.k8s.io/custom-metrics-apiserver v1.27.0
 )
 
 require (
