@@ -127,7 +127,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: DefaultProcessEventsCheckInterval,
 		},
 		{
-			key:          "process_config.language_detection.enabled",
+			key:          "language_detection.enabled",
 			defaultValue: false,
 		},
 		{
@@ -430,8 +430,8 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: 20 * time.Second,
 		},
 		{
-			key:      "process_config.language_detection.enabled",
-			env:      "DD_PROCESS_CONFIG_LANGUAGE_DETECTION_ENABLED",
+			key:      "language_detection.enabled",
+			env:      "DD_language_detection.enabled",
 			value:    "true",
 			expected: true,
 		},

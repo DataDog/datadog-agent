@@ -231,7 +231,7 @@ func TestCollection(t *testing.T) {
 		},
 	}
 	mockConfig := config.Mock(t)
-	mockConfig.Set("process_config.language_detection.enabled", true)
+	mockConfig.Set("language_detection.enabled", true)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
