@@ -179,7 +179,7 @@ func (hc *HelmCheck) setupInformers() error {
 		DeleteFunc: hc.deleteSecret,
 		UpdateFunc: hc.updateSecret,
 	}); err != nil {
-		return fmt.Errorf("cannot add event handler to secret informer: %v", err)
+		log.Errorf("cannot add event handler to secret informer: %v", err)
 	}
 	go secretInformer.Informer().Run(hc.informersStopCh)
 
@@ -189,7 +189,7 @@ func (hc *HelmCheck) setupInformers() error {
 		DeleteFunc: hc.deleteConfigmap,
 		UpdateFunc: hc.updateConfigmap,
 	}); err != nil {
-		return fmt.Errorf("cannot add event handler to config map informer: %v", err)
+		log.Errorf("cannot add event handler to config map informer: %v", err)
 	}
 	go configmapInformer.Informer().Run(hc.informersStopCh)
 

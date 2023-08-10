@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -100,7 +101,11 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 		isLeaderFunc,
 		dcl,
 	)
-	autoscalerController.enableHPA(client, informerFactory)
+	if err := autoscalerController.enableHPA(client, informerFactory); err != nil {
+		log.Errorf("impossible to enable HPA informer: %s", err)
+		autoscalerController.autoscalersListerSynced = func() bool { return false }
+		return autoscalerController, informerFactory
+	}
 
 	autoscalerController.autoscalersListerSynced = func() bool { return true }
 

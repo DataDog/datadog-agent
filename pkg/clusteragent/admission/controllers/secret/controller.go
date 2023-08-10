@@ -63,7 +63,7 @@ func NewController(client kubernetes.Interface, secretInformer coreinformers.Sec
 		DeleteFunc: controller.handleObject,
 	}); err != nil {
 		log.Errorf("cannot add event handler to secret informer: %v", err)
-		return nil
+		return controller
 	}
 	return controller
 }

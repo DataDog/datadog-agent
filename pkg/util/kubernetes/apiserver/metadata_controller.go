@@ -69,7 +69,7 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 		UpdateFunc: m.updateEndpoints,
 		DeleteFunc: m.deleteEndpoints,
 	}); err != nil {
-		log.Errorf("error adding event handler to endpoints informer: %v", err)
+		log.Errorf("error adding event handler to node informer: %f", err)
 	}
 	m.endpointsLister = endpointsInformer.Lister()
 	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
