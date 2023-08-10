@@ -8,26 +8,12 @@ package encoding
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
-
-	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // ContentTypeProtobuf holds the HTML content-type of a Protobuf payload
 const ContentTypeProtobuf = "application/protobuf"
 
 type protoSerializer struct{}
-
-func (p protoSerializer) Model(conns *network.Connections, modeler *Modeler) *model.Connections {
-	return modelConnections(conns, modeler)
-}
-
-func (p protoSerializer) InitModeler(conns *network.Connections) *Modeler {
-	return &Modeler{
-		httpEncoder:  NewHTTPEncoder(conns.HTTP),
-		http2Encoder: NewHTTP2Encoder(conns.HTTP2),
-		kafkaEncoder: NewKafkaEncoder(conns.Kafka),
-	}
-}
 
 func (protoSerializer) Marshal(payload *model.Connections) ([]byte, error) {
 	buf, err := proto.Marshal(payload)

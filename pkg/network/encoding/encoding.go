@@ -29,7 +29,7 @@ var (
 	agentCfg *model.AgentConfiguration
 )
 
-type Modeler struct {
+type ConnectionModeler struct {
 	httpEncoder  *httpEncoder
 	http2Encoder *http2Encoder
 	kafkaEncoder *kafkaEncoder
@@ -38,8 +38,6 @@ type Modeler struct {
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
 	Marshal(conns *model.Connections) ([]byte, error)
-	Model(conns *network.Connections, modeler *Modeler) *model.Connections
-	InitModeler(conns *network.Connections) *Modeler
 	ContentType() string
 }
 
@@ -66,7 +64,9 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-func modelConnections(conns *network.Connections, modeler *Modeler) *model.Connections {
+// TODO: This function can be called multiple times (for each batch).
+// We must remember that resource allocation should b
+func (m *ConnectionModeler) modelConnections(conns *network.Connections) *model.Connections {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
@@ -75,6 +75,7 @@ func modelConnections(conns *network.Connections, modeler *Modeler) *model.Conne
 		}
 	})
 
+	// TODO: Use pool with max connections
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 
@@ -83,7 +84,8 @@ func modelConnections(conns *network.Connections, modeler *Modeler) *model.Conne
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, modeler.httpEncoder, modeler.http2Encoder, modeler.kafkaEncoder, dnsFormatter, ipc, tagsSet)
+		// TODO: Move format connection to be a method of Modeler
+		agentConns[i] = FormatConnection(conn, routeIndex, m.httpEncoder, m.http2Encoder, m.kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
@@ -91,6 +93,7 @@ func modelConnections(conns *network.Connections, modeler *Modeler) *model.Conne
 		routes[v.Idx] = &v.Route
 	}
 
+	// TODO: Move to sync.Pool
 	payload := new(model.Connections)
 	payload.AgentConfiguration = agentCfg
 	payload.Conns = agentConns
