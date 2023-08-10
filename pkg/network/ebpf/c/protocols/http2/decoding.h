@@ -313,19 +313,22 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         return;
     }
 
-    if (current_frame->type == kHeadersFrame) { // This is a header frame.
+    if (current_frame->type == kHeadersFrame) {
         process_headers_frame(skb, current_stream, skb_info, tup, &http2_ctx->dynamic_index, current_frame);
     } else {
         skb_info->data_off += current_frame->length;
     }
 
-    if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) { // This is end of stream.
+    if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
     }
 
     return;
 }
 
+// A similar implementation of read_http2_frame_header, but instead of getting both a char array and an out parameter,
+// we get only the out parameter (equals to struct http2_frame * representation of the char array) and we perform the
+// field adjustments we have in read_http2_frame_header.
 static __always_inline bool format_http2_frame_header(struct http2_frame *out) {
     if (is_empty_frame_header((char*)out)) {
         return false;
@@ -374,6 +377,9 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
             break;
         }
 
+        // END_STREAM can appear only in Headers and Data frames.
+        // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
+        // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
         is_headers_frame = current_frame.type == kHeadersFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (is_headers_frame || is_data_end_of_stream) {
