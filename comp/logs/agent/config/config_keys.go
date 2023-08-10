@@ -17,41 +17,38 @@ import (
 type LogsConfigKeys struct {
 	prefix       string
 	vectorPrefix string
-	config       coreConfig.Config
+	config       coreConfig.ConfigReader
 }
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
-func defaultLogsConfigKeys() *LogsConfigKeys {
-	return NewLogsConfigKeys("logs_config.", coreConfig.Datadog)
+func defaultLogsConfigKeys(config coreConfig.ConfigReader) *LogsConfigKeys {
+	return NewLogsConfigKeys("logs_config.", config)
 }
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
-func defaultLogsConfigKeysWithVectorOverride() *LogsConfigKeys {
-	return NewLogsConfigKeysWithVector("logs_config.", "logs.", coreConfig.Datadog)
+func defaultLogsConfigKeysWithVectorOverride(config coreConfig.ConfigReader) *LogsConfigKeys {
+	return NewLogsConfigKeysWithVector("logs_config.", "logs.", config)
 }
 
 // NewLogsConfigKeys returns a new logs configuration keys set
-func NewLogsConfigKeys(configPrefix string, config coreConfig.Config) *LogsConfigKeys {
+func NewLogsConfigKeys(configPrefix string, config coreConfig.ConfigReader) *LogsConfigKeys {
 	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: "", config: config}
 }
 
 // NewLogsConfigKeysWithVector returns a new logs configuration keys set with vector config keys enabled
-func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config coreConfig.Config) *LogsConfigKeys {
+func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config coreConfig.ConfigReader) *LogsConfigKeys {
 	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: vectorPrefix, config: config}
 }
 
-func (l *LogsConfigKeys) getConfig() coreConfig.Config {
-	if l.config != nil {
-		return l.config
-	}
-	return coreConfig.Datadog
+func (l *LogsConfigKeys) getConfig() coreConfig.ConfigReader {
+	return l.config
 }
 
 func (l *LogsConfigKeys) getConfigKey(key string) string {
 	return l.prefix + key
 }
 
-func isSetAndNotEmpty(config coreConfig.Config, key string) bool {
+func isSetAndNotEmpty(config coreConfig.ConfigReader, key string) bool {
 	return config.IsSet(key) && len(config.GetString(key)) > 0
 }
 

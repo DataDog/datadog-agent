@@ -9,9 +9,9 @@ import (
 	"context"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/benbjohnson/clock"
 )
@@ -37,7 +37,7 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) Provider {
 		expectedTags: t,
 	}
 
-	if config.IsExpectedTagsSet() {
+	if config.IsExpectedTagsSet(coreConfig.Datadog) {
 		p.expectedTags = append(p.tags, hostMetadataUtils.GetHostTags(context.TODO(), false, coreConfig.Datadog).System...)
 
 		// expected tags deadline is based on the agent start time, which may have been earlier
