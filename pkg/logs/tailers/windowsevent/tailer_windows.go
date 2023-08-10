@@ -26,6 +26,8 @@ import (
 // Start starts tailing the event log.
 func (t *Tailer) Start() {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
+	go t.forwardMessages()
+	t.decoder.Start()
 	go t.tail()
 }
 
@@ -52,8 +54,17 @@ func (t *Tailer) tail() {
 
 	// wait for stop signal
 	<-t.stop
+	t.decoder.Stop()
 	t.done <- struct{}{}
 	return
+}
+
+func (t *Tailer) forwardMessages() {
+	for decodedMessage := range t.decoder.OutputChan {
+		if len(decodedMessage.Content) > 0 {
+			t.outputChan <- decodedMessage
+		}
+	}
 }
 
 /*
@@ -95,7 +106,7 @@ func goNotificationCallback(handle C.ULONGLONG, ctx C.PVOID) {
 	}
 
 	t.source.RecordBytes(int64(len(msg.Content)))
-	t.outputChan <- msg
+	t.decoder.InputChan <- msg
 }
 
 var (

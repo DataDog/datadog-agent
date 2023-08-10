@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -23,20 +24,20 @@ import (
 const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 const contentLenLimit = 100
 
-func getDummyMessage(content string) *Message {
+func getDummyMessage(content string) *message.Message {
 	return NewMessage([]byte(content), "info", len(content), "2018-06-14T18:27:03.246999277Z")
 }
 
-func getDummyMessageWithLF(content string) *Message {
+func getDummyMessageWithLF(content string) *message.Message {
 	return NewMessage([]byte(content), "info", len(content)+1, "2018-06-14T18:27:03.246999277Z")
 }
 
-func lineHandlerChans() (func(*Message), chan *Message) {
-	ch := make(chan *Message, 20)
-	return func(m *Message) { ch <- m }, ch
+func lineHandlerChans() (func(*message.Message), chan *message.Message) {
+	ch := make(chan *message.Message, 20)
+	return func(m *message.Message) { ch <- m }, ch
 }
 
-func assertNothingInChannel(t *testing.T, ch chan *Message) {
+func assertNothingInChannel(t *testing.T, ch chan *message.Message) {
 	select {
 	case <-ch:
 		assert.Fail(t, "unexpected message")
@@ -48,7 +49,7 @@ func TestSingleLineHandler(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	h := NewSingleLineHandler(outputFn, 100)
 
-	var output *Message
+	var output *message.Message
 	var line string
 
 	// valid line should be sent
@@ -82,7 +83,7 @@ func TestTrimSingleLine(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	h := NewSingleLineHandler(outputFn, 100)
 
-	var output *Message
+	var output *message.Message
 	var line string
 
 	// All leading and trailing whitespace characters should be trimmed
@@ -98,7 +99,7 @@ func TestMultiLineHandler(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 20, false)
 
-	var output *Message
+	var output *message.Message
 
 	// two lines long message should be sent
 	h.process(getDummyMessageWithLF("1.first"))
@@ -182,7 +183,7 @@ func TestTrimMultiLine(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false)
 
-	var output *Message
+	var output *message.Message
 
 	// All leading and trailing whitespace characters should be trimmed
 	h.process(getDummyMessageWithLF(whitespace + "foo" + whitespace + "bar" + whitespace))
@@ -216,7 +217,7 @@ func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	h.process(getDummyMessage("1.third line"))
 	h.process(getDummyMessage("fourth line"))
 
-	var output *Message
+	var output *message.Message
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
@@ -243,7 +244,7 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	h.process(getDummyMessage("1.third line"))
 	h.process(getDummyMessage("fourth line"))
 
-	var output *Message
+	var output *message.Message
 
 	assertNothingInChannel(t, outputChan)
 	h.flush()
