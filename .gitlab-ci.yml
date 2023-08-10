@@ -743,6 +743,12 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.except_main_or_release_branch:
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_release_branch
+    when: never
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always

@@ -195,7 +195,8 @@ def auto_cancel_previous_pipelines(ctx):
                 f'Could not determine if {pipeline["sha"]} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
             )
         else:
-            print(f'Unknown error returned: {is_ancestor.stderr} ')
+            print(is_ancestor.stderr)
+            raise Exit(1)
 
 
 @task
