@@ -19,12 +19,23 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 // Event represents an event sent from the kernel
 // genaccessors
-type Event struct{}
+type Event struct {
+	BaseEvent
+}
+
+// FileEvent is the common file event type
+type FileEvent struct{}
 
 // Process represents a process
-type Process struct{}
+type Process struct {
+	PIDContext
+
+	ContainerID string
+}
 
 // PIDContext holds the process context of an kernel event
-type PIDContext struct{}
+type PIDContext struct {
+	Pid uint32
+}
 
 type NetworkDeviceContext struct{}
