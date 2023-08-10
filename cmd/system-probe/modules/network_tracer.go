@@ -71,7 +71,7 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		return &networkTracer{tracer: t, done: done}, err
+		return &networkTracer{tracer: t, done: done, maxConnsPerMessage: cfg.MaxConnsPerMessage}, err
 	},
 }
 
@@ -83,6 +83,7 @@ type networkTracer struct {
 	restartTimer *time.Timer
 
 	connectionserver.UnsafeSystemProbeServer
+	maxConnsPerMessage int
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -110,7 +111,6 @@ func min(a, b int) int {
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
 	start := time.Now()
 	//MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message"))
-	maxConnsPerMessage := 600
 	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
@@ -136,7 +136,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	defer network.Reclaim(cs)
 
 	for len(cs.Conns) > 0 {
-		finalBatchSize := min(maxConnsPerMessage, len(cs.Conns))
+		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
 		rest := cs.Conns[finalBatchSize:]
 		cs.Conns = cs.Conns[:finalBatchSize]
 
