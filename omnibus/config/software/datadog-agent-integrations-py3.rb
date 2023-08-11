@@ -183,9 +183,11 @@ build do
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
+      "OPENSSL_DIR" => "#{install_dir}/embedded/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
+
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
