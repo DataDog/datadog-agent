@@ -93,6 +93,7 @@ func NodeTypes() []NodeType {
 		K8sCR,
 		K8sCRD,
 		K8sVerticalPodAutoscaler,
+		K8sHorizontalPodAutoscaler,
 	}
 }
 
@@ -142,6 +143,8 @@ func (n NodeType) String() string {
 		return "CustomResource"
 	case K8sVerticalPodAutoscaler:
 		return "VerticalPodAutoscaler"
+	case K8sHorizontalPodAutoscaler:
+		return "HorizontalPodAutoscaler"
 	case K8sUnsetType:
 		return "UnsetType"
 	default:
@@ -175,6 +178,7 @@ func (n NodeType) Orchestrator() string {
 		K8sCR,
 		K8sNamespace,
 		K8sVerticalPodAutoscaler,
+		K8sHorizontalPodAutoscaler,
 		K8sUnsetType:
 		return "k8s"
 	default:
