@@ -23,7 +23,7 @@ $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
-& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecure "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
+& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
 & inv -e golangci-lint --build system-probe-unit-tests .\pkg
 $err = $LASTEXITCODE
