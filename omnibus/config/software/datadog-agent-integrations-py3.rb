@@ -295,6 +295,9 @@ build do
           vars: { requirements: lib_req["req_lines"] }
     end
 
+    command "cat /opt/datadog-agent/agent_cryptography_requirements-py3.txt"
+    command "cat /omnibus/src/datadog-agent-integrations-py3/integrations-core/cryptography-py3.in"
+
     # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
     pip_max_retries = 20
     pip_timeout = 20
