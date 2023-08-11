@@ -8,7 +8,6 @@
 package executioncontext
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -73,7 +72,7 @@ func TestUpdateFromStartLog(t *testing.T) {
 func TestSaveAndRestoreFromFile(t *testing.T) {
 	assert := assert.New(t)
 
-	tempfile, err := ioutil.TempFile("/tmp", "dd-lambda-extension-cache-*.json")
+	tempfile, err := os.CreateTemp("/tmp", "dd-lambda-extension-cache-*.json")
 	assert.Nil(err)
 	defer os.Remove(tempfile.Name())
 

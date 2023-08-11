@@ -7,7 +7,6 @@ package cpu
 
 import (
 	"bufio"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -19,7 +18,7 @@ var listRangeRegex = regexp.MustCompile("([0-9]+)-([0-9]+)$")
 
 // sysCPUInt reads an integer from a file in /sys/devices/system/cpu
 func sysCPUInt(path string) (uint64, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+	content, err := os.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
 	if err != nil {
 		return 0, false
 	}
@@ -34,7 +33,7 @@ func sysCPUInt(path string) (uint64, bool) {
 
 // sysCPUSize reads an value with a K/M/G suffix from a file in /sys/devices/system/cpu
 func sysCPUSize(path string) (uint64, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+	content, err := os.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
 	if err != nil {
 		return 0, false
 	}
@@ -66,7 +65,7 @@ func sysCPUSize(path string) (uint64, bool) {
 // integers included in the list (for the example above, {0, 1, 2, 3, 4, 5, 7,
 // 8, 9, 10, 11}).
 func sysCPUList(path string) (map[uint64]struct{}, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+	content, err := os.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
 	if err != nil {
 		return nil, false
 	}
