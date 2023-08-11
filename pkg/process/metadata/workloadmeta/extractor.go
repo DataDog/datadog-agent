@@ -82,7 +82,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	defer w.reportTelemetry()
 
 	newEntities := make([]*ProcessEntity, 0, len(procs))
-	newProcs := make([]*procutil.Process, 0, len(procs))
+	newProcs := make([]languagemodels.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
@@ -110,7 +110,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 
 	languages := languagedetection.DetectLanguage(newProcs)
 	for i, lang := range languages {
-		pid := newProcs[i].Pid
+		pid := newProcs[i].GetPid()
 		proc := procs[pid]
 
 		var creationTime int64
