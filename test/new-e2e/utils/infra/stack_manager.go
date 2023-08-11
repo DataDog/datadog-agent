@@ -113,6 +113,10 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 		FlowToPlugins: true,
 		LogLevel:      &loglevel,
 	}))
+
+	if err != nil {
+		sm.DeleteStack(ctx, name)
+	}
 	return stack, upResult, err
 }
 
