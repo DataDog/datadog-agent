@@ -23,7 +23,7 @@ import (
 	datadog "gopkg.in/zorkian/go-datadog-api.v2"
 )
 
-func TestAgentOnECS(t *testing.T) {
+func TestECSSuite(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
