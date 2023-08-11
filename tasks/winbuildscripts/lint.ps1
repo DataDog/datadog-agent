@@ -8,7 +8,7 @@ if ($Env:TARGET_ARCH -eq "x64") {
 & $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
 
 $LINT_ROOT=(Get-Location).Path
-$Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;C:\devtools\vstudio\VC\Tools\Llvm\bin"
+$Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;$Env:VSTUDIO_ROOT\VC\Tools\Llvm\bin"
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
