@@ -260,7 +260,7 @@ func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, m
 
 // QuickInfo represents the info quickly extractable from an event, that can be used for reordering
 type QuickInfo struct {
-// struct field Cpu should be CPU
+	// struct field Cpu should be CPU
 	Cpu       uint64
 	Timestamp uint64
 }

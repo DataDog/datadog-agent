@@ -560,9 +560,9 @@ type InodeDiscarderDump struct {
 
 // DiscardersDump describes a dump of discarders
 type DiscardersDump struct {
-	Date   time.Time                           `yaml:"date"`
-	Inodes []InodeDiscarderDump                `yaml:"inodes"`
-	Pids   []PidDiscarderDump                  `yaml:"pids"`
+	Date   time.Time                  `yaml:"date"`
+	Inodes []InodeDiscarderDump       `yaml:"inodes"`
+	Pids   []PidDiscarderDump         `yaml:"pids"`
 	Stats  map[string]discarder.Stats `yaml:"stats"`
 }
 
@@ -642,7 +642,7 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.Stats, error
 	}
 
 	stats := make(map[string]discarder.Stats)
-// var perCpu should be perCPU
+	// var perCpu should be perCPU
 	perCpu := make([]discarder.Stats, numCPU)
 
 	var eventType uint32

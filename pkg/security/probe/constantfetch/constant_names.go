@@ -24,8 +24,8 @@ const (
 	OffsetNameLinuxBinprmP           = "linux_binprm_p_offset"
 	OffsetNameLinuxBinprmArgc        = "linux_binprm_argc_offset"
 	OffsetNameLinuxBinprmEnvc        = "linux_binprm_envc_offset"
-// const OffsetNameVmAreaStructFlags should be OffsetNameVMAreaStructFlags
-	OffsetNameVmAreaStructFlags      = "vm_area_struct_flags_offset"
+	// const OffsetNameVmAreaStructFlags should be OffsetNameVMAreaStructFlags
+	OffsetNameVmAreaStructFlags = "vm_area_struct_flags_offset"
 
 	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"

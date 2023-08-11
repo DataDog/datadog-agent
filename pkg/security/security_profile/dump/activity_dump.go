@@ -537,7 +537,7 @@ func (ad *ActivityDump) GetImageNameTag() (string, string) {
 
 	var imageName, imageTag string
 	for _, tag := range ad.Tags {
-// don't use underscores in Go names; var tag_name should be tagName
+		// don't use underscores in Go names; var tag_name should be tagName
 		if tag_name, tag_value, valid := strings.Cut(tag, ":"); valid {
 			switch tag_name {
 			case "image_name":

@@ -22,6 +22,7 @@ const BasenameApproverKernelMapName = "basename_approvers"
 
 type onApproverHandler func(approvers rules.Approvers) (ActiveApprovers, error)
 type activeApprover = activeKFilter
+
 // ActiveApprovers exported type should have comment or be unexported
 type ActiveApprovers = activeKFilters
 

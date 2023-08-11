@@ -26,10 +26,10 @@ import (
 )
 
 const (
-	policySource       = "self-test"
-	policyVersion      = "1.0.0"
-	policyName         = "datadog-agent-cws-self-test-policy"
-	ruleIDPrefix       = "datadog_agent_cws_self_test_rule"
+	policySource  = "self-test"
+	policyVersion = "1.0.0"
+	policyName    = "datadog-agent-cws-self-test-policy"
+	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"
 	// PolicyProviderType exported const should have a comment or be unexported
 	PolicyProviderType = "selfTesterPolicyProvider"
 )

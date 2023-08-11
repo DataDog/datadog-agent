@@ -25,7 +25,9 @@ type BundleParams struct {
 
 // ConfigParams exported type should have comment or be unexported
 type ConfigParams = config.Params
+
 // LogParams exported type should have comment or be unexported
 type LogParams = log.Params
+
 // SysprobeConfigParams exported type should have comment or be unexported
 type SysprobeConfigParams = sysprobeconfig.Params

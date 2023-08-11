@@ -21,10 +21,10 @@ import (
 )
 
 type cloudProviderDetector struct {
-	name              string
+	name string
 	// struct field accountIdName should be accountIDName
-	accountIDName     string
-	callback          func(context.Context) bool
+	accountIDName string
+	callback      func(context.Context) bool
 	// struct field accountIdCallback should be accountIDCallback
 	accountIDCallback func(context.Context) (string, error)
 }

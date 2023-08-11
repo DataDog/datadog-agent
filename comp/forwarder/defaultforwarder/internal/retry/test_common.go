@@ -21,9 +21,11 @@ type StatsTelemetrySenderMock struct{}
 // Count exported method should have comment or be unexported
 func (m StatsTelemetrySenderMock) Count(metric string, value float64, hostname string, tags []string) {
 }
+
 // Gauge exported method should have comment or be unexported
 func (m StatsTelemetrySenderMock) Gauge(metric string, value float64, hostname string, tags []string) {
 }
+
 // GaugeNoIndex exported method should have comment or be unexported
 func (m StatsTelemetrySenderMock) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
 }

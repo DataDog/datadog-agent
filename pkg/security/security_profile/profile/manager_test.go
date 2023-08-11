@@ -34,10 +34,10 @@ type testIteration struct {
 	eventTimestampRaw   time.Duration              // time diff from t0
 	eventType           model.EventType            // only exec for now, TODO: add dns
 	eventProcessPath    string                     // exec path
-// struct field eventDnsReq should be eventDNSReq
-	eventDnsReq         string                     // dns request name (only for eventType == DNSEventType)
-	loopUntil           time.Duration              // if not 0, will loop until the given duration is reached
-	loopIncrement       time.Duration              // if loopUntil is not 0, will increment this duration at each loop
+	// struct field eventDnsReq should be eventDNSReq
+	eventDnsReq   string        // dns request name (only for eventType == DNSEventType)
+	loopUntil     time.Duration // if not 0, will loop until the given duration is reached
+	loopIncrement time.Duration // if loopUntil is not 0, will increment this duration at each loop
 }
 
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
@@ -693,7 +693,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			if ti.loopUntil != 0 {
 				currentIncrement := time.Duration(0)
 				basePath := ti.eventProcessPath
-// var baseDnsReq should be baseDNSReq
+				// var baseDnsReq should be baseDNSReq
 				baseDnsReq := ti.eventDnsReq
 				for currentIncrement < ti.loopUntil {
 					if ti.eventType == model.ExecEventType {

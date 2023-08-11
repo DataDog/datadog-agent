@@ -34,7 +34,7 @@ func TestEventMonitor(t *testing.T) {
 	newConfig(t)
 
 	for i, tc := range []struct {
-// don't use underscores in Go names; struct field process_events should be processEvents
+		// don't use underscores in Go names; struct field process_events should be processEvents
 		cws, fim, process_events, network_events bool
 		enabled                                  bool
 	}{

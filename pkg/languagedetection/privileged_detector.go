@@ -22,7 +22,7 @@ var detectorsWithPrivilege = []Detector{
 }
 
 var (
-// PermissionDeniedWarningOnce exported var should have comment or be unexported
+	// PermissionDeniedWarningOnce exported var should have comment or be unexported
 	PermissionDeniedWarningOnce = sync.Once{}
 )
 

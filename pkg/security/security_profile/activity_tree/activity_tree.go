@@ -197,7 +197,7 @@ func (at *ActivityTree) IsEmpty() bool {
 }
 
 // Debug comment
-//nolint: unused
+// nolint: unused
 func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")

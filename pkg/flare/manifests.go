@@ -35,11 +35,11 @@ var (
 
 // This const block should have a comment or be unexported
 const (
-// don't use ALL_CAPS in Go names; use CamelCase
-	HELM_CHART_RELEASE_NAME       = "CHART_RELEASE_NAME"
-// don't use ALL_CAPS in Go names; use CamelCase
-	HELM_CHART_RELEASE_NAMESPACE  = "DD_KUBE_RESOURCES_NAMESPACE"
-// don't use ALL_CAPS in Go names; use CamelCase
+	// don't use ALL_CAPS in Go names; use CamelCase
+	HELM_CHART_RELEASE_NAME = "CHART_RELEASE_NAME"
+	// don't use ALL_CAPS in Go names; use CamelCase
+	HELM_CHART_RELEASE_NAMESPACE = "DD_KUBE_RESOURCES_NAMESPACE"
+	// don't use ALL_CAPS in Go names; use CamelCase
 	HELM_AGENT_DAEMONSET          = "AGENT_DAEMONSET"
 	HELM_CLUSTER_AGENT_DEPLOYMENT = "CLUSTER_AGENT_DEPLOYMENT"
 )

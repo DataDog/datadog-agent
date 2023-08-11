@@ -57,7 +57,7 @@ func InjectAgent(pid int, agent string, args string) error {
 	fsUID, fsGID := int(uids[3]), int(gids[3])
 
 	ctime, _ := proc.CreateTime()
-// don't use underscores in Go names; var age_ms should be ageMs
+	// don't use underscores in Go names; var age_ms should be ageMs
 	age_ms := time.Now().UnixMilli() - ctime
 	if age_ms < MINIMUM_JAVA_AGE_TO_ATTACH_MS {
 		log.Debugf("java attach pid %d will be delayed by %d ms", pid, MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms)
