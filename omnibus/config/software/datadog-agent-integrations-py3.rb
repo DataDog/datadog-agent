@@ -270,6 +270,7 @@ build do
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line
+            command "echo 'custom: #{line}'"
             lib_req["req_lines"].push(line)
           end
         end
