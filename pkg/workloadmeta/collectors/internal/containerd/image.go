@@ -174,7 +174,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 	switch containerdEvent.Topic {
 	case imageCreationTopic:
 		event := &events.ImageCreate{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), event); err != nil {
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
@@ -182,7 +182,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 
 	case imageUpdateTopic:
 		event := &events.ImageUpdate{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), event); err != nil {
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
@@ -192,7 +192,7 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 		c.handleImagesMut.Lock()
 
 		event := &events.ImageDelete{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), event); err != nil {
 			c.handleImagesMut.Unlock()
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}

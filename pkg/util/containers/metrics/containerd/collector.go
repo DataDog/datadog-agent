@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -183,7 +182,7 @@ func (c *containerdCollector) getContainerdMetrics(containerNS string, container
 		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, err)
 	}
 
-	metrics, err := typeurl.UnmarshalAny(metricTask.Data)
+	metrics, err := metricTask.Data.UnmarshalNew()
 	if err != nil {
 		return nil, fmt.Errorf("could not convert the metrics data from container with ID %s: %s", containerID, err)
 	}
