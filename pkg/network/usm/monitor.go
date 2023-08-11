@@ -48,6 +48,7 @@ var (
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
+		goTLSSpec,
 		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
