@@ -115,7 +115,11 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 	}))
 
 	if err != nil {
-		sm.DeleteStack(ctx, name)
+		stack.Destroy(ctx, optdestroy.ProgressStreams(os.Stderr), optdestroy.DebugLogging(debug.LoggingOptions{
+			LogToStdErr:   true,
+			FlowToPlugins: true,
+			LogLevel:      &loglevel,
+		}))
 	}
 	return stack, upResult, err
 }
