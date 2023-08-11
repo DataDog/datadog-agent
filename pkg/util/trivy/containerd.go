@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build trivy
 
 package trivy
@@ -34,6 +36,7 @@ import (
 )
 
 // CONTAINERD_COLLECTOR exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const CONTAINERD_COLLECTOR = "containerd"
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go

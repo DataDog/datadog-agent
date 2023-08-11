@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 package utils
@@ -267,6 +269,7 @@ func GetFilledProcess(p *process.Process) (*FilledProcess, error) {
 }
 
 // MAX_ENV_VARS_COLLECTED exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const MAX_ENV_VARS_COLLECTED = 256
 
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
