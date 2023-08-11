@@ -6,7 +6,6 @@
 package flare
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -33,9 +32,7 @@ func assertFoldersExist(t *testing.T, flare flare.Flare, filenames []string) {
 // folderExists verifies if a file exists in the flare archive and is a folder
 func folderExists(t *testing.T, flare flare.Flare, filename string) {
 	fileInfo, err := flare.GetFileInfo(filename)
-	assert.NoError(t, err, "Got error when searching for '%v' file in flare archive: %v", filename, err)
-
-	if err == nil {
+	if assert.NoError(t, err, "Got error when searching for '%v' file in flare archive: %v", filename, err) {
 		assert.True(t, fileInfo.IsDir(), "Expected '%v' to be a folder but is not. (FileMode: %v)", filename, fileInfo.Mode())
 	}
 }
@@ -97,18 +94,8 @@ func isDir(flare flare.Flare, filename string) bool {
 	return fileInfo.IsDir()
 }
 
-func assertProcessCheckShouldBeEnabled(t *testing.T, flare flare.Flare, checkName string, setting string, shouldBeEnabled bool) {
-	filename := fmt.Sprintf("%s_check_output.json", checkName)
-	expectedContentIfDisabled := fmt.Sprintf("'%s' is disabled", setting)
-
-	if shouldBeEnabled {
-		assertFileNotContains(t, flare, filename, []string{expectedContentIfDisabled})
-	} else {
-		assertFileContains(t, flare, filename, []string{expectedContentIfDisabled})
-	}
-}
-
-func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents []string) {
+// assertFileContains verifies that `filename` contains every string in `expectedContents`
+func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
 	fileContent, err := flare.GetFileContent(filename)
 	if assert.NoError(t, err) {
 		for _, content := range expectedContents {
@@ -117,7 +104,8 @@ func assertFileContains(t *testing.T, flare flare.Flare, filename string, expect
 	}
 }
 
-func assertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContents []string) {
+// assertFileNotContains verifies that `filename` does not contain any string in `expectedContents`
+func assertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
 	fileContent, err := flare.GetFileContent(filename)
 	if assert.NoError(t, err) {
 		for _, content := range expectedContents {

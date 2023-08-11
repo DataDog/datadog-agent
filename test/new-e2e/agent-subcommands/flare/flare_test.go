@@ -46,9 +46,9 @@ func (v *commandFlareSuite) TestFlareDefaultFiles() {
 	assertFilesExist(v.T(), flare, defaultConfigFiles)
 	assertFoldersExist(v.T(), flare, defaultFlareFolders)
 
-	assertProcessCheckShouldBeEnabled(v.T(), flare, "process", "process_config.process_collection.enabled", false)
-	assertProcessCheckShouldBeEnabled(v.T(), flare, "container", "process_config.container_collection.enabled", true)
-	assertProcessCheckShouldBeEnabled(v.T(), flare, "process_discovery", "process_config.process_discovery.enabled", true)
+	assertFileNotContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is enabled")
+	assertFileContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is enabled")
+	assertFileContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is enabled")
 
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
@@ -66,8 +66,9 @@ var securityAgentConfiguration []byte
 func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	var scenarioExpectedFiles = []string{
-		"telemetry.log", // if telemetry.enabled
-		"registry.json", // if Logs Agent is running
+		"telemetry.log",       // if telemetry.enabled
+		"registry.json",       // if Logs Agent is running
+		"expvar/system-probe", // if system probe is enabled
 	}
 
 	// XXX: use FileManager here instead
@@ -84,24 +85,17 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig(string(agentConfiguration))))
 
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
-	_ = v.Env().Agent.Flare(client.WithArgs("--email e2e@test.com --send"))
-
-	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
-	assert.NoError(v.T(), err)
+	flare := waitForAgentAndGetFlare(v, client.WithArgs("--email e2e@test.com --send"))
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
 	assertFilesExist(v.T(), flare, allConfigFiles)
 	assertFilesExist(v.T(), flare, extraCustomConfigFiles)
-	assertFilesExist(v.T(), flare, []string{"expvar/system-probe"})
 
-	assertProcessCheckShouldBeEnabled(v.T(), flare, "process", "process_config.process_collection.enabled", true)
-	assertProcessCheckShouldBeEnabled(v.T(), flare, "container", "process_config.container_collection.enabled", false)
-	assertProcessCheckShouldBeEnabled(v.T(), flare, "process_discovery", "process_config.process_discovery.enabled", false)
+	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is enabled")
+	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is enabled")
+	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is enabled")
 
 	filesRegistredInPermissionsLog := []string{"/etc/datadog-agent/auth_token", "/tmp/dummy_system_probe_config_bpf_dir/", "/tmp/dummy_dir"}
-	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog)
+	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)
 }

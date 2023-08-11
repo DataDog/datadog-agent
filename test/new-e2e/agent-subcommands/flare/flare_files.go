@@ -29,12 +29,17 @@ var defaultFlareFiles = []string{
 	"workload-list.log",
 }
 
+// defaultLogFiles contains all the log files that are created with a default installation
 var defaultLogFiles = []string{
 	"logs/agent.log",
 	"logs/process-agent.log",
 	"logs/trace-agent.log",
 }
 
+// allLogFiles contains all the log files that are created when enabling all products
+// TODO: add these files
+//   - "logs/dogstatsd_info/dogstatsd-stats.log", // need to enable DSD
+//   - "logs/jmxfetch.log",                       // need to enable JMX Fetch
 var allLogFiles = []string{
 	"logs/agent.log",
 	"logs/process-agent.log",
@@ -43,29 +48,29 @@ var allLogFiles = []string{
 	"logs/trace-agent.log",
 }
 
+// defaultConfigFiles contains the config file created with a default installation
 var defaultConfigFiles = []string{"etc/datadog.yaml"}
 
+// allConfigFiles contains all the config files we can create to configure the Agents
 var allConfigFiles = []string{
 	"etc/datadog.yaml",
 	"etc/security-agent.yaml",
 	"etc/system-probe.yaml",
 }
 
+// defaultFlareFolders contains all the folders included by default in the flare
 var defaultFlareFolders = []string{
 	"etc/confd/",
 	"expvar",
 	"logs",
 }
 
+// untestedFiles contains some untested files that needs specific scenario which should be added later.
 var untestedFiles = []string{
-	"/etc/confd/checksd/*",
-	"/etc/confd/dist/*",
-	"docker_inspect.log", // only within a docker container
-	"local",              // when creating flare locally
-	"logs/dogstatsd_info/dogstatsd-stats.log", // need to enable DSD
-	"logs/jmxfetch.log",                       // need to enable JMX Fetch
-	"profiles/*",                              // when creating profiles
-	"remote-config-state.log",                 // if remote_configuration.enabled + correctly setup
+	"docker_inspect.log",      // only within a docker container
+	"local",                   // when creating flare locally
+	"profiles/*",              // when creating profiles
+	"remote-config-state.log", // if remote_configuration.enabled + correctly setup
 	// TODO: all windows files
 	// TODO: verify permissions.log content + files permissions
 }
