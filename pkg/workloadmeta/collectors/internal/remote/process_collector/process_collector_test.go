@@ -230,11 +230,11 @@ func TestCollection(t *testing.T) {
 			errorResponse: true,
 		},
 	}
-	mockConfig := config.Mock(t)
-	mockConfig.Set("language_detection.enabled", true)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			mockConfig := config.Mock(t)
+			mockConfig.Set("language_detection.enabled", true)
 
 			// remote process collector server (process agent)
 			server := &mockServer{
@@ -261,7 +261,8 @@ func TestCollection(t *testing.T) {
 			// gRPC client (core agent)
 			collector := &remote.GenericCollector{
 				StreamHandler: &streamHandler{
-					port: port,
+					Config: mockConfig,
+					port:   port,
 				},
 				Insecure: true,
 			}

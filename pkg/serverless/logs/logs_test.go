@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -725,6 +725,94 @@ func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 			assert.Equal(t, expectedErrors[i], received.IsError)
 		case <-time.After(100 * time.Millisecond):
 			assert.Fail(t, "We should have received logs")
+		}
+	}
+}
+
+func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
+	logChannel := make(chan *config.ChannelMessage)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	defer demux.Stop(false)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	lc := &LambdaLogsCollector{
+		arn:                    "my-arn",
+		lastRequestID:          "myRequestID",
+		logsEnabled:            true,
+		enhancedMetricsEnabled: true,
+		out:                    logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext:    mockExecutionContext,
+		demux:               demux,
+		invocationStartTime: time.Now(),
+		invocationEndTime:   time.Now().Add(10 * time.Millisecond),
+	}
+
+	reportLogMessageOne := LambdaLogAPIMessage{
+		objectRecord: platformObjectRecord{
+			requestID: "myRequestID-1",
+			reportLogItem: reportLogMetrics{
+				durationMs:       100.00,
+				billedDurationMs: 100,
+				memorySizeMB:     128,
+				maxMemoryUsedMB:  128,
+				initDurationMs:   50.00,
+			},
+			status: timeoutStatus,
+		},
+		logType:      logTypePlatformReport,
+		stringRecord: "contents to be overwritten",
+	}
+	reportLogMessageTwo := LambdaLogAPIMessage{
+		objectRecord: platformObjectRecord{
+			requestID: "myRequestID-2",
+			reportLogItem: reportLogMetrics{
+				durationMs:       100.00,
+				billedDurationMs: 100,
+				memorySizeMB:     128,
+				maxMemoryUsedMB:  128,
+				initDurationMs:   50.00,
+			},
+		},
+		logType:      logTypePlatformReport,
+		stringRecord: "contents to be overwritten",
+	}
+	logMessages := []LambdaLogAPIMessage{
+		reportLogMessageOne,
+		reportLogMessageTwo,
+	}
+
+	go lc.processLogMessages(logMessages)
+
+	expectedLogs := map[string][]string{
+		"myRequestID-1": {
+			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageOne),
+			createStringRecordForTimeoutLog(&reportLogMessageOne),
+		},
+		"myRequestID-2": {
+			createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessageTwo),
+		},
+	}
+	expectedErrors := map[string][]bool{
+		"myRequestID-1": {false, true},
+		"myRequestID-2": {false},
+	}
+
+	for reqId, logsSlice := range expectedLogs {
+		for i := 0; i < len(logsSlice); i++ {
+			select {
+			case received := <-logChannel:
+				assert.NotNil(t, received)
+				assert.Equal(t, "my-arn", received.Lambda.ARN)
+				assert.Equal(t, reqId, received.Lambda.RequestID)
+				assert.Equal(t, logsSlice[i], string(received.Content))
+				assert.Equal(t, expectedErrors[reqId][i], received.IsError)
+			case <-time.After(100 * time.Millisecond):
+				assert.Fail(t, "We should have received logs")
+			}
 		}
 	}
 }

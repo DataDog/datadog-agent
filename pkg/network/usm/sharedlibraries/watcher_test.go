@@ -90,7 +90,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	}, time.Second*10, time.Second, "")
 }
 
-func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
+func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace() {
 	t := s.T()
 	_, err := os.Stat("/usr/bin/busybox")
 	if err != nil {
@@ -145,6 +145,9 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 
 	time.Sleep(10 * time.Millisecond)
 
+	// Ensuring there is no race
+	mux.Lock()
+	defer mux.Unlock()
 	// assert that soWatcher detected foo-libssl.so being opened and triggered the callback
 	require.True(t, strings.HasSuffix(pathDetected, libpath))
 
