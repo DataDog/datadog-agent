@@ -195,18 +195,6 @@ build do
       "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
 
-    # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
-    # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
-    if redhat? && !arm?
-        specific_build_env["cryptography"] = nix_build_env.merge(
-            {
-                "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
-                "PIP_NO_BINARY" => ":all:",
-                "PIP_NO_CACHE_DIR" => "off",
-            }
-        )
-    end
-
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
     # wheels (eg. ddtrace).
     # Not explicitly setting that option has caused us problems in the past on SUSE, where the ddtrace
@@ -223,6 +211,18 @@ build do
     if linux?
       nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
       nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
+    end
+
+    # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
+    # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
+    if redhat? && !arm?
+        specific_build_env["cryptography"] = nix_build_env.merge(
+            {
+                "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
+                "PIP_NO_BINARY" => ":all:",
+                "PIP_NO_CACHE_DIR" => "off",
+            }
+        )
     end
 
     #
