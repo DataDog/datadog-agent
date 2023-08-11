@@ -175,7 +175,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 
 // Enabled returns whether the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
-	return ddconfig.GetBool("process_config.language_detection.enabled")
+	return ddconfig.GetBool("language_detection.enabled")
 }
 
 func hashProcess(pid int32, createTime int64) string {
