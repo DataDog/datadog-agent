@@ -33,6 +33,9 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
+var hexLinkedTraceID = "fedcba98765432100123456789abcdef"
+var hexLinkedSpanID = "abcdef0123456789"
+
 var otlpTestSpanConfig = &testutil.OTLPSpan{
 	TraceState: "state",
 	Name:       "/path",
@@ -65,8 +68,8 @@ var otlpTestSpanConfig = &testutil.OTLPSpan{
 	},
 	Links: []testutil.OTLPSpanLink{
 		{
-			TraceID:    "fedcba98765432100123456789abcdef",
-			SpanID:     "abcdef0123456789",
+			TraceID:    convertHexToBytes16(hexLinkedTraceID),
+			SpanID:     convertHexToBytes8(hexLinkedSpanID),
 			TraceState: "dd=asdf256,ee=jkl;128",
 			Attributes: map[string]interface{}{
 				"a1": "v1",
@@ -75,8 +78,8 @@ var otlpTestSpanConfig = &testutil.OTLPSpan{
 			Dropped: 24,
 		},
 		{
-			TraceID:    "abcdef0123456789abcdef0123456789",
-			SpanID:     "fedcba9876543210",
+			TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+			SpanID:     convertHexToBytes8("fedcba9876543210"),
 			TraceState: "",
 			Attributes: map[string]interface{}{
 				"a3": "v2",
@@ -85,15 +88,15 @@ var otlpTestSpanConfig = &testutil.OTLPSpan{
 			Dropped: 0,
 		},
 		{
-			TraceID:    "abcdef0123456789abcdef0123456789",
-			SpanID:     "fedcba9876543210",
+			TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+			SpanID:     convertHexToBytes8("fedcba9876543210"),
 			TraceState: "",
 			Attributes: map[string]interface{}{},
 			Dropped:    2,
 		},
 		{
-			TraceID:    "abcdef0123456789abcdef0123456789",
-			SpanID:     "fedcba9876543210",
+			TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+			SpanID:     convertHexToBytes8("fedcba9876543210"),
 			TraceState: "",
 			Attributes: map[string]interface{}{},
 			Dropped:    0,
@@ -906,6 +909,26 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 }
 
+func convertHexToBytes16(in string) [16]byte {
+	out, err := hex.DecodeString(in)
+	if err != nil {
+		panic(err)
+	}
+	var out16 [16]byte
+	copy(out16[:], out)
+	return out16
+}
+
+func convertHexToBytes8(in string) [8]byte {
+	out, err := hex.DecodeString(in)
+	if err != nil {
+		panic(err)
+	}
+	var out8 [8]byte
+	copy(out8[:], out)
+	return out8
+}
+
 func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := config.New()
@@ -1010,8 +1033,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Links: []testutil.OTLPSpanLink{
 					{
-						TraceID:    "fedcba98765432100123456789abcdef",
-						SpanID:     "abcdef0123456789",
+						TraceID:    convertHexToBytes16(hexLinkedTraceID),
+						SpanID:     convertHexToBytes8(hexLinkedSpanID),
 						TraceState: "dd=asdf256,ee=jkl;128",
 						Attributes: map[string]interface{}{
 							"a1": "v1",
@@ -1020,8 +1043,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 						Dropped: 24,
 					},
 					{
-						TraceID:    "abcdef0123456789abcdef0123456789",
-						SpanID:     "fedcba9876543210",
+						TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+						SpanID:     convertHexToBytes8("fedcba9876543210"),
 						TraceState: "",
 						Attributes: map[string]interface{}{
 							"a3": "v2",
@@ -1030,15 +1053,15 @@ func TestOTLPConvertSpan(t *testing.T) {
 						Dropped: 0,
 					},
 					{
-						TraceID:    "abcdef0123456789abcdef0123456789",
-						SpanID:     "fedcba9876543210",
+						TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+						SpanID:     convertHexToBytes8("fedcba9876543210"),
 						TraceState: "",
 						Attributes: map[string]interface{}{},
 						Dropped:    2,
 					},
 					{
-						TraceID:    "abcdef0123456789abcdef0123456789",
-						SpanID:     "fedcba9876543210",
+						TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+						SpanID:     convertHexToBytes8("fedcba9876543210"),
 						TraceState: "",
 						Attributes: map[string]interface{}{},
 						Dropped:    0,
@@ -1134,8 +1157,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Links: []testutil.OTLPSpanLink{
 					{
-						TraceID:    "fedcba98765432100123456789abcdef",
-						SpanID:     "abcdef0123456789",
+						TraceID:    convertHexToBytes16(hexLinkedTraceID),
+						SpanID:     convertHexToBytes8(hexLinkedSpanID),
 						TraceState: "dd=asdf256,ee=jkl;128",
 						Attributes: map[string]interface{}{
 							"a1": "v1",
@@ -1144,8 +1167,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 						Dropped: 24,
 					},
 					{
-						TraceID:    "abcdef0123456789abcdef0123456789",
-						SpanID:     "fedcba9876543210",
+						TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+						SpanID:     convertHexToBytes8("fedcba9876543210"),
 						TraceState: "",
 						Attributes: map[string]interface{}{
 							"a3": "v2",
@@ -1154,15 +1177,15 @@ func TestOTLPConvertSpan(t *testing.T) {
 						Dropped: 0,
 					},
 					{
-						TraceID:    "abcdef0123456789abcdef0123456789",
-						SpanID:     "fedcba9876543210",
+						TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+						SpanID:     convertHexToBytes8("fedcba9876543210"),
 						TraceState: "",
 						Attributes: map[string]interface{}{},
 						Dropped:    2,
 					},
 					{
-						TraceID:    "abcdef0123456789abcdef0123456789",
-						SpanID:     "fedcba9876543210",
+						TraceID:    convertHexToBytes16("abcdef0123456789abcdef0123456789"),
+						SpanID:     convertHexToBytes8("fedcba9876543210"),
 						TraceState: "",
 						Attributes: map[string]interface{}{},
 						Dropped:    0,
@@ -1898,7 +1921,7 @@ func makeSpanLinkSlice(t *testing.T, traceId, spanId, traceState string, attrs m
 }
 
 func TestMakeSpanLinkSlice(t *testing.T) {
-	in := makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef1234567890", "dd=asdf256", map[string]string{"k1": "v1", "k2": "v2"}, 42)
+	in := makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "dd=asdf256", map[string]string{"k1": "v1", "k2": "v2"}, 42)
 
 	out := ptrace.NewSpanLinkSlice()
 	l := out.AppendEmpty()
@@ -1907,7 +1930,7 @@ func TestMakeSpanLinkSlice(t *testing.T) {
 	binary.BigEndian.PutUint64(bh, 0xfedcba9876543210)
 	binary.BigEndian.PutUint64(bl, 0x0123456789abcdef)
 	l.SetTraceID(*(*pcommon.TraceID)(append(bh, bl...)))
-	binary.BigEndian.PutUint64(bl, 0xabcdef1234567890)
+	binary.BigEndian.PutUint64(bl, 0xabcdef0123456789)
 	l.SetSpanID(*(*pcommon.SpanID)(bl))
 	l.TraceState().FromRaw("dd=asdf256")
 	l.Attributes().PutStr("k1", "v1")
@@ -1924,73 +1947,73 @@ func TestMarshalSpanLinks(t *testing.T) {
 	}{
 
 		{
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 0),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "", map[string]string{}, 0),
 			out: `[{
-					"trace_id": "fedcba98765432100123456789abcdef",
-					"span_id":  "abcdef0123456789"
+					"trace_id": "81985529216486895",
+					"span_id":  "12379813738877118345"
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 0),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "dd=asdf256", map[string]string{}, 0),
 			out: `[{
-					"trace_id":    "fedcba98765432100123456789abcdef",
-					"span_id":     "abcdef0123456789",
+					"trace_id":    "81985529216486895",
+					"span_id":     "12379813738877118345",
 					"trace_state": "dd=asdf256"
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 0),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "dd=asdf256", map[string]string{"k1": "v1"}, 0),
 			out: `[{
-					"trace_id":    "fedcba98765432100123456789abcdef",
-					"span_id":     "abcdef0123456789",
+					"trace_id":    "81985529216486895",
+					"span_id":     "12379813738877118345",
 					"trace_state": "dd=asdf256",
 					"attributes":  {"k1": "v1"}
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 42),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "dd=asdf256", map[string]string{}, 42),
 			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
+					"trace_id":                 "81985529216486895",
+					"span_id":                  "12379813738877118345",
 					"trace_state":              "dd=asdf256",
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 42),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "dd=asdf256", map[string]string{"k1": "v1"}, 42),
 			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
+					"trace_id":                 "81985529216486895",
+					"span_id":                  "12379813738877118345",
 					"trace_state":              "dd=asdf256",
 					"attributes":               {"k1": "v1"},
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 0),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "", map[string]string{"k1": "v1"}, 0),
 			out: `[{
-					"trace_id":   "fedcba98765432100123456789abcdef",
-					"span_id":    "abcdef0123456789",
+					"trace_id":   "81985529216486895",
+					"span_id":    "12379813738877118345",
 					"attributes": {"k1": "v1"}
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 42),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "", map[string]string{"k1": "v1"}, 42),
 			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
+					"trace_id":                 "81985529216486895",
+					"span_id":                  "12379813738877118345",
 					"attributes":               {"k1": "v1"},
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 42),
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "", map[string]string{}, 42),
 			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
+					"trace_id":                 "81985529216486895",
+					"span_id":                  "12379813738877118345",
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256,ee=jkl;128", map[string]string{
+			in: makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "dd=asdf256,ee=jkl;128", map[string]string{
 				"k1": "v1",
 				"k2": "v2",
 			}, 57),
 			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
+					"trace_id":                 "81985529216486895",
+					"span_id":                  "12379813738877118345",
 					"trace_state":              "dd=asdf256,ee=jkl;128",
 					"attributes":               {"k1": "v1", "k2": "v2"},
 					"dropped_attributes_count": 57
@@ -1998,20 +2021,20 @@ func TestMarshalSpanLinks(t *testing.T) {
 		}, {
 
 			in: (func() ptrace.SpanLinkSlice {
-				s1 := makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "0123456789abcdef", "dd=asdf256,ee=jkl;128", map[string]string{"k1": "v1"}, 611187)
+				s1 := makeSpanLinkSlice(t, hexLinkedTraceID, hexLinkedSpanID, "dd=asdf256,ee=jkl;128", map[string]string{"k1": "v1"}, 611187)
 				s2 := makeSpanLinkSlice(t, "abcdef01234567899876543210fedcba", "fedcba9876543210", "", map[string]string{"k1": "v10", "k2": "v20"}, 0)
 				s2.MoveAndAppendTo(s1)
 				return s1
 			})(),
 			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "0123456789abcdef",
+					"trace_id":                 "81985529216486895",
+					"span_id":                  "12379813738877118345",
 					"trace_state":              "dd=asdf256,ee=jkl;128",
 					"attributes":               {"k1": "v1"},
 					"dropped_attributes_count": 611187
 			       }, {
-					"trace_id":                 "abcdef01234567899876543210fedcba",
-					"span_id":                  "fedcba9876543210",
+					"trace_id":                 "10986060915027139770",
+					"span_id":                  "18364758544493064720",
 					"attributes":               {"k1": "v10", "k2": "v20"}
 			       }]`,
 		},

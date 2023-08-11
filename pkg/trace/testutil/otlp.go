@@ -6,7 +6,6 @@
 package testutil
 
 import (
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -32,11 +31,11 @@ type OTLPSpanEvent struct {
 
 // OTLPSpanLink defines an OTLP test span link.
 type OTLPSpanLink struct {
-	TraceID    string                 `json:"trace_id"`
-	SpanID     string                 `json:"span_id"`
-	TraceState string                 `json:"trace_state"`
-	Attributes map[string]interface{} `json:"attributes"`
-	Dropped    uint32                 `json:"dropped_attributes_count"`
+	TraceID    [16]byte
+	SpanID     [8]byte
+	TraceState string
+	Attributes map[string]interface{}
+	Dropped    uint32
 }
 
 // OTLPSpan defines an OTLP test span.
@@ -101,16 +100,8 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 	ls := span.Links()
 	for _, l := range s.Links {
 		li := ls.AppendEmpty()
-		buf, err := hex.DecodeString(l.TraceID)
-		if err != nil {
-			panic(err)
-		}
-		li.SetTraceID(*(*pcommon.TraceID)(buf))
-		buf, err = hex.DecodeString(l.SpanID)
-		if err != nil {
-			panic(err)
-		}
-		li.SetSpanID(*(*pcommon.SpanID)(buf))
+		li.SetTraceID(pcommon.TraceID(l.TraceID))
+		li.SetSpanID(pcommon.SpanID(l.SpanID))
 		li.TraceState().FromRaw(l.TraceState)
 		insertAttributes(li.Attributes(), l.Attributes)
 		li.SetDroppedAttributesCount(l.Dropped)
