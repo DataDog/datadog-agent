@@ -297,7 +297,6 @@ build do
 
     command "cat /opt/datadog-agent/agent_cryptography_requirements-py3.txt"
     command "cat /omnibus/src/datadog-agent-integrations-py3/integrations-core/cryptography-py3.in"
-    command "ldd /opt/datadog-agent/embedded/lib/python3.9/site-packages/cryptography/hazmat/bindings/_rust.abi3.so"
 
     # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
     pip_max_retries = 20
@@ -349,6 +348,8 @@ build do
       # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
+
+    command "ldd /opt/datadog-agent/embedded/lib/python3.9/site-packages/cryptography/hazmat/bindings/_rust.abi3.so"
 
     #
     # Install Core integrations
