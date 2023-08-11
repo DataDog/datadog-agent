@@ -22,8 +22,8 @@ func TestAgentSecretSuite(t *testing.T) {
 }
 
 func (v *agentSecretSuite) TestAgentSecretNotEnabledByDefault() {
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("")))
-	// v.Env().VM.Execute("sudo systemctl restart datadog-agent")
+	v.UpdateEnv(e2e.AgentStackDef(nil))
+	v.Env().VM.Execute("sudo systemctl restart datadog-agent")
 
 	secret, err := v.Env().Agent.Secret()
 	assert.NoError(v.T(), err)
@@ -40,4 +40,29 @@ func (v *agentSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
 	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable: '/usr/bin/echo' isn't owned by this user")
+}
+
+func (v *agentSecretSuite) TestAgentSecretCorrectPermissions() {
+	secretScript := `#!/usr/bin/env sh
+printf '{"alias_secret": {"value": "a_super_secret_string"}}\n'`
+	config := `secret_backend_command: /tmp/bin/secret.sh
+host_aliases:
+  - ENC[alias_secret]`
+
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript)))
+	v.Env().VM.Execute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript), agentparams.WithAgentConfig(config)))
+
+	output, err := v.Env().Agent.Secret()
+	assert.NoError(v.T(), err)
+
+	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
+	assert.Contains(v.T(), output, "Executable path: /tmp/bin/secret.sh")
+	assert.Contains(v.T(), output, "Executable permissions: OK, the executable has the correct permissions")
+	assert.Contains(v.T(), output, "File mode: 100700")
+	assert.Contains(v.T(), output, "Owner: dd-agent")
+	assert.Contains(v.T(), output, "Group: dd-agent")
+	assert.Contains(v.T(), output, "Number of secrets decrypted: 1")
+	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases'")
+	assert.NotContains(v.T(), output, "a_super_secret_string")
 }

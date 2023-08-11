@@ -60,12 +60,6 @@ func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return output
 }
 
-func (agent *AgentCommandRunner) Health() (string, error) {
-	arguments := []string{"health"}
-	output, err := agent.executeAgentCmdWithError(arguments)
-	return output, err
-}
-
 func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
 	output, err := agent.executeCommand("configcheck", commandArgs...)
 	require.NoError(agent.t, err)
