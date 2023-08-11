@@ -117,3 +117,10 @@ Severity=Informational
 Language=English
 The service %1 service is initiating pre-shutdown.
 .
+
+MessageId=17
+SymbolicName=MSG_SYSPROBE_RESTART_INACTIVITY
+Severity=Warning
+Language=English
+System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
+.

@@ -21,6 +21,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
@@ -37,7 +38,7 @@ func init() {
 		DefaultConfPath = pd
 		defaultLogFile = filepath.Join(pd, "logs", "dogstatsd.log")
 	} else {
-		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultLogFile)
+		winutil.LogEventViewer(ServiceName, messagestrings.MSG_WARNING_PROGRAMDATA_ERROR, defaultLogFile)
 	}
 }
 
