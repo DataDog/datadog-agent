@@ -348,6 +348,14 @@ build do
       command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
     end
 
+    File.open("/omnibus/src/datadog-agent-integrations-py3/integrations-core/cryptography-py3.in", 'r+').readlines().each do |line|
+      command "echo 'in - #{line}'"
+    end
+
+    File.open("/opt/datadog-agent/agent_cryptography_requirements-py3.txt", 'r+').readlines().each do |line|
+      command "echo '#{line}'"
+    end
+
     #
     # Install Core integrations
     #
