@@ -465,6 +465,10 @@ int BPF_PROG(tcp_connect_exit, struct sock *sk, int rc) {
         return 0;
     }
 
+    // error returned from tcp_connect, remove entry
+    // from tcp_ongoing_connect_pid as tcp_finish_connect
+    // kprobe or tcp_close kprobe may not be called
+    // for this tcp_connect call
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
     return 0;
 }
