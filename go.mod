@@ -347,7 +347,7 @@ require (
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
-	github.com/go-logfmt/logfmt v0.5.1 // indirect
+	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
@@ -572,7 +572,7 @@ require (
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
-	github.com/godror/godror v0.37.0
+	github.com/godror/godror v0.38.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.75.0
@@ -584,7 +584,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
-	github.com/godror/knownpb v0.1.0 // indirect
+	github.com/godror/knownpb v0.1.1 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/hashicorp/hcl/v2 v2.17.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
