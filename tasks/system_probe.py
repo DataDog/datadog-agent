@@ -723,13 +723,14 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
 
     # Clean up previous build
     if packages == "" or clean_build(ctx, target_packages):
-        print("hit remove")
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
     elif packages != "":
         packages = [ full_pkg_path(name) for name in packages.split(",") ]
+        # make sure valid packages were provided.
         for pkg in packages:
             if pkg not in target_packages:
                 raise Exit(f"Unknown target packages {pkg} specified")
+
         target_packages = packages
 
     if os.path.exists(BUILD_COMMIT):
