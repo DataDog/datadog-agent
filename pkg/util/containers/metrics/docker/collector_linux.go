@@ -145,7 +145,7 @@ func computeCPULimit(containerStats *provider.ContainerStats, spec *types.Contai
 	case spec.HostConfig.NanoCPUs > 0:
 		cpuLimit = float64(spec.HostConfig.NanoCPUs) / 1e9 * 100
 	case spec.HostConfig.CpusetCpus != "":
-		cpuLimit = 100 * float64(cgroups.ParseCPUSetFormat(spec.HostConfig.CpusetCpus))
+		cpuLimit = 100 * float64(cgroups.ParseCPUSetFormat([]byte(spec.HostConfig.CpusetCpus)))
 	case spec.HostConfig.CPUQuota > 0:
 		period := spec.HostConfig.CPUPeriod
 		if period == 0 {

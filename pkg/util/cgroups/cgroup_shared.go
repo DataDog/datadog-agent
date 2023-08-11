@@ -8,8 +8,8 @@
 package cgroups
 
 import (
+	"bytes"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -21,21 +21,28 @@ const (
 // of processor IDs, with hyphenated ranges representing closed sets.
 // So "0,1,5-8" represents processors 0, 1, 5, 6, 7, 8.
 // The function returns the count of CPUs, in this case 6.
-func ParseCPUSetFormat(line string) uint64 {
+func ParseCPUSetFormat(line []byte) uint64 {
 	var numCPUs uint64
 
-	lineSlice := strings.Split(line, ",")
-	for _, l := range lineSlice {
-		lineParts := strings.Split(l, "-")
-		if len(lineParts) == 2 {
-			p0, _ := strconv.Atoi(lineParts[0])
-			p1, _ := strconv.Atoi(lineParts[1])
+	var currentSegment []byte
+	for len(line) != 0 {
+		nextStart := bytes.IndexByte(line, ',')
+		if nextStart == -1 {
+			currentSegment = line
+			line = nil
+		} else {
+			currentSegment = line[:nextStart]
+			line = line[nextStart+1:]
+		}
+
+		if split := bytes.IndexByte(currentSegment, '-'); split != -1 {
+			p0, _ := strconv.Atoi(string(currentSegment[:split]))
+			p1, _ := strconv.Atoi(string(currentSegment[split+1:]))
 			numCPUs += uint64(p1 - p0 + 1)
-		} else if len(lineParts) == 1 {
-			numCPUs++
+		} else {
+			numCPUs += 1
 		}
 	}
-
 	return numCPUs
 }
 
