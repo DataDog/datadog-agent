@@ -190,7 +190,8 @@ func (at *ActivityTree) IsEmpty() bool {
 	return len(at.ProcessNodes) == 0
 }
 
-// nolint: unused
+// Debug comment
+//nolint: unused
 func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")

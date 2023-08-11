@@ -41,7 +41,7 @@ type RCProfileProvider struct {
 	onNewProfileCallback func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)
 }
 
-// Close stops the client
+// Stop stops the client
 func (r *RCProfileProvider) Stop() error {
 	r.client.Close()
 	return nil
@@ -126,7 +126,7 @@ func (r *RCProfileProvider) SetOnNewProfileCallback(onNewProfileCallback func(se
 	r.onNewProfileCallback = onNewProfileCallback
 }
 
-// NewRCPolicyProvider returns a new Remote Config based policy provider
+// NewRCProfileProvider returns a new Remote Config based policy provider
 func NewRCProfileProvider() (*RCProfileProvider, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {

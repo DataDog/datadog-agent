@@ -59,7 +59,7 @@ func (protoApprovers *Approvers) FromProtoToKFiltersApprovers() *rules.Approvers
 	return &approvers
 }
 
-// ToEventTypePolicyMessage returns a pointer to a PolicyMessage
+// FromKFiltersToProtoRuleSetReport returns a pointer to a PolicyMessage
 func FromKFiltersToProtoRuleSetReport(ruleSetReport *kfilters.ApplyRuleSetReport) *RuleSetReportMessage {
 	var eventTypePolicy []*EventTypePolicy
 

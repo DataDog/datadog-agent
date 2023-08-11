@@ -94,7 +94,7 @@ func getRtLoaderError() error {
 	return nil
 }
 
-// Load returns Python loader name
+// Name returns Python loader name
 func (cl *PythonCheckLoader) Name() string {
 	return "python"
 }

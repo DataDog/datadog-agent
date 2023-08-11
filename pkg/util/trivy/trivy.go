@@ -39,6 +39,7 @@ import (
 	"github.com/docker/docker/client"
 )
 
+// This const block should have a comment or be unexported
 const (
 	cleanupTimeout      = 30 * time.Second
 	OSAnalyzers         = "os"

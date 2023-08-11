@@ -7,6 +7,7 @@
 
 package common
 
+// This const block should have a comment or be unexported
 const (
 	DefaultLogFile = "/var/log/datadog/system-probe.log"
 )

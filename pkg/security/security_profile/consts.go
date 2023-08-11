@@ -7,6 +7,7 @@
 
 package security_profile
 
+// This const block should have a comment or be unexported
 const (
 	LocalProfileVersion = "local_profile"
 )

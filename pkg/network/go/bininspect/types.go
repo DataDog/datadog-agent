@@ -15,6 +15,7 @@ import (
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
+// This const block should have a comment or be unexported
 const (
 	WriteGoTLSFunc = "crypto/tls.(*Conn).Write"
 	ReadGoTLSFunc  = "crypto/tls.(*Conn).Read"

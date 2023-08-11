@@ -19,7 +19,7 @@ var (
 	ErrMountLoop = errors.New("mount resolution loop")
 	// ErrMountPathEmpty is returned when the resolved mount path is empty
 	ErrMountPathEmpty = errors.New("mount resolution return empty path")
-	// ErrMountKernelID
+	// ErrMountKernelID TODO comment
 	ErrMountKernelID = errors.New("not a critical error")
 )
 

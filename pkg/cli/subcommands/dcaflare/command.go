@@ -32,6 +32,7 @@ type GlobalParams struct {
 	ConfFilePath string
 }
 
+// This const block should have a comment or be unexported
 const (
 	LoggerName      = "CLUSTER"
 	DefaultLogLevel = "off"

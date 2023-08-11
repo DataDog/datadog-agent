@@ -49,7 +49,7 @@ type CWSConsumer struct {
 	selfTester    *selftests.SelfTester
 }
 
-// Init initializes the module with options
+// NewCWSConsumer init initializes the module with options
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
@@ -188,7 +188,7 @@ func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterfa
 	sender.SendEvent(rule, event, nil, "")
 }
 
-// Close the module
+// Stop close the module
 func (c *CWSConsumer) Stop() {
 	if c.apiServer != nil {
 		c.apiServer.Stop()

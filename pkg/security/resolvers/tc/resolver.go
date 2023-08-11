@@ -117,7 +117,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	return combinedErr.ErrorOrNil()
 }
 
-// flushNetworkNamespace thread unsafe version of FlushNetworkNamespace
+// FlushNetworkNamespaceID thread unsafe version of FlushNetworkNamespace
 func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Manager) {
 	tcr.Lock()
 	defer tcr.Unlock()

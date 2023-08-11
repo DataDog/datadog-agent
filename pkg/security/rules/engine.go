@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// This const block should have a comment or be unexported
 const (
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
 	ThreatScoreRuleSetTagValue     = "threat_score"

@@ -113,7 +113,7 @@ func NewContainerdUtil() (ContainerdItf, error) {
 	return containerdUtil, nil
 }
 
-// CheckConnectivity tries to connect to containerd api
+// RawClient comment
 func (c *ContainerdUtil) RawClient() *containerd.Client {
 	return c.cl
 }

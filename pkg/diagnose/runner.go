@@ -193,7 +193,7 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis
 	return diagnoses
 }
 
-// Enumerate registered Diagnose suites and get their diagnoses
+// ListAllStdOut enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
 func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
@@ -214,7 +214,7 @@ func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	}
 }
 
-// Enumerate registered Diagnose suites and get their diagnoses
+// RunAll enumerate registered Diagnose suites and get their diagnoses
 // for structural output
 func RunAll(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
 	// Filter Diagnose suite
@@ -240,7 +240,7 @@ func RunAll(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
 	return suiteDiagnoses
 }
 
-// Enumerate registered Diagnose suites and get their diagnoses
+// RunAllStdOut enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
 func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
@@ -322,7 +322,7 @@ func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.Config) []diagnosis
 	return diagnoses
 }
 
-// Runs all registered metadata availability checks, output it in writer
+// RunMetadataAvail runs all registered metadata availability checks, output it in writer
 func RunMetadataAvail(w io.Writer) error {
 	if w != color.Output {
 		color.NoColor = true

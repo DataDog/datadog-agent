@@ -52,7 +52,7 @@ func (client *MockedContainerdClient) Close() error {
 	return client.MockClose()
 }
 
-// Close is a mock method
+// RawClient is a mock method
 func (client *MockedContainerdClient) RawClient() *containerd.Client {
 	return client.MockRawClient()
 }

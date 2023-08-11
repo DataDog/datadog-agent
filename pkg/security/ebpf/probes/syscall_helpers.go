@@ -149,7 +149,7 @@ const (
 	ExpandTime32 = 1 << 2
 	// SupportFentry indicates that this probe supports fentry expansion (instead of kprobe)
 	SupportFentry = 1 << 3
-	// SupportFentryExit indicates that this probe support fexit expansion (instead of kretprobe)
+	// SupportFexit indicates that this probe support fexit expansion (instead of kretprobe)
 	SupportFexit = 1 << 4
 
 	// EntryAndExit indicates that both the entry kprobe and exit kretprobe should be expanded

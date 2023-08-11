@@ -191,7 +191,7 @@ func trivyCacheGet[T cachedObject](cache *TrivyCache, id string) (T, error) {
 	return res, nil
 }
 
-// Implements cache.Cache#MissingBlobs
+// MissingBlobs Implements cache.Cache
 func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
 	var missingBlobIDs []string
 	for _, blobID := range blobIDs {
@@ -205,38 +205,38 @@ func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []
 	return !c.Cache.Contains(artifactID), missingBlobIDs, nil
 }
 
-// Implements cache.Cache#PutArtifact
+// PutArtifact Implements cache.Cache
 func (c *TrivyCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
 	return trivyCachePut(c, artifactID, artifactInfo)
 }
 
-// Implements cache.Cache#PutBlob
+// PutBlob Implements cache.Cache
 func (c *TrivyCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 	return trivyCachePut(c, blobID, blobInfo)
 }
 
-// Implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
+// DeleteBlobs Implements cache.CacheDeleteBlobs does nothing because the cache cleaning logic is
 // managed by CacheCleaner
 func (c *TrivyCache) DeleteBlobs(blobIDs []string) error {
 	return nil
 }
 
-// Implements cache.Cache#Clear
+// Clear Implements cache.Cache
 func (c *TrivyCache) Clear() error {
 	return c.Cache.Clear()
 }
 
-// Implements cache.Cache#Close
+// Close Implements cache.Cache
 func (c *TrivyCache) Close() error {
 	return c.Cache.Close()
 }
 
-// Implements cache.Cache#GetArtifact
+// GetArtifact Implements cache.Cache
 func (c *TrivyCache) GetArtifact(id string) (types.ArtifactInfo, error) {
 	return trivyCacheGet[types.ArtifactInfo](c, id)
 }
 
-// Implements cache.Cache#GetBlob
+// GetBlob Implements cache.Cache
 func (c *TrivyCache) GetBlob(id string) (types.BlobInfo, error) {
 	return trivyCacheGet[types.BlobInfo](c, id)
 }
@@ -300,7 +300,7 @@ func NewPersistentCache(
 	return persistentCache, nil
 }
 
-// Contains implements Cache#Contains. It only performs an in-memory check.
+// Contains implements Cache. It only performs an in-memory check.
 func (c *PersistentCache) Contains(key string) bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

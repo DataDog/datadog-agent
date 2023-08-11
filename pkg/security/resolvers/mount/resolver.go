@@ -324,7 +324,7 @@ func (mr *Resolver) getMountPath(mountID uint32) (string, error) {
 	return mr._getMountPath(mountID, map[uint32]bool{})
 }
 
-// ResolveMountPath returns the root of a mount identified by its mount ID.
+// ResolveMountRoot returns the root of a mount identified by its mount ID.
 func (mr *Resolver) ResolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -340,7 +340,7 @@ func (mr *Resolver) resolveMountRoot(mountID, pid uint32, containerID string) (s
 	return mount.RootStr, nil
 }
 
-// ResolveMountRoot returns the root of a mount identified by its mount ID.
+// ResolveMountPath returns the root of a mount identified by its mount ID.
 func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()

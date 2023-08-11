@@ -52,8 +52,7 @@ type assertedRule struct {
 	expectErr bool
 }
 
-// exported comment on function NewTestBench should be of the form "NewTestBench ..."
-//
+// NewTestBench exported func should have a comment or be unexported
 //revive:disable:unexported-return
 func NewTestBench(t *testing.T) *suite {
 	rootDir := t.TempDir()

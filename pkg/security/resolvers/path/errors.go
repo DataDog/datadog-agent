@@ -9,7 +9,7 @@ package path
 
 import "fmt"
 
-// ErrResolutionNotCritical defines a non critical error
+// ErrPathResolutionNotCritical defines a non critical error
 type ErrPathResolutionNotCritical struct {
 	Err error
 }

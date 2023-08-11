@@ -80,7 +80,7 @@ func (efr EventFilteringProfileState) toTag() string {
 type EventFilteringResult uint8
 
 const (
-	// Not applicable, for profil NoProfile and ProfileAtMaxSize state
+	// NA Not applicable, for profil NoProfile and ProfileAtMaxSize state
 	NA EventFilteringResult = iota
 	// InProfile is used to count the events that matched a profile
 	InProfile

@@ -16,6 +16,7 @@ import (
 	"time"
 )
 
+// This const block should have a comment or be unexported
 const (
 	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
 )

@@ -75,7 +75,7 @@ func (m *Monitor) Init() error {
 	return nil
 }
 
-// GetPerfBufferMonitor returns the perf buffer monitor
+// GetEventStreamMonitor returns the perf buffer monitor
 func (m *Monitor) GetEventStreamMonitor() *eventstream.EventStreamMonitor {
 	return m.eventStreamMonitor
 }

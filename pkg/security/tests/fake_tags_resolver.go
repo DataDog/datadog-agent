@@ -18,7 +18,7 @@ import (
 
 // This fake resolver will give a different image_name for each different container ID
 
-// Resolver represents a cache resolver
+// FakeResolver represents a cache resolver
 type FakeResolver struct {
 	sync.Mutex
 	containerIDs []string
@@ -64,7 +64,7 @@ func NewFakeResolver() tags.Resolver {
 
 // This fake resolver will allways give the same image_name, no matter the container ID
 
-// Resolver represents a cache resolver
+// FakeMonoResolver represents a cache resolver
 type FakeMonoResolver struct {
 }
 

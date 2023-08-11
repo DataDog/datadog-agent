@@ -166,7 +166,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	return ddPythonPackages, nil
 }
 
-// GetIntepreterMemoryUsage collects a python interpreter memory usage snapshot
+// GetPythonInterpreterMemoryUsage collects a python interpreter memory usage snapshot
 func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 	glock, err := newStickyLock()
 	if err != nil {

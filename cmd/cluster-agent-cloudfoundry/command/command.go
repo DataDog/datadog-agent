@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaflare"
 )
 
+// This const block should have a comment or be unexported
 const (
 	LoggerName = "CLUSTER"
 )

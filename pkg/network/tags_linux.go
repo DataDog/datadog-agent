@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
+// This const block should have a comment or be unexported
 const (
 	ConnTagGnuTLS  = http.GnuTLS
 	ConnTagOpenSSL = http.OpenSSL
