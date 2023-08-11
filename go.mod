@@ -60,9 +60,9 @@ require (
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.7.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.7.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.7.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.7.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.7.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.7.1
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
@@ -207,7 +207,7 @@ require (
 	go.uber.org/dig v1.17.0
 	go.uber.org/fx v1.18.2
 	go.uber.org/multierr v1.11.0
-	go.uber.org/zap v1.24.0
+	go.uber.org/zap v1.25.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.4.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
