@@ -190,10 +190,6 @@ build do
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
     }
-    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    specific_build_env = {
-      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
-    }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
     # wheels (eg. ddtrace).
@@ -212,6 +208,11 @@ build do
       nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
       nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
     end
+
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+    }
 
     # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
     # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
@@ -346,14 +347,6 @@ build do
       end
       # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
-    end
-
-    File.open("/omnibus/src/datadog-agent-integrations-py3/integrations-core/cryptography-py3.in", 'r+').readlines().each do |line|
-      command "echo 'in - #{line}'"
-    end
-
-    File.open("/opt/datadog-agent/agent_cryptography_requirements-py3.txt", 'r+').readlines().each do |line|
-      command "echo '#{line}'"
     end
 
     #
