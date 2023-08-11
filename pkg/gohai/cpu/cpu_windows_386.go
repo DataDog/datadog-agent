@@ -7,8 +7,9 @@ package cpu
 
 import (
 	"encoding/binary"
-	"syscall"
 	"unsafe"
+
+	syscall "golang.org/x/sys/windows"
 )
 
 // SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE is the size of

@@ -6,8 +6,9 @@
 package filesystem
 
 import (
-	"syscall"
 	"unsafe"
+
+	syscall "golang.org/x/sys/windows"
 )
 
 // Handle represents a pointer used by FindFirstVolumeW and similar functions

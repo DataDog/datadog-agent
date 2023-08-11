@@ -10,8 +10,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"unsafe"
+
+	syscall "golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/windows/registry"

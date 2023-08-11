@@ -10,9 +10,10 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"syscall"
 	"unicode/utf16"
 	"unsafe"
+
+	syscall "golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/windows"

@@ -7,8 +7,9 @@ package memory
 
 import (
 	"fmt"
-	"syscall"
 	"unsafe"
+
+	syscall "golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
