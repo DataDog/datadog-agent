@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package apiserver
 
 import (
@@ -36,6 +38,7 @@ type dependencies struct {
 	ServerDeps api.ServerDeps
 }
 
+// func newApiServer should be newAPIServer
 func newApiServer(deps dependencies) Component {
 	initRuntimeSettings(deps.Log)
 

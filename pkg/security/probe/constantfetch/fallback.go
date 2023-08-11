@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 package constantfetch
@@ -907,6 +909,7 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 	return offset
 }
 
+// func getVmAreaStructFlagsOffset should be getVMAreaStructFlagsOffset
 func getVmAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build docker && linux
 
 package docker
@@ -51,6 +53,7 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 		Cache: getFieldFromMap(memStats.Stats, "total_cache", "file"),
 	}
 
+// don't use underscores in Go names; var inactive_file should be inactiveFile
 	inactive_file := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
 	if inactive_file != nil {
 		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactive_file)

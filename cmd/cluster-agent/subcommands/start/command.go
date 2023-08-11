@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build !windows && kubeapiserver
 
 // Package start implements 'cluster-agent start'.
@@ -226,6 +228,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 	// so we store it in a configmap that we try and read before generating a new one.
 	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+// var clusterId should be clusterID
 	clusterId, err := apicommon.GetOrCreateClusterID(coreClient)
 	if err != nil {
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID")

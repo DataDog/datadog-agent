@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 package java
@@ -22,8 +24,10 @@ import (
 // The issue is described here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
 // if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
 // SIGQUIT is sent as part of the hotspot protocol handshake
+// don't use ALL_CAPS in Go names; use CamelCase
 const MINIMUM_JAVA_AGE_TO_ATTACH_MS = 10000
 
+// func parameter fsUid should be fsUID
 func injectAttach(pid int, agent string, args string, nsPid int, fsUid int, fsGid int) error {
 	h, err := NewHotspot(pid, nsPid)
 	if err != nil {
@@ -53,6 +57,7 @@ func InjectAgent(pid int, agent string, args string) error {
 	fsUID, fsGID := int(uids[3]), int(gids[3])
 
 	ctime, _ := proc.CreateTime()
+// don't use underscores in Go names; var age_ms should be ageMs
 	age_ms := time.Now().UnixMilli() - ctime
 	if age_ms < MINIMUM_JAVA_AGE_TO_ATTACH_MS {
 		log.Debugf("java attach pid %d will be delayed by %d ms", pid, MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms)

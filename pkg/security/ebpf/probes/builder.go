@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 // +build linux
 
@@ -71,6 +73,7 @@ func withSkipIfFentry(skip bool) psbOption {
 	}
 }
 
+// func withUid should be withUID
 func withUid(uid string) psbOption {
 	return func(psb *probeSelectorBuilder) {
 		psb.uid = uid

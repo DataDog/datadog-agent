@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 // Package activity_tree TODO comment
+// don't use an underscore in package name
 package activity_tree
 
 import (
@@ -122,6 +125,7 @@ type ActivityTree struct {
 }
 
 // COOKIE_TO_PROCESS_NODE_CACHE_SIZE exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const COOKIE_TO_PROCESS_NODE_CACHE_SIZE = 128
 
 // NewActivityTree returns a new ActivityTree instance

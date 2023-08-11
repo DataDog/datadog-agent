@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build kubeapiserver
 
 package flare
@@ -33,8 +35,11 @@ var (
 
 // This const block should have a comment or be unexported
 const (
+// don't use ALL_CAPS in Go names; use CamelCase
 	HELM_CHART_RELEASE_NAME       = "CHART_RELEASE_NAME"
+// don't use ALL_CAPS in Go names; use CamelCase
 	HELM_CHART_RELEASE_NAMESPACE  = "DD_KUBE_RESOURCES_NAMESPACE"
+// don't use ALL_CAPS in Go names; use CamelCase
 	HELM_AGENT_DAEMONSET          = "AGENT_DAEMONSET"
 	HELM_CLUSTER_AGENT_DEPLOYMENT = "CLUSTER_AGENT_DEPLOYMENT"
 )
@@ -46,6 +51,7 @@ type chartUserValues struct {
 }
 
 // convertToYAMLBytes is a helper function to turn an object returned from `k8s.io/api/core/v1` into a readable YAML manifest
+// var objJson should be objJSON
 func convertToYAMLBytes(input any) ([]byte, error) {
 	objJson, err := json.Marshal(input)
 	if err != nil {

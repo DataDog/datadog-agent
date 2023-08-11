@@ -3,8 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
+// don't use an underscore in package name
 package activity_tree
 
 import (
@@ -130,6 +133,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 }
 
 // MAX_MMAPED_FILES exported const should have comment or be unexported
+// don't use ALL_CAPS in Go names; use CamelCase
 const MAX_MMAPED_FILES = 128
 
 func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {

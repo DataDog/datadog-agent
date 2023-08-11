@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 package procutil
@@ -722,6 +724,7 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 }
 
 // PROC_SUPER_MAGIC is the superblock magic value (its unique identifier) of procfs filesystem
+// don't use ALL_CAPS in Go names; use CamelCase
 const PROC_SUPER_MAGIC = 0x9fa0
 
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),

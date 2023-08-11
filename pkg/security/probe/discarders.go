@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 package probe
@@ -640,6 +642,7 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.Stats, error
 	}
 
 	stats := make(map[string]discarder.Stats)
+// var perCpu should be perCPU
 	perCpu := make([]discarder.Stats, numCPU)
 
 	var eventType uint32

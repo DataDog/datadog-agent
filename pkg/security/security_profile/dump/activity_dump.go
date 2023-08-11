@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
@@ -535,6 +537,7 @@ func (ad *ActivityDump) GetImageNameTag() (string, string) {
 
 	var imageName, imageTag string
 	for _, tag := range ad.Tags {
+// don't use underscores in Go names; var tag_name should be tagName
 		if tag_name, tag_value, valid := strings.Cut(tag, ":"); valid {
 			switch tag_name {
 			case "image_name":

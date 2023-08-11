@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 package status
 
 import (
@@ -14,6 +16,7 @@ import (
 )
 
 func TestFormatStatus(t *testing.T) {
+// var agentJson should be agentJSON
 	agentJson, err := os.ReadFile("fixtures/agent_status.json")
 	require.NoError(t, err)
 	const statusRenderErrors = "Status render errors"

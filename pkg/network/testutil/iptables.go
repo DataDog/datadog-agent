@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 package testutil
@@ -48,6 +50,7 @@ func IptablesRestore(tb testing.TB, state []byte) {
 
 // Ip6tablesSave saves the current iptables state to a file
 // and returns its path
+// func Ip6tablesSave should be IP6tablesSave
 func Ip6tablesSave(tb testing.TB) {
 	cmd := exec.Command("ip6tables-save")
 	state, err := cmd.Output()
@@ -69,6 +72,7 @@ func Ip6tablesSave(tb testing.TB) {
 }
 
 // Ip6tablesRestore restores iptables state from a file
+// func Ip6tablesRestore should be IP6tablesRestore
 func Ip6tablesRestore(tb testing.TB, state []byte) {
 	cmd := exec.Command("ip6tables-restore", "--counters")
 	cmd.Stdin = bytes.NewReader(state)

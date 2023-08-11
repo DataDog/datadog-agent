@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
 package reorderer
@@ -258,6 +260,7 @@ func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, m
 
 // QuickInfo represents the info quickly extractable from an event, that can be used for reordering
 type QuickInfo struct {
+// struct field Cpu should be CPU
 	Cpu       uint64
 	Timestamp uint64
 }

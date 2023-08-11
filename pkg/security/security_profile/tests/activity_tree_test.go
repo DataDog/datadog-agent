@@ -3,8 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux
 
+// don't use an underscore in package name
 package security_profile_tests
 
 import (

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//revive:disable:var-naming
+
 //go:build linux || windows
 
 package config
@@ -32,6 +34,7 @@ func TestEventMonitor(t *testing.T) {
 	newConfig(t)
 
 	for i, tc := range []struct {
+// don't use underscores in Go names; struct field process_events should be processEvents
 		cws, fim, process_events, network_events bool
 		enabled                                  bool
 	}{
