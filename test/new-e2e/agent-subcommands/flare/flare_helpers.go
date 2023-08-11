@@ -102,26 +102,26 @@ func assertProcessCheckShouldBeEnabled(t *testing.T, flare flare.Flare, checkNam
 	expectedContentIfDisabled := fmt.Sprintf("'%s' is disabled", setting)
 
 	if shouldBeEnabled {
-		assertFileNotContains(t, flare, filename, expectedContentIfDisabled)
+		assertFileNotContains(t, flare, filename, []string{expectedContentIfDisabled})
 	} else {
-		assertFileContains(t, flare, filename, expectedContentIfDisabled)
+		assertFileContains(t, flare, filename, []string{expectedContentIfDisabled})
 	}
 }
 
-func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContent string) {
+func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents []string) {
 	fileContent, err := flare.GetFileContent(filename)
-	assert.NoError(t, err)
-
-	if err == nil {
-		assert.Contains(t, fileContent, expectedContent)
+	if assert.NoError(t, err) {
+		for _, content := range expectedContents {
+			assert.Contains(t, fileContent, content)
+		}
 	}
 }
 
-func assertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContent string) {
+func assertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContents []string) {
 	fileContent, err := flare.GetFileContent(filename)
-	assert.NoError(t, err)
-
-	if err == nil {
-		assert.NotContains(t, fileContent, expectedContent)
+	if assert.NoError(t, err) {
+		for _, content := range expectedContents {
+			assert.NotContains(t, fileContent, content)
+		}
 	}
 }

@@ -74,7 +74,7 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 	// XXX: this test is expected to fail because 'etc/security-agent.yaml' is not found. See #18463
 	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | sudo tee /etc/datadog-agent/system-probe.yaml`, systemProbeConfiguration))
 	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | sudo tee /etc/datadog-agent/security-agent.yaml`, securityAgentConfiguration))
-	v.Env().VM.Execute("sudo mkdir -p /opt/datadog-agent/checks.d /opt/datadog-agent/bin/agent/dist/conf.d")
+	v.Env().VM.Execute("sudo mkdir -p /opt/datadog-agent/checks.d /opt/datadog-agent/bin/agent/dist/conf.d /tmp/dummy_dir /tmp/dummy_system_probe_config_bpf_dir")
 	v.Env().VM.Execute("sudo touch /opt/datadog-agent/bin/agent/dist/conf.d/test.yaml")
 	v.Env().VM.Execute("sudo touch /opt/datadog-agent/bin/agent/dist/conf.d/test.yml")
 	v.Env().VM.Execute("sudo touch /opt/datadog-agent/bin/agent/dist/conf.d/test.yml.test")
@@ -96,8 +96,12 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 	assertFilesExist(v.T(), flare, allLogFiles)
 	assertFilesExist(v.T(), flare, allConfigFiles)
 	assertFilesExist(v.T(), flare, extraCustomConfigFiles)
+	assertFilesExist(v.T(), flare, []string{"expvar/system-probe"})
 
 	assertProcessCheckShouldBeEnabled(v.T(), flare, "process", "process_config.process_collection.enabled", true)
 	assertProcessCheckShouldBeEnabled(v.T(), flare, "container", "process_config.container_collection.enabled", false)
 	assertProcessCheckShouldBeEnabled(v.T(), flare, "process_discovery", "process_config.process_discovery.enabled", false)
+
+	filesRegistredInPermissionsLog := []string{"/etc/datadog-agent/auth_token", "/tmp/dummy_system_probe_config_bpf_dir/", "/tmp/dummy_dir"}
+	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog)
 }

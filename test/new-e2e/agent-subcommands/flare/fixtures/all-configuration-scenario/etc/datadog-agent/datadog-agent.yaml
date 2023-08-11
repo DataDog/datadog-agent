@@ -4,3 +4,6 @@ process_config.process_discovery.enabled: false # for process_discovery_check_ou
 
 telemetry.enabled: true # for telemetry.log
 logs_enabled: true # for registry.json
+
+system_probe_config.bpf_dir: /tmp/dummy_system_probe_config_bpf_dir/
+system_probe_config.sysprobe_socket: /tmp/dummy_dir/dummy_system_probe_sysprobe_socket
