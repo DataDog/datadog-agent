@@ -37,7 +37,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 20)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 15)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 16)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "container.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.usage", 100, "", expectedTags)
@@ -57,6 +57,7 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "container.memory.working_set", 350, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.swap", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "container.memory.oom_events", 10, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "container.memory.peak", 50000, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.memory.partial_stall", 97000, "", expectedTags)
 
 	mockSender.AssertMetric(t, "Rate", "container.io.partial_stall", 98000, "", expectedTags)
