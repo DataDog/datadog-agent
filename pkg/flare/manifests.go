@@ -31,6 +31,7 @@ var (
 	magicGzip = []byte{0x1f, 0x8b, 0x08}
 )
 
+// This const block should have a comment or be unexported
 const (
 	HELM_CHART_RELEASE_NAME       = "CHART_RELEASE_NAME"
 	HELM_CHART_RELEASE_NAMESPACE  = "DD_KUBE_RESOURCES_NAMESPACE"

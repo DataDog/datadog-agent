@@ -266,6 +266,7 @@ func GetFilledProcess(p *process.Process) (*FilledProcess, error) {
 	}, nil
 }
 
+// MAX_ENV_VARS_COLLECTED exported const should have comment or be unexported
 const MAX_ENV_VARS_COLLECTED = 256
 
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {

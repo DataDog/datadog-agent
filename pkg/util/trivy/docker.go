@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// DOCKER_COLLECTOR exported const should have comment or be unexported
 const DOCKER_COLLECTOR = "docker"
 
 // Custom code based on https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/docker.go `DockerImage`

@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+// CONTAINERD_COLLECTOR exported const should have comment or be unexported
 const CONTAINERD_COLLECTOR = "containerd"
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
