@@ -169,6 +169,7 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			probes.ConnMap:                           {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPConnectSockPidMap:              {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPStatsMap:                       {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPRetransmitsMap:                 {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.PortBindingsMap:                   {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
