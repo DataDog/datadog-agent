@@ -7,6 +7,7 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -115,11 +116,14 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 	}))
 
 	if err != nil {
-		stack.Destroy(ctx, optdestroy.ProgressStreams(os.Stderr), optdestroy.DebugLogging(debug.LoggingOptions{
+		_, errDestroy := stack.Destroy(ctx, optdestroy.ProgressStreams(os.Stderr), optdestroy.DebugLogging(debug.LoggingOptions{
 			LogToStdErr:   true,
 			FlowToPlugins: true,
 			LogLevel:      &loglevel,
 		}))
+		if errDestroy != nil {
+			return stack, upResult, errors.Join(err, errDestroy)
+		}
 	}
 	return stack, upResult, err
 }
