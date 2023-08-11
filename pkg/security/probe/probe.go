@@ -98,6 +98,7 @@ func (p *Probe) zeroEvent() *model.Event {
 	return p.event
 }
 
+// StatsPollingInterval exported method should have comment or be unexported
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval
 }

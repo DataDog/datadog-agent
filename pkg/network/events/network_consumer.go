@@ -15,10 +15,12 @@ import (
 // NetworkConsumer describes a process monitoring object
 type NetworkConsumer struct{}
 
+// Start exported method should have comment or be unexported
 func (n *NetworkConsumer) Start() error {
 	return nil
 }
 
+// Stop exported method should have comment or be unexported
 func (n *NetworkConsumer) Stop() {
 }
 

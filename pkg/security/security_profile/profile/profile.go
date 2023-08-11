@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// EventTypeState exported type should have comment or be unexported
 type EventTypeState struct {
 	lastAnomalyNano uint64
 	state           EventFilteringProfileState
@@ -134,6 +135,7 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 	// TODO: debounce and regenerate profile filters & programs
 }
 
+// LoadProfileFromFile exported function should have comment or be unexported
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
 	if err != nil {

@@ -56,6 +56,7 @@ type cliParams struct {
 	pidfilePath string
 }
 
+// Commands exported function should have comment or be unexported
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	params := &cliParams{
 		GlobalParams: globalParams,

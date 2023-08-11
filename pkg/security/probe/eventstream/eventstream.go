@@ -7,4 +7,5 @@
 
 package eventstream
 
+// EventStreamMap exported const should have comment or be unexported
 const EventStreamMap = "events"

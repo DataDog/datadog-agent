@@ -31,10 +31,12 @@ type ProvidesCheck struct {
 	CheckComponent CheckComponent `group:"check"`
 }
 
+// MockCheckParams exported type should have comment or be unexported
 type MockCheckParams[T checks.Check] struct {
 	fx.In
 
 	OrchestrateMock func(mock *checkMocks.Check) `optional:"true"`
 }
 
+// RTResponse exported type should have comment or be unexported
 type RTResponse []*model.CollectorStatus

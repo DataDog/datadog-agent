@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// ResolverInterface exported type should have comment or be unexported
 type ResolverInterface interface {
 	ResolveBasename(e *model.FileFields) string
 	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)

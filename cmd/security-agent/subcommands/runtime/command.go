@@ -46,6 +46,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Commands exported function should have comment or be unexported
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
@@ -644,6 +645,7 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 	return nil
 }
 
+// StartRuntimeSecurity exported function should have comment or be unexported
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {

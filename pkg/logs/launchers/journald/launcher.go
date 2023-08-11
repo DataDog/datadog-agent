@@ -23,10 +23,12 @@ import (
 // SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
 type SDJournalFactory struct{}
 
+// NewJournal exported method should have comment or be unexported
 func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
 	return sdjournal.NewJournal()
 }
 
+// NewJournalFromPath exported method should have comment or be unexported
 func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
 	return sdjournal.NewJournalFromDir(path)
 }

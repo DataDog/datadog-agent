@@ -30,6 +30,7 @@ type ActivityTreeStats struct {
 	droppedCount   map[model.EventType]map[NodeDroppedReason]*atomic.Uint64
 }
 
+// NewActivityTreeNodeStats exported function should have comment or be unexported
 func NewActivityTreeNodeStats() *ActivityTreeStats {
 	ats := &ActivityTreeStats{
 		processedCount: make(map[model.EventType]*atomic.Uint64),

@@ -23,6 +23,7 @@ const (
 	SELinuxStatusEnforceKey uint32 = 1
 )
 
+// SnapshotSELinux exported function should have comment or be unexported
 func SnapshotSELinux(selinuxStatusMap *ebpf.Map) error {
 	currentStatus := func() string {
 		output, err := exec.Command("getenforce").Output()

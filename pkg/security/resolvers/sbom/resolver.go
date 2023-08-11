@@ -39,6 +39,7 @@ const SBOMSource = "runtime-security-agent"
 
 const maxSBOMGenerationRetries = 3
 
+// SBOM exported type should have comment or be unexported
 type SBOM struct {
 	sync.RWMutex
 
@@ -441,6 +442,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	r.sbomsCache.Add(sbomKey, sbom)
 }
 
+// SendStats exported method should have comment or be unexported
 func (r *Resolver) SendStats() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()

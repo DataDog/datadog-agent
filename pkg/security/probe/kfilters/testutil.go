@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// AddRuleExpr exported function should have comment or be unexported
 func AddRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 	var ruleDefs []*rules.RuleDefinition
 

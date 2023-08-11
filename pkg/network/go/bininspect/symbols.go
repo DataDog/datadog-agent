@@ -208,6 +208,7 @@ func getSymbols(f *elf.File, typ elf.SectionType, wanted map[string]struct{}) ([
 	return nil, errors.New("not implemented")
 }
 
+// GetAllSymbolsByName exported function should have comment or be unexported
 func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, symbolSet)
 	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {

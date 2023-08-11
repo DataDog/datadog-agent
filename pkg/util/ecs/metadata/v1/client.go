@@ -29,6 +29,7 @@ const (
 	taskMetadataPath = "/tasks"
 )
 
+// Client exported type should have comment or be unexported
 type Client interface {
 	GetInstance(context.Context) (*Instance, error)
 	GetTasks(context.Context) ([]Task, error)

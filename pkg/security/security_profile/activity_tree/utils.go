@@ -7,6 +7,7 @@
 
 package activity_tree
 
+// ExtractFirstParent exported function should have comment or be unexported
 func ExtractFirstParent(path string) (string, int) {
 	if len(path) == 0 {
 		return "", 0

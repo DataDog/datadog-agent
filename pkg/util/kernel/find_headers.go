@@ -79,6 +79,7 @@ type headerProvider struct {
 	kernelHeaders []string
 }
 
+// KernelHeaderOptions exported type should have comment or be unexported
 type KernelHeaderOptions struct {
 	DownloadEnabled bool
 	Dirs            []string

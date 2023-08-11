@@ -15,6 +15,7 @@ import (
 
 // team: processes
 
+// Component exported type should have comment or be unexported
 type Component interface {
 	types.CheckComponent
 }
@@ -24,6 +25,7 @@ var Module = fxutil.Component(
 	fx.Provide(newCheck),
 )
 
+// MockModule exported var should have comment or be unexported
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),
 )

@@ -22,6 +22,7 @@ var detectorsWithPrivilege = []Detector{
 }
 
 var (
+// PermissionDeniedWarningOnce exported var should have comment or be unexported
 	PermissionDeniedWarningOnce = sync.Once{}
 )
 
@@ -33,6 +34,7 @@ func handleDetectorError(err error) {
 	}
 }
 
+// DetectWithPrivileges exported function should have comment or be unexported
 func DetectWithPrivileges(pids []int) []languagemodels.Language {
 	languages := make([]languagemodels.Language, len(pids))
 	for i, pid := range pids {
@@ -48,6 +50,7 @@ func DetectWithPrivileges(pids []int) []languagemodels.Language {
 	return languages
 }
 
+// MockPrivilegedDetectors exported function should have comment or be unexported
 func MockPrivilegedDetectors(t *testing.T, newDetectors []Detector) {
 	oldDetectors := detectorsWithPrivilege
 	t.Cleanup(func() { detectorsWithPrivilege = oldDetectors })

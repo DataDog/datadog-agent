@@ -14,6 +14,7 @@ import (
 	"strconv"
 )
 
+// FromProtoToKFiltersRuleSetReport exported method should have comment or be unexported
 func (protoRuleSetReport *RuleSetReportMessage) FromProtoToKFiltersRuleSetReport() *kfilters.ApplyRuleSetReport {
 	policies := make(map[eval.EventType]*kfilters.PolicyReport)
 
@@ -34,6 +35,7 @@ func (protoRuleSetReport *RuleSetReportMessage) FromProtoToKFiltersRuleSetReport
 	return wholeReport
 }
 
+// FromProtoToKFiltersApprovers exported method should have comment or be unexported
 func (protoApprovers *Approvers) FromProtoToKFiltersApprovers() *rules.Approvers {
 	approvers := make(rules.Approvers)
 
@@ -79,6 +81,7 @@ func FromKFiltersToProtoRuleSetReport(ruleSetReport *kfilters.ApplyRuleSetReport
 	}
 }
 
+// FromKFiltersToProtoApprovers exported function should have comment or be unexported
 func FromKFiltersToProtoApprovers(approvers rules.Approvers) *Approvers {
 	protoApprovers := new(Approvers)
 

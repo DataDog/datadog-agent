@@ -318,6 +318,7 @@ func renderAutodiscoveryStats(w io.Writer, adEnabledFeatures interface{}, adConf
 //go:embed templates
 var templatesFS embed.FS
 
+// RenderStatusTemplate exported function should have comment or be unexported
 func RenderStatusTemplate(w io.Writer, templateName string, stats interface{}) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {

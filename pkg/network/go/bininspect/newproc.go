@@ -23,6 +23,7 @@ type newProcessBinaryInspector struct {
 	goVersion goversion.GoVersion
 }
 
+// InspectNewProcessBinary exported function should have comment or be unexported
 func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")

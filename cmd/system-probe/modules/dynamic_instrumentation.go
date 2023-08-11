@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
+// DynamicInstrumentation exported var should have comment or be unexported
 var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},

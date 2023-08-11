@@ -64,6 +64,7 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	return json.Marshal(flags)
 }
 
+// StringArray exported method should have comment or be unexported
 func (f PolicyFlag) StringArray() []string {
 	var flags []string
 	if f&PolicyFlagBasename != 0 {

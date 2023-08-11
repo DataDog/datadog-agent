@@ -20,6 +20,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// StartCompliance exported function should have comment or be unexported
 func StartCompliance(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*compliance.Agent, error) {
 	enabled := config.GetBool("compliance_config.enabled")
 	runPath := config.GetString("compliance_config.run_path")

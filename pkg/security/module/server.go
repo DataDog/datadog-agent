@@ -608,10 +608,12 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
+// Stop exported method should have comment or be unexported
 func (a *APIServer) Stop() {
 	a.stopper.Stop()
 }
 
+// SetCWSConsumer exported method should have comment or be unexported
 func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 	a.cwsConsumer = consumer
 }

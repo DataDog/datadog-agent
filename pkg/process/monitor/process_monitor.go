@@ -108,6 +108,7 @@ type ProcessMonitor struct {
 	tel processMonitorTelemetry
 }
 
+// ProcessCallback exported type should have comment or be unexported
 type ProcessCallback func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.

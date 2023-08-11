@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
+// GRPCServer exported type should have comment or be unexported
 type GRPCServer struct {
 	server      *grpc.Server
 	netListener net.Listener
@@ -25,6 +26,7 @@ type GRPCServer struct {
 	socketPath  string
 }
 
+// NewGRPCServer exported function should have comment or be unexported
 func NewGRPCServer(socketPath string) *GRPCServer {
 	// force socket cleanup of previous socket not cleanup
 	_ = os.Remove(socketPath)
@@ -35,6 +37,7 @@ func NewGRPCServer(socketPath string) *GRPCServer {
 	}
 }
 
+// Start exported method should have comment or be unexported
 func (g *GRPCServer) Start() error {
 	ln, err := net.Listen("unix", g.socketPath)
 	if err != nil {
@@ -59,6 +62,7 @@ func (g *GRPCServer) Start() error {
 	return nil
 }
 
+// Stop exported method should have comment or be unexported
 func (g *GRPCServer) Stop() {
 	if g.server != nil {
 		g.server.Stop()

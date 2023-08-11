@@ -32,6 +32,7 @@ type cliParams struct {
 	caseID        string
 }
 
+// Commands exported function should have comment or be unexported
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

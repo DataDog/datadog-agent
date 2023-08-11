@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LanguageDetectionModule exported var should have comment or be unexported
 var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},

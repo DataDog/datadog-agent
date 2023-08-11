@@ -16,12 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// BasenameApproverKernelMapName exported const should have comment or be unexported
 const BasenameApproverKernelMapName = "basename_approvers"
 
 type onApproverHandler func(approvers rules.Approvers) (ActiveApprovers, error)
 type activeApprover = activeKFilter
+// ActiveApprovers exported type should have comment or be unexported
 type ActiveApprovers = activeKFilters
 
+// AllApproversHandlers exported var should have comment or be unexported
 var AllApproversHandlers = make(map[eval.EventType]onApproverHandler)
 
 func approveBasename(tableName string, eventType model.EventType, basename string) (activeApprover, error) {

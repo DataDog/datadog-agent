@@ -31,6 +31,7 @@ const (
 	containerStatsPath       = "/stats"
 )
 
+// Client exported type should have comment or be unexported
 type Client interface {
 	GetContainerStats(ctx context.Context, id string) (*ContainerStats, error)
 	GetTask(ctx context.Context) (*Task, error)

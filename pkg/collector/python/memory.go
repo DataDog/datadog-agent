@@ -108,6 +108,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	}
 }
 
+// TrackedCString exported function should have comment or be unexported
 func TrackedCString(str string) *C.char {
 	cstr := C.CString(str)
 

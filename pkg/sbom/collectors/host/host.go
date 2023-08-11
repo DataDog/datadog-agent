@@ -23,30 +23,37 @@ const (
 	collectorName = "host"
 )
 
+// ScanRequest exported type should have comment or be unexported
 type ScanRequest struct {
 	Path string
 }
 
+// Collector exported method should have comment or be unexported
 func (r *ScanRequest) Collector() string {
 	return collectorName
 }
 
+// Type exported method should have comment or be unexported
 func (r *ScanRequest) Type() string {
 	return sbom.ScanFilesystemType
 }
 
+// ID exported method should have comment or be unexported
 func (r *ScanRequest) ID() string {
 	return r.Path
 }
 
+// HostCollector exported type should have comment or be unexported
 type HostCollector struct {
 	trivyCollector *trivy.Collector
 }
 
+// CleanCache exported method should have comment or be unexported
 func (c *HostCollector) CleanCache() error {
 	return c.trivyCollector.GetCacheCleaner().Clean()
 }
 
+// Init exported method should have comment or be unexported
 func (c *HostCollector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
@@ -56,6 +63,7 @@ func (c *HostCollector) Init(cfg config.Config) error {
 	return nil
 }
 
+// Scan exported method should have comment or be unexported
 func (c *HostCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	hostScanRequest, ok := request.(*ScanRequest)
 	if !ok {

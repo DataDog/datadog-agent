@@ -467,6 +467,7 @@ func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
 	return offset
 }
 
+// GetVFSLinkDentryPosition exported function should have comment or be unexported
 func GetVFSLinkDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(2)
 
@@ -477,6 +478,7 @@ func GetVFSLinkDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSMKDirDentryPosition exported function should have comment or be unexported
 func GetVFSMKDirDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(2)
 
@@ -487,6 +489,7 @@ func GetVFSMKDirDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSLinkTargetDentryPosition exported function should have comment or be unexported
 func GetVFSLinkTargetDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(3)
 
@@ -497,6 +500,7 @@ func GetVFSLinkTargetDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSSetxattrDentryPosition exported function should have comment or be unexported
 func GetVFSSetxattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(1)
 
@@ -507,6 +511,7 @@ func GetVFSSetxattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSRemovexattrDentryPosition exported function should have comment or be unexported
 func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(1)
 
@@ -517,6 +522,7 @@ func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSRenameInputType exported function should have comment or be unexported
 func GetVFSRenameInputType(kernelVersion *skernel.Version) uint64 {
 	inputType := uint64(1)
 

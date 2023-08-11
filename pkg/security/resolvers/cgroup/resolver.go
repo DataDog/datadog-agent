@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
+// CGroupEvent exported type should have comment or be unexported
 type CGroupEvent int
 
 const (

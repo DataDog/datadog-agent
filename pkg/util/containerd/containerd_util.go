@@ -79,6 +79,7 @@ type ContainerdUtil struct {
 	connectionTimeout time.Duration
 }
 
+// ContainerdAccessor exported type should have comment or be unexported
 type ContainerdAccessor func() (ContainerdItf, error)
 
 // NewContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
@@ -372,6 +373,7 @@ func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (
 	return labels["io.cri-containerd.kind"] == "sandbox", nil
 }
 
+// MountImage exported method should have comment or be unexported
 func (c *ContainerdUtil) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
 	snapshotter := containerd.DefaultSnapshotter
 	ctx = namespaces.WithNamespace(ctx, namespace)

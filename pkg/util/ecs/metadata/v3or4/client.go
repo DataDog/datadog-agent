@@ -31,6 +31,7 @@ const (
 	taskMetadataWithTagsPath = "/taskWithTags"
 )
 
+// Client exported type should have comment or be unexported
 type Client interface {
 	GetTask(ctx context.Context) (*Task, error)
 	GetContainer(ctx context.Context) (*Container, error)

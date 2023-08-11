@@ -681,6 +681,7 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[1].Remediation))
 }
 
+// NewPythonFakeCheck exported function should have comment or be unexported
 func NewPythonFakeCheck() (*PythonCheck, error) {
 	c, err := NewPythonCheck("fake_check", nil)
 

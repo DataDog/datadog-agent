@@ -28,11 +28,13 @@ const (
 	separator = ":::"
 )
 
+// ProfileConfig exported type should have comment or be unexported
 type ProfileConfig struct {
 	Tags    []string
 	Profile []byte
 }
 
+// RCProfileProvider exported type should have comment or be unexported
 type RCProfileProvider struct {
 	sync.RWMutex
 

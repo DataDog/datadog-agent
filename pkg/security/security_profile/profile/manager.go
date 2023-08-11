@@ -630,6 +630,7 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
+// LookupEventInProfiles exported method should have comment or be unexported
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
 	if event.Error != nil {

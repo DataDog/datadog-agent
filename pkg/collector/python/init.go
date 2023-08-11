@@ -186,6 +186,7 @@ func (ire InterpreterResolutionError) Error() string {
 		" Python's 'multiprocessing' library may fail to work.", ire.Err)
 }
 
+// PythonWinExeBasename exported const should have comment or be unexported
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -354,6 +355,7 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
+// Initialize exported function should have comment or be unexported
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")

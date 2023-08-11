@@ -83,6 +83,7 @@ func ShouldUseSyscallExitTracepoints() bool {
 	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
 }
 
+// ShouldUseModuleLoadTracepoint exported function should have comment or be unexported
 func ShouldUseModuleLoadTracepoint() bool {
 	currentKernelVersion, err := kernel.NewKernelVersion()
 	// the condition may need to be fine-tuned based on the kernel version

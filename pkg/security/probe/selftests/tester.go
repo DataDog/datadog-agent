@@ -237,14 +237,17 @@ func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*serialize
 	}
 }
 
+// Type exported method should have comment or be unexported
 func (t *SelfTester) Type() string {
 	return PolicyProviderType
 }
 
+// RuleMatch exported method should have comment or be unexported
 func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// send if not selftest related events
 	return !t.IsExpectedEvent(rule, event, t.probe)
 }
 
+// EventDiscarderFound exported method should have comment or be unexported
 func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 }

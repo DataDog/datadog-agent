@@ -12,10 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// Resolver exported type should have comment or be unexported
 type Resolver struct {
 	priorityEnvs []string
 }
 
+// NewEnvVarsResolver exported function should have comment or be unexported
 func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 	var envsWithValue []string
 	if cfg != nil {
@@ -31,6 +33,7 @@ func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 	}
 }
 
+// ResolveEnvVars exported method should have comment or be unexported
 func (r *Resolver) ResolveEnvVars(pid int32) ([]string, bool, error) {
 	return utils.EnvVars(r.priorityEnvs, pid)
 }

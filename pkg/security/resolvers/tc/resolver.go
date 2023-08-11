@@ -31,12 +31,14 @@ type NetDeviceKey struct {
 	NetworkDirection manager.TrafficType
 }
 
+// Resolver exported type should have comment or be unexported
 type Resolver struct {
 	sync.RWMutex
 	config   *config.Config
 	programs map[NetDeviceKey]*manager.Probe
 }
 
+// NewResolver exported function should have comment or be unexported
 func NewResolver(config *config.Config) *Resolver {
 	return &Resolver{
 		config:   config,
@@ -44,6 +46,7 @@ func NewResolver(config *config.Config) *Resolver {
 	}
 }
 
+// SendTCProgramsStats exported method should have comment or be unexported
 func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	tcr.RLock()
 	defer tcr.RUnlock()
@@ -53,6 +56,7 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	}
 }
 
+// SelectTCProbes exported method should have comment or be unexported
 func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
 	tcr.RLock()
 	defer tcr.RUnlock()
@@ -160,6 +164,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	return probesCountNoLazyDeletion
 }
 
+// ResolveNetworkDeviceIfName exported method should have comment or be unexported
 func (tcr *Resolver) ResolveNetworkDeviceIfName(ifIndex, netNS uint32) (string, bool) {
 	tcr.RLock()
 	defer tcr.RUnlock()

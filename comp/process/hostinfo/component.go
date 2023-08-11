@@ -15,14 +15,17 @@ import (
 
 // team: processes
 
+// Component exported type should have comment or be unexported
 type Component interface {
 	Object() *checks.HostInfo
 }
 
+// Module exported var should have comment or be unexported
 var Module = fxutil.Component(
 	fx.Provide(newHostInfo),
 )
 
+// MockModule exported var should have comment or be unexported
 var MockModule = fxutil.Component(
 	fx.Provide(newMockHostInfo),
 )

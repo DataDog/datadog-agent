@@ -33,6 +33,7 @@ func injectAttach(pid int, agent string, args string, nsPid int, fsUid int, fsGi
 	return h.Attach(agent, args, fsUid, fsGid)
 }
 
+// InjectAgent exported function should have comment or be unexported
 func InjectAgent(pid int, agent string, args string) error {
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {

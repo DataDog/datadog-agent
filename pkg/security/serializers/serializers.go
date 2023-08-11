@@ -1087,6 +1087,7 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
+// MarshalEvent exported function should have comment or be unexported
 func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
 	s := NewEventSerializer(event, probe)
 	w := &jwriter.Writer{
@@ -1096,6 +1097,7 @@ func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error
 	return w.BuildBytes()
 }
 
+// MarshalCustomEvent exported function should have comment or be unexported
 func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 	w := &jwriter.Writer{
 		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,

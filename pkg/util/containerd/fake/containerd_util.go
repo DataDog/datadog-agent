@@ -157,6 +157,7 @@ func (client *MockedContainerdClient) IsSandbox(namespace string, ctn containerd
 	return client.MockIsSandbox(namespace, ctn)
 }
 
+// MountImage exported method should have comment or be unexported
 func (client *MockedContainerdClient) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
 	return client.MockMountImage(ctx, expiration, namespace, img, targetDir)
 }

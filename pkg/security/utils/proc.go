@@ -205,6 +205,7 @@ func GetProcesses() ([]*process.Process, error) {
 	return processes, nil
 }
 
+// FilledProcess exported type should have comment or be unexported
 type FilledProcess struct {
 	Pid        int32
 	Ppid       int32

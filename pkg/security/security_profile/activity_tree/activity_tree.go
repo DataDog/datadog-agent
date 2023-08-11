@@ -120,6 +120,7 @@ type ActivityTree struct {
 	SyscallsMask map[int]int
 }
 
+// COOKIE_TO_PROCESS_NODE_CACHE_SIZE exported const should have comment or be unexported
 const COOKIE_TO_PROCESS_NODE_CACHE_SIZE = 128
 
 // NewActivityTree returns a new ActivityTree instance
@@ -649,6 +650,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 	return nil
 }
 
+// FindMatchingRootNodes exported method should have comment or be unexported
 func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {

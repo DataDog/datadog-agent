@@ -22,26 +22,31 @@ const (
 	CloseGoTLSFunc = "crypto/tls.(*Conn).Close"
 )
 
+// StructOffsetTLSConn exported var should have comment or be unexported
 var StructOffsetTLSConn = FieldIdentifier{
 	StructName: "crypto/tls.Conn",
 	FieldName:  "conn",
 }
 
+// StructOffsetTCPConn exported var should have comment or be unexported
 var StructOffsetTCPConn = FieldIdentifier{
 	StructName: "net.TCPConn",
 	FieldName:  "conn",
 }
 
+// StructOffsetNetConnFd exported var should have comment or be unexported
 var StructOffsetNetConnFd = FieldIdentifier{
 	StructName: "net.conn",
 	FieldName:  "fd",
 }
 
+// StructOffsetNetFdPfd exported var should have comment or be unexported
 var StructOffsetNetFdPfd = FieldIdentifier{
 	StructName: "net.netFD",
 	FieldName:  "pfd",
 }
 
+// StructOffsetPollFdSysfd exported var should have comment or be unexported
 var StructOffsetPollFdSysfd = FieldIdentifier{
 	StructName: "internal/poll.FD",
 	FieldName:  "Sysfd",

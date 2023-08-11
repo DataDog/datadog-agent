@@ -81,6 +81,7 @@ var (
 	}
 )
 
+// PlatformProbe exported type should have comment or be unexported
 type PlatformProbe struct {
 	// Constants and configuration
 	Manager        *manager.Manager
@@ -302,6 +303,7 @@ func (p *Probe) Start() error {
 	return p.updateProbes(nil)
 }
 
+// PlaySnapshot exported method should have comment or be unexported
 func (p *Probe) PlaySnapshot() {
 	// Get the snapshotted data
 	var events []*model.Event
@@ -436,6 +438,7 @@ func (p *Probe) GetMonitor() *Monitor {
 	return p.monitor
 }
 
+// EventMarshallerCtor exported method should have comment or be unexported
 func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
 	return func() easyjson.Marshaler {
 		return serializers.NewEventSerializer(event, p.resolvers)
@@ -1852,18 +1855,22 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	}
 }
 
+// IsNetworkEnabled exported method should have comment or be unexported
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
+// IsActivityDumpEnabled exported method should have comment or be unexported
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
 }
 
+// IsActivityDumpTagRulesEnabled exported method should have comment or be unexported
 func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
 }
 
+// IsSecurityProfileEnabled exported method should have comment or be unexported
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }

@@ -11,21 +11,26 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 )
 
+// Module exported type should have comment or be unexported
 type Module struct{}
 
+// NewModule exported function should have comment or be unexported
 func NewModule(config *Config) (*Module, error) {
 	return &Module{}, nil
 }
 
+// Close exported method should have comment or be unexported
 func (m *Module) Close() {
 	log.Info("Closing user tracer module")
 }
 
+// GetStats exported method should have comment or be unexported
 func (m *Module) GetStats() map[string]interface{} {
 	debug := map[string]interface{}{}
 	return debug
 }
 
+// Register exported method should have comment or be unexported
 func (m *Module) Register(_ *module.Router) error {
 	log.Info("Registering dynamic instrumentation module")
 	return nil

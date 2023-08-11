@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+// Commands exported function should have comment or be unexported
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",

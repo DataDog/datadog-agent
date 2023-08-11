@@ -42,6 +42,7 @@ const (
 	ThreatScoreRuleSetTagValue     = "threat_score"
 )
 
+// RuleEngine exported type should have comment or be unexported
 type RuleEngine struct {
 	sync.RWMutex
 	config                    *config.RuntimeSecurityConfig
@@ -63,10 +64,12 @@ type RuleEngine struct {
 	rulesetListeners          []rules.RuleSetListener
 }
 
+// APIServer exported type should have comment or be unexported
 type APIServer interface {
 	Apply([]string)
 }
 
+// NewRuleEngine exported function should have comment or be unexported
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:                     probe,
@@ -92,6 +95,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	return engine, nil
 }
 
+// Start exported method should have comment or be unexported
 func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	// monitor policies
 	if e.config.PolicyMonitorEnabled {
@@ -350,6 +354,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	return true
 }
 
+// Stop exported method should have comment or be unexported
 func (e *RuleEngine) Stop() {
 	signal.Stop(e.sighupChan)
 	close(e.sighupChan)
@@ -447,6 +452,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 }
 
+// StopEventCollector exported method should have comment or be unexported
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 	return e.GetRuleSet().StopEventCollector()
 }

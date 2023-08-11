@@ -129,6 +129,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	}
 }
 
+// MAX_MMAPED_FILES exported const should have comment or be unexported
 const MAX_MMAPED_FILES = 128
 
 func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {

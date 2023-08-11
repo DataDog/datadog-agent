@@ -644,6 +644,7 @@ func (p *Resolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDC
 	return fileEvent.PathnameStr, nil
 }
 
+// IsBusybox exported function should have comment or be unexported
 func IsBusybox(pathname string) bool {
 	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }

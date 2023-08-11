@@ -14,14 +14,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// RuleFilterEvent exported type should have comment or be unexported
 type RuleFilterEvent struct {
 	*kernel.Version
 }
 
+// RuleFilterModel exported type should have comment or be unexported
 type RuleFilterModel struct {
 	*kernel.Version
 }
 
+// NewRuleFilterModel exported function should have comment or be unexported
 func NewRuleFilterModel() *RuleFilterModel {
 	kv, _ := kernel.NewKernelVersion()
 	return &RuleFilterModel{
@@ -29,12 +32,14 @@ func NewRuleFilterModel() *RuleFilterModel {
 	}
 }
 
+// NewEvent exported method should have comment or be unexported
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		Version: m.Version,
 	}
 }
 
+// GetEvaluator exported method should have comment or be unexported
 func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major":
@@ -170,6 +175,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
+// GetFieldValue exported method should have comment or be unexported
 func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 	case "kernel.version.major":

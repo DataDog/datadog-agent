@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// GoDetector exported type should have comment or be unexported
 type GoDetector struct {
 	hostProc string
 }

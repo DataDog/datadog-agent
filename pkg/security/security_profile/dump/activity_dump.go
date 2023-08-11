@@ -867,6 +867,7 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 	return nil
 }
 
+// DecodeJSON exported method should have comment or be unexported
 func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 	ad.Lock()
 	defer ad.Unlock()

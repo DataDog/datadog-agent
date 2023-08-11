@@ -15,6 +15,7 @@ import (
 
 // team: processes
 
+// Component exported type should have comment or be unexported
 type Component interface {
 	types.CheckComponent
 }

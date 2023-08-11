@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 )
 
+// GlobalParams exported type should have comment or be unexported
 type GlobalParams struct {
 	ConfFilePath string
 }

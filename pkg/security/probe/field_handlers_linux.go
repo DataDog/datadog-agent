@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// FieldHandlers exported type should have comment or be unexported
 type FieldHandlers struct {
 	resolvers *resolvers.Resolvers
 }
@@ -90,6 +91,7 @@ func (fh *FieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAtt
 	return e.Namespace
 }
 
+// ResolveMountPointPath exported method should have comment or be unexported
 func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
 		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
@@ -102,6 +104,7 @@ func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEv
 	return e.MountPointPath
 }
 
+// ResolveMountSourcePath exported method should have comment or be unexported
 func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
 		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
