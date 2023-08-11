@@ -13,13 +13,12 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/prometheus/client_golang/prometheus"
-
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
-
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -214,7 +213,11 @@ func getErrCount(v *HelperErrTelemetry, indx int) map[string]uint64 {
 				continue
 			}
 
-			errCount[syscall.Errno(i).Error()] = count
+			if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+				errCount[name] = count
+			} else {
+				errCount[syscall.Errno(i).Error()] = count
+			}
 		}
 	}
 
@@ -233,7 +236,11 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint64 {
 			errCount[maxErrnoStr] = count
 			continue
 		}
-		errCount[syscall.Errno(i).Error()] = count
+		if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+			errCount[name] = count
+		} else {
+			errCount[syscall.Errno(i).Error()] = count
+		}
 	}
 
 	return errCount
