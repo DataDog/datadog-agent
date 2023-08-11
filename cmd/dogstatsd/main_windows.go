@@ -76,29 +76,28 @@ func (s *service) Run(ctx context.Context) error {
 	pkglog.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(ctx)
-
 	cliParams := &start.CLIParams{}
-	components := &start.DogstatsdComponents{}
 
-	err := start.RunDogstatsdFct(
+	return start.RunDogstatsdFct(
 		cliParams,
 		DefaultConfPath,
 		defaultLogFile,
 		func(config config.Component, log log.Component, params *start.Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
-			components.DogstatsdServer = server
-			return start.RunAgent(ctx, cliParams, config, log, params, components, forwarder)
+			components := &start.DogstatsdComponents{
+				DogstatsdServer: server,
+			}
+			defer start.StopAgent(cancel, components)
+
+			err := start.RunAgent(ctx, cliParams, config, log, params, components, forwarder)
+			if err != nil {
+				log.Errorf("Failed to start agent %v", err)
+				return err
+			}
+
+			// Wait for stop signal
+			<-ctx.Done()
+
+			log.Infof("Initiating service shutdown")
+			return nil
 		})
-
-	if err != nil {
-		pkglog.Errorf("Failed to start agent %v", err)
-		start.StopAgent(cancel, components)
-		return err
-	}
-
-	// Wait for stop signal
-	<-ctx.Done()
-
-	pkglog.Infof("Initiating service shutdown")
-	start.StopAgent(cancel, components)
-	return nil
 }
