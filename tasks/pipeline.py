@@ -18,7 +18,7 @@ from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
     GITHUB_SLACK_MAP,
     base_message,
-    check_for_missing_owners_slack,
+    check_for_missing_owners_slack_and_jira,
     find_job_owners,
     get_failed_tests,
     send_slack_message,
@@ -465,14 +465,14 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
 @task
 def check_notify_teams(_):
-    if check_for_missing_owners_slack():
+    if check_for_missing_owners_slack_and_jira():
         print(
-            "Error: Some teams in CODEOWNERS don't have their slack notification channel specified!\n"
-            "Please specify one in the GITHUB_SLACK_MAP map in tasks/libs/pipeline_notifications.py."
+            "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
+            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP map in tasks/libs/pipeline_notifications.py."
         )
         raise Exit(code=1)
     else:
-        print("All CODEOWNERS teams have their slack notification channel specified !")
+        print("All CODEOWNERS teams have their slack notification channel and jira project specified !!")
 
 
 @task
@@ -725,29 +725,34 @@ def delete_schedule_variable(_, schedule_id, key):
     pprint.pprint(result)
 
 
-@task
+@task(
+    help={
+        "image_tag": "tag from build_image with format v<build_id>_<commit_id>",
+        "test_version": "Is a test image or not",
+        "branch_name": "If you already committed in a local branch",
+    }
+)
 def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     """
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
+    create_branch = branch_name is None
     branch_name = verify_workspace(ctx, branch_name=branch_name)
     update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
     update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    commit_and_push(ctx, branch_name=branch_name)
-    # Trigger a build on the pipeline
-    run(ctx, here=True)
+    trigger_build(ctx, branch_name=branch_name, create_branch=create_branch)
 
 
-def verify_workspace(ctx, branch_name):
+def verify_workspace(ctx, branch_name=None):
     """
     Assess we can modify files and commit without risk of local or upstream conflicts
     """
     if branch_name is None:
         user_name = ctx.run("whoami", hide="out")
         branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
-    github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
-    check_clean_branch_state(ctx, github, branch_name)
+        github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
+        check_clean_branch_state(ctx, github, branch_name)
     return branch_name
 
 
@@ -762,8 +767,11 @@ def update_gitlab_config(file_path, image_tag, test_version):
     images = [name.replace("_SUFFIX", "") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
-            if test_version and any(re.search(fr"{suffix}:", line) for suffix in suffixes):
-                gl.write(line.replace('""', '"_test_only"'))
+            if any(re.search(fr"{suffix}:", line) for suffix in suffixes):
+                if test_version:
+                    gl.write(line.replace('""', '"_test_only"'))
+                else:
+                    gl.write(line.replace('"_test_only"', '""'))
             elif any(re.search(fr"{image}:", line) for image in images):
                 current_version = re.search(r"v\d+-\w+", line)
                 if current_version:
@@ -783,16 +791,23 @@ def update_circleci_config(file_path, image_tag, test_version):
     image_name = "datadog/agent-buildimages-circleci-runner"
     with open(file_path, "r") as circle:
         circle_ci = circle.read()
-    match = re.search(rf"{image_name}:([a-zA-Z0-9_-]+)\n", circle_ci)
+    match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
     if not match:
         raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
     image = f"{image_name}_test_only" if test_version else image_name
     with open(file_path, "w") as circle:
-        circle.write(circle_ci.replace(f"{image_name}:{match.group(1)}", f"{image}:{image_tag}"))
+        circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
 
 
-def commit_and_push(ctx, branch_name=None):
-    ctx.run(f"git checkout -b {branch_name}")
+def trigger_build(ctx, branch_name=None, create_branch=False):
+    """
+    Trigger a pipeline from current branch on-demand (useful for test image)
+    """
+    if create_branch:
+        ctx.run(f"git checkout -b {branch_name}")
     ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
-    ctx.run("git commit -m 'Update buildimages version'")
-    ctx.run(f"git push origin {branch_name}")
+    answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
+    if len(answer) == 0 or answer.casefold() == "y":
+        ctx.run("git commit -m 'Update buildimages version'")
+        ctx.run(f"git push origin {branch_name}")
+        run(ctx, here=True)

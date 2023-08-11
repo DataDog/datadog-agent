@@ -222,10 +222,33 @@ func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
 }
 
+// SetAgentName updates the agent name of the RC client
+// should only be used by the fx component
+func (c *Client) SetAgentName(agentName string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if c.agentName == "unknown" {
+		c.agentName = agentName
+	}
+}
+
 // Subscribe subscribes to config updates of a product.
 func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig)) {
 	c.m.Lock()
 	defer c.m.Unlock()
+
+	// Make sure the product belongs to the list of requested product
+	knownProduct := false
+	for _, p := range c.products {
+		if p == product {
+			knownProduct = true
+			break
+		}
+	}
+	if !knownProduct {
+		c.products = append(c.products, product)
+	}
+
 	c.listeners[product] = append(c.listeners[product], fn)
 	fn(c.state.GetConfigs(product))
 }
@@ -392,6 +415,9 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 		})
 	}
 
+	// Lock for the product list
+	c.m.Lock()
+	defer c.m.Unlock()
 	req := &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			State: &pbgo.ClientState{

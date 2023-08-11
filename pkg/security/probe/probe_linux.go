@@ -509,7 +509,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			seclog.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.ArgsEnvsEventType:
@@ -1202,6 +1202,11 @@ func (p *Probe) Snapshot() error {
 	return p.resolvers.Snapshot()
 }
 
+// Stop the probe
+func (p *Probe) Stop() {
+	_ = p.Manager.StopReaders(manager.CleanAll)
+}
+
 // Close the probe
 func (p *Probe) Close() error {
 	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
@@ -1620,6 +1625,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	resolversOpts := resolvers.ResolversOpts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
+		UseRingBuffer:         useRingBuffers,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

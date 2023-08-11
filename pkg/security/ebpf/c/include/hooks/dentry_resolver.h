@@ -377,6 +377,15 @@ int kprobe_dentry_resolver_segment_erpc_write_user(struct pt_regs *ctx) {
     return dentry_resolver_segment_erpc_write_user(ctx);
 }
 
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dentry_resolver_segment_erpc_write_user")
+int fentry_dentry_resolver_segment_erpc_write_user(ctx_t *ctx) {
+    return dentry_resolver_segment_erpc_write_user(ctx);
+}
+
+#endif // USE_FENTRY
+
 int __attribute__((always_inline)) dentry_resolver_segment_erpc_mmap(void *ctx) {
     u32 key = 0;
     u32 resolution_err = 0;
