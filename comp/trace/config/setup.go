@@ -314,6 +314,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
 		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
 		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		ApplyV1OperationName:   core.GetBool("otlp_config.traces.apply_v1_operation_name"),
 	}
 
 	if core.GetBool("apm_config.telemetry.enabled") {

@@ -66,6 +66,8 @@ type OTLP struct {
 	// kind comes close.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
+	ApplyV1OperationName bool `mapstructure:"apply_v1_operation_name"`
+
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`

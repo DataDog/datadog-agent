@@ -54,11 +54,20 @@ type OTLPReceiver struct {
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
 	cidProvider IDProvider          // container ID provider
+	cfg         *SpanMigrationConfig
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
+	o := &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
+	if o.conf.OTLPReceiver.ApplyV1OperationName {
+		cfg, err := GetConfig([]byte(operationNameV1))
+		if err != nil {
+			log.Warn("Fail to get config", err)
+		}
+		o.cfg = cfg
+	}
+	return o
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -283,6 +292,10 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		LanguageVersion: tagstats.LangVersion,
 		TracerVersion:   tagstats.TracerVersion,
 	}
+	if o.cfg != nil {
+		o.cfg.MigrateSpans(p.TracerPayload)
+	}
+	// fmt.Println(p.TracerPayload.GetChunks())
 	payloadTags := flatten(ctags)
 	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
 		appendTags(payloadTags, tags)

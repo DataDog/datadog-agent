@@ -71,6 +71,7 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
 	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
+	config.BindEnv("otlp_config.traces.apply_v1_operation_name")
 
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
