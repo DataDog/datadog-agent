@@ -340,7 +340,7 @@ build do
     else
       # First we install the dependencies that need specific flags
       specific_build_env.each do |lib, env|
-        command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/agent_#{lib}_requirements-py3.txt", :env => env
+        command "#{python} -m pip install -vv --no-deps --require-hashes -r #{install_dir}/agent_#{lib}_requirements-py3.txt", :env => env
       end
       # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{python} -m pip install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
