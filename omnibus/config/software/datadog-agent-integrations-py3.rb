@@ -182,8 +182,6 @@ build do
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
-      "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
-      "OPENSSL_DIR" => "#{install_dir}/embedded/lib",
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
@@ -196,6 +194,17 @@ build do
     specific_build_env = {
       "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
+
+    # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
+    # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
+    if redhat? && !arm?
+        specific_build_env["cryptography"] = nix_build_env.merge(
+            {
+                "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
+                "PIP_NO_BINARY" => ":all:",
+            }
+        )
+    end
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
     # wheels (eg. ddtrace).
