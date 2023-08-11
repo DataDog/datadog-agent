@@ -7,7 +7,7 @@
 
 //go:build linux
 
-// don't use an underscore in package name
+// Package activity_tree don't use an underscore in package name
 package activity_tree
 
 // ExtractFirstParent exported function should have comment or be unexported
