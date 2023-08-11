@@ -261,7 +261,8 @@ func TestCollection(t *testing.T) {
 			// gRPC client (core agent)
 			collector := &remote.GenericCollector{
 				StreamHandler: &streamHandler{
-					port: port,
+					Config: mockConfig,
+					port:   port,
 				},
 				Insecure: true,
 			}
