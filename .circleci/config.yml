@@ -281,7 +281,7 @@ jobs:
 
 workflows:
   version: 2
-  test_and_build:
+  datadog-agent_circleci_test-and-build:
     jobs:
       - checkout_code
       - dependencies:
