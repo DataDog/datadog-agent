@@ -28,7 +28,7 @@ const (
 	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 )
 
-var /* const */ runtimeRegex = regexp.MustCompile(`^(java|dotnet)\d*$`)
+var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.\d+)*|\d+(\.x))$`)
 
 // ExecutionStartInfo is saved information from when an execution span was started
 type ExecutionStartInfo struct {
@@ -115,12 +115,12 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Metrics:  triggerMetrics,
 	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
-	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.Coldstart)
+	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
 	if endDetails.ProactiveInit {
 		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", endDetails.ProactiveInit)
 	}
 	langMatches := runtimeRegex.FindStringSubmatch(endDetails.Runtime)
-	if len(langMatches) == 2 {
+	if len(langMatches) >= 2 {
 		executionSpan.Meta["language"] = langMatches[1]
 	}
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
