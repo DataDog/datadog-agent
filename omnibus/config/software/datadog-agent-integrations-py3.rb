@@ -202,7 +202,6 @@ build do
             {
                 "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
                 "PIP_NO_BINARY" => ":all:",
-                "OPENSSL_DIR" => "#{install_dir}/embedded/lib",
             }
         )
     end
