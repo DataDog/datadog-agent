@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package selinux TODO comment
 package selinux
 
 import (

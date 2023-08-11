@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package discarder TODO comment
 package discarder
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package syscalls TODO comment
 package syscalls
 
 import (

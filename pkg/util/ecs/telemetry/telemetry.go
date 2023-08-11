@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package telemetry TODO comment
 package telemetry
 
 import (

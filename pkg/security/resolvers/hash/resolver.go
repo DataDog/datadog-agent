@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package hash TODO comment
 package hash
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package dentry TODO comment
 package dentry
 
 import (

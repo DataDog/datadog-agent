@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package metadata TODO comment
 package metadata
 
 import "time"

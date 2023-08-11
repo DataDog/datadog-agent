@@ -5,6 +5,7 @@
 
 //go:build !windows && kubeapiserver
 
+// Package subcommands TODO comment
 package subcommands
 
 import (

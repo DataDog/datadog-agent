@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package kernel TODO comment
 package kernel
 
 import (

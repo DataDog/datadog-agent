@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package tailers TODO comment
 package tailers
 
 import (

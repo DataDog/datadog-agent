@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package netns TODO comment
 package netns
 
 import (

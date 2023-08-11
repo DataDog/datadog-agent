@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package time TODO comment
 package time
 
 import (

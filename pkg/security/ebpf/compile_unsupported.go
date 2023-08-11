@@ -5,6 +5,7 @@
 
 //go:build (linux && !linux_bpf) || ebpf_bindata
 
+// Package ebpf TODO comment
 package ebpf
 
 import (

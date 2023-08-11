@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package detectors TODO comment
 package detectors
 
 import (

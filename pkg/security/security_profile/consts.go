@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package security_profile TODO comment
 package security_profile
 
 // This const block should have a comment or be unexported

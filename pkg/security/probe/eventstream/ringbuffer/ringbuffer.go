@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package ringbuffer TODO comment
 package ringbuffer
 
 import (

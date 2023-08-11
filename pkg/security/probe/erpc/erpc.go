@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package erpc TODO comment
 package erpc
 
 import (

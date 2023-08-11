@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package java TODO comment
 package java
 
 import (

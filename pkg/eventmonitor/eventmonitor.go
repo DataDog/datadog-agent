@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package eventmonitor TODO comment
 package eventmonitor
 
 import (

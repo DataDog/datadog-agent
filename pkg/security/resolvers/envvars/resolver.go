@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package envvars TODO comment
 package envvars
 
 import (

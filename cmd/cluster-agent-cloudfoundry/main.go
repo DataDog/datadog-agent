@@ -7,6 +7,7 @@
 
 //go:generate go run ../../pkg/config/render_config.go dcacf ../../pkg/config/config_template.yaml ../../cloudfoundry.yaml
 
+// Package main TODO comment
 package main
 
 import (

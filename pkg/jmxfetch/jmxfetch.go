@@ -5,6 +5,7 @@
 
 //go:build jmx
 
+// Package jmxfetch TODO comment
 package jmxfetch
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build !windows && cgo
 
+// Package xc TODO comment
 package xc
 
 /*

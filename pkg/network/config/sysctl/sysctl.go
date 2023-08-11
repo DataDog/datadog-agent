@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package sysctl TODO comment
 package sysctl
 
 import (

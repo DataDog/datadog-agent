@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package path TODO comment
 package path
 
 import "fmt"

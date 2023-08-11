@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package eventstream TODO comment
 package eventstream
 
 // EventStreamMap exported const should have comment or be unexported

@@ -5,6 +5,7 @@
 
 //go:build netbsd || openbsd || solaris || dragonfly || linux
 
+// Package path TODO comment
 package path
 
 import (

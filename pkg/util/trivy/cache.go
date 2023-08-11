@@ -5,6 +5,7 @@
 
 //go:build trivy
 
+// Package trivy TODO comment
 package trivy
 
 import (

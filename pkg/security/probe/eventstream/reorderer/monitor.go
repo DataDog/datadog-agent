@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package reorderer TODO comment
 package reorderer
 
 import (

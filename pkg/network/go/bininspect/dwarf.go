@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package bininspect TODO comment
 package bininspect
 
 import (

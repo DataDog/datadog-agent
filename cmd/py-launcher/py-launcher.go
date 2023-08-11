@@ -5,6 +5,7 @@
 
 //go:build python
 
+// Package main TODO comment
 package main
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package selftests TODO comment
 package selftests
 
 import (

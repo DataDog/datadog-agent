@@ -5,6 +5,7 @@
 
 //go:build linux && !linux_bpf
 
+// Package constantfetch TODO comment
 package constantfetch
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package tests TODO comment
 package tests
 
 import (

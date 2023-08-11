@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package cgroup TODO comment
 package cgroup
 
 import (

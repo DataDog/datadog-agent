@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package events TODO comment
 package events
 
 import (

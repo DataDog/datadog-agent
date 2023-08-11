@@ -5,6 +5,7 @@
 
 //go:build cgo && linux
 
+// Package ebpf TODO comment
 package ebpf
 
 import (

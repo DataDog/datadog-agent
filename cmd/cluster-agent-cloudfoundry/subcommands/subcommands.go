@@ -5,6 +5,7 @@
 
 //go:build !windows && clusterchecks
 
+// Package subcommands TODO comment
 package subcommands
 
 import (
