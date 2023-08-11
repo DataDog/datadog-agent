@@ -155,9 +155,9 @@ func testLoadCustomCheck(t *testing.T) {
 	runtime.SetFinalizer(check, nil)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "fake_check", check.(*PythonCheck).ModuleName)
-	assert.Equal(t, "unversioned", check.(*PythonCheck).version)
-	assert.Equal(t, C.get_class_py_class, check.(*PythonCheck).class)
+	assert.Equal(t, "fake_check", check.(*Check).ModuleName)
+	assert.Equal(t, "unversioned", check.(*Check).version)
+	assert.Equal(t, C.get_class_py_class, check.(*Check).class)
 	// test we call get_attr_string on the module
 	assert.Equal(t, C.get_attr_string_py_class, C.get_class_py_module)
 }
@@ -192,9 +192,9 @@ func testLoadWheelCheck(t *testing.T) {
 	runtime.SetFinalizer(check, nil)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "fake_check", check.(*PythonCheck).ModuleName)
-	assert.Equal(t, "1.2.3", check.(*PythonCheck).version)
-	assert.Equal(t, C.get_class_dd_wheel_py_class, check.(*PythonCheck).class)
+	assert.Equal(t, "fake_check", check.(*Check).ModuleName)
+	assert.Equal(t, "1.2.3", check.(*Check).version)
+	assert.Equal(t, C.get_class_dd_wheel_py_class, check.(*Check).class)
 	// test we call get_attr_string on the module
 	assert.Equal(t, C.get_attr_string_py_class, C.get_class_dd_wheel_py_module)
 }

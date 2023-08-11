@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-// SyscallsMonitor defines an approver monitor
-type SyscallsMonitor struct {
+// Monitor defines an approver monitor
+type Monitor struct {
 	statsdClient statsd.ClientInterface
 	stats        *lib.Map
 	prevStats    [model.MaxAllEventType]uint32
@@ -30,7 +30,7 @@ type SyscallsMonitor struct {
 }
 
 // SendStats send stats
-func (d *SyscallsMonitor) SendStats() error {
+func (d *Monitor) SendStats() error {
 	iterator := d.stats.Iterate()
 	statsAcrossAllCPUs := make([]uint32, d.numCPU)
 	statsByEventType := make([]uint32, model.MaxAllEventType)
@@ -67,14 +67,14 @@ func (d *SyscallsMonitor) SendStats() error {
 	return nil
 }
 
-// NewSyscallsMonitor returns a new SyscallsMonitor
-func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*SyscallsMonitor, error) {
+// NewSyscallsMonitor returns a new Monitor
+func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	monitor := &SyscallsMonitor{
+	monitor := &Monitor{
 		statsdClient: statsdClient,
 		numCPU:       numCPU,
 	}

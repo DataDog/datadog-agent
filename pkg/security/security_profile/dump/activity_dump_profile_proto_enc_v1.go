@@ -25,7 +25,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	output := proto.SecurityProfile{
 		Status:   uint32(model.AnomalyDetection),
 		Version:  security_profile.LocalProfileVersion,
-		Metadata: mtdt.MetadataToProto(&input.Metadata),
+		Metadata: mtdt.ToProto(&input.Metadata),
 		Syscalls: input.ActivityTree.ComputeSyscallsList(),
 		Tags:     make([]string, len(input.Tags)),
 		Tree:     activity_tree.ActivityTreeToProto(input.ActivityTree),

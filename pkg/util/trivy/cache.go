@@ -49,7 +49,7 @@ func NewCustomBoltCache(cacheDir string, maxCacheEntries int, maxDiskSize int) (
 	if err != nil {
 		return nil, &StubCacheCleaner{}, err
 	}
-	trivyCache := &TrivyCache{Cache: cache}
+	trivyCache := &TCache{Cache: cache}
 	return trivyCache, NewTrivyCacheCleaner(trivyCache), nil
 }
 
@@ -100,28 +100,28 @@ type Cache interface {
 	Len() int
 }
 
-// TrivyCache holds a generic Cache and implements cache.Cache from Trivy.
-type TrivyCache struct {
+// TCache holds a generic Cache and implements cache.Cache from Trivy.
+type TCache struct {
 	Cache Cache
 }
 
-// TrivyCacheCleaner is a cache cleaner for a TrivyCache instance. It holds a map
+// TCacheCleaner is a cache cleaner for a Cache instance. It holds a map
 // that keeps track of all the entities using a given key.
-type TrivyCacheCleaner struct {
+type TCacheCleaner struct {
 	cachedKeysForEntity map[string][]string
-	target              *TrivyCache
+	target              *TCache
 }
 
-// NewTrivyCacheCleaner creates a new instance of TrivyCacheCleaner and returns a pointer to it.
-func NewTrivyCacheCleaner(target *TrivyCache) *TrivyCacheCleaner {
-	return &TrivyCacheCleaner{
+// NewTrivyCacheCleaner creates a new instance of TCacheCleaner and returns a pointer to it.
+func NewTrivyCacheCleaner(target *TCache) *TCacheCleaner {
+	return &TCacheCleaner{
 		cachedKeysForEntity: make(map[string][]string),
 		target:              target,
 	}
 }
 
 // Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
-func (c *TrivyCacheCleaner) Clean() error {
+func (c *TCacheCleaner) Clean() error {
 	if workloadmeta.GetGlobalStore() == nil {
 		return nil
 	}
@@ -149,24 +149,24 @@ func (c *TrivyCacheCleaner) Clean() error {
 }
 
 // setKeysForEntity implements CacheCleaner#setKeysForEntity.
-func (c *TrivyCacheCleaner) setKeysForEntity(entity string, cachedKeys []string) {
+func (c *TCacheCleaner) setKeysForEntity(entity string, cachedKeys []string) {
 	c.cachedKeysForEntity[entity] = cachedKeys
 }
 
-// cachedObject describes an object that can be stored with TrivyCache
+// cachedObject describes an object that can be stored with TCache
 type cachedObject interface {
 	types.ArtifactInfo | types.BlobInfo
 }
 
-// NewTrivyCache creates a new TrivyCache instance with the provided Cache.
-func NewTrivyCache(cache Cache) *TrivyCache {
-	return &TrivyCache{
+// NewTrivyCache creates a new TCache instance with the provided Cache.
+func NewTrivyCache(cache Cache) *TCache {
+	return &TCache{
 		Cache: cache,
 	}
 }
 
-// trivyCachePut stores the provided cachedObject in the TrivyCache with the provided key.
-func trivyCachePut[T cachedObject](cache *TrivyCache, id string, info T) error {
+// trivyCachePut stores the provided cachedObject in the TCache with the provided key.
+func trivyCachePut[T cachedObject](cache *TCache, id string, info T) error {
 	objectBytes, err := json.Marshal(info)
 	if err != nil {
 		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
@@ -175,7 +175,7 @@ func trivyCachePut[T cachedObject](cache *TrivyCache, id string, info T) error {
 }
 
 // trivyCacheGet retrieves the object stored with the provided key.
-func trivyCacheGet[T cachedObject](cache *TrivyCache, id string) (T, error) {
+func trivyCacheGet[T cachedObject](cache *TCache, id string) (T, error) {
 	rawValue, err := cache.Cache.Get(id)
 	var empty T
 
@@ -192,7 +192,7 @@ func trivyCacheGet[T cachedObject](cache *TrivyCache, id string) (T, error) {
 }
 
 // MissingBlobs Implements cache.Cache
-func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
+func (c *TCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
 	var missingBlobIDs []string
 	for _, blobID := range blobIDs {
 		if ok := c.Cache.Contains(blobID); !ok {
@@ -206,38 +206,38 @@ func (c *TrivyCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []
 }
 
 // PutArtifact Implements cache.Cache
-func (c *TrivyCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
+func (c *TCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) error {
 	return trivyCachePut(c, artifactID, artifactInfo)
 }
 
 // PutBlob Implements cache.Cache
-func (c *TrivyCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
+func (c *TCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 	return trivyCachePut(c, blobID, blobInfo)
 }
 
 // DeleteBlobs Implements cache.CacheDeleteBlobs does nothing because the cache cleaning logic is
 // managed by CacheCleaner
-func (c *TrivyCache) DeleteBlobs(blobIDs []string) error {
+func (c *TCache) DeleteBlobs(blobIDs []string) error {
 	return nil
 }
 
 // Clear Implements cache.Cache
-func (c *TrivyCache) Clear() error {
+func (c *TCache) Clear() error {
 	return c.Cache.Clear()
 }
 
 // Close Implements cache.Cache
-func (c *TrivyCache) Close() error {
+func (c *TCache) Close() error {
 	return c.Cache.Close()
 }
 
 // GetArtifact Implements cache.Cache
-func (c *TrivyCache) GetArtifact(id string) (types.ArtifactInfo, error) {
+func (c *TCache) GetArtifact(id string) (types.ArtifactInfo, error) {
 	return trivyCacheGet[types.ArtifactInfo](c, id)
 }
 
 // GetBlob Implements cache.Cache
-func (c *TrivyCache) GetBlob(id string) (types.BlobInfo, error) {
+func (c *TCache) GetBlob(id string) (types.BlobInfo, error) {
 	return trivyCacheGet[types.BlobInfo](c, id)
 }
 

@@ -21,20 +21,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-// CGroupEvent exported type should have comment or be unexported
-type CGroupEvent int
+// Event exported type should have comment or be unexported
+type Event int
 
 const (
 	// WorkloadSelectorResolved is used to notify that a new cgroup with a resolved workload selector is ready
-	WorkloadSelectorResolved CGroupEvent = iota
+	WorkloadSelectorResolved Event = iota
 	// CGroupDeleted is used to notify that a cgroup was deleted
 	CGroupDeleted
 	// CGroupMaxEvent is used cap the event ID
 	CGroupMaxEvent
 )
 
-// CGroupListener is used to propagate CGroup events
-type CGroupListener func(workload *cgroupModel.CacheEntry)
+// Listener is used to propagate CGroup events
+type Listener func(workload *cgroupModel.CacheEntry)
 
 // Resolver defines a cgroup monitor
 type Resolver struct {
@@ -44,7 +44,7 @@ type Resolver struct {
 	workloadsWithoutTags chan *cgroupModel.CacheEntry
 
 	listenersLock sync.Mutex
-	listeners     map[CGroupEvent][]CGroupListener
+	listeners     map[Event][]Listener
 }
 
 // NewResolver returns a new cgroups monitor
@@ -52,7 +52,7 @@ func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
 	cr := &Resolver{
 		tagsResolver:         tagsResolver,
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
-		listeners:            make(map[CGroupEvent][]CGroupListener),
+		listeners:            make(map[Event][]Listener),
 	}
 	workloads, err := simplelru.NewLRU(1024, func(key string, value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
@@ -97,9 +97,9 @@ func (cr *Resolver) Start(ctx context.Context) {
 }
 
 // RegisterListener registers a CGroup event listener
-func (cr *Resolver) RegisterListener(event CGroupEvent, listener CGroupListener) error {
+func (cr *Resolver) RegisterListener(event Event, listener Listener) error {
 	if event >= CGroupMaxEvent || event < 0 {
-		return fmt.Errorf("invalid CGroupEvent: %v", event)
+		return fmt.Errorf("invalid Event: %v", event)
 	}
 
 	cr.listenersLock.Lock()
@@ -108,7 +108,7 @@ func (cr *Resolver) RegisterListener(event CGroupEvent, listener CGroupListener)
 	if cr.listeners != nil {
 		cr.listeners[event] = append(cr.listeners[event], listener)
 	} else {
-		return fmt.Errorf("a CGroupListener was inserted before initialization")
+		return fmt.Errorf("a Listener was inserted before initialization")
 	}
 	return nil
 }

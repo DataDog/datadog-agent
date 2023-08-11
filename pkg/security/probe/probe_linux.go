@@ -101,7 +101,7 @@ type PlatformProbe struct {
 
 	// Approvers / discarders section
 	Erpc                           *erpc.ERPC
-	erpcRequest                    *erpc.ERPCRequest
+	erpcRequest                    *erpc.Request
 	inodeDiscarders                *inodeDiscarders
 	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
@@ -1416,7 +1416,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			approvers:          make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:     ebpf.NewDefaultOptions(),
 			Erpc:               nerpc,
-			erpcRequest:        &erpc.ERPCRequest{},
+			erpcRequest:        &erpc.Request{},
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
 			useFentry:          config.Probe.EventStreamUseFentry,
 		},
@@ -1625,7 +1625,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
 
-	resolversOpts := resolvers.ResolversOpts{
+	resolversOpts := resolvers.Opts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
 		UseRingBuffer:         useRingBuffers,

@@ -29,7 +29,7 @@ import (
 type OrderedPerfMap struct {
 	perfMap          *manager.PerfMap
 	lostEventCounter eventstream.LostEventCounter
-	reordererMonitor *ReordererMonitor
+	reordererMonitor *Monitor
 	reOrderer        *ReOrderer
 	recordPool       *RecordPool
 }
@@ -105,7 +105,7 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdCli
 			handler(record.CPU, record.RawSample)
 		},
 		ExtractEventInfo,
-		ReOrdererOpts{
+		Opts{
 			QueueSize:       10000,
 			Rate:            50 * time.Millisecond,
 			Retention:       5,

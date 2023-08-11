@@ -78,12 +78,12 @@ func init() {
 	}
 }
 
-// PythonCheckLoader is a specific loader for checks living in Python modules
-type PythonCheckLoader struct{}
+// CheckLoader is a specific loader for checks living in Python modules
+type CheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader() (*PythonCheckLoader, error) {
-	return &PythonCheckLoader{}, nil
+func NewPythonCheckLoader() (*CheckLoader, error) {
+	return &CheckLoader{}, nil
 }
 
 func getRtLoaderError() error {
@@ -95,13 +95,13 @@ func getRtLoaderError() error {
 }
 
 // Name returns Python loader name
-func (cl *PythonCheckLoader) Name() string {
+func (cl *CheckLoader) Name() string {
 	return "python"
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (cl *CheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
@@ -217,7 +217,7 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 	return c, nil
 }
 
-func (cl *PythonCheckLoader) String() string {
+func (cl *CheckLoader) String() string {
 	return "Python Check Loader"
 }
 

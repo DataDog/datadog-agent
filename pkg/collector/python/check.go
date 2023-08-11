@@ -38,8 +38,8 @@ char *getStringAddr(char **array, unsigned int idx);
 */
 import "C"
 
-// PythonCheck represents a Python check, implements `Check` interface
-type PythonCheck struct {
+// Check represents a Python check, implements `Check` interface
+type Check struct {
 	id             checkid.ID
 	version        string
 	instance       *C.rtloader_pyobject_t
@@ -59,8 +59,8 @@ type diagnosisJSONSerWrap struct {
 	RawError string
 }
 
-// NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+// NewPythonCheck conveniently creates a Check instance
+func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*Check, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, er
 	C.rtloader_incref(rtloader, class) // own the ref
 	glock.unlock()
 
-	pyCheck := &PythonCheck{
+	pyCheck := &Check{
 		ModuleName:   name,
 		class:        class,
 		interval:     defaults.DefaultCheckInterval,
@@ -81,7 +81,7 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, er
 	return pyCheck, nil
 }
 
-func (c *PythonCheck) runCheck(commitMetrics bool) error {
+func (c *Check) runCheck(commitMetrics bool) error {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -119,21 +119,21 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 }
 
 // Run a Python check
-func (c *PythonCheck) Run() error {
+func (c *Check) Run() error {
 	return c.runCheck(true)
 }
 
 // RunSimple runs a Python check without sending data to the aggregator
-func (c *PythonCheck) RunSimple() error {
+func (c *Check) RunSimple() error {
 	return c.runCheck(false)
 }
 
 // Stop does nothing
-func (c *PythonCheck) Stop() {}
+func (c *Check) Stop() {}
 
 // Cancel signals to a python check that he can free all internal resources and
 // deregisters the sender
-func (c *PythonCheck) Cancel() {
+func (c *Check) Cancel() {
 	gstate, err := newStickyLock()
 	if err != nil {
 		log.Warnf("failed to cancel check %s: %s", c.id, err)
@@ -148,44 +148,44 @@ func (c *PythonCheck) Cancel() {
 }
 
 // String representation (for debug and logging)
-func (c *PythonCheck) String() string {
+func (c *Check) String() string {
 	return c.ModuleName
 }
 
 // Version returns the version of the check if load from a python wheel
-func (c *PythonCheck) Version() string {
+func (c *Check) Version() string {
 	return c.version
 }
 
 // IsTelemetryEnabled returns if the telemetry is enabled for this check
-func (c *PythonCheck) IsTelemetryEnabled() bool {
+func (c *Check) IsTelemetryEnabled() bool {
 	return c.telemetry
 }
 
 // ConfigSource returns the source of the configuration for this check
-func (c *PythonCheck) ConfigSource() string {
+func (c *Check) ConfigSource() string {
 	return c.source
 }
 
 // InitConfig returns the init_config configuration for the check.
-func (c *PythonCheck) InitConfig() string {
+func (c *Check) InitConfig() string {
 	return c.initConfig
 }
 
 // InstanceConfig returns the instance configuration for the check.
-func (c *PythonCheck) InstanceConfig() string {
+func (c *Check) InstanceConfig() string {
 	return c.instanceConfig
 }
 
 // GetWarnings grabs the last warnings from the struct
-func (c *PythonCheck) GetWarnings() []error {
+func (c *Check) GetWarnings() []error {
 	warnings := c.lastWarnings
 	c.lastWarnings = []error{}
 	return warnings
 }
 
 // getPythonWarnings grabs the last warnings from the python check
-func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
+func (c *Check) getPythonWarnings(gstate *stickyLock) []error {
 	/**
 	This function is run with the GIL locked by runCheck
 	**/
@@ -215,7 +215,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
@@ -322,7 +322,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 }
 
 // GetSenderStats returns the stats from the last run of the check
-func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
+func (c *Check) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
@@ -331,17 +331,17 @@ func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
 }
 
 // Interval returns the scheduling time for the check
-func (c *PythonCheck) Interval() time.Duration {
+func (c *Check) Interval() time.Duration {
 	return c.interval
 }
 
 // ID returns the ID of the check
-func (c *PythonCheck) ID() checkid.ID {
+func (c *Check) ID() checkid.ID {
 	return c.id
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	// Lock the GIL and release it at the end of the run (will crash otherwise)
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -393,11 +393,11 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
-// by the PythonCheck.
-func pythonCheckFinalizer(c *PythonCheck) {
+// by the Check.
+func pythonCheckFinalizer(c *Check) {
 	// Run in a separate goroutine because acquiring the python lock might take some time,
 	// and we're in a finalizer
-	go func(c *PythonCheck) {
+	go func(c *Check) {
 		log.Debugf("Running finalizer for check %s", c.id)
 
 		glock, err := newStickyLock() // acquire lock to call DecRef

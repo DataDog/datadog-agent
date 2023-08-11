@@ -22,7 +22,7 @@ func TestOrder(t *testing.T) {
 	heap := &reOrdererHeap{
 		pool: &reOrdererNodePool{},
 	}
-	metric := ReOrdererMetric{}
+	metric := Metric{}
 
 	for i := 0; i != 200; i++ {
 		n := rand.Int()%254 + 1
@@ -41,7 +41,7 @@ func TestOrder(t *testing.T) {
 			assert.GreaterOrEqual(t, record.RawSample[0], last)
 		}
 		last = record.RawSample[0]
-	}, 1, &metric, &ReOrdererOpts{})
+	}, 1, &metric, &Opts{})
 
 	assert.Equal(t, 200, count)
 }
@@ -50,7 +50,7 @@ func TestOrderRetention(t *testing.T) {
 	heap := &reOrdererHeap{
 		pool: &reOrdererNodePool{},
 	}
-	metric := ReOrdererMetric{}
+	metric := Metric{}
 
 	for i := 0; i != 90; i++ {
 		record := perf.Record{
@@ -61,11 +61,11 @@ func TestOrderRetention(t *testing.T) {
 	}
 
 	var count int
-	heap.dequeue(func(record *perf.Record) { count++ }, 1, &metric, &ReOrdererOpts{})
+	heap.dequeue(func(record *perf.Record) { count++ }, 1, &metric, &Opts{})
 	assert.Equal(t, 30, count)
-	heap.dequeue(func(record *perf.Record) { count++ }, 2, &metric, &ReOrdererOpts{})
+	heap.dequeue(func(record *perf.Record) { count++ }, 2, &metric, &Opts{})
 	assert.Equal(t, 60, count)
-	heap.dequeue(func(record *perf.Record) { count++ }, 3, &metric, &ReOrdererOpts{})
+	heap.dequeue(func(record *perf.Record) { count++ }, 3, &metric, &Opts{})
 	assert.Equal(t, 90, count)
 }
 
@@ -73,7 +73,7 @@ func TestOrderGeneration(t *testing.T) {
 	heap := &reOrdererHeap{
 		pool: &reOrdererNodePool{},
 	}
-	metric := ReOrdererMetric{}
+	metric := Metric{}
 
 	record1 := perf.Record{
 		RawSample: []byte{byte(10)},
@@ -86,10 +86,10 @@ func TestOrderGeneration(t *testing.T) {
 	heap.enqueue(&record2, uint64(1), uint64(2), &metric)
 
 	var data []byte
-	heap.dequeue(func(record *perf.Record) { data = record.RawSample }, 1, &metric, &ReOrdererOpts{})
+	heap.dequeue(func(record *perf.Record) { data = record.RawSample }, 1, &metric, &Opts{})
 	assert.Equal(t, 1, int(data[0]))
 
-	heap.dequeue(func(record *perf.Record) { data = record.RawSample }, 2, &metric, &ReOrdererOpts{})
+	heap.dequeue(func(record *perf.Record) { data = record.RawSample }, 2, &metric, &Opts{})
 	assert.Equal(t, 10, int(data[0]))
 }
 
@@ -112,7 +112,7 @@ func TestOrderRate(t *testing.T) {
 				Timestamp: uint64(record.RawSample[1]),
 			}, nil
 		},
-		ReOrdererOpts{
+		Opts{
 			QueueSize:  100,
 			Rate:       rate,
 			Retention:  uint64(retention),

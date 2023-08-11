@@ -49,7 +49,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		}
 	}()
 
-	opts := kernel.KernelHeaderOptions{
+	opts := kernel.HeaderOptions{
 		DownloadEnabled: config.EnableKernelHeaderDownload,
 		Dirs:            config.KernelHeadersDirs,
 		DownloadDir:     config.KernelHeadersDownloadDir,

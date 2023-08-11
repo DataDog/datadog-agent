@@ -53,18 +53,18 @@ func (r *ScanRequest) ID() string {
 	return r.ImageMeta.ID
 }
 
-// ContainerdCollector exported type should have comment or be unexported
-type ContainerdCollector struct {
+// Collector exported type should have comment or be unexported
+type Collector struct {
 	trivyCollector *trivy.Collector
 }
 
 // CleanCache exported method should have comment or be unexported
-func (c *ContainerdCollector) CleanCache() error {
+func (c *Collector) CleanCache() error {
 	return c.trivyCollector.GetCacheCleaner().Clean()
 }
 
 // Init exported method should have comment or be unexported
-func (c *ContainerdCollector) Init(cfg config.Config) error {
+func (c *Collector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (c *ContainerdCollector) Init(cfg config.Config) error {
 }
 
 // Scan exported method should have comment or be unexported
-func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	containerdScanRequest, ok := request.(*ScanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
@@ -113,5 +113,5 @@ func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest
 }
 
 func init() {
-	collectors.RegisterCollector(collectorName, &ContainerdCollector{})
+	collectors.RegisterCollector(collectorName, &Collector{})
 }

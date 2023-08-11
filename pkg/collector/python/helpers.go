@@ -49,19 +49,19 @@ type stickyLock struct {
 	locked *atomic.Bool
 }
 
-// PythonStatsEntry are entries for specific object type memory usage
-type PythonStatsEntry struct {
+// StatsEntry are entries for specific object type memory usage
+type StatsEntry struct {
 	Reference string
 	NObjects  int
 	Size      int
 }
 
-// PythonStats contains python memory statistics
-type PythonStats struct {
+// Stats contains python memory statistics
+type Stats struct {
 	Type     string
 	NObjects int
 	Size     int
-	Entries  []*PythonStatsEntry
+	Entries  []*StatsEntry
 }
 
 const (
@@ -167,7 +167,7 @@ func GetPythonIntegrationList() ([]string, error) {
 }
 
 // GetPythonInterpreterMemoryUsage collects a python interpreter memory usage snapshot
-func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
+func GetPythonInterpreterMemoryUsage() ([]*Stats, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -189,7 +189,7 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		return nil, fmt.Errorf("Could not Unmarshal python interpreter memory usage payload: %s", err)
 	}
 
-	myPythonStats := []*PythonStats{}
+	myPythonStats := []*Stats{}
 	// Let's iterate map
 	for entryName, value := range stats {
 		entrySummary := value.(map[interface{}]interface{})
@@ -197,11 +197,11 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		size := entrySummary["sz"].(int)
 		entries := entrySummary["entries"].([]interface{})
 
-		pyStat := &PythonStats{
+		pyStat := &Stats{
 			Type:     entryName.(string),
 			NObjects: num,
 			Size:     size,
-			Entries:  []*PythonStatsEntry{},
+			Entries:  []*StatsEntry{},
 		}
 
 		for _, entry := range entries {
@@ -211,7 +211,7 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 			refSz := contents[2].(int)
 
 			// add to list
-			pyEntry := &PythonStatsEntry{
+			pyEntry := &StatsEntry{
 				Reference: ref,
 				NObjects:  refNum,
 				Size:      refSz,

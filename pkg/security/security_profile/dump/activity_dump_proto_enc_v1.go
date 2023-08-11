@@ -25,7 +25,7 @@ func activityDumpToProto(ad *ActivityDump) *adproto.SecDump {
 		Service: ad.Service,
 		Source:  ad.Source,
 
-		Metadata: mtdt.MetadataToProto(&ad.Metadata),
+		Metadata: mtdt.ToProto(&ad.Metadata),
 
 		Tags: make([]string, len(ad.Tags)),
 		Tree: activity_tree.ActivityTreeToProto(ad.ActivityTree),

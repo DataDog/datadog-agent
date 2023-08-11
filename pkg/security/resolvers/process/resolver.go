@@ -100,7 +100,7 @@ type Resolver struct {
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
 
-	processCacheEntryPool *ProcessCacheEntryPool
+	processCacheEntryPool *CacheEntryPool
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -108,25 +108,25 @@ type Resolver struct {
 	exitedQueue []uint32
 }
 
-// ProcessCacheEntryPool defines a pool for process entry allocations
-type ProcessCacheEntryPool struct {
+// CacheEntryPool defines a pool for process entry allocations
+type CacheEntryPool struct {
 	pool *sync.Pool
 }
 
 // Get returns a cache entry
-func (p *ProcessCacheEntryPool) Get() *model.ProcessCacheEntry {
+func (p *CacheEntryPool) Get() *model.ProcessCacheEntry {
 	return p.pool.Get().(*model.ProcessCacheEntry)
 }
 
 // Put returns a cache entry
-func (p *ProcessCacheEntryPool) Put(pce *model.ProcessCacheEntry) {
+func (p *CacheEntryPool) Put(pce *model.ProcessCacheEntry) {
 	pce.Reset()
 	p.pool.Put(pce)
 }
 
-// NewProcessCacheEntryPool returns a new ProcessCacheEntryPool pool
-func NewProcessCacheEntryPool(p *Resolver) *ProcessCacheEntryPool {
-	pcep := ProcessCacheEntryPool{pool: &sync.Pool{}}
+// NewProcessCacheEntryPool returns a new CacheEntryPool pool
+func NewProcessCacheEntryPool(p *Resolver) *CacheEntryPool {
+	pcep := CacheEntryPool{pool: &sync.Pool{}}
 
 	pcep.pool.New = func() interface{} {
 		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {

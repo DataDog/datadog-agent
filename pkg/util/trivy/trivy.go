@@ -315,7 +315,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		return nil, err
 	}
 
-	return &TrivyReport{
+	return &Report{
 		Report:    trivyReport,
 		marshaler: c.marshaler,
 	}, nil

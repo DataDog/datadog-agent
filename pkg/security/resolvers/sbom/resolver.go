@@ -43,7 +43,7 @@ const maxSBOMGenerationRetries = 3
 type SBOM struct {
 	sync.RWMutex
 
-	report *trivy.TrivyReport
+	report *trivy.Report
 	files  map[string]*Package
 
 	Host        string
@@ -218,7 +218,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
-	trivyReport, ok := result.Report.(*trivy.TrivyReport)
+	trivyReport, ok := result.Report.(*trivy.Report)
 	if !ok {
 		return fmt.Errorf("failed to convert report for %s", root)
 	}

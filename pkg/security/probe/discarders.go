@@ -108,12 +108,12 @@ var InvalidDiscarders = map[eval.Field][]string{
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
-	var req erpc.ERPCRequest
+	var req erpc.Request
 	req.OP = erpc.BumpDiscardersRevision
 	return e.Request(&req)
 }
 
-func marshalDiscardHeader(req *erpc.ERPCRequest, eventType model.EventType, timeout uint64) int {
+func marshalDiscardHeader(req *erpc.Request, eventType model.EventType, timeout uint64) int {
 	model.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
 	model.ByteOrder.PutUint64(req.Data[8:16], timeout)
 
@@ -126,7 +126,7 @@ type pidDiscarders struct {
 }
 
 //nolint:deadcode,unused
-func (p *pidDiscarders) discardWithTimeout(req *erpc.ERPCRequest, eventType model.EventType, pid uint32, timeout int64) error {
+func (p *pidDiscarders) discardWithTimeout(req *erpc.Request, eventType model.EventType, pid uint32, timeout int64) error {
 	req.OP = erpc.DiscardPidOp
 	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
 	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
@@ -228,7 +228,7 @@ func (id *inodeDiscarders) recentlyAdded(mountID uint32, inode uint64, timestamp
 	entry.Timestamp = timestamp
 }
 
-func (id *inodeDiscarders) discardInode(req *erpc.ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
+func (id *inodeDiscarders) discardInode(req *erpc.Request, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	var isLeafInt uint32
 	if isLeaf {
 		isLeafInt = 1
@@ -426,7 +426,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
@@ -561,7 +561,7 @@ type DiscardersDump struct {
 	Date   time.Time                           `yaml:"date"`
 	Inodes []InodeDiscarderDump                `yaml:"inodes"`
 	Pids   []PidDiscarderDump                  `yaml:"pids"`
-	Stats  map[string]discarder.DiscarderStats `yaml:"stats"`
+	Stats  map[string]discarder.Stats `yaml:"stats"`
 }
 
 func dumpPidDiscarders(resolver *dentry.Resolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
@@ -633,14 +633,14 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 	return dumps, nil
 }
 
-func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.DiscarderStats, error) {
+func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.Stats, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	stats := make(map[string]discarder.DiscarderStats)
-	perCpu := make([]discarder.DiscarderStats, numCPU)
+	stats := make(map[string]discarder.Stats)
+	perCpu := make([]discarder.Stats, numCPU)
 
 	var eventType uint32
 	for _, buffer := range buffers {
@@ -652,7 +652,7 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.DiscarderSta
 
 				entry, exists := stats[key]
 				if !exists {
-					stats[key] = discarder.DiscarderStats{
+					stats[key] = discarder.Stats{
 						DiscarderAdded: stat.DiscarderAdded,
 						EventDiscarded: stat.EventDiscarded,
 					}

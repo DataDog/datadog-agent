@@ -682,7 +682,7 @@ func testGetDiagnoses(t *testing.T) {
 }
 
 // NewPythonFakeCheck exported function should have comment or be unexported
-func NewPythonFakeCheck() (*PythonCheck, error) {
+func NewPythonFakeCheck() (*Check, error) {
 	c, err := NewPythonCheck("fake_check", nil)
 
 	// Remove check finalizer that may trigger race condition while testing

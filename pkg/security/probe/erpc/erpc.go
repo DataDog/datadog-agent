@@ -48,14 +48,14 @@ type ERPC struct {
 	fd int
 }
 
-// ERPCRequest defines a EPRC request
-type ERPCRequest struct {
+// Request defines a EPRC request
+type Request struct {
 	OP   uint8
 	Data [ERPCMaxDataSize]byte
 }
 
 // Request generates an ioctl syscall with the required request
-func (k *ERPC) Request(req *ERPCRequest) error {
+func (k *ERPC) Request(req *Request) error {
 	if req.OP == 0 {
 		return errors.New("no op provided")
 	}
