@@ -23,8 +23,8 @@ type GoDetector struct {
 	hostProc string
 }
 
-func NewGoDetector() *GoDetector {
-	return &GoDetector{hostProc: util.HostProc()}
+func NewGoDetector() GoDetector {
+	return GoDetector{hostProc: util.HostProc()}
 }
 
 // DetectLanguage allows for detecting if a process is a go process, and its version.
