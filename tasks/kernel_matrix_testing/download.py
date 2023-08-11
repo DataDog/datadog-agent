@@ -22,6 +22,10 @@ rootfs_amd64 = {
     "amzn2-kvm-2.0-amd64-5.4.qcow2",
     "amzn2-kvm-2.0-amd64-5.10.qcow2",
     "amzn2-kvm-2.0-amd64-5.15.qcow2",
+    "Fedora-Cloud-Base-35.amd64.qcow2",
+    "Fedora-Cloud-Base-36.amd64.qcow2",
+    "Fedora-Cloud-Base-37.amd64.qcow2",
+    "Fedora-Cloud-Base-38.amd64.qcow2",
 }
 
 rootfs_arm64 = {
@@ -33,6 +37,10 @@ rootfs_arm64 = {
     "amzn2-kvm-2.0-arm64-5.4.qcow2",
     "amzn2-kvm-2.0-arm64-5.10.qcow2",
     "amzn2-kvm-2.0-arm64-5.15.qcow2",
+    "Fedora-Cloud-Base-35.arm64.qcow2",
+    "Fedora-Cloud-Base-36.arm64.qcow2",
+    "Fedora-Cloud-Base-37.arm64.qcow2",
+    "Fedora-Cloud-Base-38.arm64.qcow2",
 }
 
 archs_mapping = {
@@ -51,8 +59,9 @@ def requires_update(rootfs_dir, image):
     sum_url = url_base + image + ".sum"
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
+    debug(f"[debug] new_sum: {new_sum}")
 
-    if not os.path.exists(f"{image}.sum"):
+    if not os.path.exists(os.path.join(rootfs_dir, f"{image}.sum")):
         return True
 
     with open(os.path.join(rootfs_dir, f"{image}.sum")) as f:
@@ -83,6 +92,10 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             debug(f"[debug] updating {f} from S3.")
             to_download.append(f)
 
+    if len(to_download) == 0:
+        info("[-] No update required for rootfs images")
+        return
+
     # download files to be updates
     fd, path = tempfile.mkstemp()
     try:
@@ -90,9 +103,9 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
                 # download package entry
-                tmp.write(url_base + f"{f}.tar.gz" + "\n")
+                tmp.write(url_base + f + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={f}.tar.gz\n")
+                tmp.write(f" out={f}\n")
                 # download sum entry
                 tmp.write(url_base + f"{f}.sum\n")
                 tmp.write(f" dir={rootfs_dir}\n")
@@ -107,20 +120,6 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             raise Exit("Failed to download image files")
     finally:
         os.remove(path)
-
-    # extract tar.gz files
-    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec tar xzvf $(basename {{}}) -C {rootfs_dir} \\;")
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx, rootfs_dir, backup_dir)
-        raise Exit("Failed to remove uncompress archives")
-
-    # remove tar.gz
-    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec rm -f {{}} \\;")
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx, rootfs_dir, backup_dir)
-        raise Exit("Failed to remove compressed archives")
 
     # set permissions
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \\;")
