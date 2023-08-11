@@ -74,6 +74,8 @@ func RunningAsWindowsService() bool {
 //
 // Run should be called as early as possible in the process initialization.
 // If called too late you may encounter service start timeout errors from SCM.
+// If the process exits without calling this function then SCM will erroneously
+// report a timeout error, regardless of how fast the process exits.
 //
 // SCM only gives services 30 seconds (by default) to respond after the process is created.
 // Specifically, this timeout refers to calling StartServiceCtrlDispatcher, which is called by
