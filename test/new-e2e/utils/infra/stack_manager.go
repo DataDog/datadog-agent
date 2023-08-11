@@ -116,11 +116,7 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 	}))
 
 	if err != nil {
-		_, errDestroy := stack.Destroy(ctx, optdestroy.ProgressStreams(os.Stderr), optdestroy.DebugLogging(debug.LoggingOptions{
-			LogToStdErr:   true,
-			FlowToPlugins: true,
-			LogLevel:      &loglevel,
-		}))
+		errDestroy := sm.deleteStack(ctx, name, stack)
 		if errDestroy != nil {
 			return stack, upResult, errors.Join(err, errDestroy)
 		}
