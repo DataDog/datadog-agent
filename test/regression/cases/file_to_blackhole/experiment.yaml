@@ -1,2 +1,11 @@
-erratic: true
 optimization_goal: egress_throughput
+erratic: true
+
+environment:
+  DD_TELEMETRY_ENABLED: true
+
+profiling_environment:
+  DD_INTERNAL_PROFILING_ENABLED: true
+  DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
+  DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+  DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
