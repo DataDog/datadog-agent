@@ -28,9 +28,8 @@ func TestNewValue(t *testing.T) {
 func TestNewErrorValue(t *testing.T) {
 	myErr := errors.New("this is an error")
 	value := NewErrorValue[int](myErr)
-	result, err := value.Value()
+	_, err := value.Value()
 	require.ErrorIs(t, err, myErr)
-	require.Equal(t, 0, result)
 }
 
 func TestNewValueFrom(t *testing.T) {
@@ -43,4 +42,22 @@ func TestNewValueFrom(t *testing.T) {
 	val, err := value.Value()
 	require.NoError(t, err)
 	require.Equal(t, 42, val)
+}
+
+func TestError(t *testing.T) {
+	value := NewValue(1)
+	require.NoError(t, value.Error())
+
+	myerr := fmt.Errorf("again an error !?")
+	errorValue := NewErrorValue[int](myerr)
+	require.ErrorIs(t, myerr, errorValue.Error())
+}
+
+func TestValueOrDefault(t *testing.T) {
+	value := NewValue(1)
+	val := value.ValueOrDefault()
+	require.Equal(t, 1, val)
+
+	value = NewErrorValue[int](fmt.Errorf("still an error"))
+	require.Empty(t, value.ValueOrDefault())
 }

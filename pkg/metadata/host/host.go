@@ -12,22 +12,21 @@ import (
 	"sync"
 	"time"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -45,16 +44,16 @@ type installInfo struct {
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
 func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
-	meta := getMeta(ctx, hostnameData)
+	meta := hostMetadataUtils.GetMeta(ctx, config.Datadog)
 	meta.Hostname = hostnameData.Hostname
 
 	p := &Payload{
 		Os:            osName,
 		AgentFlavor:   flavor.GetFlavor(),
-		PythonVersion: GetPythonVersion(),
+		PythonVersion: python.GetPythonInfo(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
-		HostTags:      GetHostTags(ctx, false),
+		HostTags:      hostMetadataUtils.GetHostTags(ctx, false, config.Datadog),
 		ContainerMeta: getContainerMeta(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(ctx),
 		LogsMeta:      getLogsMeta(),
@@ -78,61 +77,6 @@ func GetPayloadFromCache(ctx context.Context, hostnameData hostname.Data) *Paylo
 		return x.(*Payload)
 	}
 	return GetPayload(ctx, hostnameData)
-}
-
-// GetMeta grabs the metadata from the cache and returns it,
-// if the cache is empty, then it queries the information directly
-func GetMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
-	key := buildKey("meta")
-	if x, found := cache.Cache.Get(key); found {
-		return x.(*Meta)
-	}
-	return getMeta(ctx, hostnameData)
-}
-
-// GetPythonVersion returns the version string as provided by the embedded Python
-// interpreter.
-func GetPythonVersion() string {
-	// retrieve the Python version from the Agent cache
-	if x, found := cache.Cache.Get(cache.BuildAgentKey("pythonVersion")); found {
-		return x.(string)
-	}
-
-	return "n/a"
-}
-
-// getMeta grabs the information and refreshes the cache
-func getMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
-	osHostname, _ := os.Hostname()
-	tzname, _ := time.Now().Zone()
-	ec2Hostname, _ := ec2.GetHostname(ctx)
-	instanceID, _ := ec2.GetInstanceID(ctx)
-
-	var agentHostname string
-
-	if config.Datadog.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
-		agentHostname = hostnameData.Hostname
-	}
-
-	m := &Meta{
-		SocketHostname: osHostname,
-		Timezones:      []string{tzname},
-		SocketFqdn:     util.Fqdn(osHostname),
-		EC2Hostname:    ec2Hostname,
-		HostAliases:    cloudproviders.GetHostAliases(ctx),
-		InstanceID:     instanceID,
-		AgentHostname:  agentHostname,
-	}
-
-	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
-		m.ClusterName = finalClusterName
-	}
-
-	// Cache the metadata for use in other payload
-	key := buildKey("meta")
-	cache.Cache.Set(key, m, cache.NoExpiration)
-
-	return m
 }
 
 func getNetworkMeta(ctx context.Context) *NetworkMeta {
@@ -230,7 +174,7 @@ func buildKey(key string) string {
 }
 
 func getInstallInfoPath() string {
-	return path.Join(config.FileUsedDir(), "install_info")
+	return path.Join(configUtils.ConfFileDirectory(config.Datadog), "install_info")
 }
 
 func getInstallInfo(infoPath string) (*installInfo, error) {

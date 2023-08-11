@@ -205,6 +205,9 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		t := time.NewTimer(timeout)
 		for {
 			select {
+			case <-p.DoneCh:
+				// The oscap-io process has been terminated.
+				return
 			case <-t.C:
 				log.Warnf("oscap-io has been inactive for %s; exiting", timeout)
 				err := p.Kill()
@@ -239,7 +242,6 @@ func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
 	oscapIOs[p.File] = nil
-	close(p.ResultCh)
 	close(p.DoneCh)
 }
 
@@ -306,7 +308,16 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		case <-ctx.Done():
 			return nil
 		case <-c:
-			log.Warnf("timed out waiting for expected results")
+			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
+			// If no result has been received, it's likely for the oscap-io process to be stuck, so we kill it.
+			oscapIOsMu.Lock()
+			oscapIOs[p.File] = nil
+			oscapIOsMu.Unlock()
+			err := p.Kill()
+			if err != nil {
+				log.Warnf("failed to kill process: %v", err)
+			}
+			return nil
 		case err := <-p.ErrorCh:
 			log.Warnf("error: %v", err)
 			events = append(events, NewCheckError(XCCDFEvaluator, err, hostname, "host", rule, benchmark))

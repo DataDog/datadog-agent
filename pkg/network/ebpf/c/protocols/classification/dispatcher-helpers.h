@@ -79,11 +79,11 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
 }
 
 static __always_inline void dispatcher_delete_protocol_stack(conn_tuple_t *tuple, protocol_stack_t *stack) {
-        bool flipped = normalize_tuple(tuple);
-        delete_protocol_stack(tuple, stack, FLAG_SOCKET_FILTER_DELETION);
-        if (flipped) {
-            flip_tuple(tuple);
-        }
+    bool flipped = normalize_tuple(tuple);
+    delete_protocol_stack(tuple, stack, FLAG_SOCKET_FILTER_DELETION);
+    if (flipped) {
+        flip_tuple(tuple);
+    }
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
@@ -108,6 +108,10 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
+    if (tcp_termination) {
+        bpf_map_delete_elem(&connection_states, &skb_tup);
+    }
+
     protocol_stack_t *stack = get_protocol_stack(&skb_tup);
     if (!stack) {
         // should never happen, but it is required by the eBPF verifier
@@ -124,7 +128,6 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
         dispatcher_delete_protocol_stack(&skb_tup, stack);
-        stack = NULL;
     }
 
     if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {

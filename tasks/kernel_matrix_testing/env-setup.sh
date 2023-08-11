@@ -2,10 +2,12 @@
 
 set -eo xtrace
 
+DIR_NAME=$(dirname "$0")
+
 # Install dependencies
 
-apt update
-apt install -y \
+sudo apt update
+sudo apt install -y \
     aria2 \
     fio \
     socat \
@@ -17,18 +19,21 @@ apt install -y \
     libvirt-dev \
     python3-pip \
     nfs-kernel-server \
-    rpcbind
+    rpcbind \
+    ssh-askpass \
+    xsltproc
 
 if [ "$(uname -m )" == "aarch64" ]; then
-    apt install -y qemu-efi-aarch64
+    sudo apt install -y qemu-efi-aarch64
 fi
 
-systemctl start nfs-kernel-server.service
+sudo systemctl start nfs-kernel-server.service
 
-pip install -r tasks/kernel_matrix_testing/requirements.txt
+pip3 install -r "${DIR_NAME}"/requirements.txt
 
 curl -fsSL https://get.pulumi.com | sh
 
 
 # Pulumi Setup
+source ~/.bashrc
 pulumi login --local

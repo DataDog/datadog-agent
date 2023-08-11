@@ -39,27 +39,18 @@ const (
 
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
-	var extractors []metadata.Extractor
-	var wlmServer *workloadmeta.GRPCServer
-	if workloadmeta.Enabled(config) {
-		wlmExtractor := workloadmeta.NewWorkloadMetaExtractor(config)
-		srv := workloadmeta.NewGRPCServer(config, wlmExtractor)
-		err := srv.Start()
-		if err != nil {
-			log.Error("Failed to start the workload meta gRPC server:", err)
-		} else {
-			extractors = append(extractors, wlmExtractor)
-			wlmServer = srv
-		}
+	check := &ProcessCheck{
+		config:        config,
+		scrubber:      procutil.NewDefaultDataScrubber(),
+		lookupIdProbe: NewLookupIdProbe(config),
 	}
 
-	return &ProcessCheck{
-		config:             config,
-		scrubber:           procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:      NewLookupIdProbe(config),
-		extractors:         extractors,
-		workloadMetaServer: wlmServer,
+	if workloadmeta.Enabled(config) {
+		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
+		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
 	}
+
+	return check
 }
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
@@ -113,8 +104,10 @@ type ProcessCheck struct {
 
 	lookupIdProbe *LookupIdProbe
 
-	extractors         []metadata.Extractor
-	workloadMetaServer *workloadmeta.GRPCServer
+	extractors []metadata.Extractor
+
+	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaServer    *workloadmeta.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -147,6 +140,15 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.disallowList = initDisallowList(p.config)
 
 	p.initConnRates()
+
+	if workloadmeta.Enabled(p.config) {
+		err = p.workloadMetaServer.Start()
+		if err != nil {
+			_ = log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+		} else {
+			p.extractors = append(p.extractors, p.workloadMetaExtractor)
+		}
+	}
 	return nil
 }
 
@@ -218,10 +220,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, err
 	}
 
-	for _, extractor := range p.extractors {
-		extractor.Extract(procs)
-	}
-
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid := range procs {
@@ -245,6 +243,15 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
+
+	// Notify the workload meta extractor that the mapping between pid and cid has changed
+	if p.workloadMetaExtractor != nil {
+		p.workloadMetaExtractor.SetLastPidToCid(pidToCid)
+	}
+
+	for _, extractor := range p.extractors {
+		extractor.Extract(procs)
 	}
 
 	// Keep track of containers addresses
@@ -472,6 +479,7 @@ func formatCommand(fp *procutil.Process) *model.Command {
 		OnDisk: false, // TODO
 		Ppid:   fp.Ppid,
 		Exe:    fp.Exe,
+		Comm:   fp.Comm,
 	}
 }
 

@@ -7,10 +7,7 @@
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant
 // classification procedures on the same connection
-// Note that LRU maps were introduced in Kernel 4.10, but protocol
-// classification is supported by >= 4.7. For kernel releases within this range
-// we replace the LRU map by a regular HashMap during eBPF program load time.
-BPF_LRU_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
+BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
 
 static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;

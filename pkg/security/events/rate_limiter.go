@@ -22,13 +22,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var (
+const (
 	// Arbitrary default limit to prevent flooding.
 	defaultLimit = rate.Limit(10)
 	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
 	// flooding.
-	defaultBurst int = 40
+	defaultBurst = 40
+)
 
+var (
 	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
 		RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
 		AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
@@ -100,8 +102,8 @@ func (al *AnomalyDetectionLimiter) SwapStats() []utils.LimiterStat {
 }
 
 // NewAnomalyDetectionLimiter returns a new rate limiter which is bucketed by workload ID
-func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerDuration int, duration time.Duration) (*AnomalyDetectionLimiter, error) {
-	limiter, err := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerDuration, duration)
+func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerPeriod int, period time.Duration) (*AnomalyDetectionLimiter, error) {
+	limiter, err := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerPeriod, period)
 	if err != nil {
 		return nil, err
 	}
@@ -135,10 +137,10 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 		limiters[id] = limiter
 	}
 
-	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiter)
+	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiterPeriod)
 	if err != nil {
 		// should never happen, fallback to std limiter
-		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
+		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiterPeriod), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
 	} else {
 		limiters[AnomalyDetectionRuleID] = limiter
 	}

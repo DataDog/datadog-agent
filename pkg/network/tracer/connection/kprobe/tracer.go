@@ -12,13 +12,12 @@ import (
 	"fmt"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -205,15 +204,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 		undefinedProbes = append(undefinedProbes, protocolClassificationTailCalls[0].ProbeIdentificationPair)
 		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, protocolClassificationTailCalls...)
-
-		// Replace LRU map type by Hash map if kernel doesn't support it
-		if err := features.HaveMapType(ebpf.LRUHash); err != nil {
-			me := mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap]
-			me.Type = ebpf.Hash
-			me.EditorFlag |= manager.EditType
-			mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap] = me
-		}
-
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
@@ -328,11 +318,11 @@ func isCORETracerSupported() error {
 		return nil
 	}
 
-	hostInfo := host.GetStatusInformation()
+	platform := hostMetadataUtils.GetPlatformName()
 	// centos/redhat distributions we support
 	// can have kernel versions < 4, and
 	// CO-RE is supported there
-	if hostInfo.Platform == "centos" || hostInfo.Platform == "redhat" {
+	if platform == "centos" || platform == "redhat" {
 		return nil
 	}
 

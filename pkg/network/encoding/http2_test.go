@@ -112,7 +112,7 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 		out.EndpointAggregations[1].StatsByStatusCode[code] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
-	http2Encoder := newHTTP2Encoder(in)
+	http2Encoder := newHTTP2Encoder(in.HTTP2)
 	aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
@@ -174,7 +174,7 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 			key: http2ReqStats,
 		},
 	}
-	http2Encoder := newHTTP2Encoder(payload)
+	http2Encoder := newHTTP2Encoder(payload.HTTP2)
 	http2Aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, payload.Conns[0])
 
 	require.NotNil(t, http2Aggregations)
@@ -253,7 +253,7 @@ func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 		},
 	}
 
-	http2Encoder := newHTTP2Encoder(in)
+	http2Encoder := newHTTP2Encoder(in.HTTP2)
 
 	// assert that the first connection matching the HTTP2 data will get
 	// back a non-nil result
@@ -338,7 +338,7 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 
 		in.HTTP2[httpKeyWin] = http2Stats
 	}
-	http2Encoder := newHTTP2Encoder(in)
+	http2Encoder := newHTTP2Encoder(in.HTTP2)
 
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP2 stats

@@ -43,6 +43,7 @@ import (
 type ResolversOpts struct {
 	PathResolutionEnabled bool
 	TagsResolver          tags.Resolver
+	UseRingBuffer         bool
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -112,7 +113,8 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
 	}
 
-	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+	// don't use the redemption if the reorderer is not used
+	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true, UseRedemption: !opts.UseRingBuffer})
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +165,6 @@ func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
 		return err
 	}
-	r.MountResolver.Start(ctx)
 
 	if err := r.TagsResolver.Start(ctx); err != nil {
 		return err

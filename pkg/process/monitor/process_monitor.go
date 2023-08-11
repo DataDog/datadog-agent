@@ -15,6 +15,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,6 +35,46 @@ var (
 		processExitCallbacks: make(map[*ProcessCallback]struct{}, 0),
 	}
 )
+
+// processMonitorTelemetry
+type processMonitorTelemetry struct {
+	mg *telemetry.MetricGroup
+	// process monitor will process :
+	//  o events refer to netlink events received (not only exec and exit)
+	//  o exec process netlink events
+	//  o exit process netlink events
+	//  o restart the netlink connection
+	//
+	//  o reinit_failed is the number of failed re-initialisation after a netlink restart due to an error
+	//  o process_scan_failed would be > 0 if initial process scan failed
+	//  o callback_called numbers of callback called
+	events  *telemetry.Counter
+	exec    *telemetry.Counter
+	exit    *telemetry.Counter
+	restart *telemetry.Counter
+
+	reinitFailed      *telemetry.Counter
+	processScanFailed *telemetry.Counter
+	callbackExecuted  *telemetry.Counter
+}
+
+func newProcessMonitorTelemetry() processMonitorTelemetry {
+	metricGroup := telemetry.NewMetricGroup(
+		"usm.process.monitor",
+		telemetry.OptPrometheus,
+	)
+	return processMonitorTelemetry{
+		mg:      metricGroup,
+		events:  metricGroup.NewCounter("events"),
+		exec:    metricGroup.NewCounter("exec"),
+		exit:    metricGroup.NewCounter("exit"),
+		restart: metricGroup.NewCounter("restart"),
+
+		reinitFailed:      metricGroup.NewCounter("reinit_failed"),
+		processScanFailed: metricGroup.NewCounter("process_scan_failed"),
+		callbackExecuted:  metricGroup.NewCounter("callback_executed"),
+	}
+}
 
 // ProcessMonitor uses netlink process events like Exec and Exit and activate the registered callbacks for the relevant
 // events.
@@ -64,14 +105,10 @@ type ProcessMonitor struct {
 	processExitCallbacks      map[*ProcessCallback]struct{}
 	callbackRunner            chan func()
 
-	// monitor stats
-	eventCount     atomic.Uint32
-	execCount      atomic.Uint32
-	exitCount      atomic.Uint32
-	restartCounter atomic.Uint32
+	tel processMonitorTelemetry
 }
 
-type ProcessCallback func(pid int)
+type ProcessCallback func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
 //
@@ -106,7 +143,7 @@ func GetProcessMonitor() *ProcessMonitor {
 
 // handleProcessExec is a callback function called on a given pid that represents a new process.
 // we're iterating the relevant callbacks and trigger them.
-func (pm *ProcessMonitor) handleProcessExec(pid int) {
+func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 	pm.processExecCallbacksMutex.RLock()
 	defer pm.processExecCallbacksMutex.RUnlock()
 
@@ -118,7 +155,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid int) {
 
 // handleProcessExit is a callback function called on a given pid that represents an exit event.
 // we're iterating the relevant callbacks and trigger them.
-func (pm *ProcessMonitor) handleProcessExit(pid int) {
+func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 	pm.processExitCallbacksMutex.RLock()
 	defer pm.processExitCallbacksMutex.RUnlock()
 
@@ -153,6 +190,7 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 			defer pm.callbackRunnersWG.Done()
 			for call := range pm.callbackRunner {
 				if call != nil {
+					pm.tel.callbackExecuted.Add(1)
 					call()
 				}
 			}
@@ -176,6 +214,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 		pm.processMonitorWG.Done()
 	}()
 
+	maxChannelSize := 0
 	for {
 		select {
 		case <-pm.done:
@@ -185,31 +224,34 @@ func (pm *ProcessMonitor) mainEventLoop() {
 				return
 			}
 
-			pm.eventCount.Inc()
+			if maxChannelSize < len(pm.netlinkEventsChannel) {
+				maxChannelSize = len(pm.netlinkEventsChannel)
+			}
 
+			pm.tel.events.Add(1)
 			switch ev := event.Msg.(type) {
 			case *netlink.ExecProcEvent:
-				pm.execCount.Inc()
+				pm.tel.exec.Add(1)
 				// handleProcessExec locks a mutex to access the exec callbacks array, if it is empty, then we're
 				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
 				// Checking an atomic boolean, is an atomic operation, hence much faster.
 				if pm.hasExecCallbacks.Load() {
-					pm.handleProcessExec(int(ev.ProcessPid))
+					pm.handleProcessExec(ev.ProcessPid)
 				}
 			case *netlink.ExitProcEvent:
-				pm.exitCount.Inc()
+				pm.tel.exit.Add(1)
 				// handleProcessExit locks a mutex to access the exit callbacks array, if it is empty, then we're
 				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
 				// Checking an atomic boolean, is an atomic operation, hence much faster.
 				if pm.hasExitCallbacks.Load() {
-					pm.handleProcessExit(int(ev.ProcessPid))
+					pm.handleProcessExit(ev.ProcessPid)
 				}
 			}
 		case err, ok := <-pm.netlinkErrorsChannel:
 			if !ok {
 				return
 			}
-			pm.restartCounter.Inc()
+			pm.tel.restart.Add(1)
 			log.Errorf("process monitor error: %s", err)
 			log.Info("re-initializing process monitor")
 			pm.netlinkDoneChannel <- struct{}{}
@@ -219,11 +261,15 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			time.Sleep(50 * time.Millisecond)
 			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
 				log.Errorf("failed re-initializing process monitor: %s", err)
+				pm.tel.reinitFailed.Add(1)
 				return
 			}
 		case <-logTicker.C:
-			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; Channel size: %d; restart counter: %d",
-				pm.eventCount.Swap(0), pm.execCount.Swap(0), pm.exitCount.Swap(0), len(pm.netlinkEventsChannel), pm.restartCounter.Load())
+			log.Debugf("process monitor stats - %s; max channel size: %d / 2 minutes)",
+				pm.tel.mg.Summary(),
+				maxChannelSize,
+			)
+			maxChannelSize = 0
 		}
 	}
 }
@@ -238,6 +284,7 @@ func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
+			pm.tel = newProcessMonitorTelemetry()
 			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
 
@@ -263,12 +310,13 @@ func (pm *ProcessMonitor) Initialize() error {
 			// callback, no need to scan already running processes.
 			if execCallbacksLength > 0 {
 				handleProcessExecWrapper := func(pid int) error {
-					pm.handleProcessExec(pid)
+					pm.handleProcessExec(uint32(pid))
 					return nil
 				}
 				// Scanning already running processes
 				if err := util.WithAllProcs(util.GetProcRoot(), handleProcessExecWrapper); err != nil {
 					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
+					pm.tel.processScanFailed.Add(1)
 					return
 				}
 			}
@@ -281,7 +329,7 @@ func (pm *ProcessMonitor) Initialize() error {
 //
 // A callback can be registered only once, callback with a filter type (not ANY) must be registered before the matching
 // Exit callback.
-func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error) {
+func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) func() {
 	pm.processExecCallbacksMutex.Lock()
 	pm.hasExecCallbacks.Store(true)
 	pm.processExecCallbacks[&callback] = struct{}{}
@@ -293,11 +341,11 @@ func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error
 		delete(pm.processExecCallbacks, &callback)
 		pm.hasExecCallbacks.Store(len(pm.processExecCallbacks) > 0)
 		pm.processExecCallbacksMutex.Unlock()
-	}, nil
+	}
 }
 
 // SubscribeExit register an exit callback and returns unsubscribe function callback that removes the callback.
-func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) (func(), error) {
+func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) func() {
 	pm.processExitCallbacksMutex.Lock()
 	pm.hasExitCallbacks.Store(true)
 	pm.processExitCallbacks[&callback] = struct{}{}
@@ -309,7 +357,7 @@ func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) (func(), error
 		delete(pm.processExitCallbacks, &callback)
 		pm.hasExitCallbacks.Store(len(pm.processExitCallbacks) > 0)
 		pm.processExitCallbacksMutex.Unlock()
-	}, nil
+	}
 }
 
 // Stop decreasing the refcount, and if we reach 0 we terminate the main event loop.
@@ -324,12 +372,15 @@ func (pm *ProcessMonitor) Stop() {
 	// We can get here only once, if the refcount is zero.
 	if pm.done != nil {
 		close(pm.done)
+		pm.processMonitorWG.Wait()
 		pm.done = nil
 	}
-	pm.processMonitorWG.Wait()
+
 	// that's being done for testing purposes.
 	// As tests are running altogether, initOne and processMonitor are being created only once per compilation unit
 	// thus, the first test works without an issue, but the second test has troubles.
+	pm.processMonitorWG = sync.WaitGroup{}
+	pm.callbackRunnersWG = sync.WaitGroup{}
 	pm.initOnce = sync.Once{}
 	pm.processExecCallbacksMutex.Lock()
 	pm.processExecCallbacks = make(map[*ProcessCallback]struct{})
@@ -340,12 +391,12 @@ func (pm *ProcessMonitor) Stop() {
 }
 
 // FindDeletedProcesses returns the terminated PIDs from the given map.
-func FindDeletedProcesses[V any](pids map[int32]V) map[int32]struct{} {
-	existingPids := make(map[int32]struct{}, len(pids))
+func FindDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
+	existingPids := make(map[uint32]struct{}, len(pids))
 
 	procIter := func(pid int) error {
-		if _, exists := pids[int32(pid)]; exists {
-			existingPids[int32(pid)] = struct{}{}
+		if _, exists := pids[uint32(pid)]; exists {
+			existingPids[uint32(pid)] = struct{}{}
 		}
 		return nil
 	}
@@ -354,7 +405,7 @@ func FindDeletedProcesses[V any](pids map[int32]V) map[int32]struct{} {
 		return nil
 	}
 
-	res := make(map[int32]struct{}, len(pids)-len(existingPids))
+	res := make(map[uint32]struct{}, len(pids)-len(existingPids))
 	for pid := range pids {
 		if _, exists := existingPids[pid]; exists {
 			continue

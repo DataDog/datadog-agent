@@ -112,7 +112,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	load := func(id string, cfg []byte) {
 		reader := bytes.NewReader(cfg)
 
-		policy, err := rules.LoadPolicy(id, "remote-config", reader, macroFilters, ruleFilters)
+		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
@@ -152,6 +152,7 @@ func (r *RCPolicyProvider) Close() error {
 	return nil
 }
 
+// Type returns the type of this policy provider
 func (r *RCPolicyProvider) Type() string {
-	return PolicyProviderType
+	return rules.PolicyProviderTypeRC
 }

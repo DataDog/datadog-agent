@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    With this release, ``remote_config.enabled`` is set to ``true`` by default in the Agent configuration file.
+    This causes the Agent to request configuration updates from the Datadog site.
+
+    To receive configurations from Datadog, you still need to enable Remote Configuration at the organization level and enable Remote Configuration capability on your API Key from the Datadog application.
+    If you don't want the Agent to request configurations from Datadog, set ``remote_config.enabled`` to ``false`` in the Agent configuration file.

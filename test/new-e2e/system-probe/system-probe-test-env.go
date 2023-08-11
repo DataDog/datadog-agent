@@ -31,9 +31,23 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-var (
-	DependenciesPackage = "dependencies-%s.tar.gz"
+const (
+	AgentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
+	AgentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
+	AgentQABackupAZ    = "subnet-071213aedb0e1ae54"
+
+	SandboxPrimaryAz   = "subnet-b89e00e2"
+	SandboxSecondaryAz = "subnet-8ee8b1c6"
+	SandboxBackupAz    = "subnet-3f5db45b"
+
+	DatadogAgentQAEnv = "aws/agent-qa"
+	SandboxEnv        = "aws/sandbox"
 )
+
+var availabilityZones = map[string][]string{
+	DatadogAgentQAEnv: {AgentQAPrimaryAZ, AgentQASecondaryAZ, AgentQABackupAZ},
+	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
+}
 
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
@@ -45,7 +59,6 @@ type SystemProbeEnvOpts struct {
 	ShutdownPeriod        int
 	FailOnMissing         bool
 	DependenciesDirectory string
-	Subnets               string
 	VMConfigPath          string
 	Local                 bool
 }
@@ -114,6 +127,14 @@ func credentials() (string, error) {
 	return password, nil
 }
 
+func getAvailabilityZone(env string, azIndx int) string {
+	if zones, ok := availabilityZones[env]; ok {
+		return zones[azIndx%len(zones)]
+	}
+
+	return ""
+}
+
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
@@ -160,10 +181,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: ""}
 	}
 
-	// Specify the subnets to use instead of default ones
-	if opts.Subnets != "" {
-		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: opts.Subnets}
-	}
 	if opts.ShutdownPeriod != 0 {
 		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
 		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
@@ -171,22 +188,36 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 	var upResult auto.UpResult
 	ctx := context.Background()
+	currentAZ := 0 // PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
-	b = retry.WithMaxRetries(3, b)
+	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
+	// connection issues in the worst case.
+	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
+		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
+			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
+		}
+
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 			return nil
 		}, opts.FailOnMissing)
-		// Only retry if we failed to dial libvirt.
-		// Libvirt daemon on the server occasionally crashes with the following error
-		// "End of file while reading data: Input/output error"
-		// The root cause of this is unknown. The problem usually fixes itself upon retry.
 		if err != nil {
+			// Retry if we failed to dial libvirt.
+			// Libvirt daemon on the server occasionally crashes with the following error
+			// "End of file while reading data: Input/output error"
+			// The root cause of this is unknown. The problem usually fixes itself upon retry.
 			if strings.Contains(err.Error(), "failed to dial libvirt") {
-				fmt.Printf("[Error] Failed to dial libvirt. Retrying stack.")
+				fmt.Println("[Error] Failed to dial libvirt. Retrying stack.")
+				return retry.RetryableError(err)
+
+				// Retry if we have capacity issues in our current AZ.
+				// We switch to a different AZ and attempt to launch the instance again.
+			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
+				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(opts.InfraEnv, currentAZ), getAvailabilityZone(opts.InfraEnv, currentAZ+1))
+				currentAZ += 1
 				return retry.RetryableError(err)
 			} else {
 				return err

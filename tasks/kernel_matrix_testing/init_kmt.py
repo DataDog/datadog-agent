@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 from .download import download_kernel_packages, download_rootfs
-from .tool import Exit
 
 KMT_DIR = os.path.join("/", "home", "kernel-version-testing")
 KMT_ROOTFS_DIR = os.path.join(KMT_DIR, "rootfs")
@@ -82,14 +81,8 @@ def get_active_branch_name():
             return line.partition("refs/heads/")[2].replace("/", "-")
 
 
-def check_and_get_stack(stack, branch):
-    if stack is None and not branch:
-        raise Exit("Stack name required if not using current branch")
-
-    if stack and branch:
-        raise Exit("Cannot specify stack when branch parameter is set")
-
-    if branch:
+def check_and_get_stack(stack):
+    if stack is None:
         stack = get_active_branch_name()
 
     if not stack.endswith("-ddvm"):
@@ -107,14 +100,14 @@ def gen_ssh_key(ctx):
 
 def init_kernel_matrix_testing_system(ctx, lite):
     sudo = "sudo" if not is_root() else ""
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_PACKAGES_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_BACKUP_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_STACKS_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_LIBVIRT_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_ROOTFS_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_SHARED_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_KHEADERS_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_PACKAGES_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_BACKUP_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_STACKS_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_LIBVIRT_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_ROOTFS_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_SHARED_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_KHEADERS_DIR}")
 
     ## fix libvirt conf
     user = getpass.getuser()

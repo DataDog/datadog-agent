@@ -471,7 +471,7 @@ func generateActivityDump(log log.Component, config config.Component, activityDu
 		Storage:           storage,
 	})
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.Error) > 0 {
 		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
@@ -568,7 +568,7 @@ func listActivityDumps(log log.Component, config config.Component) error {
 
 	output, err := client.ListActivityDumps()
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.Error) > 0 {
 		return fmt.Errorf("activity dump list request failed: %s", output.Error)
@@ -616,7 +616,7 @@ func stopActivityDump(log log.Component, config config.Component, activityDumpAr
 
 	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.comm)
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.Error) > 0 {
 		return fmt.Errorf("activity dump stop request failed: %s", output.Error)

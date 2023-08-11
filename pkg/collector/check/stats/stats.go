@@ -12,8 +12,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -125,16 +125,16 @@ func NewStats(c StatsCheck) *Stats {
 		CheckName:                c.String(),
 		CheckVersion:             c.Version(),
 		CheckConfigSource:        c.ConfigSource(),
-		telemetry:                telemetry_utils.IsCheckEnabled(c.String()),
+		telemetry:                utils.IsCheckTelemetryEnabled(c.String()),
 		EventPlatformEvents:      make(map[string]int64),
 		TotalEventPlatformEvents: make(map[string]int64),
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
 	// initialize them here explicitly
-	if stats.telemetry && telemetry_utils.IsEnabled() {
-		tlmRuns.Initialize(stats.CheckName, runCheckFailureTag)
-		tlmRuns.Initialize(stats.CheckName, runCheckSuccessTag)
+	if stats.telemetry && utils.IsTelemetryEnabled() {
+		tlmRuns.InitializeToZero(stats.CheckName, runCheckFailureTag)
+		tlmRuns.InitializeToZero(stats.CheckName, runCheckSuccessTag)
 	}
 
 	return &stats

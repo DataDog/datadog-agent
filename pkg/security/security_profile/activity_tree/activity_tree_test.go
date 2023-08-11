@@ -34,7 +34,7 @@ func TestInsertFileEvent(t *testing.T) {
 		"/tmp/bar/test",
 	}
 	expectedDebugOuput := strings.TrimSpace(`
-- process: /test/pan
+- process: /test/pan (is_exec_child:false)
   files:
     - hello
     - test
@@ -72,7 +72,7 @@ func TestInsertFileEvent(t *testing.T) {
 func TestActivityTree_InsertExecEvent(t *testing.T) {
 	for _, tt := range activityTreeInsertExecEventTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			node, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, nil, Runtime, false, nil)
+			node, _, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, nil, Runtime, false, nil)
 			if tt.wantErr != nil {
 				if !tt.wantErr(t, err, fmt.Sprintf("unexpected error: %v", err)) {
 					return
@@ -329,7 +329,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -337,7 +336,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -345,7 +343,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -393,7 +390,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -401,7 +397,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -409,7 +404,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -446,7 +440,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -454,17 +447,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
 							},
 							Children: []*ProcessNode{
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -512,7 +502,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -520,8 +509,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -529,7 +516,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -559,7 +546,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -567,26 +553,22 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
 							},
 							Children: []*ProcessNode{
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/id",
 										},
 									},
 								},
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -634,7 +616,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -642,8 +623,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -651,7 +630,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/id",
 										},
@@ -659,7 +638,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 								},
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -687,17 +666,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver",
 						},
 					},
 					Children: []*ProcessNode{
 						{
-							IsExecChild: true,
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
@@ -732,8 +708,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver",
 						},
@@ -741,7 +715,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
@@ -777,7 +751,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -785,18 +758,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver1",
 								},
 							},
 							Children: []*ProcessNode{
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/webserver2",
 										},
@@ -810,29 +779,24 @@ var activityTreeInsertExecEventTestCases = []struct {
 											},
 										},
 										{
-											IsExecChild: true,
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
-												ExitTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/webserver3",
 												},
 											},
 											Children: []*ProcessNode{
 												{
-													IsExecChild: true,
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-														ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+														IsExecChild: true,
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/webserver4",
 														},
 													},
 													Children: []*ProcessNode{
 														{
-															IsExecChild: true,
 															Process: model.Process{
-																ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+																IsExecChild: true,
 																FileEvent: model.FileEvent{
 																	PathnameStr: "/bin/ls",
 																},
@@ -902,7 +866,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -910,8 +873,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver1",
 								},
@@ -919,8 +880,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/webserver2",
 										},
@@ -935,8 +895,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 										},
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
-												ExitTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/webserver3",
 												},
@@ -944,8 +903,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 											Children: []*ProcessNode{
 												{
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-														ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+														IsExecChild: true,
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/webserver4",
 														},
@@ -953,7 +911,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 													Children: []*ProcessNode{
 														{
 															Process: model.Process{
-																ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+																IsExecChild: true,
 																FileEvent: model.FileEvent{
 																	PathnameStr: "/bin/ls",
 																},
@@ -1011,18 +969,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver1",
 						},
 					},
 					Children: []*ProcessNode{
 						{
-							IsExecChild: true,
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver2",
 								},
@@ -1036,29 +990,24 @@ var activityTreeInsertExecEventTestCases = []struct {
 									},
 								},
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/webserver3",
 										},
 									},
 									Children: []*ProcessNode{
 										{
-											IsExecChild: true,
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-												ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/webserver4",
 												},
 											},
 											Children: []*ProcessNode{
 												{
-													IsExecChild: true,
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+														IsExecChild: true,
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/ls",
 														},
@@ -1115,8 +1064,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver1",
 						},
@@ -1124,8 +1071,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver2",
 								},
@@ -1140,8 +1086,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 								},
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/webserver3",
 										},
@@ -1149,8 +1094,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-												ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/webserver4",
 												},
@@ -1158,7 +1102,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 											Children: []*ProcessNode{
 												{
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+														IsExecChild: true,
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/ls",
 														},
@@ -1208,7 +1152,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -1216,7 +1159,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
@@ -1248,10 +1190,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
@@ -1261,7 +1202,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -1276,7 +1216,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -1284,8 +1223,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -1293,7 +1230,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -1323,7 +1260,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver",
 						},
@@ -1331,7 +1267,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
@@ -1352,10 +1287,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
@@ -1365,7 +1299,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -1377,7 +1310,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -1392,8 +1324,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -1401,7 +1331,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -1409,7 +1339,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -1441,7 +1370,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver",
 						},
@@ -1449,7 +1377,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
@@ -1470,10 +1397,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
@@ -1483,10 +1409,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
@@ -1496,7 +1421,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -1508,7 +1432,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -1523,8 +1446,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -1532,8 +1453,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -1541,7 +1461,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -1549,7 +1468,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 								},
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/apache",
 										},
@@ -1557,7 +1476,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/ls",
 												},
@@ -1591,7 +1509,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/apache",
 						},
@@ -1599,7 +1516,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
@@ -1620,10 +1536,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
@@ -1633,10 +1548,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
@@ -1646,7 +1560,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -1658,7 +1571,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -1673,8 +1585,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -1682,8 +1592,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -1691,7 +1600,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/apache",
 										},
@@ -1699,7 +1608,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/ls",
 												},
@@ -1745,7 +1653,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/apache",
 						},
@@ -1753,7 +1660,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
@@ -1761,7 +1667,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/date",
 										},
@@ -1769,7 +1674,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/du",
 												},
@@ -1794,10 +1698,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
@@ -1807,10 +1710,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
@@ -1820,7 +1722,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -1832,10 +1733,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/id",
@@ -1845,10 +1745,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 26, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/ls",
@@ -1858,7 +1757,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 26, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -1870,7 +1768,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 27, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -1882,10 +1779,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 28, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 29, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/bpftool",
@@ -1895,10 +1791,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 29, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 30, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/du",
@@ -1908,7 +1803,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 30, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -1923,8 +1817,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -1932,8 +1824,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -1941,7 +1832,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/apache",
 										},
@@ -1949,8 +1840,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-												ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/wc",
 												},
@@ -1958,8 +1847,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 											Children: []*ProcessNode{
 												{
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
-														ExitTime: time.Date(2023, 06, 26, 1, 2, 3, 4, time.UTC),
+														IsExecChild: true,
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/id",
 														},
@@ -1967,7 +1855,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 													Children: []*ProcessNode{
 														{
 															Process: model.Process{
-																ExecTime: time.Date(2023, 06, 26, 1, 2, 3, 4, time.UTC),
+																IsExecChild: true,
 																FileEvent: model.FileEvent{
 																	PathnameStr: "/bin/ls",
 																},
@@ -1975,7 +1863,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 															Children: []*ProcessNode{
 																{
 																	Process: model.Process{
-																		ExecTime: time.Date(2023, 06, 27, 1, 2, 3, 4, time.UTC),
 																		FileEvent: model.FileEvent{
 																			PathnameStr: "/bin/date",
 																		},
@@ -1983,8 +1870,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 																	Children: []*ProcessNode{
 																		{
 																			Process: model.Process{
-																				ExecTime: time.Date(2023, 06, 28, 1, 2, 3, 4, time.UTC),
-																				ExitTime: time.Date(2023, 06, 29, 1, 2, 3, 4, time.UTC),
 																				FileEvent: model.FileEvent{
 																					PathnameStr: "/bin/passwd",
 																				},
@@ -1992,8 +1877,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 																			Children: []*ProcessNode{
 																				{
 																					Process: model.Process{
-																						ExecTime: time.Date(2023, 06, 29, 1, 2, 3, 4, time.UTC),
-																						ExitTime: time.Date(2023, 06, 30, 1, 2, 3, 4, time.UTC),
+																						IsExecChild: true,
 																						FileEvent: model.FileEvent{
 																							PathnameStr: "/bin/bpftool",
 																						},
@@ -2001,7 +1885,319 @@ var activityTreeInsertExecEventTestCases = []struct {
 																					Children: []*ProcessNode{
 																						{
 																							Process: model.Process{
-																								ExecTime: time.Date(2023, 06, 30, 1, 2, 3, 4, time.UTC),
+																								IsExecChild: true,
+																								FileEvent: model.FileEvent{
+																									PathnameStr: "/bin/du",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/12_bis
+	// ---------------
+	//
+	//      /bin/apache         +          systemd                                              ==>>              /bin/bash          /bin/apache
+	//          |                            |- /bin/bash                                                            |                    |
+	//       /bin/ls                         |- /bin/webserver                                                 /bin/webserver          /bin/ls
+	//          |                            |- /bin/apache                                                          |                    |
+	//       /bin/date                       |- /bin/wc                                                         /bin/apache           /bin/date
+	//          |                            |- /bin/id                                                              |                    |
+	//       /bin/du                         |- /bin/ls                                                           /bin/wc              /bin/du
+	//                                       |- /bin/date                                                            |
+	//                                       |- /bin/passwd                                                       /bin/id
+	//                                       |- /bin/bpftool                                                         |
+	//                                       |- /bin/du                                                           /bin/ls
+	//                                                                                                               |
+	//                                                                                                            /bin/date
+	//                                                                                                               |
+	//                                                                                                           /bin/passwd
+	//                                                                                                               |
+	//                                                                                                           /bin/bpftool
+	//                                                                                                               |
+	//                                                                                                           /bin/du
+	{
+		name: "exec/12_bis",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/apache",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/ls",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/date",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												FileEvent: model.FileEvent{
+													PathnameStr: "/bin/du",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/bash",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/webserver",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/apache",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 3,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/wc",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/id",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 5,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 6,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/date",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 7,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/passwd",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 8,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/bpftool",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 9,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/du",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 10,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/du",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/apache",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/ls",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/date",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												FileEvent: model.FileEvent{
+													PathnameStr: "/bin/du",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/webserver",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/apache",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												FileEvent: model.FileEvent{
+													PathnameStr: "/bin/wc",
+												},
+											},
+											Children: []*ProcessNode{
+												{
+													Process: model.Process{
+														FileEvent: model.FileEvent{
+															PathnameStr: "/bin/id",
+														},
+													},
+													Children: []*ProcessNode{
+														{
+															Process: model.Process{
+																FileEvent: model.FileEvent{
+																	PathnameStr: "/bin/ls",
+																},
+															},
+															Children: []*ProcessNode{
+																{
+																	Process: model.Process{
+																		FileEvent: model.FileEvent{
+																			PathnameStr: "/bin/date",
+																		},
+																	},
+																	Children: []*ProcessNode{
+																		{
+																			Process: model.Process{
+																				FileEvent: model.FileEvent{
+																					PathnameStr: "/bin/passwd",
+																				},
+																			},
+																			Children: []*ProcessNode{
+																				{
+																					Process: model.Process{
+																						FileEvent: model.FileEvent{
+																							PathnameStr: "/bin/bpftool",
+																						},
+																					},
+																					Children: []*ProcessNode{
+																						{
+																							Process: model.Process{
 																								FileEvent: model.FileEvent{
 																									PathnameStr: "/bin/du",
 																								},
@@ -2047,7 +2243,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver",
 						},
@@ -2055,17 +2250,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/ls",
 								},
 							},
 							Children: []*ProcessNode{
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/wc",
 										},
@@ -2088,10 +2280,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/webserver",
@@ -2101,7 +2292,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -2113,7 +2303,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -2128,8 +2317,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -2137,7 +2324,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -2145,8 +2332,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/ls",
 										},
@@ -2154,7 +2339,8 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
+												ExecTime:    time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/wc",
 												},
@@ -2188,17 +2374,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver",
 						},
 					},
 					Children: []*ProcessNode{
 						{
-							IsExecChild: true,
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/apache",
 								},
@@ -2206,7 +2389,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/wc",
 										},
@@ -2229,10 +2411,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
@@ -2242,7 +2423,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -2254,7 +2434,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -2269,8 +2448,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -2278,8 +2455,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver",
 								},
@@ -2287,7 +2463,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/apache",
 										},
@@ -2295,7 +2471,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/wc",
 												},
@@ -2303,7 +2478,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 										},
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/ls",
 												},
@@ -2341,27 +2515,22 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/webserver",
 						},
 					},
 					Children: []*ProcessNode{
 						{
-							IsExecChild: true,
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/date",
 								},
 							},
 							Children: []*ProcessNode{
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/apache",
 										},
@@ -2369,7 +2538,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/wc",
 												},
@@ -2394,10 +2562,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/du",
@@ -2407,10 +2574,9 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-				ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
+				IsExecChild: true,
 				ContainerID: "123",
 				FileEvent: model.FileEvent{
 					PathnameStr: "/bin/apache",
@@ -2420,7 +2586,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 			},
 			{
 				ContainerID: "123",
@@ -2432,7 +2597,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 						},
 					},
 				},
-				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
 		wantNode: &ProcessNode{
@@ -2447,8 +2611,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
-						ExitTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -2456,8 +2618,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 21, 1, 2, 3, 4, time.UTC),
+								IsExecChild: true,
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/du",
 								},
@@ -2465,8 +2626,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 21, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/webserver",
 										},
@@ -2474,8 +2634,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 									Children: []*ProcessNode{
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-												ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/date",
 												},
@@ -2483,7 +2642,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 											Children: []*ProcessNode{
 												{
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
+														IsExecChild: true,
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/apache",
 														},
@@ -2491,7 +2650,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 													Children: []*ProcessNode{
 														{
 															Process: model.Process{
-																ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 																FileEvent: model.FileEvent{
 																	PathnameStr: "/bin/wc",
 																},
@@ -2499,7 +2657,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 														},
 														{
 															Process: model.Process{
-																ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 																FileEvent: model.FileEvent{
 																	PathnameStr: "/bin/ls",
 																},
@@ -2543,7 +2700,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -2551,18 +2707,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver1",
 								},
 							},
 							Children: []*ProcessNode{
 								{
-									IsExecChild: true,
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/webserver2",
 										},
@@ -2576,9 +2728,8 @@ var activityTreeInsertExecEventTestCases = []struct {
 											},
 										},
 										{
-											IsExecChild: true,
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/webserver3",
 												},
@@ -2586,17 +2737,14 @@ var activityTreeInsertExecEventTestCases = []struct {
 											Children: []*ProcessNode{
 												{
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-														ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/webserver4",
 														},
 													},
 													Children: []*ProcessNode{
 														{
-															IsExecChild: true,
 															Process: model.Process{
-																ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+																IsExecChild: true,
 																FileEvent: model.FileEvent{
 																	PathnameStr: "/bin/ls",
 																},
@@ -2688,7 +2836,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 			ProcessNodes: []*ProcessNode{
 				{
 					Process: model.Process{
-						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
 						FileEvent: model.FileEvent{
 							PathnameStr: "/bin/bash",
 						},
@@ -2696,8 +2843,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 					Children: []*ProcessNode{
 						{
 							Process: model.Process{
-								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
-								ExitTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 								FileEvent: model.FileEvent{
 									PathnameStr: "/bin/webserver1",
 								},
@@ -2705,8 +2850,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 							Children: []*ProcessNode{
 								{
 									Process: model.Process{
-										ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
-										ExitTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+										IsExecChild: true,
 										FileEvent: model.FileEvent{
 											PathnameStr: "/bin/webserver2",
 										},
@@ -2721,7 +2865,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 										},
 										{
 											Process: model.Process{
-												ExecTime: time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
+												IsExecChild: true,
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/webserver3",
 												},
@@ -2729,8 +2873,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 											Children: []*ProcessNode{
 												{
 													Process: model.Process{
-														ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
-														ExitTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
 														FileEvent: model.FileEvent{
 															PathnameStr: "/bin/webserver4",
 														},
@@ -2738,7 +2880,7 @@ var activityTreeInsertExecEventTestCases = []struct {
 													Children: []*ProcessNode{
 														{
 															Process: model.Process{
-																ExecTime: time.Date(2023, 06, 25, 1, 2, 3, 4, time.UTC),
+																IsExecChild: true,
 																FileEvent: model.FileEvent{
 																	PathnameStr: "/bin/ls",
 																},
@@ -2766,6 +2908,387 @@ var activityTreeInsertExecEventTestCases = []struct {
 																	},
 																},
 															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/17
+	// ---------------
+	//
+	//     /bin/bash -----------------           +          systemd                                ==>>             /bin/bash
+	//          |                    |                         |- /bin/bash                                             |
+	//     /bin/webserver1      /bin/apache                    |- /bin/apache -> /bin/webserver1                   /bin/apache
+	//                                                                                                                  | (exec)
+	//                                                                                                           /bin/webserver1
+	//
+	//
+	{
+		name: "exec/17",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/webserver1",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/apache",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/bash",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/apache",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/webserver1",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 3,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/webserver1",
+				},
+			},
+		},
+		wantNewEntry: false,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/apache",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/webserver1",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/18
+	// ---------------
+	//
+	//     /bin/bash        /bin/apache          +          systemd                                ==>>             /bin/bash -----------
+	//          |                                              |- /bin/bash -> /bin/apache                              |               | (exec)
+	//     /bin/webserver1                                                                                        /bin/webserver1    /bin/apache
+	//
+	//
+	{
+		name: "exec/18",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/webserver1",
+								},
+							},
+						},
+					},
+				},
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/apache",
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/bash",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/apache",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/apache",
+				},
+			},
+		},
+		wantNewEntry: false,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/webserver1",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/apache",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/19
+	// ---------------
+	//
+	//     /bin/bash -----------------           +          systemd                                                              ==>>             /bin/bash
+	//          |                    |                         |- /bin/bash                                                                           |
+	//     /bin/webserver2      /bin/apache                    |- /bin/apache -> /bin/webserver1 -> /bin/webserver3                              /bin/apache
+	//          | (exec)                                                                                                                              | (exec)
+	//    /bin/webserver3                                                                                                                      /bin/webserver1
+	//                                                                                                                                                | (exec)
+	//                                                                                                                                         /bin/webserver2
+	//                                                                                                                                                | (exec)
+	//                                                                                                                                         /bin/webserver3
+	//
+	{
+		name: "exec/19",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/webserver2",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/webserver3",
+										},
+									},
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/apache",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/bash",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/apache",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/webserver1",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 3,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/webserver3",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/webserver3",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/apache",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/webserver1",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												IsExecChild: true,
+												FileEvent: model.FileEvent{
+													PathnameStr: "/bin/webserver2",
+												},
+											},
+											Children: []*ProcessNode{
+												{
+													Process: model.Process{
+														IsExecChild: true,
+														FileEvent: model.FileEvent{
+															PathnameStr: "/bin/webserver3",
 														},
 													},
 												},

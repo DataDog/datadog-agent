@@ -100,6 +100,37 @@ func (sm *CumulativeMonotonicSumMode) UnmarshalText(in []byte) error {
 	}
 }
 
+// InitialValueMode defines what the exporter should do with the initial value
+// of a time series when transforming from cumulative to delta.
+type InitialValueMode string
+
+const (
+	// InitialValueModeAuto reports the initial value if its start timestamp
+	// is set and it happens after the process was started.
+	InitialValueModeAuto InitialValueMode = "auto"
+
+	// InitialValueModeDrop always drops the initial value.
+	InitialValueModeDrop InitialValueMode = "drop"
+
+	// InitialValueModeKeep always reports the initial value.
+	InitialValueModeKeep InitialValueMode = "keep"
+)
+
+var _ encoding.TextUnmarshaler = (*InitialValueMode)(nil)
+
+// UnmarshalText implements the encoding.TextUnmarshaler interface.
+func (iv *InitialValueMode) UnmarshalText(in []byte) error {
+	switch mode := InitialValueMode(in); mode {
+	case InitialValueModeAuto,
+		InitialValueModeDrop,
+		InitialValueModeKeep:
+		*iv = mode
+		return nil
+	default:
+		return fmt.Errorf("invalid initial value mode %q", mode)
+	}
+}
+
 // sumConfig customizes export of OTLP Sums.
 type sumConfig struct {
 	// CumulativeMonotonicMode is the mode for exporting OTLP Cumulative Monotonic Sums.
@@ -110,6 +141,10 @@ type sumConfig struct {
 	// The default is 'to_delta'.
 	// See https://docs.datadoghq.com/metrics/otlp/?tab=sum#mapping for details and examples.
 	CumulativeMonotonicMode CumulativeMonotonicSumMode `mapstructure:"cumulative_monotonic_mode"`
+
+	// InitialCumulativeMonotonicMode defines the behavior of the exporter when receiving the first value
+	// of a cumulative monotonic sum.
+	InitialCumulativeMonotonicMode InitialValueMode `mapstructure:"initial_cumulative_monotonic_value"`
 }
 
 // SummaryMode is the export mode for OTLP Summary metrics.
@@ -197,6 +232,15 @@ func (e *exporterConfig) Unmarshal(configMap *confmap.Conf) error {
 		if configMap.IsSet("metrics::histograms::send_aggregation_metrics") {
 			e.warnings = append(e.warnings, warnOverrideSendAggregations)
 		}
+	}
+
+	const (
+		initialValueSetting = "metrics::sums::initial_cumulative_monotonic_value"
+		cumulMonoMode       = "metrics::sums::cumulative_monotonic_mode"
+	)
+	if configMap.IsSet(initialValueSetting) && e.Metrics.SumConfig.CumulativeMonotonicMode != CumulativeMonotonicSumModeToDelta {
+		return fmt.Errorf("%q can only be configured when %q is set to %q",
+			initialValueSetting, cumulMonoMode, CumulativeMonotonicSumModeToDelta)
 	}
 
 	return nil

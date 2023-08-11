@@ -45,18 +45,18 @@ func TestDnsHelpers_validateDNSName(t *testing.T) {
 			dnsName:  "012345678901234567890123456789012345678901234567890123456789012.com",
 			isValid:  true,
 		},
+		{
+			testName: "test_ok_single_char",
+			dnsName:  "a",
+			isValid:  true,
+		},
+		{
+			testName: "test_ok_hostname",
+			dnsName:  "localhost",
+			isValid:  true,
+		},
 
 		// test invalid dns names
-		{
-			testName: "test_ko_0",
-			dnsName:  "a",
-			isValid:  false,
-		},
-		{
-			testName: "test_ko_1",
-			dnsName:  "abc",
-			isValid:  false,
-		},
 		{
 			testName: "test_ko_2",
 			dnsName:  "a.b.",
