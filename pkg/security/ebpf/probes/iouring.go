@@ -29,15 +29,12 @@ func getIouringProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_io_allocate_scq_urings",
 			},
 		},
-	}
-
-	if !fentry {
-		iouringProbes = append(iouringProbes, &manager.Probe{
+		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_io_sq_offload_start",
 			},
-		})
+		},
 	}
 
 	return iouringProbes
