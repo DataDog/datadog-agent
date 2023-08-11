@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
@@ -31,12 +31,22 @@ func parseMemoryInfo(reader io.Reader) (totalBytes utils.Value[uint64], swapTota
 	totalBytes = utils.NewErrorValue[uint64](fmt.Errorf("'MemTotal' not found in /proc/meminfo"))
 	swapTotalKb = utils.NewErrorValue[uint64](fmt.Errorf("'SwapTotal' not found in /proc/meminfo"))
 	for _, line := range lines {
-		pair := regexp.MustCompile(": +").Split(line, 2)
-		values := regexp.MustCompile(" +").Split(pair[1], 2)
+		key, valUnit, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
 
-		switch pair[0] {
+		value, _, found := strings.Cut(strings.TrimSpace(valUnit), " ")
+		if !found {
+			continue
+		}
+
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+
+		switch key {
 		case "MemTotal":
-			val, parseErr := strconv.ParseUint(values[0], 10, 64)
+			val, parseErr := strconv.ParseUint(value, 10, 64)
 			if parseErr == nil {
 				// val is in kb
 				totalBytes = utils.NewValue(val * 1024)
@@ -44,7 +54,7 @@ func parseMemoryInfo(reader io.Reader) (totalBytes utils.Value[uint64], swapTota
 				totalBytes = utils.NewErrorValue[uint64](fmt.Errorf("could not parse total size: %w", parseErr))
 			}
 		case "SwapTotal":
-			val, parseErr := strconv.ParseUint(values[0], 10, 64)
+			val, parseErr := strconv.ParseUint(value, 10, 64)
 			if parseErr == nil {
 				swapTotalKb = utils.NewValue(val)
 			} else {
