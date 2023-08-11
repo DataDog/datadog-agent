@@ -40,6 +40,10 @@ func sysCPUSize(path string) (uint64, bool) {
 	}
 
 	s := strings.TrimSpace(string(content))
+	if s == "" {
+		return 0, false
+	}
+
 	mult := uint64(1)
 	switch s[len(s)-1] {
 	case 'K':
@@ -126,15 +130,15 @@ func readProcCPUInfo() ([]map[string]string, error) {
 			continue
 		}
 
-		pair := strings.SplitN(line, ":", 2)
-		if len(pair) != 2 {
+		key, value, found := strings.Cut(line, ":")
+		if !found {
 			continue
 		}
 		if stanza == nil {
 			stanza = make(map[string]string)
 			stanzas = append(stanzas, stanza)
 		}
-		stanza[strings.TrimSpace(pair[0])] = strings.TrimSpace(pair[1])
+		stanza[strings.TrimSpace(key)] = strings.TrimSpace(value)
 	}
 
 	if scanner.Err() != nil {
