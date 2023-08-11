@@ -803,3 +803,9 @@ func CreateGlobalStore(catalog CollectorCatalog) Store {
 func GetGlobalStore() Store {
 	return globalStore
 }
+
+// ResetGlobalStore resets the global store back to nil. This is useful in lifecycle
+// tests that start and stop parts of the agent multiple times.
+func ResetGlobalStore() {
+	globalStore = nil
+}

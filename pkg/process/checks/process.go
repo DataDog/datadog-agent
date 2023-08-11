@@ -479,6 +479,7 @@ func formatCommand(fp *procutil.Process) *model.Command {
 		OnDisk: false, // TODO
 		Ppid:   fp.Ppid,
 		Exe:    fp.Exe,
+		Comm:   fp.Comm,
 	}
 }
 

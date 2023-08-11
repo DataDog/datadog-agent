@@ -12,11 +12,12 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
-	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"strings"
 	"sync"
 	"time"
+
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
@@ -489,7 +490,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, eventTags...)
-	msg.tags = append(msg.tags, common.QueryAccountIdTag())
+	msg.tags = append(msg.tags, common.QueryAccountIDTag())
 
 	a.enqueue(msg)
 }

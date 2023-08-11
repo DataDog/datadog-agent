@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
@@ -277,21 +277,14 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
-	var (
-		appsecSubProcessor   invocationlifecycle.InvocationSubProcessor
-		appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
-	)
+	var appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		subProcessor, proxySubProcessor, err := appsec.New()
+		var err error
+		appsecProxyProcessor, err = appsec.New()
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
-		}
-		if subProcessor != nil {
-			appsecSubProcessor = subProcessor
-		} else if proxySubProcessor != nil {
-			appsecProxyProcessor = proxySubProcessor
 		}
 	}()
 
@@ -323,11 +316,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		ProcessTrace:         ta.Process,
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
-		SubProcessor:         appsecSubProcessor, // Universal Instrumentation API mode - nil in the runtime api proxy mode
 	}
 
 	if appsecProxyProcessor != nil {
-		// Runtime API proxy mode
+		// AppSec runs as a Runtime API proxy. The reverse proxy was already
+		// started by appsec.New(). A span modifier needs to be added in order
+		// to detect the finished request spans and run the complete AppSec
+		// monitoring logic, and ultimately adding the AppSec events to them.
 		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled

@@ -1549,6 +1549,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	}
 
 	SanitizeAPIKeyConfig(config, "api_key")
+	SanitizeAPIKeyConfig(config, "logs_config.api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
