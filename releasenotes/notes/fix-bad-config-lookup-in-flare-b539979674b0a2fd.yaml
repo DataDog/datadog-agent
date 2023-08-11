@@ -9,4 +9,4 @@
 fixes:
   - |
     Fixes a bug that prevents the Agent from writing permissions information
-    about system-probe files when creating a flare
+    about system-probe files when creating a flare.
