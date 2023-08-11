@@ -497,11 +497,6 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			c.config = tt.configFunc()
 			c.generateTemplates()
 
-			//fmt.Println("Wanted:")
-			//fmt.Printf("%+v\n", tt.want())
-
-			//fmt.Println("Actual:")
-			//fmt.Printf("%+v\n", c.webhookTemplates)
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)
 		})
 	}
