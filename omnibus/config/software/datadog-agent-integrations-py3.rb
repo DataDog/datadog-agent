@@ -221,6 +221,7 @@ build do
             {
                 "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
                 "PIP_NO_BINARY" => ":all:",
+                "OPENSSL_DIR" => "#{install_dir}/embedded/",
                 # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
                 # We force reinstall it from source to be sure we use the flag
                 "PIP_NO_CACHE_DIR" => "off",
