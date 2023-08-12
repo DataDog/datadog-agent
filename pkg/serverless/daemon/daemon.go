@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/valyala/fasthttp"
 )
 
 // ShutdownDelay is the amount of time we wait before shutting down the HTTP server
@@ -36,6 +37,8 @@ const FlushTimeout time.Duration = 5 * time.Second
 type Daemon struct {
 	httpServer *http.Server
 	mux        *http.ServeMux
+
+	fasthttpServer *fasthttp.Server
 
 	MetricAgent *metrics.ServerlessMetricAgent
 
@@ -181,13 +184,25 @@ func (d *Daemon) GetFlushStrategy() string {
 }
 
 // SetupLogCollectionHandler configures the log collection route handler
-func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, lambdaInitMetricChan chan<- *serverlessLog.LambdaInitMetric) {
+func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, lambdaInitMetricChan chan<- *serverlessLog.LambdaInitMetric) serverlessLog.LambdaLogsAPIServer {
 
 	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
 		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, lambdaInitMetricChan)
 	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
 
-	d.mux.Handle(route, &server)
+	d.fasthttpServer = &fasthttp.Server{
+		Handler: server.FastRouter,
+	}
+
+	// Start a new fasthttp server
+	go func() {
+		_ = d.fasthttpServer.ListenAndServe(":9002")
+	}()
+
+	// Don't listen on old server
+	// d.mux.Handle(route, &server)
+
+	return server
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.

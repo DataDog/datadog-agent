@@ -219,7 +219,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
+	_ = serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
@@ -262,7 +262,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 				RegistrationURL:     logRegistrationURL,
 				RegistrationTimeout: logsAPIRegistrationTimeout,
 				LogsType:            os.Getenv(logsLogsTypeSubscribed),
-				Port:                logsAPIHttpServerPort,
+				Port:                9002,
 				CollectionRoute:     logsAPICollectionRoute,
 				Timeout:             logsAPITimeout,
 				MaxBytes:            logsAPIMaxBytes,
