@@ -221,7 +221,10 @@ build do
             {
                 "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
                 "PIP_NO_BINARY" => ":all:",
+                # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
+                # We force reinstall it from source to be sure we use the flag
                 "PIP_NO_CACHE_DIR" => "off",
+                "PIP_FORCE_REINSTALL" => "1",
             }
         )
     end
@@ -271,7 +274,6 @@ build do
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line
-            command "echo 'custom: #{line}'"
             lib_req["req_lines"].push(line)
           end
         end
