@@ -372,8 +372,8 @@ func (pm *ProcessMonitor) Stop() {
 	// We can get here only once, if the refcount is zero.
 	if pm.done != nil {
 		close(pm.done)
-		pm.done = nil
 		pm.processMonitorWG.Wait()
+		pm.done = nil
 	}
 
 	// that's being done for testing purposes.

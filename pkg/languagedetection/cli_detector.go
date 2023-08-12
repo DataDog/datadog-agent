@@ -6,16 +6,19 @@
 package languagedetection
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 type languageFromCLI struct {
 	name      languagemodels.LanguageName
 	validator func(exe string) bool
 }
+
+// rubyPattern is a regexp validator for the ruby prefix
+var rubyPattern = regexp.MustCompile(`^ruby\d+\.\d+$`)
 
 // knownPrefixes maps languages names to their prefix
 var knownPrefixes = map[string]languageFromCLI{
@@ -25,6 +28,9 @@ var knownPrefixes = map[string]languageFromCLI{
 			return false
 		}
 		return true
+	}},
+	"ruby": {name: languagemodels.Ruby, validator: func(exe string) bool {
+		return rubyPattern.MatchString(exe)
 	}},
 }
 
@@ -39,20 +45,21 @@ var exactMatches = map[string]languageFromCLI{
 	"node": {name: languagemodels.Node},
 
 	"dotnet": {name: languagemodels.Dotnet},
+
+	"ruby":  {name: languagemodels.Ruby},
+	"rubyw": {name: languagemodels.Ruby},
 }
 
-func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
-	exe := getExe(cmdline)
-
+func languageNameFromCommand(command string) languagemodels.LanguageName {
 	// First check to see if there is an exact match
-	if lang, ok := exactMatches[exe]; ok {
+	if lang, ok := exactMatches[command]; ok {
 		return lang.name
 	}
 
 	for prefix, language := range knownPrefixes {
-		if strings.HasPrefix(exe, prefix) {
+		if strings.HasPrefix(command, prefix) {
 			if language.validator != nil {
-				isValidResult := language.validator(exe)
+				isValidResult := language.validator(command)
 				if !isValidResult {
 					continue
 				}
@@ -65,10 +72,14 @@ func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
 }
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process) []*languagemodels.Language {
+func DetectLanguage(procs []languagemodels.Process) []*languagemodels.Language {
 	langs := make([]*languagemodels.Language, len(procs))
 	for i, proc := range procs {
-		languageName := languageNameFromCommandLine(proc.Cmdline)
+		exe := getExe(proc.GetCmdline())
+		languageName := languageNameFromCommand(exe)
+		if languageName == languagemodels.Unknown {
+			languageName = languageNameFromCommand(proc.GetCommand())
+		}
 		langs[i] = &languagemodels.Language{Name: languageName}
 	}
 	return langs

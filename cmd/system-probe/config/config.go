@@ -35,6 +35,7 @@ const (
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 	EBPFModule                   ModuleName = "ebpf"
+	LanguageDetectionModule      ModuleName = "language_detection"
 )
 
 // Config represents the configuration options for the system-probe
@@ -152,6 +153,9 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
 		c.EnabledModules[EBPFModule] = struct{}{}
+	}
+	if cfg.GetBool("system_probe_config.language_detection.enabled") {
+		c.EnabledModules[LanguageDetectionModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

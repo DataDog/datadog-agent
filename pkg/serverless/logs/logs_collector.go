@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -54,8 +54,7 @@ type LambdaLogsCollector struct {
 	executionContext       *executioncontext.ExecutionContext
 	lambdaInitMetricChan   chan<- *LambdaInitMetric
 
-	arn         string
-	errorStatus string
+	arn string
 
 	// handleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
 	handleRuntimeDone func()
@@ -180,7 +179,7 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			}
 
 			// Create the timeout log from the REPORT log if a timeout status is detected
-			isTimeoutLog := message.logType == logTypePlatformReport && lc.errorStatus == timeoutStatus
+			isTimeoutLog := message.logType == logTypePlatformReport && message.objectRecord.status == timeoutStatus
 			if isTimeoutLog {
 				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(createStringRecordForTimeoutLog(&message)), message.time, lc.arn, message.objectRecord.requestID, isTimeoutLog)
 			}
@@ -225,9 +224,9 @@ func (lc *LambdaLogsCollector) processMessage(
 		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
-			state := lc.executionContext.GetCurrentState()
-			proactiveInit = state.ProactiveInit
-			coldStart = state.Coldstart
+			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+			proactiveInit = coldStartTags.IsProactiveInit
+			coldStart = coldStartTags.IsColdStart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		outOfMemoryRequestId := ""
@@ -241,9 +240,6 @@ func (lc *LambdaLogsCollector) processMessage(
 			memorySize := message.objectRecord.reportLogItem.memorySizeMB
 			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
 			status := message.objectRecord.status
-			if status != successStatus {
-				lc.errorStatus = status
-			}
 			reportOutOfMemory := memoryUsed > 0 && memoryUsed >= memorySize
 
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
