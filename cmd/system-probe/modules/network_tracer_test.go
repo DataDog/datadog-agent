@@ -61,6 +61,7 @@ func TestDecode(t *testing.T) {
 	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
 	connectionsModeler := encoding.InitConnectionsModeler(in)
 	payload := connectionsModeler.ModelConnections(in)
+	defer encoding.Cleanup(payload)
 	expected, err := marshaller.Marshal(payload)
 	require.NoError(t, err)
 
