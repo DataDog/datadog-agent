@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -891,4 +892,18 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 	payloadTelemetry := result.ConnTelemetryMap
 	assert.Equal(t, int64(10), payloadTelemetry["usm.http.total_hits"])
 	assert.NotContains(t, payloadTelemetry, "foobar")
+}
+
+func BenchmarkModeling(b *testing.B) {
+	marshaler := GetMarshaler(encoding.ContentTypeProtobuf)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		conns := GenerateBenchMarkPayload(100, 100)
+
+		_, err := marshaler.Marshal(&conns)
+		require.NoError(b, err)
+	}
 }

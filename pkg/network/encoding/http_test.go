@@ -371,7 +371,7 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	assert.True(t, val <= expectedValue+acceptableError)
 }
 
-func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Connections {
+func GenerateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Connections {
 	localhost := util.AddressFromString("127.0.0.1")
 
 	payload := network.Connections{
@@ -421,7 +421,7 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 }
 
 func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
-	payload := generateBenchMarkPayload(numberOfPorts, numberOfPorts)
+	payload := GenerateBenchMarkPayload(numberOfPorts, numberOfPorts)
 	b.ResetTimer()
 	b.ReportAllocs()
 	var h *httpEncoder
