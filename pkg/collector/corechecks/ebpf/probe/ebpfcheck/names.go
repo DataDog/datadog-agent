@@ -71,6 +71,15 @@ func AddNameMappingsCollection(coll *ebpf.Collection, module string) {
 	})
 }
 
+// RemoveProgramNameMapping manually removes a program name mapping
+func RemoveProgramNameMapping(progid uint32) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	delete(progNameMapping, progid)
+	delete(progModuleMapping, progid)
+}
+
 // RemoveNameMappings removes the full name mappings for ebpf maps in the manager
 func RemoveNameMappings(mgr *manager.Manager) {
 	maps, err := mgr.GetMaps()

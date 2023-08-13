@@ -558,7 +558,7 @@ func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils
 				if !found {
 					continue
 				}
-
+				ebpfcheck.RemoveProgramNameMapping(probe.ID())
 				program := probe.Program()
 				err := m.DetachHook(identifier)
 				if err != nil {
