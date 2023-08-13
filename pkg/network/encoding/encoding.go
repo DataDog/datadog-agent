@@ -84,7 +84,6 @@ func InitConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 }
 
 func (c *ConnectionsModeler) ModelConnections(conns *network.Connections) *model.Connections {
-	// TODO: Use pool with max batch size
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 
@@ -101,7 +100,6 @@ func (c *ConnectionsModeler) ModelConnections(conns *network.Connections) *model
 		routes[v.Idx] = &v.Route
 	}
 
-	// TODO: Use pool
 	payload := new(model.Connections)
 	payload.AgentConfiguration = c.agentCfg
 	payload.Conns = agentConns
@@ -110,7 +108,6 @@ func (c *ConnectionsModeler) ModelConnections(conns *network.Connections) *model
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 
-	// TODO: Add that only to the first batch
 	payload.ConnTelemetryMap = c.connTelemetryMap
 	payload.CompilationTelemetryByAsset = c.compilationTelemetryByAsset
 	payload.KernelHeaderFetchResult = c.kernelHeaderFetchResult
