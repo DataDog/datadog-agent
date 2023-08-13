@@ -22,7 +22,6 @@ type jsonSerializer struct {
 func (j jsonSerializer) Marshal(conns *model.Connections) ([]byte, error) {
 	writer := new(bytes.Buffer)
 	err := j.marshaller.Marshal(writer, conns)
-	returnToPool(conns)
 	return writer.Bytes(), err
 }
 

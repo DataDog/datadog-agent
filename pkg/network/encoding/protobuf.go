@@ -17,7 +17,6 @@ type protoSerializer struct{}
 
 func (protoSerializer) Marshal(conns *model.Connections) ([]byte, error) {
 	buf, err := proto.Marshal(conns)
-	returnToPool(conns)
 	return buf, err
 }
 

@@ -6,11 +6,11 @@
 package encoding
 
 import (
-	"github.com/gogo/protobuf/jsonpb"
 	"strings"
 
-	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/gogo/protobuf/jsonpb"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
@@ -53,6 +53,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
+// ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
 	httpEncoder                 *httpEncoder
 	http2Encoder                *http2Encoder
@@ -83,6 +84,7 @@ func InitConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	}
 }
 
+// ModelConnections returns network connections after modeling for all supported types of traffic.
 func (c *ConnectionsModeler) ModelConnections(conns *network.Connections) *model.Connections {
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)

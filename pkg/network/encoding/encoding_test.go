@@ -180,6 +180,12 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	return out
 }
 
+func modelAndMarshalConnections(marshaler Marshaler, in *network.Connections) ([]byte,, error) {
+	connectionsModeler := InitConnectionsModeler(in)
+	payload := connectionsModeler.ModelConnections(in)
+	return marshaler.Marshal(payload)
+}
+
 func TestSerialization(t *testing.T) {
 	t.Run("status code", func(t *testing.T) {
 		testSerialization(t, true)
@@ -328,9 +334,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/json")
 		assert.Equal("application/json", marshaler.ContentType())
 
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
@@ -357,9 +361,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/json")
 		assert.Equal("application/json", marshaler.ContentType())
 
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
@@ -386,9 +388,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		// in case we request empty serialization type, default to application/json
 		assert.Equal("application/json", marshaler.ContentType())
 
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("")
@@ -417,9 +417,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		// In case we request an unsupported serialization type, we default to application/json
 		assert.Equal("application/json", marshaler.ContentType())
 
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
@@ -448,9 +446,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 				Conns: []network.ConnectionStats{{}},
 			},
 		}
-		connectionsModeler := InitConnectionsModeler(cons)
-		payload := connectionsModeler.ModelConnections(cons)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, cons)
 		require.NoError(t, err)
 
 		res := struct {
@@ -477,9 +473,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/protobuf")
 		assert.Equal("application/protobuf", marshaler.ContentType())
 
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
@@ -499,9 +493,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/protobuf")
 		assert.Equal("application/protobuf", marshaler.ContentType())
 
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
@@ -617,9 +609,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 	}
 
 	marshaler := GetMarshaler("application/protobuf")
-	connectionsModeler := InitConnectionsModeler(in)
-	payload := connectionsModeler.ModelConnections(in)
-	blob, err := marshaler.Marshal(payload)
+	blob, err := modelAndMarshalConnections(marshaler, in)
 	require.NoError(t, err)
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
@@ -734,9 +724,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 	}
 
 	marshaler := GetMarshaler("application/protobuf")
-	connectionsModeler := InitConnectionsModeler(in)
-	payload := connectionsModeler.ModelConnections(in)
-	blob, err := marshaler.Marshal(payload)
+	blob, err := modelAndMarshalConnections(marshaler, in)
 	require.NoError(t, err)
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
@@ -774,9 +762,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 
 	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
 		marshaler := GetMarshaler("application/protobuf")
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
@@ -844,9 +830,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 
 	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
 		marshaler := GetMarshaler("application/protobuf")
-		connectionsModeler := InitConnectionsModeler(in)
-		payload := connectionsModeler.ModelConnections(in)
-		blob, err := marshaler.Marshal(payload)
+		blob, err := modelAndMarshalConnections(marshaler, in)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
@@ -903,9 +887,7 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 	// Perform a marshal/unmarshal cycle
 	in := new(network.Connections)
 	marshaler := GetMarshaler("application/protobuf")
-	connectionsModeler := InitConnectionsModeler(in)
-	payload := connectionsModeler.ModelConnections(in)
-	blob, err := marshaler.Marshal(payload)
+	blob, err := modelAndMarshalConnections(marshaler, in)
 	require.NoError(t, err)
 
 	unmarshaler := GetUnmarshaler("application/protobuf")

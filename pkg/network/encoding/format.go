@@ -144,7 +144,7 @@ func FormatCORETelemetry(telByAsset map[string]int32) map[string]model.COREResul
 	return ret
 }
 
-func returnToPool(c *model.Connections) {
+func ReturnToPool(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {
 			c.Reset()
