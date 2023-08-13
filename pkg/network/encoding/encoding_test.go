@@ -896,12 +896,12 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 
 func BenchmarkModeling(b *testing.B) {
 	marshaler := GetMarshaler(encoding.ContentTypeProtobuf)
+	conns := GenerateBenchMarkPayload(360, 360)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		conns := GenerateBenchMarkPayload(100, 100)
 
 		_, err := marshaler.Marshal(&conns)
 		require.NoError(b, err)

@@ -371,7 +371,7 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	assert.True(t, val <= expectedValue+acceptableError)
 }
 
-func GenerateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Connections {
+func GenerateBenchMarkPayload(sourcePortsMax, destPortsMax uint32) network.Connections {
 	localhost := util.AddressFromString("127.0.0.1")
 
 	payload := network.Connections{
@@ -388,28 +388,28 @@ func GenerateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 	httpStats.AddRequest(400, 10, 0, nil)
 	httpStats.AddRequest(500, 10, 0, nil)
 
-	for sport := uint16(0); sport < sourcePortsMax; sport++ {
-		for dport := uint16(0); dport < destPortsMax; dport++ {
+	for sport := uint32(0); sport < sourcePortsMax; sport++ {
+		for dport := uint32(0); dport < destPortsMax; dport++ {
 			index := sport*sourcePortsMax + dport
 
 			payload.Conns[index].Dest = localhost
 			payload.Conns[index].Source = localhost
-			payload.Conns[index].DPort = dport + 1
-			payload.Conns[index].SPort = sport + 1
+			payload.Conns[index].DPort = uint16(dport + 1)
+			payload.Conns[index].SPort = uint16(sport + 1)
 			if index%2 == 0 {
 				payload.Conns[index].IPTranslation = &network.IPTranslation{
 					ReplSrcIP:   localhost,
 					ReplDstIP:   localhost,
-					ReplSrcPort: dport + 1,
-					ReplDstPort: sport + 1,
+					ReplSrcPort: uint16(dport + 1),
+					ReplDstPort: uint16(sport + 1),
 				}
 			}
 
 			payload.HTTP[http.NewKey(
 				localhost,
 				localhost,
-				sport+1,
-				dport+1,
+				uint16(sport+1),
+				uint16(dport+1),
 				fmt.Sprintf("/api/%d-%d", sport+1, dport+1),
 				true,
 				http.MethodGet,
@@ -420,7 +420,7 @@ func GenerateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 	return payload
 }
 
-func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
+func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint32) {
 	payload := GenerateBenchMarkPayload(numberOfPorts, numberOfPorts)
 	b.ResetTimer()
 	b.ReportAllocs()

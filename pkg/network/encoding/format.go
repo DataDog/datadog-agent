@@ -38,6 +38,12 @@ var formatIPTrans = sync.Pool{
 	},
 }
 
+var formatProtocolSt = sync.Pool{
+	New: func() interface{} {
+		return new(model.ProtocolStack)
+	},
+}
+
 // RouteIdx stores the route and the index into the route collection for a route
 type RouteIdx struct {
 	Idx   int32
@@ -168,6 +174,10 @@ func returnToPool(c *model.Connections) {
 			}
 			if c.Raddr != nil {
 				modelAddressPool.Put(c.Raddr)
+			}
+
+			if c.Protocol != nil {
+				formatProtocolSt.Put(c.Protocol)
 			}
 
 			c.Reset()
