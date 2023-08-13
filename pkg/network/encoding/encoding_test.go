@@ -183,6 +183,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 func modelAndMarshalConnections(marshaler Marshaler, in *network.Connections) ([]byte,, error) {
 	connectionsModeler := InitConnectionsModeler(in)
 	payload := connectionsModeler.ModelConnections(in)
+	defer Cleanup(payload)
+
 	return marshaler.Marshal(payload)
 }
 

@@ -290,7 +290,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 
 	connectionsModeler := encoding.InitConnectionsModeler(cs)
 	payload := connectionsModeler.ModelConnections(cs)
-	encoding.ReturnToPool(payload)
+	defer encoding.Cleanup(payload)
 
 	buf, err := marshaler.Marshal(payload)
 	if err != nil {
