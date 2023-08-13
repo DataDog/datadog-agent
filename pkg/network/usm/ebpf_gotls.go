@@ -592,11 +592,9 @@ func (p *GoTLSProgram) unhookBinary(bin *runningBinary) {
 
 func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 	for _, probeID := range probeIDs {
-		probe, _ := p.manager.GetProbe(probeID)
 		err := p.manager.DetachHook(probeID)
 		if err != nil {
 			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
-		ebpfcheck.RemoveProgramNameMapping(probe.ID())
 	}
 }
