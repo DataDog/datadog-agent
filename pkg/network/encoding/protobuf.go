@@ -16,8 +16,7 @@ const ContentTypeProtobuf = "application/protobuf"
 type protoSerializer struct{}
 
 func (protoSerializer) Marshal(conns *model.Connections) ([]byte, error) {
-	buf, err := proto.Marshal(conns)
-	return buf, err
+	return proto.Marshal(conns)
 }
 
 func (protoSerializer) Unmarshal(blob []byte) (*model.Connections, error) {

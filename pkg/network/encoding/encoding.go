@@ -66,6 +66,8 @@ type ConnectionsModeler struct {
 	prebuiltEBPFAssets          []string
 }
 
+// InitConnectionsModeler initialize the connection modeler with the encoders, telemetry, and agent configuration of
+// the current connections.
 func InitConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	return &ConnectionsModeler{
 		httpEncoder:                 newHTTPEncoder(conns.HTTP),
