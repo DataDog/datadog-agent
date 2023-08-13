@@ -6,11 +6,15 @@
 package diagnose
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -156,13 +160,21 @@ func matchConfigFilters(cfg diagnosis.Config, s string) bool {
 	return true
 }
 
-func getSortedDiagnoseSuites() []diagnosis.Suite {
+func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Suite {
 	sortedSuites := make([]diagnosis.Suite, len(diagnosis.Catalog))
 	copy(sortedSuites, diagnosis.Catalog)
 	sort.Slice(sortedSuites, func(i, j int) bool {
 		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
 	})
-	return sortedSuites
+
+	var sortedFilteredSuites []diagnosis.Suite
+	for _, ds := range sortedSuites {
+		if matchConfigFilters(diagCfg, ds.SuitName) {
+			sortedFilteredSuites = append(sortedFilteredSuites, ds)
+		}
+	}
+
+	return sortedFilteredSuites
 }
 
 func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis.Diagnosis {
@@ -200,30 +212,21 @@ func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 		color.NoColor = true
 	}
 
-	sortedSuites := getSortedDiagnoseSuites()
+	sortedSuites := getSortedAndFilteredDiagnoseSuites(diagCfg)
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
 	count := 0
 	for _, ds := range sortedSuites {
-		// Is it filtered?
-		if matchConfigFilters(diagCfg, ds.SuitName) {
-			count++
-			fmt.Fprintf(w, "  %d. %s\n", count, ds.SuitName)
-		}
+		count++
+		fmt.Fprintf(w, "  %d. %s\n", count, ds.SuitName)
 	}
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func RunAll(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
-	// Filter Diagnose suite
-	var suites []diagnosis.Suite
-	for _, ds := range diagnosis.Catalog {
-		if matchConfigFilters(diagCfg, ds.SuitName) {
-			suites = append(suites, ds)
-		}
-	}
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
+	suites := getSortedAndFilteredDiagnoseSuites(diagCfg)
 
 	var suiteDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
@@ -240,6 +243,59 @@ func RunAll(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
 	return suiteDiagnoses
 }
 
+func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
+	c := util.GetClient(false)
+	ipcAddress, err := pkgconfig.GetIPCAddress()
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s, running diagnose locally", err)))
+		return getDiagnosesFromCurrentProcess(diagCfg)
+	}
+
+	// Set session token
+	if err = util.SetAuthToken(); err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Auth error: %s, running diagnose locally", err)))
+		return getDiagnosesFromCurrentProcess(diagCfg)
+	}
+
+	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+
+	//Serialized diag config
+	var cfgSer []byte
+	cfgSer, err = json.Marshal(diagCfg)
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding diagnose configuration: %s", err)))
+		return nil
+	}
+
+	var r []byte
+	r, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
+	if err != nil {
+		if r != nil && string(r) != "" {
+			fmt.Fprintf(color.Output, "The agent ran into an error while get diagnoses from running agent: %s ...\n", color.RedString(string(r)))
+		} else {
+			fmt.Fprintln(color.Output, color.RedString("The agent was unable to get diagnoses from running agent (is it running) ..."))
+		}
+		fmt.Println("agent diagnose command will run locally")
+		return getDiagnosesFromCurrentProcess(diagCfg)
+	}
+
+	var diagnoses []diagnosis.Diagnoses
+	err = json.Unmarshal(r, &diagnoses)
+	if err == nil {
+		return diagnoses
+	}
+
+	return nil
+}
+
+func Run(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
+	if diagCfg.RunLocal {
+		return getDiagnosesFromCurrentProcess(diagCfg)
+	}
+
+	return requestDiagnosesFromAgentProcess(diagCfg)
+}
+
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
 func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
@@ -247,28 +303,16 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 		color.NoColor = true
 	}
 
-	sortedSuites := getSortedDiagnoseSuites()
-
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
+
+	diagnoses := Run(diagCfg)
 
 	var c counters
 
 	lastDot := false
-	for _, ds := range sortedSuites {
-		// Is it filtered?
-		if !matchConfigFilters(diagCfg, ds.SuitName) {
-			continue
-		}
-
-		// Run particular diagnose
-		diagnoses := getSuiteDiagnoses(ds, diagCfg)
-		if diagnoses == nil {
-			// No diagnoses are reported, move on to next Diagnose
-			continue
-		}
-
+	for _, ds := range diagnoses {
 		suiteAlreadyReported := false
-		for _, d := range diagnoses {
+		for _, d := range ds.SuiteDiagnoses {
 			c.increment(d.Result)
 
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
@@ -276,7 +320,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 				continue
 			}
 
-			outputSuiteIfNeeded(w, ds.SuitName, &suiteAlreadyReported)
+			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
 			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result), c.total, d)

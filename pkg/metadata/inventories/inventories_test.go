@@ -83,6 +83,15 @@ func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
+func (c *mockCollector) GetChecks() []check.Check {
+	chks := make([]check.Check, 0, len(c.checks))
+	for _, chck := range c.checks {
+		chks = append(chks, chck)
+	}
+
+	return chks
+}
+
 func TestGetPayloadForExpvar(t *testing.T) {
 	ctx := context.Background()
 	defer func() { clearMetadata() }()

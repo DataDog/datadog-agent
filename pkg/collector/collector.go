@@ -238,6 +238,19 @@ func (c *Collector) MapOverChecks(cb func([]check.Info)) {
 	cb(cInfo)
 }
 
+// GetChecks copies checks
+func (c *Collector) GetChecks() []check.Check {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	chks := make([]check.Check, 0, len(c.checks))
+	for _, chck := range c.checks {
+		chks = append(chks, chck)
+	}
+
+	return chks
+}
+
 // GetAllInstanceIDs returns the ID's of all instances of a check
 func (c *Collector) GetAllInstanceIDs(checkName string) []checkid.ID {
 	c.m.RLock()

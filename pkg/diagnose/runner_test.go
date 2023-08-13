@@ -39,7 +39,7 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 	diagCfg := diagnosis.Config{
 		Include: []*regexp.Regexp{re},
 	}
-	diagnoses := RunAll(diagCfg)
+	diagnoses := run(diagCfg)
 	assert.Len(t, diagnoses, 0)
 }
 
@@ -77,7 +77,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 	diagCfgInclude := diagnosis.Config{
 		Include: []*regexp.Regexp{reInclude},
 	}
-	outSuitesDiagnosesInclude := RunAll(diagCfgInclude)
+	outSuitesDiagnosesInclude := run(diagCfgInclude)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)
 	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesInclude[1].SuiteDiagnoses, inDiagnoses)
@@ -88,7 +88,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		Include: []*regexp.Regexp{reInclude},
 		Exclude: []*regexp.Regexp{reExclude},
 	}
-	outSuitesDiagnosesIncludeExclude := RunAll(diagCfgIncludeExclude)
+	outSuitesDiagnosesIncludeExclude := run(diagCfgIncludeExclude)
 	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteName, "TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b")
