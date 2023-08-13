@@ -902,7 +902,6 @@ func BenchmarkModeling(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-
 		_, err := marshaler.Marshal(&conns)
 		require.NoError(b, err)
 	}
