@@ -159,12 +159,6 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		}
 	}
 
-	//log.Info("custom tags update does not exist")
-	//var temp string
-	//json.Unmarshal(updates["custom_tags"].Config, &mergedConfig.CustomTags)
-	//log.Info(mergedConfig.CustomTags)
-	//h.concentrator.SetCustomTags(h.agentConfig.CustomTags)
-
 	if err != nil {
 		log.Errorf("couldn't apply the remote configuration agent config: %s", err)
 	}
