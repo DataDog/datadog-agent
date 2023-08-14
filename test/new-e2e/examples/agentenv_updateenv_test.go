@@ -27,7 +27,6 @@ func TestVMSuiteEx4(t *testing.T) {
 }
 
 func (v *agentSuiteEx4) TestLogDebug() {
-	v.Env().Agent.WaitForReady()
 	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: debug")
 }
 
@@ -36,6 +35,5 @@ func (v *agentSuiteEx4) TestLogInfo() {
 		[]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)},
 		agentparams.WithAgentConfig("log_level: info"),
 	))
-	v.Env().Agent.WaitForReady()
 	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: info")
 }

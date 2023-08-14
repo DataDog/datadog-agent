@@ -25,7 +25,7 @@ func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, f
 	err := parseFile(defaultFileReader, filepath.Join(procPath, pid, procCgroupFile), func(s string) error {
 		var err error
 
-		parts := strings.Split(s, ":")
+		parts := strings.SplitN(s, ":", 3)
 		// Skip potentially malformed lines
 		if len(parts) != 3 {
 			return nil

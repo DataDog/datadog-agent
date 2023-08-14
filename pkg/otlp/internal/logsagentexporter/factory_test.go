@@ -9,8 +9,9 @@ package logsagentexporter
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/exporter/exportertest"

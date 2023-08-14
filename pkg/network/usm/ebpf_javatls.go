@@ -78,7 +78,7 @@ type javaTLSProgram struct {
 	procRoot string
 }
 
-var javaTLSSpec = protocols.ProtocolSpec{
+var javaTLSSpec = &protocols.ProtocolSpec{
 	Factory: newJavaTLSProgram,
 	Maps: []*manager.Map{
 		{

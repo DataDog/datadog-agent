@@ -90,6 +90,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
+	coldStartTags := e.daemon.ExecutionContext.GetColdStartTagsForRequestID(ecs.LastRequestID)
 	responseBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := log.Error("Could not read EndInvocation request body")
@@ -101,6 +102,9 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
 		RequestID:          ecs.LastRequestID,
 		ResponseRawPayload: responseBody,
+		ColdStart:          coldStartTags.IsColdStart,
+		ProactiveInit:      coldStartTags.IsProactiveInit,
+		Runtime:            ecs.Runtime,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {
