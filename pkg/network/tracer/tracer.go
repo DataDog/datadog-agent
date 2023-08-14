@@ -798,7 +798,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry) *usm.Monitor {
 	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
-	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
+	//connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
 	if tracer.Type() != connection.TracerTypeKProbeRuntimeCompiled && tracer.Type() != connection.TracerTypeKProbeCORE {
 		if c.EnableGoTLSSupport {
@@ -817,7 +817,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 		log.Info("goTLS monitoring enabled")
 	}
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
+	monitor, err := usm.NewMonitor(c, nil, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Error(err)
 		return nil
