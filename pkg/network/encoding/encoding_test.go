@@ -180,7 +180,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	return out
 }
 
-func modelAndMarshalConnections(marshaler Marshaler, in *network.Connections) ([]byte,, error) {
+func modelAndMarshalConnections(marshaler Marshaler, in *network.Connections) ([]byte, error) {
 	connectionsModeler := InitConnectionsModeler(in)
 	payload := connectionsModeler.ModelConnections(in)
 	defer Cleanup(payload)
