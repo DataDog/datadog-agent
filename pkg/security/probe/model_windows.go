@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package languagedetection
+package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-type Detector interface {
-	DetectLanguage(pid int) (languagemodels.Language, error)
+// NewModel returns a new model with some extra field validation
+func NewModel(probe *Probe) *model.Model {
+	return &model.Model{}
 }
