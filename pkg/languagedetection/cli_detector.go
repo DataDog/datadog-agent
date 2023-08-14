@@ -79,8 +79,7 @@ func languageNameFromCommand(command string) languagemodels.LanguageName {
 	return languagemodels.Unknown
 }
 
-// DetectLanguage uses a combination of commandline parsing and binary analysis to detect a
-// process's language
+// DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
 func DetectLanguage(procs []languagemodels.Process) []*languagemodels.Language {
 	langs := make([]*languagemodels.Language, len(procs))
 	for i, proc := range procs {
