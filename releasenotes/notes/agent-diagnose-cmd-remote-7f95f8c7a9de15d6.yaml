@@ -9,4 +9,4 @@
 enhancements:
   - |
     Improve ``agent diagnose`` command to be executed in context of
-    running agent process.
+    running Agent process.
