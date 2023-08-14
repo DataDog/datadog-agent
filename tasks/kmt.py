@@ -362,7 +362,7 @@ def test(ctx, stack=None, packages=None, run=None, retry=2, rebuild_deps=False, 
 
 
 @task
-def clean(ctx, stack=None):
+def clean(ctx, stack=None, container=False, image=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -370,3 +370,8 @@ def clean(ctx, stack=None):
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {KMT_SHARED_DIR}/*.tar.gz", warn=True)
+
+    if container:
+        ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")")
+    if image:
+        ctx.run("docker image rm kmt:compile")
