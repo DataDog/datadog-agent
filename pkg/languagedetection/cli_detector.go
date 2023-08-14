@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -88,7 +87,7 @@ var (
 )
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReader) []*languagemodels.Language {
+func DetectLanguage(procs []languagemodels.Process, sysprobeConfig config.ConfigReader) []*languagemodels.Language {
 	detectLanguageStart := time.Now()
 	defer func() {
 		detectLanguageRuntimeMs.Observe(float64(time.Since(detectLanguageStart).Milliseconds()))
@@ -106,8 +105,8 @@ func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReade
 		lang := &languagemodels.Language{Name: languageName}
 		langs[i] = lang
 		if lang.Name == languagemodels.Unknown {
-			unknownPids = append(unknownPids, proc.Pid)
-			langsToModify[proc.Pid] = lang
+			unknownPids = append(unknownPids, proc.GetPid())
+			langsToModify[proc.GetPid()] = lang
 		}
 	}
 
