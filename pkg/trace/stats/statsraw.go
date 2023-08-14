@@ -63,6 +63,28 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 
 	splitCustomTags := strings.Split(string(a.CustomTagKey), ",")
 
+	log.Info("statsraw custom tags: " + strings.Join(splitCustomTags, ","))
+
+	var stats = &pb.ClientGroupedStats{
+		Service:        a.Service,
+		Name:           a.Name,
+		Resource:       a.Resource,
+		HTTPStatusCode: a.StatusCode,
+		Type:           a.Type,
+		Hits:           round(s.hits),
+		Errors:         round(s.errors),
+		Duration:       round(s.duration),
+		TopLevelHits:   round(s.topLevelHits),
+		OkSummary:      okSummary,
+		ErrorSummary:   errSummary,
+		Synthetics:     a.Synthetics,
+		PeerService:    a.PeerService,
+		SpanKind:       a.SpanKind,
+		CustomTags:     splitCustomTags,
+	}
+
+	//	log.Info(stats)
+
 	return &pb.ClientGroupedStats{
 		Service:        a.Service,
 		Name:           a.Name,
@@ -77,9 +99,10 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		ErrorSummary:   errSummary,
 		Synthetics:     a.Synthetics,
 		PeerService:    a.PeerService,
-		CustomTags:     splitCustomTags,
 		SpanKind:       a.SpanKind,
+		CustomTags:     splitCustomTags,
 	}, nil
+
 }
 
 func newGroupedStats() *groupedStats {

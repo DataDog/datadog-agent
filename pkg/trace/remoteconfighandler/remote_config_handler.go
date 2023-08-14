@@ -12,6 +12,7 @@ import (
 	"net/http"
 	reflect "reflect"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
@@ -97,6 +98,7 @@ func (h *RemoteConfigHandler) Start() {
 	if h == nil {
 		return
 	}
+	log.Info("RC client started")
 
 	h.remoteClient.Start()
 	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
@@ -104,9 +106,10 @@ func (h *RemoteConfigHandler) Start() {
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig) {
+	log.Info("found an update in agent config")
 	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
 	if err != nil {
-		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
+		log.Info("couldn't merge the agent config from remote configuration: %s", err)
 		return
 	}
 
@@ -137,17 +140,30 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		}
 	}
 
-	if rawTagsMap, ok := updates["custom_tags"]; ok {
-		var tagsMap map[string][]string
-		json.Unmarshal(rawTagsMap.Config, &tagsMap)
-		for spanName, customTags := range tagsMap {
-			pkglog.Infof("Adding custom tag(s) %s to span %s through remote config", customTags, spanName)
-			h.concentrator.SetCustomTags(tagsMap)
-			h.configState.LatestCustomTags = tagsMap
+	prefix := "datadog/2/AGENT_CONFIG/custom_tags"
+
+	for key, value := range updates {
+		if ok := strings.HasPrefix(key, prefix); ok {
+			log.Info("Custom tags remote config update exists")
+
+			var outerMap map[string]map[string][]string
+			json.Unmarshal(value.Config, &outerMap)
+			for _, customTags := range outerMap {
+				for spanName, tagValues := range customTags {
+					log.Info("Adding custom tag(s) %s to span %s through remote config", spanName, tagValues)
+					h.concentrator.SetCustomTags(customTags)
+					h.configState.LatestCustomTags = customTags
+
+				}
+			}
 		}
-	} else {
-		h.concentrator.SetCustomTags(h.agentConfig.CustomTags)
 	}
+
+	//log.Info("custom tags update does not exist")
+	//var temp string
+	//json.Unmarshal(updates["custom_tags"].Config, &mergedConfig.CustomTags)
+	//log.Info(mergedConfig.CustomTags)
+	//h.concentrator.SetCustomTags(h.agentConfig.CustomTags)
 
 	if err != nil {
 		log.Errorf("couldn't apply the remote configuration agent config: %s", err)

@@ -216,9 +216,9 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			c.buckets[btime] = b
 		}
 
-		c.mu.Lock()
+		//c.mu.Lock()
 		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation, c.customTags)
-		c.mu.Unlock()
+		//c.mu.Unlock()
 	}
 }
 

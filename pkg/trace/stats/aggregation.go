@@ -125,6 +125,8 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	if enablePeerSvcAgg {
 		agg.PeerService = s.Meta[tagPeerService]
 	}
+	log.Info("custom tags: " + agg.CustomTagKey)
+
 	return agg
 }
 
