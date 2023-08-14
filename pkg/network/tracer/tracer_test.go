@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1378,4 +1380,15 @@ func (s *TracerSuite) TestTCPDirection() {
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
+func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.CollectTCPv6Conns = false
+	cfg.CollectUDPv6Conns = false
+	if features.HaveProgramType(ebpf.TracePoint) == nil {
+		t.Skip()
+	}
+	_ = setupTracer(t, cfg)
 }

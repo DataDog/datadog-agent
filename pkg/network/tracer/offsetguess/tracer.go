@@ -478,11 +478,18 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
 			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
+			tracePointDisabled := features.HaveProgramType(ebpf.TracePoint) != nil
 
 			// check for IPv6 enabled and tracepoint being disabled
-			if (t.guessTCPv6 || t.guessUDPv6) && features.HaveProgramType(ebpf.TracePoint) != nil {
+			if (t.guessTCPv6 || t.guessUDPv6) && tracePointDisabled {
 				next = GuessDAddrIPv6
 			}
+
+			if !t.guessTCPv6 && !t.guessUDPv6 && tracePointDisabled {
+				next = GuessNotApplicable
+				return t.setReadyState(mp)
+			}
+
 			t.logAndAdvance(t.status.Offset_socket_sk, next)
 			break
 		}
