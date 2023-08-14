@@ -12,8 +12,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
@@ -53,7 +55,11 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 }
 
 func TestAutoMultilineEnabled(t *testing.T) {
-	mockConfig := config.Mock(t)
+
+	mockConfig := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule,
+	)).(config.Mock)
+
 	decode := func(cfg string) *LogsConfig {
 		lc := LogsConfig{}
 		json.Unmarshal([]byte(cfg), &lc)
@@ -61,22 +67,22 @@ func TestAutoMultilineEnabled(t *testing.T) {
 	}
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", false)
-	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled())
+	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", true)
-	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled())
+	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", true)
-	assert.True(t, decode(`{}`).AutoMultiLineEnabled())
+	assert.True(t, decode(`{}`).AutoMultiLineEnabled(mockConfig))
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", false)
-	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled())
+	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled(mockConfig))
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", true)
-	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled())
+	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled(mockConfig))
 
 	mockConfig.Set("logs_config.auto_multi_line_detection", false)
-	assert.False(t, decode(`{}`).AutoMultiLineEnabled())
+	assert.False(t, decode(`{}`).AutoMultiLineEnabled(mockConfig))
 
 }
 
