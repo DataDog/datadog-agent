@@ -15,7 +15,7 @@ import (
 )
 
 var cliDetectors = []languagemodels.Detector{
-	&detectors.JRubyDetector{},
+	detectors.JRubyDetector{},
 }
 
 type languageFromCLI struct {
@@ -88,7 +88,7 @@ func DetectLanguage(procs []languagemodels.Process) []*languagemodels.Language {
 		for _, detector := range cliDetectors {
 			lang, err := detector.DetectLanguage(proc)
 			if err != nil {
-				log.Warnf("unable to detect language for proc %d: %s", proc.GetPid(), err)
+				log.Warnf("unable to detect language for process %d: %s", proc.GetPid(), err)
 				continue
 			}
 

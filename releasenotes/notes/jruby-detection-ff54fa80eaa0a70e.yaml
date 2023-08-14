@@ -7,5 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - |
-    Adds JRuby language detection
+  - Adds language detection support for JRuby, which will be detected as Ruby
