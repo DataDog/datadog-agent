@@ -9,9 +9,14 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var cliDetectors = []languagemodels.Detector{
+	detectors.JRubyDetector{},
+}
 
 type languageFromCLI struct {
 	name      languagemodels.LanguageName
@@ -51,6 +56,8 @@ var exactMatches = map[string]languageFromCLI{
 	"rubyw": {name: languagemodels.Ruby},
 }
 
+// languageNameFromCmdline returns a process's language from its command.
+// If the language is not detected, languagemodels.Unknown is returned.
 func languageNameFromCommand(command string) languagemodels.LanguageName {
 	// First check to see if there is an exact match
 	if lang, ok := exactMatches[command]; ok {
@@ -73,13 +80,31 @@ func languageNameFromCommand(command string) languagemodels.LanguageName {
 }
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process) []*languagemodels.Language {
+func DetectLanguage(procs []languagemodels.Process) []*languagemodels.Language {
 	langs := make([]*languagemodels.Language, len(procs))
 	for i, proc := range procs {
-		exe := getExe(proc.Cmdline)
+		// Language-specific detectors should precede matches on the command/exe
+		for _, detector := range cliDetectors {
+			lang, err := detector.DetectLanguage(proc)
+			if err != nil {
+				log.Warnf("unable to detect language for process %d: %s", proc.GetPid(), err)
+				continue
+			}
+
+			if lang.Name != languagemodels.Unknown {
+				langs[i] = &lang
+				break
+			}
+		}
+
+		if langs[i] != nil {
+			break
+		}
+
+		exe := getExe(proc.GetCmdline())
 		languageName := languageNameFromCommand(exe)
 		if languageName == languagemodels.Unknown {
-			languageName = languageNameFromCommand(proc.Comm)
+			languageName = languageNameFromCommand(proc.GetCommand())
 		}
 		langs[i] = &languagemodels.Language{Name: languageName}
 	}

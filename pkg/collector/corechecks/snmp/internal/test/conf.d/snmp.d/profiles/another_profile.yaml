@@ -1,9 +1,13 @@
 # Another profile
 #
+sysobjectid:
+  # Example Enterprise Number for Documentation Use (see RFC 5612)
+  - 1.3.6.1.4.1.32473.1.1
+
 metrics:
   - symbol:
       OID: 1.3.6.1.2.1.1.999.0
-      name: someMetric
+      name: anotherMetric
 
 metric_tags:
   - column: # column syntax

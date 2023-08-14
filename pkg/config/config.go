@@ -1113,7 +1113,6 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector
-	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
 	// SBOM configuration
@@ -1253,6 +1252,9 @@ func InitConfig(config Config) {
 
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
+
+	// Language Detection
+	config.BindEnvAndSetDefault("language_detection.enabled", false)
 
 	setupAPM(config)
 	SetupOTLP(config)

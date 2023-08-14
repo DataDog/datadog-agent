@@ -421,6 +421,10 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 	return nil
 }
 
+func newDefaultEvent() eval.Event {
+	return model.NewDefaultEvent()
+}
+
 func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	cfg := &pconfig.Config{
 		EnableKernelFilters: true,
@@ -457,7 +461,7 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
@@ -570,7 +574,7 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 
 	loader := rules.NewPolicyLoader(provider)
 
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {
 		return err
