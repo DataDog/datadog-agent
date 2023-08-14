@@ -245,17 +245,15 @@ func (ns *networkState) GetTelemetryDelta(
 
 func trimConns(conns []ConnectionStats, f func(c *ConnectionStats) bool) []ConnectionStats {
 	removed := 0
-	for i := 0; i < len(conns)-removed; {
+	for i := range conns {
 		if f(&conns[i]) {
-			conns[i], conns[len(conns)-removed-1] = conns[len(conns)-removed-1], conns[i]
+			conns[i], conns[removed] = conns[removed], conns[i]
 			removed++
 			continue
 		}
-
-		i++
 	}
 
-	return conns[:len(conns)-removed]
+	return conns[removed:]
 }
 
 // GetDelta returns the connections for the given client
@@ -723,6 +721,9 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 		return false
 	})
 
+	aggr := newConnectionAggregator(len(active)+len(closed), false)
+	defer aggr.finalize()
+
 	// Active connections
 	for cookie, c := range active {
 		ns.createStatsForCookie(client, cookie)
@@ -733,11 +734,7 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 			delete(active, cookie)
 			continue
 		}
-	}
 
-	aggr := newConnectionAggregator(len(active)+len(closed), false)
-	defer aggr.finalize()
-	for cookie, c := range active {
 		if aggr.Aggregate(c) {
 			delete(active, cookie)
 		}
@@ -1069,7 +1066,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledU
 	return k, ephemeralSport, ephemeralDport
 }
 
-func (a *connectionAggregator) equalIPTranslation(c1, c2 *ConnectionStats, sportRolledUp, dportRolledUp bool) bool {
+func (a *connectionAggregator) canAggregateIPTranslation(c1, c2 *ConnectionStats, sportRolledUp, dportRolledUp bool) bool {
 	if c1.IPTranslation == c2.IPTranslation ||
 		c1.IPTranslation == nil ||
 		c2.IPTranslation == nil {
@@ -1134,7 +1131,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	}
 
 	for _, aggrConn := range aggrConns {
-		if !a.equalIPTranslation(aggrConn.ConnectionStats, c, sportRolledUp, dportRolledUp) {
+		if !a.canAggregateIPTranslation(aggrConn.ConnectionStats, c, sportRolledUp, dportRolledUp) {
 			continue
 		}
 
@@ -1145,6 +1142,9 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 		aggrConn.count++
 		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
 			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
+		}
+		if aggrConn.IPTranslation == nil {
+			aggrConn.IPTranslation = c.IPTranslation
 		}
 		if sportRolledUp {
 			// more than one connection with
