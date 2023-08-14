@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"net/http"
 	"os"
 	"runtime"
@@ -92,7 +93,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 }
 
 // getConnectionsFromMarshaler returns buf that representing the connections after modeling and marshaling
-func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
+func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *model.Connections) ([]byte, error) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		return nil, err
@@ -114,7 +115,11 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	}
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	conns, err := getConnectionsFromMarshaler(marshaler, cs)
+	connectionsModeler := encoding.InitConnectionsModeler(cs)
+	payload := connectionsModeler.ModelConnections(cs)
+	defer encoding.Cleanup(payload)
+
+	conns, err := getConnectionsFromMarshaler(marshaler, payload)
 	if err != nil {
 		return err
 	}
