@@ -101,6 +101,58 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 	return modulePath, wasCompressed
 }
 
+func TestKworker(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping kernel module test in docker")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_load_module_kworker",
+			Expression: `load_module.name == "xt_LED" && process.is_kworker`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	_ = unix.DeleteModule("xt_LED", 0)
+
+	cmd := exec.Command("modprobe", "xt_LED")
+	if err := cmd.Run(); err != nil {
+		t.Skip("required kernel module not available")
+	}
+
+	defer func() {
+		cmd := exec.Command("iptables", "-D", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
+		if err := cmd.Run(); err != nil {
+			t.Error(err)
+		}
+
+		if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	test.WaitSignal(t, func() error {
+		if err := unix.DeleteModule("xt_LED", 0); err != nil {
+			return err
+		}
+
+		cmd := exec.Command("iptables", "-A", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+
+		return nil
+	}, func(event *model.Event, r *rules.Rule) {
+		assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
+	})
+}
+
 func TestLoadModule(t *testing.T) {
 	if os.Getenv("CI") == "true" {
 		t.Skip("TestLoadModule is known to be flaky")
@@ -135,10 +187,6 @@ func TestLoadModule(t *testing.T) {
 		{
 			ID:         "test_load_module",
 			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.args == "" && !process.is_kworker`, testModuleName, modulePath),
-		},
-		{
-			ID:         "test_load_module_kworker",
-			Expression: `load_module.name == "xt_LED" && process.is_kworker`,
 		},
 		{
 			ID:         "test_load_module_with_params",
@@ -204,41 +252,6 @@ func TestLoadModule(t *testing.T) {
 			assert.Equal(t, "test_load_module", r.ID, "invalid rule triggered")
 
 			test.validateLoadModuleSchema(t, event)
-		})
-	})
-
-	t.Run("kworker", func(t *testing.T) {
-		_ = unix.DeleteModule("xt_LED", 0)
-
-		cmd := exec.Command("modprobe", "xt_LED")
-		if err := cmd.Run(); err != nil {
-			t.Skip("required kernel module not available")
-		}
-
-		defer func() {
-			cmd := exec.Command("iptables", "-D", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
-			if err := cmd.Run(); err != nil {
-				t.Error(err)
-			}
-
-			if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }); err != nil {
-				t.Error(err)
-			}
-		}()
-
-		test.WaitSignal(t, func() error {
-			if err := unix.DeleteModule("xt_LED", 0); err != nil {
-				return err
-			}
-
-			cmd := exec.Command("iptables", "-A", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
-			if err := cmd.Run(); err != nil {
-				return err
-			}
-
-			return nil
-		}, func(event *model.Event, r *rules.Rule) {
-			assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
 		})
 	})
 

@@ -88,6 +88,10 @@ func (c *cgroupV1) GetMemoryStats(stats *MemoryStats) error {
 		reportError(err)
 	}
 
+	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory", "memory.max_usage_in_bytes"), &stats.Peak); err != nil {
+		reportError(err)
+	}
+
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory", "memory.failcnt"), &stats.OOMEvents); err != nil {
 		reportError(err)
 	}
