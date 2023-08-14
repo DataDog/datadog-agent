@@ -106,12 +106,21 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 	return nil
 }
 
-// shouldInjectConf returns whether we should try to inject standard tags
+// shouldInjectTags returns whether we should try to inject standard tags
 func shouldInjectTags(pod *corev1.Pod) bool {
-	if val := pod.GetLabels()[common.EnabledLabelKey]; val == "false" {
-		return false
+	if val, found := pod.GetLabels()[common.EnabledLabelKey]; found {
+		switch val {
+		case "true":
+			return true
+		case "false":
+			return false
+		default:
+			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", common.EnabledLabelKey, val, podString(pod))
+			return false
+		}
 	}
-	return true
+	return config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") ||
+		config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
 // injectTagsFromLabels looks for standard tags in pod labels

@@ -133,7 +133,8 @@ func shouldMutatePod(pod *corev1.Pod) bool {
 			return false
 		}
 	}
-	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	return config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") ||
+		config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels
