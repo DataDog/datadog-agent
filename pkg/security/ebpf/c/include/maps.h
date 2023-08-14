@@ -80,6 +80,7 @@ BPF_PERCPU_ARRAY_MAP(is_discarded_by_inode_gen, u32, struct is_discarded_by_inod
 BPF_PERCPU_ARRAY_MAP(dns_event, u32, struct dns_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(packets, u32, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, u32, struct selinux_write_buffer_t, 1)
+BPF_PERCPU_ARRAY_MAP(is_new_kthread, u32, u32, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_callbacks, EVENT_MAX)

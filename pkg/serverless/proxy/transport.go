@@ -99,7 +99,7 @@ func processRequest(p *proxyTransport, request *http.Request) error {
 		p.processor.OnInvokeEnd(details)
 
 	default:
-		log.Debugf("runtime api proxy: unknown verb/url (%s/%s) pattern found, ignoring", request.Method, request.URL.String())
+		log.Debugf("runtime api proxy: ignoring %s /%s", request.Method, request.URL.String())
 	}
 
 	return nil
