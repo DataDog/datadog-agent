@@ -7,6 +7,19 @@
 
 package languagedetection
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/stretchr/testify/assert"
+	"net/http"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
+)
+
 func TestBinaryAnalysisClient(t *testing.T) {
 	socketPath := startTestUnixServer(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		b, err := proto.Marshal(&languagepb.DetectLanguageResponse{
@@ -31,7 +44,7 @@ func TestBinaryAnalysisClient(t *testing.T) {
 		require.NoError(t, err)
 	}))
 
-	var procs []*procutil.Process
+	var procs []languagemodels.Process
 	for _, command := range [][]string{
 		{"python3", "--version"},
 		{"go", "run", "main.go"},
