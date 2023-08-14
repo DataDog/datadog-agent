@@ -82,7 +82,6 @@ type State interface {
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
 		usmStats map[protocols.ProtocolType]interface{},
-		resolver LocalResolver,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -265,7 +264,6 @@ func (ns *networkState) GetDelta(
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	usmStats map[protocols.ProtocolType]interface{},
-	resolver LocalResolver,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -288,23 +286,6 @@ func (ns *networkState) GetDelta(
 
 	cs := slice.NewChain(active, closed)
 	ns.determineConnectionIntraHost(cs)
-
-	// do local resolution if available
-	resolved := resolver.Resolve(cs)
-
-	// aggregate/roll up connections only if we
-	// have container resolution
-	if resolved {
-		aggr := newConnectionAggregator(cs.Len(), resolved)
-		active = trimConns(active, func(c *ConnectionStats) bool {
-			return aggr.Aggregate(c)
-		})
-
-		closed = trimConns(closed, func(c *ConnectionStats) bool {
-			return aggr.Aggregate(c)
-		})
-		aggr.finalize()
-	}
 
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -1006,6 +987,7 @@ type aggregateConnection struct {
 type connectionAggregator struct {
 	conns    map[string][]*aggregateConnection
 	buf      []byte
+	key      string
 	resolved bool
 }
 
@@ -1017,56 +999,7 @@ func newConnectionAggregator(size int, resolved bool) *connectionAggregator {
 	}
 }
 
-func (a *connectionAggregator) key(c *ConnectionStats) (key string, sportRolledUp, dportRolledUp bool) {
-	if !a.resolved {
-		return string(c.ByteKey(a.buf)), false, false
-	}
-
-	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
-	ephemeralSport := c.IntraHost && IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
-	ephemeralSport = ephemeralSport || c.Direction == OUTGOING
-	ephemeralDport := c.IntraHost && IsPortInEphemeralRange(c.Family, c.Type, c.DPort) == EphemeralTrue
-	ephemeralDport = ephemeralDport || c.Direction == INCOMING
-
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("type=%s isShortLived=%+v ephemeralSport=%+v ephemeralDport=%+v", c.Type, isShortLived, ephemeralSport, ephemeralDport)
-	})
-	if c.Type != UDP ||
-		!isShortLived ||
-		(!ephemeralSport && !ephemeralDport) {
-		log.TraceFunc(func() string { return fmt.Sprintf("not rolling up connection %+v ", c) })
-		return string(c.ByteKey(a.buf)), false, false
-	}
-
-	log.TraceFunc(func() string { return fmt.Sprintf("rolling up connection %+v ", c) })
-
-	if ephemeralSport {
-		sport := c.SPort
-		c.SPort = 0
-		defer func() {
-			c.SPort = sport
-		}()
-	}
-	if ephemeralDport {
-		dport := c.DPort
-		c.DPort = 0
-		defer func() {
-			c.DPort = dport
-		}()
-	}
-
-	k := string(c.ByteKey(a.buf))
-	if c.ContainerID.Source != nil {
-		k += *c.ContainerID.Source
-	}
-	if c.ContainerID.Dest != nil {
-		k += *c.ContainerID.Dest
-	}
-
-	return k, ephemeralSport, ephemeralDport
-}
-
-func (a *connectionAggregator) canAggregateIPTranslation(c1, c2 *ConnectionStats, sportRolledUp, dportRolledUp bool) bool {
+func (a *connectionAggregator) canAggregateIPTranslation(c1, c2 *ConnectionStats) bool {
 	if c1.IPTranslation == c2.IPTranslation ||
 		c1.IPTranslation == nil ||
 		c2.IPTranslation == nil {
@@ -1075,34 +1008,6 @@ func (a *connectionAggregator) canAggregateIPTranslation(c1, c2 *ConnectionStats
 
 	if *c1.IPTranslation == *c2.IPTranslation {
 		return true
-	}
-
-	// both ip translations are not nil and are
-	// not equal, rollup the ip translation ports
-	// and check again
-	if !sportRolledUp && !dportRolledUp {
-		return false
-	}
-
-	if sportRolledUp {
-		c1Dport := c1.IPTranslation.ReplDstPort
-		c2Dport := c2.IPTranslation.ReplDstPort
-		c1.IPTranslation.ReplDstPort = 0
-		c2.IPTranslation.ReplDstPort = 0
-		defer func() {
-			c1.IPTranslation.ReplDstPort = c1Dport
-			c2.IPTranslation.ReplDstPort = c2Dport
-		}()
-	}
-	if dportRolledUp {
-		c1Sport := c1.IPTranslation.ReplSrcPort
-		c2Sport := c2.IPTranslation.ReplSrcPort
-		c1.IPTranslation.ReplSrcPort = 0
-		c2.IPTranslation.ReplSrcPort = 0
-		defer func() {
-			c1.IPTranslation.ReplSrcPort = c1Sport
-			c2.IPTranslation.ReplSrcPort = c2Sport
-		}()
 	}
 
 	return *c1.IPTranslation == *c2.IPTranslation
@@ -1116,10 +1021,10 @@ func (a *connectionAggregator) canAggregateIPTranslation(c1, c2 *ConnectionStats
 //   - the other connection's ip translation is nil OR
 //   - the other connection's ip translation is not nil AND the nat info is the same
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key, sportRolledUp, dportRolledUp := a.key(c)
-	aggrConns, ok := a.conns[key]
+	a.key = string(c.ByteKey(a.buf))
+	aggrConns, ok := a.conns[a.key]
 	if !ok {
-		a.conns[key] = []*aggregateConnection{
+		a.conns[a.key] = []*aggregateConnection{
 			{
 				ConnectionStats: c,
 				rttSum:          uint64(c.RTT),
@@ -1131,7 +1036,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	}
 
 	for _, aggrConn := range aggrConns {
-		if !a.canAggregateIPTranslation(aggrConn.ConnectionStats, c, sportRolledUp, dportRolledUp) {
+		if !a.canAggregateIPTranslation(aggrConn.ConnectionStats, c) {
 			continue
 		}
 
@@ -1146,29 +1051,11 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 		if aggrConn.IPTranslation == nil {
 			aggrConn.IPTranslation = c.IPTranslation
 		}
-		if sportRolledUp {
-			// more than one connection with
-			// source port dropped in key,
-			// so set source port to 0
-			aggrConn.SPort = 0
-			if aggrConn.IPTranslation != nil {
-				aggrConn.IPTranslation.ReplDstPort = 0
-			}
-		}
-		if dportRolledUp {
-			// more than one connection with
-			// dest port dropped in key,
-			// so set source port to 0
-			aggrConn.DPort = 0
-			if aggrConn.IPTranslation != nil {
-				aggrConn.IPTranslation.ReplSrcPort = 0
-			}
-		}
 
 		return true
 	}
 
-	a.conns[key] = append(aggrConns, &aggregateConnection{
+	a.conns[a.key] = append(aggrConns, &aggregateConnection{
 		ConnectionStats: c,
 		rttSum:          uint64(c.RTT),
 		rttVarSum:       uint64(c.RTTVar),

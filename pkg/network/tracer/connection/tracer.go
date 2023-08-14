@@ -656,7 +656,6 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 			RecvPackets: s.Recv_packets,
 		},
 		LastUpdateEpoch: s.Timestamp,
-		Duration:        s.Duration,
 		IsAssured:       s.IsAssured(),
 		Cookie:          network.StatCookie(s.Cookie),
 	}
