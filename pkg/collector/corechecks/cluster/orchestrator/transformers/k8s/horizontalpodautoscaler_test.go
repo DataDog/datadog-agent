@@ -78,8 +78,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -92,8 +91,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -131,8 +129,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -178,8 +175,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -192,8 +188,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -228,8 +223,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -296,8 +290,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Value: 10,
 								},
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -309,8 +309,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Value: 1000,
 								},
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -343,8 +349,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Value: 1000,
 								},
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -379,8 +391,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 								},
 								Current: 10,
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -389,8 +407,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							Pods: &model.PodsMetricStatus{
 								Current: 10,
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -414,8 +438,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							External: &model.ExternalMetricStatus{
 								Current: 10,
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -606,8 +636,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -620,8 +649,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -667,8 +695,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -681,8 +708,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name: "CPU",
 									Selector: &metav1.LabelSelector{
 										MatchLabels: map[string]string{
-											"environment": "production",
-											"service":     "datadog",
+											"service": "datadog",
 										},
 									},
 								},
@@ -749,8 +775,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Value: 10,
 								},
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -762,8 +794,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Value: 10,
 								},
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -797,8 +835,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 								},
 								Current: 10,
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},
@@ -807,8 +851,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							Pods: &model.PodsMetricStatus{
 								Current: 10,
 								Metric: &model.MetricIdentifier{
-									Name:          "CPU",
-									LabelSelector: "&LabelSelector{MatchLabels:map[string]string{environment: production,service: datadog,},MatchExpressions:[]LabelSelectorRequirement{},}",
+									Name: "CPU",
+									LabelSelector: []*model.LabelSelectorRequirement{
+										{
+											Key:      "service",
+											Operator: "In",
+											Values:   []string{"datadog"},
+										},
+									},
 								},
 							},
 						},

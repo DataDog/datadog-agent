@@ -91,10 +91,8 @@ func extractMetricIdentifier(m v2.MetricIdentifier) *model.MetricIdentifier {
 	mi := model.MetricIdentifier{
 		Name: m.Name,
 	}
-	// TODO - figure out how we want represent labelSelectors
-	// Leaving as a string for now
 	if m.Selector != nil {
-		mi.LabelSelector = m.Selector.String()
+		mi.LabelSelector = extractLabelSelector(m.Selector)
 	}
 	return &mi
 }
