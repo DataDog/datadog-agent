@@ -9,10 +9,10 @@ package monitor
 
 import (
 	"fmt"
-	"github.com/cihub/seelog"
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
