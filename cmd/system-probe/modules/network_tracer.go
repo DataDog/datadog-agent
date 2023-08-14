@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	model "github.com/DataDog/agent-payload/v5/process"
 	"net/http"
 	"os"
 	"runtime"
@@ -92,7 +93,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 }
 
 // getConnectionsFromMarshaler returns buf that representing the connections after modeling and marshaling
-func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
+func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *model.Connections) ([]byte, error) {
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		return nil, err
@@ -100,6 +101,13 @@ func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Conne
 
 	log.Tracef("GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
 	return buf, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // GetConnections function that establishes a streaming RPC connection to retrieve and continuously stream information
@@ -114,18 +122,37 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	}
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	conns, err := getConnectionsFromMarshaler(marshaler, cs)
-	if err != nil {
-		return err
-	}
+	connectionsModeler := encoding.InitConnectionsModeler(cs)
+	payload := connectionsModeler.ModelConnections(cs)
+	defer encoding.Cleanup(payload)
 
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
 	count := runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
+	connections := &connectionserver.Connection{}
 
-	return s2.Send(&connectionserver.Connection{Data: conns})
+	for len(payload.Conns) > 0 {
+		finalBatchSize := min(nt.maxConnsPerMessage, len(payload.Conns))
+		rest := payload.Conns[finalBatchSize:]
+		payload.Conns = payload.Conns[:finalBatchSize]
+
+		// get the conns for a batch by the marshaler
+		conns, err := getConnectionsFromMarshaler(marshaler, payload)
+		if err != nil {
+			return err
+		}
+		connections.Data = conns
+		err = s2.Send(connections)
+		if err != nil {
+			log.Errorf("unable to send current connection batch due to: %v", err)
+		}
+
+		payload.Conns = rest
+	}
+
+	return nil
 }
 
 // RegisterGRPC register system probe grpc server

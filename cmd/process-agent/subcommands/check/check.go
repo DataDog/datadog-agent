@@ -162,8 +162,8 @@ func runCheckCmd(deps dependencies) error {
 			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
-			GRPCSocketFilePath:   deps.Syscfg.Object().GRPCSocketFilePath,
-			GRPCServerEnabled:    deps.Syscfg.Object().GRPCServerEnabled,
+			GRPCSocketFilePath:   deps.Syscfg.SysProbeObject().GRPCSocketFilePath,
+			GRPCServerEnabled:    deps.Syscfg.SysProbeObject().GRPCServerEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {

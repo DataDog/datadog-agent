@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -26,7 +27,7 @@ var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
-		return languageDetectionModule{}, nil
+		return &languageDetectionModule{}, nil
 	},
 }
 
@@ -38,6 +39,10 @@ func (l languageDetectionModule) GetStats() map[string]interface{} {
 
 func (l languageDetectionModule) Register(router *module.Router) error {
 	router.HandleFunc("/detect", detectLanguage)
+	return nil
+}
+
+func (l *languageDetectionModule) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }
 
