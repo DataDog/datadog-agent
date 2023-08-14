@@ -216,7 +216,7 @@ func (p *javaTLSProgram) isAttachmentAllowed(pid uint32) bool {
 		return true
 	}
 
-	procCmdline := fmt.Sprintf("%s/%d/cmdline", kernel.ProcFSRoot(), pid)
+	procCmdline := fmt.Sprintf("%s/%d/cmdline", p.procRoot, pid)
 	cmd, err := os.ReadFile(procCmdline)
 	if err != nil {
 		log.Debugf("injection filter can't open commandline %q : %s", procCmdline, err)
