@@ -155,6 +155,9 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	err := s.service.Init()
 	if err != nil {
 		if errors.Is(err, ErrCleanStopAfterInit) {
+			// Service requested to exit successfully. We must enter SERVICE_RUNNING state and stay there
+			// for a period of time to ensure the service manager treats the start as successful.
+			// See ErrCleanStopAfterInit and runTimeExitGate for more information.
 			changes <- svc.Status{State: svc.Running, Accepts: runningCmdsAccepted}
 			<-runTimeExitGate()
 			return
@@ -196,6 +199,7 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 		}
 	}()
 
+	// Now that we are in SERVICE_RUNNING state, start the exit gate timer.
 	exitGate := runTimeExitGate()
 
 	// Run the actual agent/service
@@ -203,6 +207,7 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	if err != nil {
 		s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
 	}
+	// Run returned success, ensure the service is alive long enough to be considered successful.
 	defer func() { <-exitGate }()
 
 	// golang sets the status to SERVICE_STOPPED before returning from svc.Run() so we don't
