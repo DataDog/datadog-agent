@@ -132,7 +132,7 @@ func lookupPerCPUMapTelemetry(mapErrMap *ebpf.Map, key uint64) (map[string]uint6
 	}
 
 	// Error telemetry is a monotonically increasing integer,
-	// so they can be combined communitatively.
+	// so they can be combined commutatively
 	totalCount := make(map[string]uint64)
 	for _, v := range vals {
 		count := getMapErrCount(&v)
