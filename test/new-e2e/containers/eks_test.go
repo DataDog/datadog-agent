@@ -38,12 +38,12 @@ func TestEKSSuite(t *testing.T) {
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "eks-cluster", stackConfig, eks.Run, false)
-	require.NoError(t, err)
-
 	t.Cleanup(func() {
 		infra.GetStackManager().DeleteStack(ctx, "eks-cluster")
 	})
+
+	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "eks-cluster", stackConfig, eks.Run, false)
+	require.NoError(t, err)
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
 	kubeconfig, err := json.Marshal(stackOutput.Outputs["kubeconfig"].Value.(map[string]interface{}))

@@ -11,12 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -95,15 +94,14 @@ func DetectLanguage(procs []*procutil.Process, sysprobeConfig config.ConfigReade
 		detectLanguageRuntimeMs.Observe(float64(time.Since(detectLanguageStart).Milliseconds()))
 	}()
 
-	log.Trace("[language detection] Running language detection")
 	langs := make([]*languagemodels.Language, len(procs))
 	unknownPids := make([]int32, 0, len(procs))
 	langsToModify := make(map[int32]*languagemodels.Language, len(procs))
 	for i, proc := range procs {
-		exe := getExe(proc.Cmdline)
+		exe := getExe(proc.GetCmdline())
 		languageName := languageNameFromCommand(exe)
 		if languageName == languagemodels.Unknown {
-			languageName = languageNameFromCommand(proc.Comm)
+			languageName = languageNameFromCommand(proc.GetCommand())
 		}
 		lang := &languagemodels.Language{Name: languageName}
 		langs[i] = lang

@@ -122,7 +122,7 @@ func TestDetectLanguage(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			process := []*procutil.Process{makeProcess(tc.cmdline, tc.comm)}
+			process := []languagemodels.Process{makeProcess(tc.cmdline, tc.comm)}
 			expected := []*languagemodels.Language{{Name: tc.expected}}
 			assert.Equal(t, expected, DetectLanguage(process, nil))
 		})
@@ -261,7 +261,7 @@ func BenchmarkDetectLanguage(b *testing.B) {
 		},
 	}
 
-	var procs []*procutil.Process
+	var procs []languagemodels.Process
 	for _, command := range commands {
 		procs = append(procs, makeProcess(command.cmdline, command.comm))
 	}

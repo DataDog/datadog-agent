@@ -85,7 +85,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	defer w.reportTelemetry()
 
 	newEntities := make([]*ProcessEntity, 0, len(procs))
-	newProcs := make([]*procutil.Process, 0, len(procs))
+	newProcs := make([]languagemodels.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
@@ -113,7 +113,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 
 	languages := languagedetection.DetectLanguage(newProcs, w.sysprobeConfig)
 	for i, lang := range languages {
-		pid := newProcs[i].Pid
+		pid := newProcs[i].GetPid()
 		proc := procs[pid]
 
 		var creationTime int64
@@ -178,7 +178,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 
 // Enabled returns whether the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
-	return ddconfig.GetBool("process_config.language_detection.enabled")
+	return ddconfig.GetBool("language_detection.enabled")
 }
 
 func hashProcess(pid int32, createTime int64) string {
