@@ -1517,7 +1517,7 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            if action == "pass" or action == "fail":
+                            if action == "pass" or action == "fail" or action == "skip":
                                 test_key = f"{package}.{name}"
                                 res = test_results.get(test_key)
                                 if res is None:
@@ -1526,7 +1526,7 @@ def print_failed_tests(_, output_dir):
 
                                 if res == "fail":
                                     print(f"re-ran [{test_platform}] {package} {name}: {action}")
-                                if action == "pass" and res == "fail":
+                                if (action == "pass" or action == "skip") and res == "fail":
                                     test_results[test_key] = action
 
         for key, res in test_results.items():

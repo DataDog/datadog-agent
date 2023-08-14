@@ -41,6 +41,7 @@ const (
 	dynamicTable   = "http2_dynamic_table"
 	staticTable    = "http2_static_table"
 	filterTailCall = "socket__http2_filter"
+	parserTailCall = "socket__http2_frames_parser"
 	eventStream    = "http2"
 )
 
@@ -63,6 +64,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP2),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: parserTailCall,
 			},
 		},
 	},
