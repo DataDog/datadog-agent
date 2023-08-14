@@ -1060,6 +1060,9 @@ int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
 
     // For now let's only store information for TCP sockets
     struct socket *socket = (struct socket *)PT_REGS_RC(ctx);
+    if (!socket)
+        return 0;
+
     enum sock_type sock_type = 0;
     bpf_probe_read_kernel_with_telemetry(&sock_type, sizeof(short), &socket->type);
 
