@@ -243,17 +243,15 @@ func (ns *networkState) GetTelemetryDelta(
 	return nil
 }
 
-func trimConns(conns []ConnectionStats, f func(c *ConnectionStats) bool) []ConnectionStats {
-	removed := 0
+func trimConns(conns []ConnectionStats, trim func(c *ConnectionStats) bool) []ConnectionStats {
+	trimmed := conns[:0]
 	for i := range conns {
-		if f(&conns[i]) {
-			conns[i], conns[removed] = conns[removed], conns[i]
-			removed++
-			continue
+		if !trim(&conns[i]) {
+			trimmed = append(trimmed, conns[i])
 		}
 	}
 
-	return conns[removed:]
+	return trimmed
 }
 
 // GetDelta returns the connections for the given client
