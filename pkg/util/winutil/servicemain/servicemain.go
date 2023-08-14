@@ -44,13 +44,19 @@ type Service interface {
 	Run(ctx context.Context) error
 }
 
-// Return ErrCleanStopAfterInit from Service.Init() to report SERVICE_RUNNING and then exit without error.
+// Return ErrCleanStopAfterInit from Service.Init() to report SERVICE_RUNNING and then exit without error after
+// a delay. See runTimeExitGate for more information on why the delay is necessary.
 //
-// Example usage, the service detects that it is not configured and wishes to stop running, but does not want
+// Example use case, the service detects that it is not configured and wishes to stop running, but does not want
 // an error reported, as failing to start may cause commands like `Restart-Service -Force datadogagent` to fail if run
 // after modifying the configuration to disable the service.
 //
 // If your service detects this state in Service.Run() instead then you do not need to do anything, it is handled automatically.
+//
+// We may be able to remove this and runTimeExitGate if we re-work our current model of change config -> `Restart-Service -Force datadogagent`,
+// which we currently expect to trigger all services to restart. Perhaps we can use an agent command instead of PowerShell
+// and it can check for a special exit code from each of the services. However we wouldn't be able to use configuration management
+// tools' built-in Windows Service commands.
 var ErrCleanStopAfterInit = errors.New("the service did not start but requested a clean exit")
 
 // implements golang svc.Handler
@@ -114,13 +120,19 @@ func Run(service Service) {
 	s.eventlog(messagestrings.MSG_SERVICE_STOPPED, s.service.Name())
 }
 
-// runTimeExitGate is used to ensure the service exits without error on short-lived successful stops
+// runTimeExitGate is used to ensure the service exits without error on short-lived successful stops by keeping
+// the service in the `SERVICE_RUNNING` state long enough for a service manager to consider the start successful.
+//
+// It should be called when the service enters the `SERVICE_RUNNING` state and should be used to delay
+// the service exit until the timer expires.
 //
 // On Windows, the Service Control Manager (SCM) requires that dependent services stop. This means that when running
 // `Restart-Service datadogagent`, Windows will try to stop the Process Agent, and then to be helpful it will immediately start it again.
 // However, if Process Agent is not configured to be running it will exit immediately, which `Restart-Service` will report as an error.
 // To avoid the error on a successful exit we must ensure that we are in the RUNNING state long enough for `Restart-Service` or other
 // tools to consider the restart successful.
+//
+// See also ErrCleanStopAfterInit
 func runTimeExitGate() <-chan time.Time {
 	return time.After(5 * time.Second)
 }
