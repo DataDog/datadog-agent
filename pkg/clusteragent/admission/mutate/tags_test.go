@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
@@ -96,19 +97,21 @@ func Test_injectTagsFromLabels(t *testing.T) {
 }
 
 func Test_shouldInjectTags(t *testing.T) {
+	mockConfig := config.Mock(t)
 	tests := []struct {
-		name string
-		pod  *corev1.Pod
-		want bool
+		name        string
+		pod         *corev1.Pod
+		want        bool
+		setupConfig func()
 	}{
 		{
-			name: "no admission label",
+			name: "no admission label, no mutate unlabelled",
 			pod:  fakePodWithLabel("k", "v"),
-			want: true,
+			want: false,
 		},
 		{
 			name: "admission label enabled",
-			pod:  fakePodWithLabel("k", "v"),
+			pod:  fakePodWithLabel("admission.datadoghq.com/enabled", "true"),
 			want: true,
 		},
 		{
@@ -116,9 +119,32 @@ func Test_shouldInjectTags(t *testing.T) {
 			pod:  fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
 			want: false,
 		},
+		{
+			name:        "no admission label, apm enabled",
+			pod:         fakePodWithLabel("k", "v"),
+			want:        true,
+			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_enabled", true) },
+		},
+		{
+			name:        "no admission label, mutate unlabelled",
+			pod:         fakePodWithLabel("k", "v"),
+			want:        true,
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+		},
+		{
+			name:        "admission label disabled, mutate unlabelled",
+			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
+			want:        false,
+			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupConfig != nil {
+				tt.setupConfig()
+				defer resetMockConfig(mockConfig) // Reset to default
+			}
+
 			if got := shouldInjectTags(tt.pod); got != tt.want {
 				t.Errorf("shouldInjectTags() = %v, want %v", got, tt.want)
 			}
