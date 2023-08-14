@@ -1855,7 +1855,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
 	require.True(t, ok)
-	assert.NotZero(t, tcpStatsErrors["file exists"])
+	assert.NotZero(t, tcpStatsErrors["EEXIST"])
 }
 
 func sysOpenAt2Supported() bool {
@@ -1917,7 +1917,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
 	require.True(t, ok)
 
-	badAddressCnt, ok := probeReadUserError["bad address"]
+	badAddressCnt, ok := probeReadUserError["EFAULT"]
 	require.True(t, ok)
 	assert.NotZero(t, badAddressCnt)
 }
