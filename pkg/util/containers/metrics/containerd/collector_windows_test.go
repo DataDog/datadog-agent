@@ -22,7 +22,7 @@ import (
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
@@ -110,6 +110,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 				client:            containerdClient(test.containerdMetrics),
 				workloadmetaStore: workloadmetaStore,
 			}
+
+			panic(test.containerdMetrics)
 
 			// ID and cache TTL not relevant for these tests
 			result, err := collector.GetContainerStats("test-namespace", containerID, 10*time.Second)

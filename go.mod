@@ -628,6 +628,9 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // the current version corresponds to the `dd-release-2.7` branch
 replace k8s.io/kube-state-metrics/v2 => github.com/datadog/kube-state-metrics/v2 v2.2.2-0.20230217083638-a9a9c0ff16f4
 
+// Cannot be upgraded to 0.26 without lossing CRI API v1alpha2
+replace k8s.io/cri-api => k8s.io/cri-api v0.25.5
+
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
@@ -648,7 +651,6 @@ replace (
 	k8s.io/apiserver => github.com/DataDog/kubernetes-apiserver v0.0.0-20220531090536-be42650a25e5
 	k8s.io/client-go => k8s.io/client-go v0.23.15
 	k8s.io/component-base => k8s.io/component-base v0.23.15
-	k8s.io/cri-api => k8s.io/cri-api v0.23.15
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65
 	k8s.io/kubelet => k8s.io/kubelet v0.23.15
 	k8s.io/metrics => k8s.io/metrics v0.23.15
