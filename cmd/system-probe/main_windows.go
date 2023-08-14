@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -49,16 +48,10 @@ func (s *service) Init() error {
 }
 
 func (s *service) Run(ctx context.Context) error {
-	defer runsubcmd.StopSystemProbeWithDefaults()
-
-	// Wait for stop signal
-	select {
-	case <-signals.Stopper:
-	case <-signals.ErrorStopper:
-	case <-ctx.Done():
-	}
-
-	return nil
+	// send context to background agent goroutine so we can stop the agent
+	s.ctxChan <- ctx
+	// wait for agent to stop
+	return <-s.errChan
 }
 
 func main() {
@@ -68,6 +61,7 @@ func main() {
 	if len(os.Args) == 1 {
 		if servicemain.RunningAsWindowsService() {
 			servicemain.Run(&service{})
+			return
 		}
 	}
 	defer log.Flush()
