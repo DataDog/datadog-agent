@@ -40,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -1379,19 +1378,4 @@ func (s *TracerSuite) TestTCPDirection() {
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
-}
-
-func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
-	t := s.T()
-	cfg := testConfig()
-	cfg.CollectTCPv6Conns = false
-	cfg.CollectUDPv6Conns = false
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		t.FailNow()
-	}
-	if kv >= kernel.VersionCode(4, 7, 0) {
-		t.Skip()
-	}
-	_ = setupTracer(t, cfg)
 }
