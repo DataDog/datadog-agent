@@ -9,7 +9,7 @@ import (
 	"encoding/binary"
 	"unsafe"
 
-	syscall "golang.org/x/sys/windows"
+	"golang.org/x/sys/windows"
 )
 
 // SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE is the size of
@@ -119,7 +119,7 @@ func byteArrayToRelationGroup(data []byte) (group GROUP_RELATIONSHIP, gi []PROCE
 
 func computeCoresAndProcessors() (CPU_INFO, error) {
 	var cpuInfo CPU_INFO
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformationEx")
 	var buflen uint32
 
@@ -136,7 +136,7 @@ func computeCoresAndProcessors() (CPU_INFO, error) {
 	} else {
 		// this shouldn't happen. Errno won't be set (because the function)
 		// succeeded.  So just return something to indicate we've failed
-		return cpuInfo, syscall.Errno(1)
+		return cpuInfo, windows.Errno(1)
 	}
 	buf := make([]byte, buflen)
 	status, _, callErr = getProcInfo.Call(

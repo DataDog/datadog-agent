@@ -8,7 +8,7 @@ package filesystem
 import (
 	"unsafe"
 
-	syscall "golang.org/x/sys/windows"
+	"golang.org/x/sys/windows"
 )
 
 // Handle represents a pointer used by FindFirstVolumeW and similar functions
@@ -18,7 +18,7 @@ type Handle uintptr
 const InvalidHandle Handle = ^Handle(0)
 
 // ERRORMoreData is the error returned when the size is not big enough
-const ERRORMoreData syscall.Errno = 234
+const ERRORMoreData windows.Errno = 234
 
 // this would probably go in a common utilities rather than here
 
@@ -54,12 +54,12 @@ func convertWindowsString(winput []uint16) string {
 }
 
 func getDiskSize(vol string) (size uint64, freespace uint64) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getDisk = mod.NewProc("GetDiskFreeSpaceExW")
 	var sz uint64
 	var fr uint64
 
-	volWinStr, err := syscall.UTF16PtrFromString(vol)
+	volWinStr, err := windows.UTF16PtrFromString(vol)
 	if err != nil {
 		return 0, 0
 	}
@@ -74,13 +74,13 @@ func getDiskSize(vol string) (size uint64, freespace uint64) {
 }
 
 func getMountPoints(vol string) []string {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getPaths = mod.NewProc("GetVolumePathNamesForVolumeNameW")
 	var tmp uint32
 	var objlistsize uint32 = 0x0
 	var retval []string
 
-	volWinStr, err := syscall.UTF16PtrFromString(vol)
+	volWinStr, err := windows.UTF16PtrFromString(vol)
 	if err != nil {
 		return retval
 	}
@@ -107,7 +107,7 @@ func getMountPoints(vol string) []string {
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var findFirst = mod.NewProc("FindFirstVolumeW")
 	var findNext = mod.NewProc("FindNextVolumeW")
 	var findClose = mod.NewProc("FindVolumeClose")

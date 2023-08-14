@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unsafe"
 
-	syscall "golang.org/x/sys/windows"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/windows/registry"
@@ -22,7 +22,7 @@ import (
 // "insufficient buffer size" error
 //
 //nolint:revive
-const ERROR_INSUFFICIENT_BUFFER syscall.Errno = 122
+const ERROR_INSUFFICIENT_BUFFER windows.Errno = 122
 
 const registryHive = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"
 
@@ -208,7 +208,7 @@ func countBits(num uint64) (count int) {
 }
 
 func getSystemInfo() (si SYSTEM_INFO) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var gsi = mod.NewProc("GetSystemInfo")
 
 	// syscall does not fail

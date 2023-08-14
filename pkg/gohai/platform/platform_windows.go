@@ -13,8 +13,6 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
-	syscall "golang.org/x/sys/windows"
-
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -52,7 +50,7 @@ var (
 	// ERROR_SUCCESS is the error returned in case of success
 	//
 	//nolint:revive
-	ERROR_SUCCESS syscall.Errno
+	ERROR_SUCCESS windows.Errno
 )
 
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netserverenum
@@ -199,7 +197,7 @@ func fetchOsDescription() (string, error) {
 			if err == ERROR_SUCCESS {
 				// ignore free errors
 				//nolint:errcheck
-				defer syscall.LocalFree(syscall.Handle(os))
+				defer windows.LocalFree(windows.Handle(os))
 				// govet complains about possible misuse of unsafe.Pointer here
 				//nolint:govet
 				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
