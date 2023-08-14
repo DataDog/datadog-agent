@@ -39,6 +39,7 @@ var bpfMapNames = []string{
 	"inode_discarder",
 	"io_uring_ctx_pi",
 	"is_discarded_by",
+	"is_new_kthread",
 	"mmap_flags_appr",
 	"mmap_protection",
 	"mount_ref",
