@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    OTLP logs ingestion is now disabled by default, and otlp_config: logs: enabled: true must be specified to enable
+    OTLP logs ingestion is now disabled by default. To enable it, set otlp_config.logs.enabled to true.
