@@ -233,11 +233,11 @@ func TestCollection(t *testing.T) {
 		},
 	}
 
+	mockConfig := config.Mock(t)
+	mockConfig.Set("language_detection.enabled", true)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
-			mockConfig.Set("language_detection.enabled", true)
-
 			// remote process collector server (process agent)
 			server := &mockServer{
 				responses:       test.serverResponses,
