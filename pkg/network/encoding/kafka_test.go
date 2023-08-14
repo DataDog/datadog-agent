@@ -383,7 +383,7 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 	}
 
 	marshaler := GetMarshaler("application/protobuf")
-	blob, err := marshaler.Marshal(in)
+	blob, err := modelAndMarshalConnections(marshaler, in)
 	require.NoError(t, err)
 
 	unmarshaler := GetUnmarshaler("application/protobuf")

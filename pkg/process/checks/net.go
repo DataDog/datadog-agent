@@ -14,9 +14,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -425,7 +425,7 @@ func batchConnections(
 		}
 
 		// Add OS telemetry
-		if hostInfo := host.GetStatusInformation(); hostInfo != nil {
+		if hostInfo := hostMetadataUtils.GetInformation(); hostInfo != nil {
 			cc.KernelVersion = hostInfo.KernelVersion
 			cc.Architecture = hostInfo.KernelArch
 			cc.Platform = hostInfo.Platform

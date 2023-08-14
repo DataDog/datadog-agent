@@ -13,9 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func TestLanguageFromCommandline(t *testing.T) {
+func TestDetectLanguage(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		cmdline  []string
@@ -42,9 +43,16 @@ func TestLanguageFromCommandline(t *testing.T) {
 			cmdline:  []string{"dotnet", "BankApp.dll"},
 			expected: languagemodels.Dotnet,
 		},
+		{
+			name:     "rubyw",
+			cmdline:  []string{"C:\\Users\\AppData\\bin\\rubyw.exe", "prog.rb"},
+			expected: languagemodels.Ruby,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, languageNameFromCommandLine(tc.cmdline))
+			process := []*procutil.Process{makeProcess(tc.cmdline, "")}
+			expected := []*languagemodels.Language{{Name: tc.expected}}
+			assert.Equal(t, expected, DetectLanguage(process))
 		})
 	}
 }

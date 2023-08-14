@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package datadog.languagedetection;
+
+option go_package = "pkg/proto/pbgo/languagedetection";  // golang
+
+message Process {
+  int32 pid = 1;
+}
+
+// Should closely match `languagemodels.Language`
+message Language {
+  string name = 1;
+  string version = 2;
+}
+
+message DetectLanguageRequest {
+  repeated Process processes = 1;
+}
+
+message DetectLanguageResponse {
+  repeated Language languages = 1;
+}

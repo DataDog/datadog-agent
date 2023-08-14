@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,35 +23,24 @@ import (
 // if a line is bigger than this limit, it will be truncated.
 const defaultContentLenLimit = 256 * 1000
 
-// Input represents a chunk of line.
-type Input struct {
-	content []byte
-}
-
 // NewInput returns a new input.
-func NewInput(content []byte) *Input {
-	return &Input{
-		content: content,
+func NewInput(content []byte) *message.Message {
+	return &message.Message{
+		Content: content,
 	}
 }
 
-// Message represents a structured line.
-type Message struct {
-	Content            []byte
-	Status             string
-	RawDataLen         int
-	Timestamp          string
-	IngestionTimestamp int64
-}
-
 // NewMessage returns a new output.
-func NewMessage(content []byte, status string, rawDataLen int, timestamp string) *Message {
-	return &Message{
+func NewMessage(content []byte, status string, rawDataLen int, readTimestamp string) *message.Message {
+	return &message.Message{
 		Content:            content,
 		Status:             status,
 		RawDataLen:         rawDataLen,
-		Timestamp:          timestamp,
 		IngestionTimestamp: time.Now().UnixNano(),
+
+		ParsingExtra: message.ParsingExtra{
+			Timestamp: readTimestamp,
+		},
 	}
 }
 
@@ -68,8 +58,8 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // multiple lines, or auto-detecting the two), and sends the result to the
 // Decoder's output channel.
 type Decoder struct {
-	InputChan  chan *Input
-	OutputChan chan *Message
+	InputChan  chan *message.Message
+	OutputChan chan *message.Message
 
 	framer      *framer.Framer
 	lineParser  LineParser
@@ -106,12 +96,12 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
-	inputChan := make(chan *Input)
-	outputChan := make(chan *Message)
+	inputChan := make(chan *message.Message)
+	outputChan := make(chan *message.Message)
 	lineLimit := defaultContentLenLimit
 	detectedPattern := &DetectedPattern{}
 
-	outputFn := func(m *Message) { outputChan <- m }
+	outputFn := func(m *message.Message) { outputChan <- m }
 
 	// construct the lineHandler
 	var lineHandler LineHandler
@@ -157,7 +147,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *AutoMultilineHandler {
+func buildAutoMultilineHandlerFromConfig(outputFn func(*message.Message), lineLimit int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *AutoMultilineHandler {
 	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
@@ -194,7 +184,7 @@ func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int,
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
+func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) *Decoder {
 	return &Decoder{
 		InputChan:       InputChan,
 		OutputChan:      OutputChan,
@@ -233,7 +223,7 @@ func (d *Decoder) run() {
 				return
 			}
 
-			d.framer.Process(data.content)
+			d.framer.Process(data)
 
 		case <-d.lineParser.flushChan():
 			log.Debug("Flushing line parser because the flush timeout has been reached.")
