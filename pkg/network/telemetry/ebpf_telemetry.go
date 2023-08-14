@@ -17,6 +17,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -418,5 +419,5 @@ func EBPFTelemetrySupported() bool {
 		return false
 	}
 
-	return kversion >= kernel.VersionCode(4, 14, 0)
+	return (kversion >= kernel.VersionCode(4, 14, 0)) && (features.HaveMapType(ebpf.PerCPUHash) == nil)
 }
