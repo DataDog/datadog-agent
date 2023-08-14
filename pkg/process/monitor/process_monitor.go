@@ -9,6 +9,7 @@ package monitor
 
 import (
 	"fmt"
+	"github.com/cihub/seelog"
 	"sync"
 	"time"
 
@@ -252,8 +253,10 @@ func (pm *ProcessMonitor) mainEventLoop() {
 				return
 			}
 			pm.tel.restart.Add(1)
-			log.Errorf("process monitor error: %s", err)
-			log.Info("re-initializing process monitor")
+			if log.ShouldLog(seelog.DebugLvl) {
+				log.Debugf("process monitor error: %s", err)
+			}
+
 			pm.netlinkDoneChannel <- struct{}{}
 			// Netlink might suffer from temporary errors (insufficient buffer for example). We're trying to recover
 			// by reinitializing netlink socket.
