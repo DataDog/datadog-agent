@@ -411,7 +411,8 @@ func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIde
 	return nil
 }
 
-// EBPF telemetry depends on the presence of the 'lock xadd' instruction
+// EBPF telemetry depends on the presence of per-cpu maps
+// and verifier from kernel 4.14+.
 func EBPFTelemetrySupported() bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
