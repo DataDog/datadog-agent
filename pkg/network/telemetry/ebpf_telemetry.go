@@ -12,6 +12,7 @@ import (
 	"hash/fnv"
 	"syscall"
 	"unsafe"
+	"runtime"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -40,8 +41,8 @@ const (
 	perfEventOutput
 )
 
-var ebpfMapOpsErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
-var ebpfHelperErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
+var ebpfMapOpsErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error", "arch"}, nil)
+var ebpfHelperErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error", "arch"}, nil)
 
 var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
@@ -113,7 +114,7 @@ func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string
 			t[m] = count
 			for errStr, errCount := range count {
 				select {
-				case ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr):
+				case ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr, runtime.GOARCH):
 				default:
 				}
 			}
@@ -161,7 +162,7 @@ func getHelpersTelemetryForProbe(v *HelperErrTelemetry, probeName string, desc *
 			for errStr, errCount := range count {
 				// Do not block when nil channel is provided
 				select {
-				case ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr):
+				case ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr, runtime.GOARCH):
 				default:
 				}
 			}
