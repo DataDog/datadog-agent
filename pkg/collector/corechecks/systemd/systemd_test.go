@@ -972,12 +972,7 @@ func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 }
 
 func (m mockCollector) GetChecks() []check.Check {
-	chks := make([]check.Check, 0, len(c.checks))
-	for _, chck := range c.checks {
-		chks = append(chks, chck)
-	}
-
-	return chks
+	return nil
 }
 
 func TestGetVersion(t *testing.T) {
