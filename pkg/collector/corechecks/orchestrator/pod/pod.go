@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -31,8 +32,12 @@ const checkName = "pod"
 var groupID int32
 
 func nextGroupID() int32 {
-	groupID++
+	atomic.AddInt32(&groupID, 1)
 	return groupID
+}
+
+func init() {
+	core.RegisterCheck(checkName, podFactory)
 }
 
 // Check doesn't need additional fields
@@ -116,8 +121,4 @@ func podFactory() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(checkName),
 	}
-}
-
-func init() {
-	core.RegisterCheck(checkName, podFactory)
 }
