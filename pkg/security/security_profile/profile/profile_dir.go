@@ -23,7 +23,6 @@ import (
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -283,7 +282,7 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 
 	for file := range dp.newFiles {
 		if err := dp.loadProfile(file); err != nil {
-			if errors.Is(err, model.ErrNoImageProvided) {
+			if errors.Is(err, cgroupModel.ErrNoImageProvided) {
 				seclog.Debugf("couldn't load new profile %s: %v", file, err)
 			} else {
 				seclog.Errorf("couldn't load new profile %s: %v", file, err)
