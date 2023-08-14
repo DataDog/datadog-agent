@@ -157,11 +157,12 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 			func(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
 				defer StopSystemProbeWithDefaults()
 				err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, telemetry, sysprobeconfig, rcclient)
-				// notify outer that startAgent finished
-				errChan <- err
 				if err != nil {
 					return err
 				}
+
+				// notify outer that startAgent finished
+				errChan <- err
 				// wait for context
 				ctx := <-ctxChan
 

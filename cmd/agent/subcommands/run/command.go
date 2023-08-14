@@ -260,11 +260,12 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			defer StopAgentWithDefaults(server)
 
 			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer)
-			// notify outer that startAgent finished
-			errChan <- err
 			if err != nil {
 				return err
 			}
+
+			// notify outer that startAgent finished
+			errChan <- err
 			// wait for context
 			ctx := <-ctxChan
 
