@@ -71,6 +71,7 @@ func getClientsIndex(index, totalCount int) int {
 
 func testGRPCScenarios(t *testing.T) {
 	cfg := config.New()
+	cfg.BPFDebug = true
 	cfg.EnableHTTP2Monitoring = true
 
 	s, err := grpc.NewServer(srvAddr)
@@ -205,14 +206,13 @@ func testGRPCScenarios(t *testing.T) {
 			},
 		},
 		{
-			name: "request with large body (1MB)",
+			name: "request with large body (50MB)",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
 				for i := 0; i < 5; i++ {
-					longName := randStringRunes(1024 * 1024)
-					ctx := context.Background()
-					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(ctx, longName))
+					longName := randStringRunes(50 * 1024 * 1024)
+					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(defaultCtx, longName))
 				}
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -221,14 +221,13 @@ func testGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 5,
 			},
-			expectedError: true,
 		},
 		{
-			name: "request with large body (1MB) -> b -> request with large body (1MB) -> b",
+			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getClientsArray(t, clientsCount, grpc.Options{})
 
-				longName := randStringRunes(1024 * 1024)
+				longName := randStringRunes(5 * 1024 * 1024)
 
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, longName))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -245,7 +244,6 @@ func testGRPCScenarios(t *testing.T) {
 					Method: http.MethodPost,
 				}: 2,
 			},
-			expectedError: true,
 		},
 		{
 			name: "500 headers -> b -> 500 headers -> b",
