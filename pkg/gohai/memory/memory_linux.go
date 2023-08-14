@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	log "github.com/cihub/seelog"
 )
 
 func parseMemoryInfo(reader io.Reader) (totalBytes utils.Value[uint64], swapTotalKb utils.Value[uint64], err error) {
@@ -33,6 +34,7 @@ func parseMemoryInfo(reader io.Reader) (totalBytes utils.Value[uint64], swapTota
 	for _, line := range lines {
 		key, valUnit, found := strings.Cut(line, ":")
 		if !found {
+			log.Warnf("/proc/meminfo has line with unexpected format: \"%s\"", line)
 			continue
 		}
 
