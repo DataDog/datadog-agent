@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/cihub/seelog"
 )
 
 var prefix = "" // only used for testing
@@ -19,28 +21,32 @@ var listRangeRegex = regexp.MustCompile("([0-9]+)-([0-9]+)$")
 
 // sysCPUInt reads an integer from a file in /sys/devices/system/cpu
 func sysCPUInt(path string) (uint64, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+	filepath := prefix + "/sys/devices/system/cpu/" + path
+	content, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return 0, false
 	}
 
 	value, err := strconv.ParseUint(strings.TrimSpace(string(content)), 0, 64)
 	if err != nil {
+		log.Warnf("file %s did not contain a valid integer", filepath)
 		return 0, false
 	}
 
 	return value, true
 }
 
-// sysCPUSize reads an value with a K/M/G suffix from a file in /sys/devices/system/cpu
+// sysCPUSize reads a value with a K/M/G suffix from a file in /sys/devices/system/cpu
 func sysCPUSize(path string) (uint64, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+	filepath := prefix + "/sys/devices/system/cpu/" + path
+	content, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return 0, false
 	}
 
 	s := strings.TrimSpace(string(content))
 	if s == "" {
+		log.Warnf("file %s was empty", filepath)
 		return 0, false
 	}
 
@@ -59,6 +65,7 @@ func sysCPUSize(path string) (uint64, bool) {
 
 	value, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
+		log.Warnf("file %s did not contain a valid size", filepath)
 		return 0, false
 	}
 
@@ -77,7 +84,7 @@ func sysCPUList(path string) (map[uint64]struct{}, bool) {
 
 	result := map[uint64]struct{}{}
 	contentStr := strings.TrimSpace(string(content))
-	if len(contentStr) == 0 {
+	if contentStr == "" {
 		return result, true
 	}
 
