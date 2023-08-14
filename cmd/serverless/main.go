@@ -155,7 +155,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Errorf("Can't register as a serverless agent: %s", err)
 		return
 	}
-	if functionArn != "" {
+	if len(functionArn) > 0 {
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
 	}
 

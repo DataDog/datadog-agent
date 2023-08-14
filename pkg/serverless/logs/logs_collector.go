@@ -104,7 +104,7 @@ func (lc *LambdaLogsCollector) Start() {
 			}
 
 			// Process logs without a request ID when it becomes available
-			if lc.lastRequestID != "" && len(lc.orphanLogsChan) > 0 {
+			if len(lc.lastRequestID) > 0 && len(lc.orphanLogsChan) > 0 {
 				for msgs := range lc.orphanLogsChan {
 					lc.processLogMessages(msgs)
 				}

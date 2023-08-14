@@ -1287,3 +1287,29 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
 	assert.Len(t, timedMetrics, 0)
 }
+
+func TestMultipleStartLogCollection(t *testing.T) {
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	defer demux.Stop(false)
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+	tags := Tags{
+		Tags: metricTags,
+	}
+	computeEnhancedMetrics := true
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+
+	// start log collection multiple times
+	for i := 0; i < 5; i++ {
+		// due to process_once, we should only set the log collector's context once from the execution context
+		lc.Start()
+		mockExecutionContext.SetArnFromExtensionResponse(fmt.Sprintf("arn-%v", i))
+	}
+	assert.Equal(t, arn, lc.arn)
+}
