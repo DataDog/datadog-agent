@@ -26,8 +26,9 @@ func TestGetCurrentState(t *testing.T) {
 	ec.SetFromInvocation(testArn, testRequestID)
 
 	ecs := ec.GetCurrentState()
+	coldStartTags := ec.GetColdStartTagsForRequestID(ecs.LastRequestID)
 	assert.Equal(testRequestID, ecs.LastRequestID)
-	assert.Equal(true, ecs.Coldstart)
+	assert.Equal(true, coldStartTags.IsColdStart)
 	assert.Equal(testRequestID, ecs.ColdstartRequestID)
 }
 
@@ -39,9 +40,10 @@ func TestSetFromInvocationUppercase(t *testing.T) {
 	ec := ExecutionContext{}
 	ec.initTime = time.Now()
 	ec.SetFromInvocation(testArn, testRequestID)
+	coldStartTags := ec.GetColdStartTagsForRequestID(ec.lastRequestID)
 	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
 	assert.Equal(testRequestID, ec.lastRequestID)
-	assert.Equal(true, ec.coldstart)
+	assert.Equal(true, coldStartTags.IsColdStart)
 	assert.Equal(testRequestID, ec.coldstartRequestID)
 }
 
@@ -55,9 +57,11 @@ func TestSetFromInvocationWarmStart(t *testing.T) {
 	ec.SetFromInvocation(testArn, "coldstart-request-id")
 	ec.SetFromInvocation(testArn, testRequestID)
 
+	coldStartTags := ec.GetColdStartTagsForRequestID(ec.lastRequestID)
+
 	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
 	assert.Equal(testRequestID, ec.lastRequestID)
-	assert.Equal(false, ec.coldstart)
+	assert.Equal(false, coldStartTags.IsColdStart)
 }
 
 func TestUpdateFromStartLog(t *testing.T) {
