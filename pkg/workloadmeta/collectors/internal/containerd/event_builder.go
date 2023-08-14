@@ -14,7 +14,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto" // can't use gogo proto until https://github.com/gogo/protobuf/issues/678 is fixed
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"

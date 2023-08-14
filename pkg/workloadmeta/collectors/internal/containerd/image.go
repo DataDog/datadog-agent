@@ -22,8 +22,8 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/gogo/protobuf/proto"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 const imageTopicPrefix = "/images/"
