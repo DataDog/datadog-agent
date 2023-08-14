@@ -972,3 +972,12 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	testConfig = SetupConfFromYAML("")
 	require.False(t, IsRemoteConfigEnabled(testConfig))
 }
+
+func TestLanguageDetectionSettings(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("language_detection.enabled"))
+
+	t.Setenv("DD_LANGUAGE_DETECTION_ENABLED", "true")
+	testConfig = SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("language_detection.enabled"))
+}
