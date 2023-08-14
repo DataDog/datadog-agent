@@ -114,7 +114,7 @@ func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string
 				}
 			}
 		} else if err != nil {
-			log.Debugf("error getting telemetry for map %s: %v\n", err)
+			log.Debugf("error getting telemetry for map %s: %v\n", m, err)
 		}
 	}
 
