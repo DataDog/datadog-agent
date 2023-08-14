@@ -174,7 +174,12 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 		return nil, ErrTracerStillNotInitialized
 	}
 	if c.syscfg.GRPCServerEnabled {
-		return tu.GetConnectionsGRPC(c.tracerClientID, c.syscfg.GRPCSocketFilePath)
+		cons, err := tu.GetConnectionsGRPC(c.tracerClientID, c.syscfg.GRPCSocketFilePath)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("[grpc] the number of connections in grpc is %d", len(cons.Conns))
+		return cons, err
 	} else {
 		return tu.GetConnections(c.tracerClientID)
 	}
