@@ -148,6 +148,9 @@ func (s *controlHandler) eventlog(msgnum uint32, arg string) {
 func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 
 	// first thing we must do is inform SCM that we are SERVICE_START_PENDING.
+	// We keep the commands accepted list empty so SCM knows to wait until we start or stop and
+	// won't send any signals. This way we don't have to handle stop controls in the middle of starting.
+	// https://learn.microsoft.com/en-us/windows/win32/services/service-servicemain-function
 	changes <- svc.Status{State: svc.StartPending}
 
 	const runningCmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
@@ -188,9 +191,13 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 				// current status query
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.PreShutdown, svc.Shutdown:
+				// Must report SERVICE_STOP_PENDING within a few seconds of receiving the control request
+				// or else the service manager may consider the stop a failure.
+				changes <- svc.Status{State: svc.StopPending}
 				// stop
 				s.eventlog(messagestrings.MSG_RECEIVED_STOP_SVC_COMMAND, s.service.Name())
 				cancelfunc()
+				// We set SERVICE_STOP_PENDING, so SCM won't send anymore control requests
 				return
 			default:
 				// unexpected control
@@ -206,9 +213,10 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	err = s.service.Run(ctx)
 	if err != nil {
 		s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+	} else {
+		// Run returned success, ensure the service is alive long enough to be considered successful.
+		defer func() { <-exitGate }()
 	}
-	// Run returned success, ensure the service is alive long enough to be considered successful.
-	defer func() { <-exitGate }()
 
 	// golang sets the status to SERVICE_STOPPED before returning from svc.Run() so we don't
 	// need to do so here.
