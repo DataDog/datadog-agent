@@ -19,19 +19,6 @@ const (
 	APICountType = model.APICountType
 )
 
-// Metric is the interface of all metric types
-type Metric interface {
-	addSample(sample *MetricSample, timestamp float64)
-	flush(timestamp float64) ([]*Serie, error)
-	// isStateful() indicates that metric preserves information between flushes, which is
-	// required for correct operation (e.g. monotonic count keeps previous value).
-	isStateful() bool
-}
-
 // NoSerieError is the error returned by a metric when not enough samples have been
 // submitted to generate a serie
-type NoSerieError struct{}
-
-func (e NoSerieError) Error() string {
-	return "Not enough samples to generate points"
-}
+type NoSerieError = model.NoSerieError

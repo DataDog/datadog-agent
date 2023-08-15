@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package model
 
 import (
-	// stdlib
 	"testing"
 
-	// 3p
 	"github.com/stretchr/testify/assert"
 )
 
