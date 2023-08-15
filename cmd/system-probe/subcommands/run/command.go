@@ -13,6 +13,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -168,8 +170,13 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
+	resolver := &usergroup.Resolver{}
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
+	uid := os.Getuid()
+	gid := os.Getgid()
+	log.Infof("current user id/name: %s/%s", strconv.Itoa(uid), resolver.ResolveUser(uid))
+	log.Infof("current group id/name: %s/%s, ", strconv.Itoa(gid), resolver.ResolveGroup(gid))
 
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
