@@ -28,81 +28,54 @@ func init() {
 
 func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	if diagCfg.RunningInAgentProcess {
-		return diagnoseInAgentProcess(diagCfg)
+		return diagnoseInAgentProcess()
 	}
 
 	return diagnoseInCLIProcess(diagCfg)
-}
-
-func partitionChecks(checks []check.Check) [][]check.Check {
-	instancesMap := map[string][]check.Check{}
-
-	// partition per check (instances of a check groupped by check/integration)
-	for _, c := range checks {
-		checkName := c.String()
-		instances, exists := instancesMap[checkName]
-		if exists {
-			instances = append(instances, c)
-		} else {
-			instances = make([]check.Check, 1)
-			instances[0] = c
-		}
-		instancesMap[checkName] = instances
-	}
-
-	// copy map to array
-	instancesArr := make([][]check.Check, 0, len(instancesMap))
-	for _, instances := range instancesMap {
-		instancesArr = append(instancesArr, instances)
-	}
-
-	// sort this array
-	sort.Slice(instancesArr, func(i, j int) bool {
-		return instancesArr[i][0].String() < instancesArr[j][0].String()
-	})
-
-	return instancesArr
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 
 	// Get diagnoses
 	diagnoses, err := instance.GetDiagnoses()
-	if err == nil && len(diagnoses) > 0 {
-		// Set category as check name if it was not set
+	if err != nil {
+		// return as diagnosis.DiagnosisUnexpectedError diagnosis
+		return []diagnosis.Diagnosis{
+			{
+				Result:    diagnosis.DiagnosisUnexpectedError,
+				Name:      string(instance.ID()),
+				Category:  instance.String(),
+				Diagnosis: "Check Dianose failes with unexpected errors",
+				RawError:  err,
+			},
+		}
+	}
+
+	// Set category as check name if it was not set
+	if len(diagnoses) > 0 {
 		for i, d := range diagnoses {
 			if len(d.Category) == 0 {
 				diagnoses[i].Category = instance.String()
 			}
 		}
-	} else if err != nil {
-		// Check Diagnose method return error
-		diagnoses = append(diagnoses, diagnosis.Diagnosis{
-			Result:    diagnosis.DiagnosisUnexpectedError,
-			Name:      string(instance.ID()),
-			Category:  instance.String(),
-			Diagnosis: "Check Dianose failes with unexpected errors",
-			RawError:  err,
-		})
 	}
 
 	return diagnoses
 }
 
-func diagnoseInAgentProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
-	// get checks
+func diagnoseInAgentProcess() []diagnosis.Diagnosis {
+	// get list of checks
 	checks := common.Coll.GetChecks()
 
-	partInstances := partitionChecks(checks)
+	// sort them by category (check name but not instance name)
+	sort.Slice(checks, func(i, j int) bool {
+		return checks[i].String() < checks[j].String()
+	})
 
 	var diagnoses []diagnosis.Diagnosis
-	for _, instances := range partInstances {
-		for _, instance := range instances {
-			instanceDiagnoses := getInstanceDiagnoses(instance)
-			if len(instanceDiagnoses) > 0 {
-				diagnoses = append(diagnoses, instanceDiagnoses...)
-			}
-		}
+	for _, ch := range checks {
+		instanceDiagnoses := getInstanceDiagnoses(ch)
+		diagnoses = append(diagnoses, instanceDiagnoses...)
 	}
 
 	return diagnoses

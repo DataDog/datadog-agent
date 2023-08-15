@@ -225,7 +225,7 @@ func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 	suites := getSortedAndFilteredDiagnoseSuites(diagCfg)
 
 	var suiteDiagnoses []diagnosis.Diagnoses
@@ -240,55 +240,52 @@ func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) []diagnosis.Diagno
 		}
 	}
 
-	return suiteDiagnoses
+	return suiteDiagnoses, nil
 }
 
-func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
+func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+	// Get client to Agent's RPC call
 	c := util.GetClient(false)
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s, running diagnose locally", err)))
-		return getDiagnosesFromCurrentProcess(diagCfg)
+		return nil, fmt.Errorf("error getting IPC address for the agent: %s", err)
 	}
 
-	// Set session token
+	// Make sure we have a session token (for privileged information)
 	if err = util.SetAuthToken(); err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Auth error: %s, running diagnose locally", err)))
-		return getDiagnosesFromCurrentProcess(diagCfg)
+		return nil, fmt.Errorf("auth error: %s", err)
 	}
 
+	// Form call end-point
 	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
-	//Serialized diag config
+	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
-	cfgSer, err = json.Marshal(diagCfg)
-	if err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding diagnose configuration: %s", err)))
-		return nil
+	if cfgSer, err = json.Marshal(diagCfg); err != nil {
+		return nil, fmt.Errorf("error while encoding diagnose configuration: %s", err)
 	}
 
+	// Run diagnose code inside Agent process
 	var r []byte
 	r, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintf(color.Output, "The agent ran into an error while get diagnoses from running agent: %s ...\n", color.RedString(string(r)))
-		} else {
-			fmt.Fprintln(color.Output, color.RedString("The agent was unable to get diagnoses from running agent (is it running) ..."))
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(r))
 		}
-		fmt.Println("agent diagnose command will run locally")
-		return getDiagnosesFromCurrentProcess(diagCfg)
+		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent (is it running)")
 	}
 
+	// Deserialize results
 	var diagnoses []diagnosis.Diagnoses
 	err = json.Unmarshal(r, &diagnoses)
-	if err == nil {
-		return diagnoses
+	if err != nil {
+		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %s", err)
 	}
 
-	return nil
+	return diagnoses, nil
 }
 
-func Run(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
+func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 	if diagCfg.RunLocal {
 		return getDiagnosesFromCurrentProcess(diagCfg)
 	}
@@ -305,7 +302,20 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses := Run(diagCfg)
+	diagnoses, err := Run(diagCfg)
+	if err != nil && !diagCfg.RunLocal {
+		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+		fmt.Fprintln(w, "running diagnose command locally")
+
+		// attempt to do so locally
+		diagCfg.RunLocal = true
+		diagnoses, err = Run(diagCfg)
+	}
+
+	if err != nil {
+		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+		return
+	}
 
 	var c counters
 

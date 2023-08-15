@@ -489,7 +489,13 @@ func getDiagnose(w http.ResponseWriter, r *http.Request) {
 	diagCfg.RunLocal = true
 
 	// Get diagnoses via API
-	diagnoses := diagnose.Run(diagCfg)
+	diagnoses, err := diagnose.Run(diagCfg)
+	if err != nil {
+		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
+		return
+	}
+
+	// No diagnosis to report
 	if len(diagnoses) == 0 {
 		return
 	}
