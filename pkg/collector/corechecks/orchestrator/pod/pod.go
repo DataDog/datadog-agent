@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
 
-package cpu
+package pod
 
 import (
 	"context"
@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	oinstance "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -28,7 +30,6 @@ import (
 
 const checkName = "pod"
 
-// TODO: Is this okay?
 var groupID int32
 
 func nextGroupID() int32 {
@@ -46,6 +47,7 @@ type Check struct {
 	hostInfo                *checks.HostInfo
 	clusterID               string
 	containerFailedLogLimit *util.LogLimit
+	sender                  sender.Sender
 	processor               *processors.Processor
 	config                  *oconfig.OrchestratorConfig
 	instance                *oinstance.OrchestratorInstance
@@ -73,11 +75,13 @@ func (c *Check) Run() error {
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 
-	_, processed := c.processor.Process(ctx, podList)
+	processResult, processed := c.processor.Process(ctx, podList)
 
 	if processed == -1 {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
+
+	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
 
 	return nil
 
@@ -113,6 +117,14 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	if err != nil {
 		return err
 	}
+
+	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
+
+	sender, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	c.sender = sender
 
 	return nil
 }
