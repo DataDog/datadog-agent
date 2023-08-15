@@ -148,7 +148,7 @@ type client struct {
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
-func (c *client) Reset(active map[StatCookie]*ConnectionStats) {
+func (c *client) Reset() {
 	half := cap(c.closedConnections) / 2
 	if closedLen := len(c.closedConnections); closedLen > minClosedCapacity && closedLen < half {
 		c.closedConnections = make([]ConnectionStats, half)
@@ -160,17 +160,6 @@ func (c *client) Reset(active map[StatCookie]*ConnectionStats) {
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
 	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStat)
-
-	// XXX: we should change the way we clean this map once
-	// https://github.com/golang/go/issues/20135 is solved
-	newStats := make(map[StatCookie]StatCounters, len(c.stats))
-	for cookie, st := range c.stats {
-		// Only keep active connections stats
-		if _, isActive := active[cookie]; isActive {
-			newStats[cookie] = st
-		}
-	}
-	c.stats = newStats
 }
 
 type networkState struct {
@@ -234,15 +223,18 @@ func (ns *networkState) GetTelemetryDelta(
 	return nil
 }
 
-func trimConns(conns []ConnectionStats, trim func(c *ConnectionStats) bool) []ConnectionStats {
-	keep := conns[:0]
+func partitionConns(conns []ConnectionStats, partition func(c *ConnectionStats) bool) (a, b []ConnectionStats) {
+	// length of a
+	p := 0
 	for i := range conns {
-		if !trim(&conns[i]) {
-			keep = append(keep, conns[i])
+		// true = a, false = b
+		if partition(&conns[i]) {
+			conns[p], conns[i] = conns[i], conns[p]
+			p++
 		}
 	}
 
-	return keep
+	return conns[:p], conns[p:]
 }
 
 // GetDelta returns the connections for the given client
@@ -260,19 +252,12 @@ func (ns *networkState) GetDelta(
 
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
-	connsByCookie := ns.getConnsByCookie(active)
 
 	client := ns.getClient(id)
-	defer client.Reset(connsByCookie)
+	defer client.Reset()
 
 	// Update all connections with relevant up-to-date stats for client
-	closed := ns.mergeConnections(id, connsByCookie)
-
-	// remove connections that are not active anymore
-	active = trimConns(active, func(conn *ConnectionStats) bool {
-		_, ok := connsByCookie[conn.Cookie]
-		return !ok
-	})
+	active, closed := ns.mergeConnections(id, active)
 
 	cs := slice.NewChain(active, closed)
 	ns.determineConnectionIntraHost(cs)
@@ -656,16 +641,18 @@ func (ns *networkState) getClient(clientID string) *client {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[StatCookie]*ConnectionStats) (closed []ConnectionStats) {
+func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_, closed []ConnectionStats) {
 	now := time.Now()
 
 	client := ns.clients[id]
 	client.lastFetch = now
 
+	activeByCookie := ns.getConnsByCookie(active)
+
 	// connections aggregated by tuple
-	closed = trimConns(client.closedConnections, func(closedConn *ConnectionStats) bool {
+	closed, _ = partitionConns(client.closedConnections, func(closedConn *ConnectionStats) bool {
 		cookie := closedConn.Cookie
-		if activeConn := active[cookie]; activeConn != nil {
+		if activeConn := activeByCookie[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
 				stateTelemetry.statsCookieCollisions.Inc()
 				// remove any previous stats since we
@@ -673,51 +660,59 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 				delete(client.stats, cookie)
 				if activeConn.LastUpdateEpoch > closedConn.LastUpdateEpoch {
 					// keep active connection
-					return true
+					return false
 				}
 
 				// keep closed connection
 			}
 			// not an active connection
-			delete(active, cookie)
+			delete(activeByCookie, cookie)
 		}
 
 		ns.updateConnWithStats(client, cookie, closedConn)
 
 		if closedConn.Last.IsZero() {
 			// not reporting an "empty" connection
-			return true
+			return false
 		}
 
-		return false
+		return true
 	})
 
 	// Active connections
-	for cookie, c := range active {
-		ns.createStatsForCookie(client, cookie)
-		ns.updateConnWithStats(client, cookie, c)
+	newStats := make(map[StatCookie]StatCounters, len(activeByCookie))
+	active, _ = partitionConns(active, func(c *ConnectionStats) bool {
+		if _, isActive := activeByCookie[c.Cookie]; !isActive {
+			return false
+		}
+
+		ns.createStatsForCookie(client, c.Cookie)
+		ns.updateConnWithStats(client, c.Cookie, c)
+
+		newStats[c.Cookie] = client.stats[c.Cookie]
 
 		if c.Last.IsZero() {
 			// not reporting an "empty" connection
-			delete(active, cookie)
-			continue
+			return false
 		}
-	}
+
+		return true
+	})
+
+	client.stats = newStats
 
 	aggr := newConnectionAggregator(len(active)+len(closed), false)
 	defer aggr.finalize()
 
-	for cookie, c := range active {
-		if aggr.Aggregate(c) {
-			delete(active, cookie)
-		}
-	}
-
-	closed = trimConns(closed, func(c *ConnectionStats) bool {
+	_, active = partitionConns(active, func(c *ConnectionStats) bool {
 		return aggr.Aggregate(c)
 	})
 
-	return closed
+	_, closed = partitionConns(closed, func(c *ConnectionStats) bool {
+		return aggr.Aggregate(c)
+	})
+
+	return active, closed
 }
 
 func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c *ConnectionStats) {
