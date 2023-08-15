@@ -58,7 +58,11 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		if status == "+"{
 			sender.ServiceCheck(service_check_name, servicecheck.ServiceCheckOK, "", p.config.Tags, "")
 		} else {
-			sender.ServiceCheck(service_check_name, servicecheck.ServiceCheckCritical, "", p.config.Tags, "")
+			sender.ServiceCheck(service_check_name, 
+								servicecheck.ServiceCheckCritical, 
+								"", 
+								p.config.Tags, 
+								"")
 			is_ok = false;
 		}
 	}
@@ -66,8 +70,8 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	if is_ok == true {
 		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckOK, "", p.config.Tags, "")	
 	}else{
-		errMsg := fmt.Sprintf("Kubelet is unhealthy, http response code = %d", responseCode)
-		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)			
+		msg := fmt.Sprintf("Kubelet health check failed, http response code = %d", responseCode)
+		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckCritical, "", p.config.Tags, msg)			
 	}
 	return nil
 }
