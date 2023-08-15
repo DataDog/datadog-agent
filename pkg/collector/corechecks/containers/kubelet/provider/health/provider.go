@@ -36,7 +36,7 @@ func NewProvider(config *common.KubeletConfig) *Provider {
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	service_check_base := common.KubeletMetricsPrefix + "kubelet.check"
 	// Collect raw data
-	healthCheckRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/healthz")
+	healthCheckRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/healthz?verbose")
 	if err != nil {	
 		errMsg := fmt.Sprintf("Kubelet health check failed: %s", err)
 		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)	

@@ -98,7 +98,7 @@ func TestProvider_Provide(t *testing.T) {
 
 			kubeletMock := mock.NewKubeletMock()
 			var err error
-			kubeletMock.MockReplies["/healthz"] = &mock.HTTPReplyMock{
+			kubeletMock.MockReplies["/healthz?verbose"] = &mock.HTTPReplyMock{
 				Data:         tt.response.content,
 				ResponseCode: tt.response.code,
 				Error:        tt.response.err,
