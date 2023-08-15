@@ -986,14 +986,6 @@ func TestSampling(t *testing.T) {
 
 func TestSample(t *testing.T) {
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
-	a := &Agent{
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-		RareSampler:       sampler.NewRareSampler(config.New()),
-		EventProcessor:    newEventProcessor(cfg),
-		conf:              cfg,
-	}
 	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
 		root := &pb.Span{
 			Service:  "serv1",
@@ -1060,6 +1052,14 @@ func TestSample(t *testing.T) {
 		},
 	}
 	for name, tt := range tests {
+		a := &Agent{
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+			RareSampler:       sampler.NewRareSampler(config.New()),
+			EventProcessor:    newEventProcessor(cfg),
+			conf:              cfg,
+		}
 		t.Run(name, func(t *testing.T) {
 			// before := traceutil.CopyTraceChunk(tt.trace.TraceChunk)
 			before := tt.trace.TraceChunk.ShallowCopy()
