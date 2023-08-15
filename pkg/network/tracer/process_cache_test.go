@@ -339,3 +339,51 @@ func TestProcessCacheGet(t *testing.T) {
 	}
 
 }
+
+func BenchmarkProcessCacheMem(b *testing.B) {
+	pc, _ := newProcessCache(10, nil)
+
+	envs := map[string]string{
+		"DD_SERVICE": "service",
+		"DD_VERSION": "version",
+		"DD_ENV":     "env",
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		pc.add(&process{
+			Pid:         1111,
+			StartTime:   5,
+			Envs:        envs,
+			ContainerID: "container1",
+		})
+
+		pc.add(&process{
+			Pid:         2222,
+			StartTime:   5,
+			Envs:        envs,
+			ContainerID: "container1",
+		})
+
+		pc.add(&process{
+			Pid:         3333,
+			StartTime:   5,
+			Envs:        envs,
+			ContainerID: "container1",
+		})
+
+		pc.add(&process{
+			Pid:         4444,
+			StartTime:   5,
+			Envs:        envs,
+			ContainerID: "container1",
+		})
+
+		pc.add(&process{
+			Pid:         5555,
+			StartTime:   5,
+			Envs:        envs,
+			ContainerID: "container1",
+		})
+	}
+}
