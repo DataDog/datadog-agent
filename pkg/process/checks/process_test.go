@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
@@ -27,7 +28,6 @@ import (
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
@@ -67,6 +67,8 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameGarden, metricsCollector)
 
 	// Workload meta + tagger
+	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
+	//                    component.
 	metadataProvider := workloadmeta.NewMockStore()
 	fakeTagger := local.NewFakeTagger()
 	tagger.SetDefaultTagger(fakeTagger)

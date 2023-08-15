@@ -6,9 +6,9 @@
 package generic
 
 import (
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // ContainerFilter defines an interface to exclude containers based on Metadata
@@ -51,6 +51,7 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 		return false
 	}
 	var annotations map[string]string
+	// TODO*components): stop using globals, instead rely on injected worklaodmeta component.
 	store := workloadmeta.GetGlobalStore()
 	if store != nil {
 		if pod, err := store.GetKubernetesPodForContainer(container.ID); err == nil {

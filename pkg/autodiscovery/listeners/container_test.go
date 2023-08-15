@@ -14,8 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	workloadmetatesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 )
 
 func TestCreateContainerService(t *testing.T) {
@@ -279,6 +279,8 @@ func TestCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newContainerListener(t)
 
+			// FIXME(components): these tests will likely remain broken until we actually
+			//                    adopt the workloadmeta component mocks.
 			if tt.container != nil {
 				listener.Store().(*workloadmetatesting.Store).Set(tt.container)
 			}

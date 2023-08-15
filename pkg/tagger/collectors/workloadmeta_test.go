@@ -10,10 +10,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	workloadmetatesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -55,6 +55,8 @@ func TestHandleKubePod(t *testing.T) {
 		Tag:       "latest",
 	}
 
+	// FIXME(components): these tests will likely remain broken until we actually
+	//                    adopt the workloadmeta component mocks.
 	store := workloadmetatesting.NewStore()
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -457,6 +459,8 @@ func TestHandleECSTask(t *testing.T) {
 
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
+	// FIXME(components): these tests will likely remain broken until we actually
+	//                    adopt the workloadmeta component mocks.
 	store := workloadmetatesting.NewStore()
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -1148,6 +1152,8 @@ func TestHandleDelete(t *testing.T) {
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
+	// FIXME(components): these tests will likely remain broken until we actually
+	//                    adopt the workloadmeta component mocks.
 	store := workloadmetatesting.NewStore()
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -1222,6 +1228,8 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collectorCh := make(chan []*TagInfo, 10)
 
 	collector := &WorkloadMetaCollector{
+		// FIXME(components): these tests will likely remain broken until we actually
+		//                    adopt the workloadmeta component mocks.
 		store: workloadmetatesting.NewStore(),
 		children: map[string]map[string]struct{}{
 			// Notice that here we set the container that belonged to the pod

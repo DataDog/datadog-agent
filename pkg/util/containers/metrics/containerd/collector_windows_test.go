@@ -13,11 +13,11 @@ import (
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	workloadmetaTesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetaTesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	"github.com/containerd/containerd/api/types"
@@ -98,6 +98,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			containerID := "1"
 
+			// FIXME(components): this test is broken and needs to rely on new workloadmeta
+			//                    component logic.
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
 			workloadmetaStore := workloadmetaTesting.NewStore()

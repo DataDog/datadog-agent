@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	workloadmetatesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 type wlmListenerSvc struct {
@@ -23,8 +23,10 @@ type wlmListenerSvc struct {
 }
 
 type testWorkloadmetaListener struct {
-	t        *testing.T
-	filters  *containerFilters
+	t       *testing.T
+	filters *containerFilters
+	// FIXME(components): these tests will likely remain broken until we actually
+	//                    adopt the workloadmeta component mocks.
 	store    *workloadmetatesting.Store
 	services map[string]wlmListenerSvc
 }
@@ -37,7 +39,10 @@ func (l *testWorkloadmetaListener) Stop() {
 	panic("not implemented")
 }
 
-func (l *testWorkloadmetaListener) Store() workloadmeta.Store {
+// FIXME(components): these tests will likely remain broken until we actually
+//
+//	adopt the workloadmeta component mocks.
+func (l *testWorkloadmetaListener) Store() workloadmeta.Component {
 	return l.store
 }
 
@@ -77,8 +82,10 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 	}
 
 	return &testWorkloadmetaListener{
-		t:        t,
-		filters:  filters,
+		t:       t,
+		filters: filters,
+		// FIXME(components): these tests will likely remain broken until we actually
+		//                    adopt the workloadmeta component mocks.
 		store:    workloadmetatesting.NewStore(),
 		services: make(map[string]wlmListenerSvc),
 	}

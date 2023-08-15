@@ -8,7 +8,7 @@
 package containerd
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 )
 
 var metricsNameMapping = map[string]string{

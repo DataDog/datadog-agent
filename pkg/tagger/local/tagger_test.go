@@ -11,12 +11,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestTagBuilder(t *testing.T) {
+
+	// FIXME(components): these tests will likely remain broken until we actually
+	//                    adopt the workloadmeta component mocks.
 	tagger := NewTagger(workloadmeta.NewStore(nil))
 	tagger.Init(context.Background())
 	defer tagger.Stop()

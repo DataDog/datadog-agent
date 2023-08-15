@@ -23,13 +23,13 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // DockerUtil wraps interactions with a local docker API.
@@ -156,6 +156,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 
 	isExcluded := func(container types.Container) bool {
 		var annotations map[string]string
+		// TODO(components)L inject dependency and remove use of global
 		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
 		}

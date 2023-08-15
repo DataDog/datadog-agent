@@ -13,13 +13,13 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -34,6 +34,8 @@ func TestGetContainers(t *testing.T) {
 	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameGarden, metricsCollector)
 
 	// Workload meta + tagger
+	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
+	//                    component.
 	metadataProvider := workloadmeta.NewMockStore()
 	fakeTagger := local.NewFakeTagger()
 	tagger.SetDefaultTagger(fakeTagger)

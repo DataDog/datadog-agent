@@ -8,9 +8,9 @@ package generic
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // SenderFunc is a function that wraps sending metrics

@@ -16,9 +16,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestConvertNetworkStats(t *testing.T) {
@@ -77,6 +77,7 @@ func TestConvertNetworkStats(t *testing.T) {
 }
 
 func TestGetContainerIDForPID(t *testing.T) {
+	// TODO(components): this test needs to rely on a workloadmeta.Component mock
 	mockStore := workloadmeta.NewMockStore()
 	collector := dockerCollector{
 		pidCache:      provider.NewCache(pidCacheGCInterval),

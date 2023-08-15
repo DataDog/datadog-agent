@@ -10,11 +10,11 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const collectorId = "local-process"
@@ -51,7 +51,7 @@ type Collector struct {
 	collectionClock clock.Clock
 }
 
-func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
+func (c *Collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	err := c.grpcServer.Start()
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	return nil
 }
 
-func (c *Collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
+func (c *Collector) run(ctx context.Context, store workloadmeta.Component, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
 	defer c.grpcServer.Stop()
 	defer store.Unsubscribe(containerEvt)
 	defer collectionTicker.Stop()

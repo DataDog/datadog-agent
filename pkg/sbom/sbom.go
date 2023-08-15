@@ -10,8 +10,8 @@ import (
 	"time"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (

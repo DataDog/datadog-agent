@@ -15,15 +15,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var platformDockerLogsBasePath string
@@ -190,6 +189,8 @@ func TestMakeK8sSource(t *testing.T) {
 	require.NoError(t, os.WriteFile(filename, []byte("{}"), 0o666))
 	wildcard := filepath.Join(dir, "*.log")
 
+	// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
+	//                    and testing infra.
 	store := workloadmeta.NewMockStore()
 	pod, container := makeTestPod()
 	store.SetEntity(pod)
@@ -242,8 +243,10 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	tf := &factory{
-		pipelineProvider:  pipeline.NewMockProvider(),
-		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogPods),
+		// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
+		//                    and testing infra.
 		workloadmetaStore: workloadmeta.NewMockStore(),
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{

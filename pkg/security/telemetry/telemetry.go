@@ -9,15 +9,15 @@ package telemetry
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // ContainersTelemetry represents the objects necessary to send metrics listing containers
 type ContainersTelemetry struct {
 	Sender        sender.Sender
-	MetadataStore workloadmeta.Store
+	MetadataStore workloadmeta.Component
 	IgnoreDDAgent bool
 }
 
@@ -29,7 +29,8 @@ func NewContainersTelemetry(senderManager sender.SenderManager) (*ContainersTele
 	}
 
 	return &ContainersTelemetry{
-		Sender:        sender,
+		Sender: sender,
+		// TODO(components): stop using globals and rely on injected workloadmeta component
 		MetadataStore: workloadmeta.GetGlobalStore(),
 	}, nil
 }

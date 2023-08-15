@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/require"
 )
@@ -217,6 +217,10 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 
 func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
+
+	// FIXME(components): these tests are broken until they adopt the new
+	//                    workloadmeta component testing logic.
+	//                    This should probably rely on a mock instance...
 	globalStore := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	globalStore.Start(context.TODO())
 	image1 := &workloadmeta.ContainerImageMetadata{

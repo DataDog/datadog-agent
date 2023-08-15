@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
@@ -26,7 +27,6 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const testCid = "containersAreAwesome"
@@ -35,8 +35,10 @@ type collectorTest struct {
 	probe     *mocks.Probe
 	clock     *clock.Mock
 	collector *Collector
-	store     *workloadmeta.MockStore
-	stream    pbgo.ProcessEntityStream_StreamEntitiesClient
+	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
+	//                    component.
+	store  *workloadmeta.MockStore
+	stream pbgo.ProcessEntityStream_StreamEntitiesClient
 }
 
 func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntitiesClient {
@@ -79,6 +81,8 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
 
+	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
+	//                    component.
 	store := workloadmeta.NewMockStore()
 
 	mockClock := clock.NewMock()

@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // workloadmetaListener is a generic subscriber to workloadmeta events that
@@ -25,7 +25,7 @@ type workloadmetaListener interface {
 
 	// Store returns a reference to the workloadmeta store being used by
 	// the listener.
-	Store() workloadmeta.Store
+	Store() workloadmeta.Component
 
 	// AddService creates a new AD service under the svcID name (only used
 	// internally to identify a service). If a non-empty parentSvcID is
@@ -45,7 +45,7 @@ type workloadmetaListenerImpl struct {
 
 	processFn func(workloadmeta.Entity)
 
-	store            workloadmeta.Store
+	store            workloadmeta.Component
 	workloadFilters  *workloadmeta.Filter
 	containerFilters *containerFilters
 
@@ -80,6 +80,7 @@ func newWorkloadmetaListener(
 
 		processFn: processFn,
 
+		// TODO(components): stop relying on globals and instead harness injected components.
 		store:            workloadmeta.GetGlobalStore(),
 		workloadFilters:  workloadFilters,
 		containerFilters: containerFilters,
@@ -89,7 +90,7 @@ func newWorkloadmetaListener(
 	}, nil
 }
 
-func (l *workloadmetaListenerImpl) Store() workloadmeta.Store {
+func (l *workloadmetaListenerImpl) Store() workloadmeta.Component {
 	return l.store
 }
 

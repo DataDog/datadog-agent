@@ -23,14 +23,14 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	fakeworkloadmeta "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	fakeworkloadmeta "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 func TestProcessEvents(t *testing.T) {
@@ -596,6 +596,7 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
 
+			// FIXME(components): use actual workloadmeta mock component here instead.
 			fakeworkloadmeta := fakeworkloadmeta.NewStore()
 
 			sender := mocksender.NewMockSender("")

@@ -12,13 +12,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	workloadmetatesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 func TestProcessEvents(t *testing.T) {
+	// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
+	//                    and testing infra.
 	store := workloadmetatesting.NewStore()
 
 	cp := &ContainerConfigProvider{
@@ -400,6 +402,8 @@ func TestGenerateConfig(t *testing.T) {
 			config.Datadog.SetWithoutSource("logs_config.container_collect_all", tt.containerCollectAll)
 			defer config.Datadog.SetWithoutSource("logs_config.container_collect_all", false)
 
+			// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
+			//                    and testing infra.
 			store := workloadmetatesting.NewStore()
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {

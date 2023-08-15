@@ -11,13 +11,13 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -69,12 +69,12 @@ func GetSharedContainerProvider() ContainerProvider {
 // containerProvider provides data about containers usable by process-agent
 type containerProvider struct {
 	metricsProvider metrics.Provider
-	metadataStore   workloadmeta.Store
+	metadataStore   workloadmeta.Component
 	filter          *containers.Filter
 }
 
 // NewContainerProvider returns a ContainerProvider instance
-func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Store, filter *containers.Filter) ContainerProvider {
+func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Component, filter *containers.Filter) ContainerProvider {
 	return &containerProvider{
 		metricsProvider: provider,
 		metadataStore:   metadataStore,
@@ -89,6 +89,7 @@ func NewDefaultContainerProvider() ContainerProvider {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
+	// TODO(components): stop relying on globals and use injected components instead whenever possible.
 	return NewContainerProvider(metrics.GetProvider(), workloadmeta.GetGlobalStore(), containerFilter)
 }
 

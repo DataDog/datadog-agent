@@ -10,9 +10,9 @@ package containerd
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter {
