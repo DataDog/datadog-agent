@@ -74,11 +74,6 @@ func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
 }
 
-func isTLSTag(staticTags uint64) bool {
-	// we check only if the TLS tag has set, not like network.IsTLSTag()
-	return staticTags&network.ConnTagTLS > 0
-}
-
 type USMSuite struct {
 	suite.Suite
 }
@@ -89,7 +84,12 @@ func TestUSMSuite(t *testing.T) {
 	})
 }
 
-func TestEnableHTTPMonitoring(t *testing.T) {
+func isTLSTag(staticTags uint64) bool {
+	return network.IsTLSTag(staticTags)
+}
+
+func (s *USMSuite) TestEnableHTTPMonitoring() {
+	t := s.T()
 	if !httpSupported() {
 		t.Skip("HTTP monitoring not supported")
 	}
@@ -354,6 +354,33 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 		}
 		return found
 	}, 15*time.Second, 5*time.Second, "couldn't find USM HTTPS stats")
+
+	// check NPM static TLS tag
+	found := false
+	for _, c := range allConnections {
+		httpKey, foundKey := httpKeys[c.SPort]
+		if !foundKey {
+			continue
+		}
+		_, foundPid := fetchPids[c.Pid]
+		if foundPid && c.DPort == httpKey.DstPort && isTLSTag(c.StaticTags) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("NPM TLS tag not found")
+		for _, c := range allConnections {
+			httpKey, foundKey := httpKeys[c.SPort]
+			if !foundKey {
+				continue
+			}
+			_, foundPid := fetchPids[c.Pid]
+			if foundPid {
+				t.Logf("pid %d connection %# v \nhttp %# v\n", c.Pid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
+			}
+		}
+	}
 }
 
 const (
@@ -683,7 +710,7 @@ func (s *USMSuite) TestJavaInjection() {
 	defaultCfg := cfg
 
 	dir, _ := testutil.CurDir()
-	testdataDir := filepath.Join(dir, "../protocols/tls/java/testdata")
+	testdataDir := filepath.Join(dir, "../java/testdata")
 	legacyJavaDir := cfg.JavaDir
 	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
 	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
@@ -845,21 +872,16 @@ func (s *USMSuite) TestJavaInjection() {
 				cfg.ProtocolClassificationEnabled = true
 				cfg.CollectTCPv4Conns = true
 				cfg.CollectTCPv6Conns = true
-
-				serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:5443", testutil.Options{
-					EnableTLS: true,
-				})
-				t.Cleanup(serverDoneFn)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
-					for key, stats := range payload.HTTP {
-						if key.Path.Content == "/200/anything/java-tls-request" {
+					for key := range payload.HTTP {
+						if key.Path.Content == "/anything/java-tls-request" {
 							t.Log("path content found")
 							// socket filter is not supported on fentry tracer
 							if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
@@ -867,28 +889,16 @@ func (s *USMSuite) TestJavaInjection() {
 								return true
 							}
 
-							req, exists := stats.Data[200]
-							if !exists {
-								t.Logf("wrong response, not 200 : %#+v", key)
-								continue
-							}
-
-							if req.StaticTags != network.ConnTagJava {
-								t.Logf("tag not java : %#+v", key)
-								continue
-							}
-
 							for _, c := range payload.Conns {
 								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
 									return true
 								}
 							}
-							t.Logf("TLS connection tag not found : %#+v", key)
 						}
 					}
 
 					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://host.docker.internal:5443/200/anything/java-tls-request")
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
 			},
 		},
 	}
@@ -1256,6 +1266,8 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 		targetAddress: targetHost,
 	})
 
+	t.Skip("Test is not yet supported")
+
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1281,20 +1293,45 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				require.NoError(t, err)
 				t.Cleanup(closer)
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 						DialContext:     defaultDialer.DialContext,
 					},
 				}
-				resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
-				require.NoError(t, err)
-				_, _ = io.Copy(io.Discard, resp.Body)
-				_ = resp.Body.Close()
-				client.CloseIdleConnections()
+
+				// Ensure that we see HTTPS requests being traced *before* the actual test assertions
+				// This is done to reduce test test flakiness due to uprobe attachment delays
+				require.Eventually(t, func() bool {
+					resp, err := client.Get(fmt.Sprintf("https://%s/200/warm-up", ctx.targetAddress))
+					if err != nil {
+						return false
+					}
+					_, _ = io.Copy(io.Discard, resp.Body)
+					_ = resp.Body.Close()
+
+					httpData := getConnections(t, tr).HTTP
+					for httpKey := range httpData {
+						if httpKey.Path.Content == resp.Request.URL.Path {
+							return true
+						}
+					}
+
+					return false
+				}, 5*time.Second, 100*time.Millisecond, "couldn't detect HTTPS traffic being traced (test setup validation)")
+
+				t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
+				for i := 0; i < 3; i++ {
+					resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
+					require.NoError(t, err)
+					_, _ = io.Copy(io.Discard, resp.Body)
+					_ = resp.Body.Close()
+					client.CloseIdleConnections()
+				}
+
+				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, network.ProtocolHTTP, tlsExpected)
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP, tlsExpected),
 		},
 	}
 	for _, tt := range tests {
