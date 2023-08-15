@@ -6,8 +6,7 @@ description: >
   represent the majority of load. We make claims about throughput, UDS packet
   loss and memory, CPU resource consumption.
 
-teams:
-  - agent-core
+teams: []
 
 labels: {}
 
@@ -30,9 +29,8 @@ checks:
     description: "OTeL throughput"
     bounds:
       series: "rate(bytes_written['traces'])"
-      # Lading is configured to send 64 MB/s on each of two connections. This is
-      # a relatively high priority concern by bounding below close to the
-      # transmission rate.
+      # Lading is configured to send 64 MB/s on each of two connections. The
+      # lower bound here is reflective of experimentally determined bounds.
       lower_bound: 1Mb
       upper_bound: 66Mb
 
