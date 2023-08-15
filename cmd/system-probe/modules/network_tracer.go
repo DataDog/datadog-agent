@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	model "github.com/DataDog/agent-payload/v5/process"
 	"net/http"
 	"os"
 	"runtime"
@@ -92,17 +91,6 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 	return stats
 }
 
-// getConnectionsFromMarshaler returns buf that representing the connections after modeling and marshaling
-func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *model.Connections) ([]byte, error) {
-	buf, err := marshaler.Marshal(cs)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Tracef("GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
-	return buf, nil
-}
-
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -123,9 +111,6 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
 	connectionsModeler := encoding.InitConnectionsModeler(cs)
-	payload := connectionsModeler.ModelConnections(cs)
-	defer encoding.Cleanup(payload)
-
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
@@ -133,23 +118,27 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	logRequests(id, count, len(cs.Conns), start)
 	connections := &connectionserver.Connection{}
 
-	for len(payload.Conns) > 0 {
-		finalBatchSize := min(nt.maxConnsPerMessage, len(payload.Conns))
-		rest := payload.Conns[finalBatchSize:]
-		payload.Conns = payload.Conns[:finalBatchSize]
+	for len(cs.Conns) > 0 {
+		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
+		rest := cs.Conns[finalBatchSize:]
+		cs.Conns = cs.Conns[:finalBatchSize]
 
+		payload := connectionsModeler.ModelConnections(cs)
 		// get the conns for a batch by the marshaler
-		conns, err := getConnectionsFromMarshaler(marshaler, payload)
+		conns, err := marshaler.Marshal(payload)
+		encoding.Cleanup(payload)
+
 		if err != nil {
 			return err
 		}
+
 		connections.Data = conns
 		err = s2.Send(connections)
 		if err != nil {
 			log.Errorf("unable to send current connection batch due to: %v", err)
 		}
 
-		payload.Conns = rest
+		cs.Conns = rest
 	}
 
 	return nil

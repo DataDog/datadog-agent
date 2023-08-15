@@ -64,6 +64,7 @@ type ConnectionsModeler struct {
 	coreTelemetryByAsset        map[string]model.COREResult
 	agentCfg                    *model.AgentConfiguration
 	prebuiltEBPFAssets          []string
+	batchIndex                  int
 }
 
 // InitConnectionsModeler initialize the connection modeler with the encoders, telemetry, and agent configuration of
@@ -112,11 +113,14 @@ func (c *ConnectionsModeler) ModelConnections(conns *network.Connections) *model
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 
-	payload.ConnTelemetryMap = c.connTelemetryMap
-	payload.CompilationTelemetryByAsset = c.compilationTelemetryByAsset
-	payload.KernelHeaderFetchResult = c.kernelHeaderFetchResult
-	payload.CORETelemetryByAsset = c.coreTelemetryByAsset
-	payload.PrebuiltEBPFAssets = c.prebuiltEBPFAssets
+	if c.batchIndex == 0 {
+		payload.ConnTelemetryMap = c.connTelemetryMap
+		payload.CompilationTelemetryByAsset = c.compilationTelemetryByAsset
+		payload.KernelHeaderFetchResult = c.kernelHeaderFetchResult
+		payload.CORETelemetryByAsset = c.coreTelemetryByAsset
+		payload.PrebuiltEBPFAssets = c.prebuiltEBPFAssets
+	}
+	c.batchIndex++
 
 	return payload
 }

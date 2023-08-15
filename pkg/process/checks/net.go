@@ -8,6 +8,8 @@ package checks
 import (
 	"context"
 	"errors"
+	"google.golang.org/grpc"
+	"io"
 	"sort"
 	"time"
 
@@ -18,10 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	putil "github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
@@ -126,6 +130,25 @@ func (c *ConnectionsCheck) Realtime() bool { return false }
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 
+func (c *ConnectionsCheck) HandleBatch(batch *model.Connections, start time.Time, groupID int32) (RunResult, error) {
+	err := c.processData.Fetch()
+	if err != nil {
+		log.Warnf("error collecting processes for filter and extraction: %s", err)
+	} else {
+		c.dockerFilter.Filter(batch)
+	}
+	// Resolve the Raddr side of connections for local containers
+	LocalResolver.Resolve(batch)
+
+	c.notifyProcessConnRates(c.config, batch)
+
+	log.Debugf("collected connections in %s", time.Since(start))
+
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID, batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult, batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags, batch.AgentConfiguration, c.serviceExtractor)
+	return StandardRunResult(messages), nil
+
+}
+
 // Run runs the ConnectionsCheck to collect the active network connections
 // and any closed network connections since the last Run.
 // For each connection we'll return a `model.Connection`
@@ -134,38 +157,6 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
-	conns, err := c.getConnections()
-	if err != nil {
-		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	// Filter out (in-place) connection data associated with docker-proxy
-	err = c.processData.Fetch()
-	if err != nil {
-		log.Warnf("error collecting processes for filter and extraction: %s", err)
-	} else {
-		c.dockerFilter.Filter(conns)
-	}
-	// Resolve the Raddr side of connections for local containers
-	LocalResolver.Resolve(conns)
-
-	c.notifyProcessConnRates(c.config, conns)
-
-	log.Debugf("collected connections in %s", time.Since(start))
-
-	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
-	return StandardRunResult(messages), nil
-}
-
-// Cleanup frees any resource held by the ConnectionsCheck before the agent exits
-func (c *ConnectionsCheck) Cleanup() {}
-
-func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
 	if err != nil {
 		if c.notInitializedLogLimit.ShouldLog() {
@@ -173,16 +164,66 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 		}
 		return nil, ErrTracerStillNotInitialized
 	}
+
+	var conns *model.Connections
 	if c.syscfg.GRPCServerEnabled {
-		cons, err := tu.GetConnectionsGRPC(c.tracerClientID, c.syscfg.GRPCSocketFilePath)
+		// Create a context with a timeout of 10 seconds
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		conn, err := grpc.Dial("unix://"+c.syscfg.GRPCSocketFilePath, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
 		}
-		log.Infof("[grpc] the number of connections in grpc is %d", len(cons.Conns))
-		return cons, err
+		defer conn.Close()
+		client := connectionserver.NewSystemProbeClient(conn)
+
+		response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: c.tracerClientID})
+		if err != nil {
+			return nil, err
+		}
+
+		for {
+			res, err := response.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			batch, err := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf).Unmarshal(res.Data)
+			if err != nil {
+				// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
+				if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+					return nil, nil
+				}
+
+				return nil, err
+			}
+			log.Infof("[grpc] the number of connections in grpc is %d", len(batch.Conns))
+
+			return c.HandleBatch(batch, start, nextGroupID())
+		}
 	} else {
-		return tu.GetConnections(c.tracerClientID)
+		conns, err = c.getConnections(tu)
+		if err != nil {
+			// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
+			if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+				return nil, nil
+			}
+			return nil, err
+		}
 	}
+
+	return c.HandleBatch(conns, start, nextGroupID())
+}
+
+// Cleanup frees any resource held by the ConnectionsCheck before the agent exits
+func (c *ConnectionsCheck) Cleanup() {}
+
+func (c *ConnectionsCheck) getConnections(tu *net.RemoteSysProbeUtil) (*model.Connections, error) {
+	return tu.GetConnections(c.tracerClientID)
 }
 
 func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {

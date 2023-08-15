@@ -18,13 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
-	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -159,32 +156,6 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	}
 
 	return conns, nil
-}
-
-// GetConnectionsGRPC returns a set of active network connections, retrieved from the system probe grpc server
-func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*model.Connections, error) {
-	// Create a context with a timeout of 10 seconds
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	conn, err := grpc.Dial("unix://"+unixPath, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	client := connectionserver.NewSystemProbeClient(conn)
-
-	response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: clientID})
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := response.Recv()
-	if err != nil {
-		return nil, err
-	}
-
-	return netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf).Unmarshal(res.Data)
 }
 
 // GetStats returns the expvar stats of the system probe
