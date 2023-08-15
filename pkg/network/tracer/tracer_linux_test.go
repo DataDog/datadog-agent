@@ -33,6 +33,8 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -47,7 +49,6 @@ import (
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -1890,4 +1891,21 @@ func testConfig() *config.Config {
 		cfg.CollectUDPv6Conns = false
 	}
 	return cfg
+}
+
+func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
+	t := s.T()
+	cfg := testConfig()
+	// disable IPv6 via config to trigger logic in GuessSocketSK
+	cfg.CollectTCPv6Conns = false
+	cfg.CollectUDPv6Conns = false
+	kv, err := kernel.HostVersion()
+	kv470 := kernel.VersionCode(4, 7, 0)
+	require.NoError(t, err)
+	if kv >= kv470 {
+		// will only be run on kernels < 4.7.0 matching the GuessSocketSK check
+		t.Skip("This test should only be run on kernels < 4.7.0")
+	}
+	// fail if tracer cannot start
+	_ = setupTracer(t, cfg)
 }
