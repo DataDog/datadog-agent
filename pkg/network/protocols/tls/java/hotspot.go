@@ -104,7 +104,7 @@ func getPathOwner(path string) (uint32, uint32, error) {
 //	o dstPath is path to the copy of agent-usm.jar (from container perspective), this would be pass to the hotspot command
 //	o cleanup must be called to remove the created file
 func (h *Hotspot) copyAgent(agent string, uid int, gid int) (string, func(), error) {
-	dstPath = filepath.Join(h.cwd, filepath.Base(agent))
+	dstPath := filepath.Join(h.cwd, filepath.Base(agent))
 	// path from the host point of view pointing to the process root namespace (/proc/pid/root/usr/...)
 	nsDstPath := h.root + dstPath
 	if dst, err := os.Stat(nsDstPath); err == nil {
