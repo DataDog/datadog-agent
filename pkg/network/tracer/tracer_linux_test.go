@@ -2044,7 +2044,7 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	require.NoError(t, err)
 	if kv >= kv470 {
 		// will only be run on kernels < 4.7.0 matching the GuessSocketSK check
-		t.Skip()
+		t.Skip("This test should only be run on kernels < 4.7.0")
 	}
 	// fail if tracer cannot start
 	_ = setupTracer(t, cfg)
