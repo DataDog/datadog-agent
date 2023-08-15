@@ -24,12 +24,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func installKubernetesMetadataEndpoints(r *mux.Router) {
-	r.HandleFunc("/annotations/node/{nodeName}", api.WithTelemetryWrapper("getNodeAnnotations", getNodeAnnotations)).Methods("GET")
+func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Component) {
+	r.HandleFunc("/annotations/node/{nodeName}", api.WithTelemetryWrapper(
+		"getNodeAnnotations",
+		func(w http.ResponseWriter, r *http.Request) { getNodeAnnotations(w, r, wmeta) },
+	)).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}/{ns}/{podName}", api.WithTelemetryWrapper("getPodMetadata", getPodMetadata)).Methods("GET")
 	r.HandleFunc("/tags/pod/{nodeName}", api.WithTelemetryWrapper("getPodMetadataForNode", getPodMetadataForNode)).Methods("GET")
 	r.HandleFunc("/tags/pod", api.WithTelemetryWrapper("getAllMetadata", getAllMetadata)).Methods("GET")
-	r.HandleFunc("/tags/node/{nodeName}", api.WithTelemetryWrapper("getNodeLabels", getNodeLabels)).Methods("GET")
+	r.HandleFunc("/tags/node/{nodeName}", api.WithTelemetryWrapper(
+		"getNodeLabels",
+		func(w http.ResponseWriter, r *http.Request) { getNodeLabels(w, r, wmeta) },
+	)).Methods("GET")
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", getNamespaceLabels)).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
@@ -37,7 +43,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router) {
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
-func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*workloadmeta.KubernetesNode) map[string]string, what string, filterList []string) {
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNode) map[string]string, what string, filterList []string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
@@ -59,7 +65,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*workloadmet
 	var dataBytes []byte
 	nodeName := vars["nodeName"]
 
-	nodeEntity, err := workloadmeta.GetGlobalStore().GetKubernetesNode(nodeName)
+	nodeEntity, err := wmeta.GetKubernetesNode(nodeName)
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -94,12 +100,12 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*workloadmet
 	fmt.Fprintf(w, "Could not find %s on the node: %s", what, nodeName)
 }
 
-func getNodeLabels(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Labels }, "labels", nil)
+func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Labels }, "labels", nil)
 }
 
-func getNodeAnnotations(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels

@@ -104,9 +104,10 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		Logger logComponent.Component
 
-		Checks []types.CheckComponent `group:"check"`
-		Syscfg sysprobeconfig.Component
-		Config config.Component
+		Checks       []types.CheckComponent `group:"check"`
+		Syscfg       sysprobeconfig.Component
+		Config       config.Component
+		WorkloadMeta workloadmeta.Component
 	}
 	app := fx.New(
 		fx.Supply(
@@ -271,8 +272,6 @@ func initMisc(deps miscDeps) error {
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(startCtx context.Context) error {
-			// This might likely have to be done elsewhere.
-			deps.WorkloadMeta.Start(appCtx)
 
 			err := tagger.Init(startCtx)
 			if err != nil {

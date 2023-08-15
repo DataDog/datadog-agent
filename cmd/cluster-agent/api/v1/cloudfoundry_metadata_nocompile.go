@@ -8,9 +8,10 @@
 package v1
 
 import (
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/gorilla/mux"
 )
 
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
-func installKubernetesMetadataEndpoints(r *mux.Router) {}
+func installKubernetesMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {}

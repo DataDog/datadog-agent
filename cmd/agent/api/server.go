@@ -135,6 +135,7 @@ func StartServer(
 				flare,
 				dogstatsdServer,
 				serverDebug,
+				wmeta,
 				logsAgent,
 				senderManager,
 				hostMetadata,

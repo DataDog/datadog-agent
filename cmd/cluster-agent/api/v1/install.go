@@ -11,6 +11,7 @@ package v1
 import (
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -18,12 +19,12 @@ import (
 )
 
 // InstallMetadataEndpoints registers endpoints for metadata
-func InstallMetadataEndpoints(r *mux.Router) {
+func InstallMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {
 	log.Debug("Registering metadata endpoints")
 	if config.Datadog.GetBool("cloud_foundry") {
 		installCloudFoundryMetadataEndpoints(r)
 	} else {
-		installKubernetesMetadataEndpoints(r)
+		installKubernetesMetadataEndpoints(r, w)
 	}
 }
 

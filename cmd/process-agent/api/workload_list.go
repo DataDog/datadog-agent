@@ -9,20 +9,12 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func getVerboseWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, true)
-}
-
-func getShortWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, false)
-}
-
-func workloadList(w http.ResponseWriter, verbose bool) {
-	response := workloadmeta.GetGlobalStore().Dump(verbose)
+func workloadList(w http.ResponseWriter, verbose bool, wmeta workloadmeta.Component) {
+	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)

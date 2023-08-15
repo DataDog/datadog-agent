@@ -13,14 +13,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
 type APIServerDeps struct {
 	fx.In
 
-	Config config.Component
-	Log    log.Component
+	Config       config.Component
+	Log          log.Component
+	WorkloadMeta workloadmeta.Component
 }
 
 func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {
@@ -37,7 +39,11 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
-	r.HandleFunc("/agent/workload-list/short", getShortWorkloadList).Methods("GET")
-	r.HandleFunc("/agent/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
+	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, r *http.Request) {
+		workloadList(w, false, deps.WorkloadMeta)
+	}).Methods("GET")
+	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, r *http.Request) {
+		workloadList(w, true, deps.WorkloadMeta)
+	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
 }

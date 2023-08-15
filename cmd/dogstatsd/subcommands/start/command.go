@@ -224,10 +224,8 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 
 	// container tagging initialisation if origin detection is on
 	if config.GetBool("dogstatsd_origin_detection") {
-		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-		store.Start(ctx)
 
-		tagger.SetDefaultTagger(local.NewTagger(store))
+		tagger.SetDefaultTagger(local.NewTagger(wmeta))
 		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}

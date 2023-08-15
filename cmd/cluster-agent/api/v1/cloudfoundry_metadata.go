@@ -30,7 +30,7 @@ func installCloudFoundryMetadataEndpoints(r *mux.Router) {
 	}
 }
 
-func installKubernetesMetadataEndpoints(r *mux.Router) {}
+func installKubernetesMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {}
 
 // getCFAppsMetadataForNode is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
 // It return a list of tags for each application that can be directly used in the tagger
