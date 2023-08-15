@@ -151,9 +151,7 @@ func diagnoseInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 		instances := collector.GetChecksByNameForConfigs(checkName, diagnoseConfigs)
 		for _, instance := range instances {
 			instanceDiagnoses := getInstanceDiagnoses(instance)
-			if len(instanceDiagnoses) > 0 {
-				diagnoses = append(diagnoses, instanceDiagnoses...)
-			}
+			diagnoses = append(diagnoses, instanceDiagnoses...)
 		}
 	}
 
