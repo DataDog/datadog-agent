@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -176,6 +177,17 @@ func (d *dispatcher) updateRunnersStats() {
 		node.RLock()
 		ip := node.clientIP
 		node.RUnlock()
+
+		if config.Datadog.GetBool("cluster_checks.rebalance_with_utilization") {
+			workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
+			if err != nil {
+				// This can happen in old versions of the runners that do not expose this information.
+				log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, node.clientIP, err)
+				node.workers = config.DefaultNumWorkers
+			} else {
+				node.workers = workers.Count
+			}
+		}
 
 		stats, err := d.clcRunnersClient.GetRunnerStats(ip)
 		if err != nil {
