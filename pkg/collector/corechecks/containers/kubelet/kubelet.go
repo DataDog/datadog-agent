@@ -61,7 +61,10 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Pr
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
-	probeProvider := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	if err != nil {
+		log.Warnf("Can't get probe provider: %v", err)
+	}
 
 	return []Provider{
 		podProvider,
