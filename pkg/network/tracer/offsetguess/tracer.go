@@ -481,14 +481,14 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			if err != nil {
 				return fmt.Errorf("error getting kernel version: %w", err)
 			}
-			tracePointDisabled := kv < kernel.VersionCode(4, 7, 0)
+			kv470 := kernel.VersionCode(4, 7, 0)
 
 			// check for IPv6 enabled and tracepoint being disabled
-			if (t.guessTCPv6 || t.guessUDPv6) && tracePointDisabled {
+			if (t.guessTCPv6 || t.guessUDPv6) && kv < kv470 {
 				next = GuessDAddrIPv6
 			}
 
-			if !t.guessTCPv6 && !t.guessUDPv6 && tracePointDisabled {
+			if !t.guessTCPv6 && !t.guessUDPv6 && kv < kv470 {
 				next = GuessNotApplicable
 				return t.setReadyState(mp)
 			}

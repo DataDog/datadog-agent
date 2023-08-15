@@ -2039,10 +2039,11 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	cfg.CollectTCPv6Conns = false
 	cfg.CollectUDPv6Conns = false
 	kv, err := kernel.HostVersion()
+	kv470 := kernel.VersionCode(4, 7, 0)
 	if err != nil {
 		t.FailNow()
 	}
-	if kv >= kernel.VersionCode(4, 7, 0) {
+	if kv >= kv470 {
 		t.Skip()
 	}
 	_ = setupTracer(t, cfg)
