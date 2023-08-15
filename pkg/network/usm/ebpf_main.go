@@ -30,13 +30,11 @@ import (
 )
 
 const (
-	httpInFlightMap  = "http_in_flight"
 	http2InFlightMap = "http2_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
 	protocolDispatcherSocketFilterFunction   = "socket__protocol_dispatcher"
-	protocolDispatcherProgramsMap            = "protocols_progs"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	connectionStatesMap                      = "connection_states"
 
@@ -355,9 +353,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	} else {
 		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-			Type:       ebpf.Hash,
+			Type:       ebpf.LRUHash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
-			EditorFlag: manager.EditMaxEntries,
+			EditorFlag: manager.EditMaxEntries | manager.EditType,
 		}
 	}
 
