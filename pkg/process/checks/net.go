@@ -156,165 +156,6 @@ func min(a, b int) int {
 	return b
 }
 
-// Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
-func batchConnections(
-	hostInfo *HostInfo,
-	maxConnsPerMessage int,
-	groupID int32,
-	cxs []*model.Connection,
-	dns map[string]*model.DNSEntry,
-	networkID string,
-	connTelemetryMap map[string]int64,
-	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
-	kernelHeaderFetchResult model.KernelHeaderFetchResult,
-	coreTelemetry map[string]model.COREResult,
-	prebuiltAssets []string,
-	domains []string,
-	routes []*model.Route,
-	tags []string,
-	agentCfg *model.AgentConfiguration,
-	serviceExtractor *parser.ServiceExtractor,
-) []model.MessageBody {
-	groupSize := groupSize(len(cxs), maxConnsPerMessage)
-	batches := make([]model.MessageBody, 0, groupSize)
-
-	dnsEncoder := model.NewV2DNSEncoder()
-
-	if len(cxs) > maxConnsPerMessage {
-		// Sort connections by remote IP/PID for more efficient resolution
-		sort.Slice(cxs, func(i, j int) bool {
-			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
-				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
-			}
-			return cxs[i].Pid < cxs[j].Pid
-		})
-	}
-
-	for len(cxs) > 0 {
-		batchSize := min(maxConnsPerMessage, len(cxs))
-		batchConns := cxs[:batchSize] // Connections for this particular batch
-
-		ctrIDForPID := make(map[int32]string)
-		batchDNS := make(map[string]*model.DNSDatabaseEntry)
-		namemap := make(map[string]int32)
-		namedb := make([]string, 0)
-
-		tagsEncoder := model.NewV2TagEncoder()
-
-		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
-			if entries, ok := dns[c.Raddr.Ip]; ok {
-				if _, present := batchDNS[c.Raddr.Ip]; !present {
-					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
-					// so that we're always sending the same (newer) type.
-					convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
-				}
-			}
-
-			if c.Laddr.ContainerId != "" {
-				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
-			}
-
-			// remap functions create a new map; the map is by string _index_ (not offset)
-			// in the namedb.  Each unique string should only occur once.
-			remapDNSStatsByDomain(c, namemap, &namedb, domains)
-			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
-
-			// tags remap
-			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
-			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
-
-			if len(tagsStr) > 0 {
-				c.Tags = nil
-				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
-			} else {
-				c.TagsIdx = -1
-			}
-		}
-
-		// remap route indices
-		// map of old index to new index
-		newRouteIndices := make(map[int32]int32)
-		var batchRoutes []*model.Route
-		for _, c := range batchConns {
-			if c.RouteIdx < 0 {
-				continue
-			}
-			if i, ok := newRouteIndices[c.RouteIdx]; ok {
-				c.RouteIdx = i
-				continue
-			}
-
-			new := int32(len(newRouteIndices))
-			newRouteIndices[c.RouteIdx] = new
-			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
-			c.RouteIdx = new
-		}
-
-		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
-		// domain string) and convert it into a buffer of all of the strings.
-		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
-		var mappedDNSLookups []byte
-		encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(namedb)
-		if err != nil {
-			encodedNameDb = nil
-			// since we were unable to properly encode the indexToOffet map, the
-			// rest of the maps will now be unreadable by the back-end.  Just clear them
-			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
-				c.DnsStatsByDomain = nil
-				c.DnsStatsByDomainByQueryType = nil
-				c.DnsStatsByDomainOffsetByQueryType = nil
-			}
-		} else {
-
-			// Now we have all available information.  EncodeMapped with take the string indices
-			// that are used, and encode (using the indexToOffset array) the offset into the buffer
-			// this way individual strings can be directly accessed on decode.
-			mappedDNSLookups, err = dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
-			if err != nil {
-				mappedDNSLookups = nil
-			}
-			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
-				remapDNSStatsByOffset(c, indexToOffset)
-			}
-		}
-		cc := &model.CollectorConnections{
-			AgentConfiguration:     agentCfg,
-			HostName:               hostInfo.HostName,
-			NetworkId:              networkID,
-			Connections:            batchConns,
-			GroupId:                groupID,
-			GroupSize:              groupSize,
-			ContainerForPid:        ctrIDForPID,
-			EncodedDomainDatabase:  encodedNameDb,
-			EncodedDnsLookups:      mappedDNSLookups,
-			ContainerHostType:      hostInfo.ContainerHostType,
-			Routes:                 batchRoutes,
-			EncodedConnectionsTags: tagsEncoder.Buffer(),
-		}
-
-		// Add OS telemetry
-		if hostInfo := hostMetadataUtils.GetInformation(); hostInfo != nil {
-			cc.KernelVersion = hostInfo.KernelVersion
-			cc.Architecture = hostInfo.KernelArch
-			cc.Platform = hostInfo.Platform
-			cc.PlatformVersion = hostInfo.PlatformVersion
-		}
-
-		// only add the telemetry to the first message to prevent double counting
-		if len(batches) == 0 {
-			cc.ConnTelemetryMap = connTelemetryMap
-			cc.CompilationTelemetryByAsset = compilationTelemetry
-			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
-			cc.CORETelemetryByAsset = coreTelemetry
-			cc.PrebuiltEBPFAssets = prebuiltAssets
-		}
-		batches = append(batches, cc)
-
-		cxs = cxs[batchSize:]
-	}
-	return batches
-}
-
 // Run runs the ConnectionsCheck to collect the active network connections
 // and any closed network connections since the last Run.
 // For each connection we'll return a `model.Connection`
@@ -522,6 +363,190 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
+func batchConnections(
+	hostInfo *HostInfo,
+	maxConnsPerMessage int,
+	groupID int32,
+	cxs []*model.Connection,
+	dns map[string]*model.DNSEntry,
+	networkID string,
+	connTelemetryMap map[string]int64,
+	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
+	kernelHeaderFetchResult model.KernelHeaderFetchResult,
+	coreTelemetry map[string]model.COREResult,
+	prebuiltAssets []string,
+	domains []string,
+	routes []*model.Route,
+	tags []string,
+	agentCfg *model.AgentConfiguration,
+	serviceExtractor *parser.ServiceExtractor,
+) []model.MessageBody {
+	groupSize := groupSize(len(cxs), maxConnsPerMessage)
+	batches := make([]model.MessageBody, 0, groupSize)
+
+	dnsEncoder := model.NewV2DNSEncoder()
+
+	if len(cxs) > maxConnsPerMessage {
+		// Sort connections by remote IP/PID for more efficient resolution
+		sort.Slice(cxs, func(i, j int) bool {
+			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
+				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
+			}
+			return cxs[i].Pid < cxs[j].Pid
+		})
+	}
+
+	for len(cxs) > 0 {
+		batchSize := min(maxConnsPerMessage, len(cxs))
+		batchConns := cxs[:batchSize] // Connections for this particular batch
+
+		ctrIDForPID := make(map[int32]string)
+		batchDNS := make(map[string]*model.DNSDatabaseEntry)
+		namemap := make(map[string]int32)
+		namedb := make([]string, 0)
+
+		tagsEncoder := model.NewV2TagEncoder()
+
+		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			if entries, ok := dns[c.Raddr.Ip]; ok {
+				if _, present := batchDNS[c.Raddr.Ip]; !present {
+					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
+					// so that we're always sending the same (newer) type.
+					convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
+				}
+			}
+
+			if c.Laddr.ContainerId != "" {
+				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+			}
+
+			// remap functions create a new map; the map is by string _index_ (not offset)
+			// in the namedb.  Each unique string should only occur once.
+			remapDNSStatsByDomain(c, namemap, &namedb, domains)
+			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
+
+			// tags remap
+			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+
+			if len(tagsStr) > 0 {
+				c.Tags = nil
+				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
+			} else {
+				c.TagsIdx = -1
+			}
+		}
+
+		// remap route indices
+		// map of old index to new index
+		newRouteIndices := make(map[int32]int32)
+		var batchRoutes []*model.Route
+		for _, c := range batchConns {
+			if c.RouteIdx < 0 {
+				continue
+			}
+			if i, ok := newRouteIndices[c.RouteIdx]; ok {
+				c.RouteIdx = i
+				continue
+			}
+
+			new := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = new
+			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
+			c.RouteIdx = new
+		}
+
+		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
+		// domain string) and convert it into a buffer of all of the strings.
+		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
+		var mappedDNSLookups []byte
+		encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(namedb)
+		if err != nil {
+			encodedNameDb = nil
+			// since we were unable to properly encode the indexToOffet map, the
+			// rest of the maps will now be unreadable by the back-end.  Just clear them
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				c.DnsStatsByDomain = nil
+				c.DnsStatsByDomainByQueryType = nil
+				c.DnsStatsByDomainOffsetByQueryType = nil
+			}
+		} else {
+
+			// Now we have all available information.  EncodeMapped with take the string indices
+			// that are used, and encode (using the indexToOffset array) the offset into the buffer
+			// this way individual strings can be directly accessed on decode.
+			mappedDNSLookups, err = dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
+			if err != nil {
+				mappedDNSLookups = nil
+			}
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				remapDNSStatsByOffset(c, indexToOffset)
+			}
+		}
+		cc := &model.CollectorConnections{
+			AgentConfiguration:     agentCfg,
+			HostName:               hostInfo.HostName,
+			NetworkId:              networkID,
+			Connections:            batchConns,
+			GroupId:                groupID,
+			GroupSize:              groupSize,
+			ContainerForPid:        ctrIDForPID,
+			EncodedDomainDatabase:  encodedNameDb,
+			EncodedDnsLookups:      mappedDNSLookups,
+			ContainerHostType:      hostInfo.ContainerHostType,
+			Routes:                 batchRoutes,
+			EncodedConnectionsTags: tagsEncoder.Buffer(),
+		}
+
+		// Add OS telemetry
+		if hostInfo := hostMetadataUtils.GetInformation(); hostInfo != nil {
+			cc.KernelVersion = hostInfo.KernelVersion
+			cc.Architecture = hostInfo.KernelArch
+			cc.Platform = hostInfo.Platform
+			cc.PlatformVersion = hostInfo.PlatformVersion
+		}
+
+		// only add the telemetry to the first message to prevent double counting
+		if len(batches) == 0 {
+			cc.ConnTelemetryMap = connTelemetryMap
+			cc.CompilationTelemetryByAsset = compilationTelemetry
+			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
+			cc.CORETelemetryByAsset = coreTelemetry
+			cc.PrebuiltEBPFAssets = prebuiltAssets
+		}
+		batches = append(batches, cc)
+
+		cxs = cxs[batchSize:]
+	}
+	return batches
+}
+
+func groupSize(total, maxBatchSize int) int32 {
+	groupSize := total / maxBatchSize
+	if total%maxBatchSize > 0 {
+		groupSize++
+	}
+	return int32(groupSize)
+}
+
+// converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtxs)
+	tagsStr := make([]string, 0, tagCount)
+	for _, t := range tagOffsets {
+		tagsStr = append(tagsStr, tags[t])
+	}
+
+	for _, serviceCtx := range serviceCtxs {
+		if serviceCtx != "" {
+			tagsStr = append(tagsStr, serviceCtx)
+		}
+	}
+
+	return tagsStr
+}
+
+// Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func processBatchGRPC(
 	hostInfo *HostInfo,
 	maxConnsPerMessage int,
@@ -672,29 +697,4 @@ func processBatchGRPC(
 	batches = append(batches, cc)
 
 	return batches[0]
-}
-
-func groupSize(total, maxBatchSize int) int32 {
-	groupSize := total / maxBatchSize
-	if total%maxBatchSize > 0 {
-		groupSize++
-	}
-	return int32(groupSize)
-}
-
-// converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
-func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtxs ...string) []string {
-	tagCount := len(tagOffsets) + len(serviceCtxs)
-	tagsStr := make([]string, 0, tagCount)
-	for _, t := range tagOffsets {
-		tagsStr = append(tagsStr, tags[t])
-	}
-
-	for _, serviceCtx := range serviceCtxs {
-		if serviceCtx != "" {
-			tagsStr = append(tagsStr, serviceCtx)
-		}
-	}
-
-	return tagsStr
 }
