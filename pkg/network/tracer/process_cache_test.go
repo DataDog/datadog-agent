@@ -339,3 +339,60 @@ func TestProcessCacheGet(t *testing.T) {
 	}
 
 }
+
+func BenchmarkProcessCacheMem(b *testing.B) {
+	fmt.Print("Starting BenchmarkProcessCacheMem\n")
+	pc, err := newProcessCache(10, nil)
+	require.NoError(t, err)
+	require.NotNil(t, pc)
+
+	envs := map[string]string{
+		ddService: "service",
+		ddVersion: "version",
+		ddEnv:     "env",
+	}
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		fmt.Print("here")
+		pc.add(&process{
+			Pid:       1111,
+			StartTime: 5,
+			Envs: envs,
+			ContainerID: "container1"
+		})
+	
+		pc.add(&process{
+			Pid:       2222,
+			StartTime: 5,
+			Envs: envs,
+			ContainerID: "container1"
+		})
+	
+		pc.add(&process{
+			Pid:       3333,
+			StartTime: 5,
+			Envs: envs,
+			ContainerID: "container1"
+		})
+	
+		pc.add(&process{
+			Pid:       4444,
+			StartTime: 5,
+			Envs: envs,
+			ContainerID: "container1"
+		})
+	
+		pc.add(&process{
+			Pid:       5555,
+			StartTime: 5,
+			Envs: envs,
+			ContainerID: "container1"
+		})
+
+		proc, ok := pc.Get(5555, 1)
+		if !ok{
+			fmt.Print("not found")
+		}
+    }
+}
