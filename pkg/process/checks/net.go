@@ -130,7 +130,7 @@ func (c *ConnectionsCheck) Realtime() bool { return false }
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 
-func (c *ConnectionsCheck) HandleBatch(batch *model.Connections, start time.Time, groupID int32) (RunResult, error) {
+func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time, groupID int32) (model.MessageBody, error) {
 	err := c.processData.Fetch()
 	if err != nil {
 		log.Warnf("error collecting processes for filter and extraction: %s", err)
@@ -144,9 +144,175 @@ func (c *ConnectionsCheck) HandleBatch(batch *model.Connections, start time.Time
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID, batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult, batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags, batch.AgentConfiguration, c.serviceExtractor)
-	return StandardRunResult(messages), nil
+	res := processBatchGRPC(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID, batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult, batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags, batch.AgentConfiguration, c.serviceExtractor)
+	return res, nil
 
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
+func batchConnections(
+	hostInfo *HostInfo,
+	maxConnsPerMessage int,
+	groupID int32,
+	cxs []*model.Connection,
+	dns map[string]*model.DNSEntry,
+	networkID string,
+	connTelemetryMap map[string]int64,
+	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
+	kernelHeaderFetchResult model.KernelHeaderFetchResult,
+	coreTelemetry map[string]model.COREResult,
+	prebuiltAssets []string,
+	domains []string,
+	routes []*model.Route,
+	tags []string,
+	agentCfg *model.AgentConfiguration,
+	serviceExtractor *parser.ServiceExtractor,
+) []model.MessageBody {
+	groupSize := groupSize(len(cxs), maxConnsPerMessage)
+	batches := make([]model.MessageBody, 0, groupSize)
+
+	dnsEncoder := model.NewV2DNSEncoder()
+
+	if len(cxs) > maxConnsPerMessage {
+		// Sort connections by remote IP/PID for more efficient resolution
+		sort.Slice(cxs, func(i, j int) bool {
+			if cxs[i].Raddr.Ip != cxs[j].Raddr.Ip {
+				return cxs[i].Raddr.Ip < cxs[j].Raddr.Ip
+			}
+			return cxs[i].Pid < cxs[j].Pid
+		})
+	}
+
+	for len(cxs) > 0 {
+		batchSize := min(maxConnsPerMessage, len(cxs))
+		batchConns := cxs[:batchSize] // Connections for this particular batch
+
+		ctrIDForPID := make(map[int32]string)
+		batchDNS := make(map[string]*model.DNSDatabaseEntry)
+		namemap := make(map[string]int32)
+		namedb := make([]string, 0)
+
+		tagsEncoder := model.NewV2TagEncoder()
+
+		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			if entries, ok := dns[c.Raddr.Ip]; ok {
+				if _, present := batchDNS[c.Raddr.Ip]; !present {
+					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
+					// so that we're always sending the same (newer) type.
+					convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
+				}
+			}
+
+			if c.Laddr.ContainerId != "" {
+				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+			}
+
+			// remap functions create a new map; the map is by string _index_ (not offset)
+			// in the namedb.  Each unique string should only occur once.
+			remapDNSStatsByDomain(c, namemap, &namedb, domains)
+			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
+
+			// tags remap
+			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+
+			if len(tagsStr) > 0 {
+				c.Tags = nil
+				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
+			} else {
+				c.TagsIdx = -1
+			}
+		}
+
+		// remap route indices
+		// map of old index to new index
+		newRouteIndices := make(map[int32]int32)
+		var batchRoutes []*model.Route
+		for _, c := range batchConns {
+			if c.RouteIdx < 0 {
+				continue
+			}
+			if i, ok := newRouteIndices[c.RouteIdx]; ok {
+				c.RouteIdx = i
+				continue
+			}
+
+			new := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = new
+			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
+			c.RouteIdx = new
+		}
+
+		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
+		// domain string) and convert it into a buffer of all of the strings.
+		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
+		var mappedDNSLookups []byte
+		encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(namedb)
+		if err != nil {
+			encodedNameDb = nil
+			// since we were unable to properly encode the indexToOffet map, the
+			// rest of the maps will now be unreadable by the back-end.  Just clear them
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				c.DnsStatsByDomain = nil
+				c.DnsStatsByDomainByQueryType = nil
+				c.DnsStatsByDomainOffsetByQueryType = nil
+			}
+		} else {
+
+			// Now we have all available information.  EncodeMapped with take the string indices
+			// that are used, and encode (using the indexToOffset array) the offset into the buffer
+			// this way individual strings can be directly accessed on decode.
+			mappedDNSLookups, err = dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
+			if err != nil {
+				mappedDNSLookups = nil
+			}
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				remapDNSStatsByOffset(c, indexToOffset)
+			}
+		}
+		cc := &model.CollectorConnections{
+			AgentConfiguration:     agentCfg,
+			HostName:               hostInfo.HostName,
+			NetworkId:              networkID,
+			Connections:            batchConns,
+			GroupId:                groupID,
+			GroupSize:              groupSize,
+			ContainerForPid:        ctrIDForPID,
+			EncodedDomainDatabase:  encodedNameDb,
+			EncodedDnsLookups:      mappedDNSLookups,
+			ContainerHostType:      hostInfo.ContainerHostType,
+			Routes:                 batchRoutes,
+			EncodedConnectionsTags: tagsEncoder.Buffer(),
+		}
+
+		// Add OS telemetry
+		if hostInfo := hostMetadataUtils.GetInformation(); hostInfo != nil {
+			cc.KernelVersion = hostInfo.KernelVersion
+			cc.Architecture = hostInfo.KernelArch
+			cc.Platform = hostInfo.Platform
+			cc.PlatformVersion = hostInfo.PlatformVersion
+		}
+
+		// only add the telemetry to the first message to prevent double counting
+		if len(batches) == 0 {
+			cc.ConnTelemetryMap = connTelemetryMap
+			cc.CompilationTelemetryByAsset = compilationTelemetry
+			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
+			cc.CORETelemetryByAsset = coreTelemetry
+			cc.PrebuiltEBPFAssets = prebuiltAssets
+		}
+		batches = append(batches, cc)
+
+		cxs = cxs[batchSize:]
+	}
+	return batches
 }
 
 // Run runs the ConnectionsCheck to collect the active network connections
@@ -156,7 +322,7 @@ func (c *ConnectionsCheck) HandleBatch(batch *model.Connections, start time.Time
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
-
+	var batchMessages []model.MessageBody
 	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
 	if err != nil {
 		if c.notInitializedLogLimit.ShouldLog() {
@@ -203,20 +369,41 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 			}
 			log.Infof("[grpc] the number of connections in grpc is %d", len(batch.Conns))
 
-			return c.HandleBatch(batch, start, nextGroupID())
-		}
-	} else {
-		conns, err = c.getConnections(tu)
-		if err != nil {
-			// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-			if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
-				return nil, nil
+			message, err := c.handleBatch(batch, start, nextGroupID())
+			if err != nil {
+				return nil, err
 			}
-			return nil, err
+			batchMessages = append(batchMessages, message)
 		}
+		return StandardRunResult(batchMessages), nil
 	}
 
-	return c.HandleBatch(conns, start, nextGroupID())
+	conns, err = c.getConnections(tu)
+	if err != nil {
+		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
+		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Filter out (in-place) connection data associated with docker-proxy
+	err = c.processData.Fetch()
+	if err != nil {
+		log.Warnf("error collecting processes for filter and extraction: %s", err)
+	} else {
+		c.dockerFilter.Filter(conns)
+	}
+	// Resolve the Raddr side of connections for local containers
+	LocalResolver.Resolve(conns)
+
+	c.notifyProcessConnRates(c.config, conns)
+
+	log.Debugf("collected connections in %s", time.Since(start))
+
+	groupID := nextGroupID()
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
@@ -335,7 +522,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
-func batchConnections(
+func processBatchGRPC(
 	hostInfo *HostInfo,
 	maxConnsPerMessage int,
 	groupID int32,
@@ -352,7 +539,7 @@ func batchConnections(
 	tags []string,
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
-) []model.MessageBody {
+) model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
 
@@ -484,7 +671,7 @@ func batchConnections(
 	}
 	batches = append(batches, cc)
 
-	return batches
+	return batches[0]
 }
 
 func groupSize(total, maxBatchSize int) int32 {
