@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -140,11 +141,11 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 				// the request portion of the flow was missed.
 
 			case crq >= driver.ClassificationRequestHTTPUnknown && crq < driver.ClassificationRequestHTTPLast:
-				cs.Protocol = ProtocolHTTP
+				cs.Protocol = protocols.ProtocolHTTP
 			case crq == driver.ClassificationRequestHTTP2:
-				cs.Protocol = ProtocolHTTP2
+				cs.Protocol = protocols.ProtocolHTTP2
 			case crq == driver.ClassificationRequestTLS:
-				cs.Protocol = ProtocolTLS
+				cs.Protocol = protocols.ProtocolTLS
 			}
 
 			switch crsp := flow.ClassifyResponse; {
@@ -157,17 +158,17 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 
 			case crsp == driver.ClassificationResponseHTTP:
 				if flow.HttpUpgradeToH2Accepted == 1 {
-					cs.Protocol = ProtocolHTTP2
+					cs.Protocol = protocols.ProtocolHTTP2
 				} else {
 					// could have missed the request.  Most likely this is just
 					// resetting the existing value
-					cs.Protocol = ProtocolHTTP
+					cs.Protocol = protocols.ProtocolHTTP
 				}
 			}
 		} else {
 			// one of
 			// ClassificationUnableInsufficientData, ClassificationUnknown, ClassificationUnclassified
-			cs.Protocol = ProtocolUnknown
+			cs.Protocol = protocols.ProtocolUnknown
 		}
 	}
 }
