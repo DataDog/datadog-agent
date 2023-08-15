@@ -15,5 +15,7 @@ import (
 const defaultLogFile = "/var/log/datadog/trace-agent.log"
 
 func main() {
+	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)
+
 	os.Exit(runcmd.Run(command.MakeRootCommand(defaultLogFile)))
 }

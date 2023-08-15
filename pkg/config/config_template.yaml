@@ -1127,7 +1127,7 @@ api_key:
   # force_use_http: true
 
   ## @param force_use_tcp - boolean - optional - default: false
-  ## @env DD_LOGS_FORCE_USE_TCP - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
   ## to `true` to always send logs via TCP. If `use_http` is set to `true`, this parameter
   ## is ignored.
@@ -1736,6 +1736,18 @@ api_key:
   ## The full path to the file where system-probe logs are written.
   #
   # log_file: /var/log/datadog/system-probe.log
+
+  ## @param langauge_detection - custom object - optional
+  ## Enter specific configurations for language detection
+  ## Uncomment this parameter and the one below to enable them.
+  #
+  # language_detection:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_SYSTEM_PROBE_CONFIG_LANGUAGE_DETECTION_ENABLED - bool - optional - default: false
+    ## [Beta] Enables language detection via binary analysis in the system probe.
+    #
+    # enabled: false
 
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional

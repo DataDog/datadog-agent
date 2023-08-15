@@ -120,7 +120,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.mutex_profile_fraction"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
@@ -188,6 +188,8 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
+
+	cfg.BindEnvAndSetDefault(join(spNS, "language_detection.enabled"), false)
 
 	// network_config namespace only
 
@@ -313,6 +315,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.per_rule_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
@@ -383,6 +386,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_burst", 1000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
+
 }
 
 func join(pieces ...string) string {

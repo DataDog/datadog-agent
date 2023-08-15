@@ -21,7 +21,7 @@ github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
 [teams."Agent Shared Components"]
-jira_project = "ASC"
+jira_project = "ASCII"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
@@ -251,3 +251,14 @@ jira_statuses = [
 ]
 github_team = "container-app"
 github_labels = ["team/container-app"]
+
+[teams."APM Onboarding"]
+jira_project = "APMON"
+jira_issue_type = "Task"
+jira_statuses = [
+  "Selected For Development",
+  "In Progress",
+  "Done",
+]
+github_team = "apm-onboarding"
+github_labels = ["team/apm-onboarding"]

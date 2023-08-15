@@ -42,7 +42,7 @@ var stateTelemetry = struct {
 	dnsPidCollisions      *nettelemetry.StatCounterWrapper
 	udpDirectionFixes     telemetry.Counter
 }{
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{}, "Counter measuring the number of dropped closed connections"),
+	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
@@ -349,30 +349,39 @@ func (ns *networkState) logTelemetry() {
 	dnsPidCollisionsDelta := stateTelemetry.dnsPidCollisions.Load() - ns.lastTelemetry.dnsPidCollisions
 
 	// Flush log line if any metric is non-zero
-	if statsUnderflowsDelta > 0 || statsCookieCollisionsDelta > 0 || closedConnDroppedDelta > 0 || connDroppedDelta > 0 || timeSyncCollisionsDelta > 0 ||
-		dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 || http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || dnsPidCollisionsDelta > 0 {
-		s := "state telemetry: "
-		s += " [%d stats stats_underflows]"
-		s += " [%d stats cookie collisions]"
+	if connDroppedDelta > 0 || closedConnDroppedDelta > 0 || dnsStatsDroppedDelta > 0 ||
+		httpStatsDroppedDelta > 0 || http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 {
+		s := "State telemetry: "
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
-		s += " [%d dns stats dropped]"
+		s += " [%d DNS stats dropped]"
 		s += " [%d HTTP stats dropped]"
 		s += " [%d HTTP2 stats dropped]"
 		s += " [%d Kafka stats dropped]"
-		s += " [%d DNS pid collisions]"
-		s += " [%d time sync collisions]"
 		log.Warnf(s,
-			statsUnderflowsDelta,
-			statsCookieCollisionsDelta,
 			connDroppedDelta,
 			closedConnDroppedDelta,
 			dnsStatsDroppedDelta,
 			httpStatsDroppedDelta,
 			http2StatsDroppedDelta,
 			kafkaStatsDroppedDelta,
+		)
+	}
+
+	// debug metrics that aren't useful for customers to see
+	if statsCookieCollisionsDelta > 0 || statsUnderflowsDelta > 0 ||
+		timeSyncCollisionsDelta > 0 || dnsPidCollisionsDelta > 0 {
+		s := "State telemetry debug: "
+		s += " [%d stats cookie collisions]"
+		s += " [%d stats underflows]"
+		s += " [%d time sync collisions]"
+		s += " [%d DNS pid collisions]"
+		log.Debugf(s,
+			statsCookieCollisionsDelta,
+			statsUnderflowsDelta,
+			timeSyncCollisionsDelta,
 			dnsPidCollisionsDelta,
-			timeSyncCollisionsDelta)
+		)
 	}
 
 	ns.lastTelemetry.closedConnDropped = stateTelemetry.closedConnDropped.Load()
@@ -450,7 +459,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			}
 
 			if uint32(len(client.closedConnections)) >= ns.maxClosedConns {
-				stateTelemetry.closedConnDropped.Inc()
+				stateTelemetry.closedConnDropped.Inc(c.Type.String())
 				continue
 			}
 
@@ -937,10 +946,10 @@ func fixConnectionDirection(c *ConnectionStats) {
 		return
 	}
 
-	sourceEphemeral := IsEphemeralPort(int(c.SPort))
+	sourceEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) == EphemeralTrue
 	var destNotEphemeral bool
 	if c.IntraHost {
-		destNotEphemeral = !IsEphemeralPort(int(c.DPort))
+		destNotEphemeral = IsPortInEphemeralRange(c.Family, c.Type, c.DPort) != EphemeralTrue
 	} else {
 		// use a much more restrictive range
 		// for non-ephemeral ports if the

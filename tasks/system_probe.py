@@ -1500,6 +1500,10 @@ def print_failed_tests(_, output_dir):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
         test_results = {}
 
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
+
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
                 tgz.extractall(path=unpack_dir)
@@ -1513,7 +1517,7 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            if action == "pass" or action == "fail":
+                            if action == "pass" or action == "fail" or action == "skip":
                                 test_key = f"{package}.{name}"
                                 res = test_results.get(test_key)
                                 if res is None:
@@ -1522,7 +1526,7 @@ def print_failed_tests(_, output_dir):
 
                                 if res == "fail":
                                     print(f"re-ran [{test_platform}] {package} {name}: {action}")
-                                if action == "pass" and res == "fail":
+                                if (action == "pass" or action == "skip") and res == "fail":
                                     test_results[test_key] = action
 
         for key, res in test_results.items():

@@ -44,7 +44,7 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
+int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
@@ -52,10 +52,10 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
 #ifdef DEBUG
-    bpf_printk("interpreter file: %llx\n", file);
-    bpf_printk("interpreter inode: %u\n", syscall->exec.linux_binprm.interpreter.ino);
-    bpf_printk("interpreter mount id: %u %u %u\n", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
-    bpf_printk("interpreter path id: %u\n", syscall->exec.linux_binprm.interpreter.path_id);
+    bpf_printk("interpreter file: %llx", file);
+    bpf_printk("interpreter inode: %u", syscall->exec.linux_binprm.interpreter.ino);
+    bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
+    bpf_printk("interpreter path id: %u", syscall->exec.linux_binprm.interpreter.path_id);
 #endif
 
     // Add interpreter path to map/pathnames, which is used by the dentry resolver.
@@ -67,45 +67,28 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_current_or_impersonated_exec_syscall();
 
     return 0;
-}
-
-int __attribute__((always_inline)) handle_sys_fork() {
-    struct syscall_cache_t syscall = {
-        .type = EVENT_FORK,
-    };
-
-    cache_syscall(&syscall);
-
-    return 0;
-}
-
-SYSCALL_KPROBE0(fork) {
-    return handle_sys_fork();
-}
-
-HOOK_SYSCALL_ENTRY0(clone) {
-    return handle_sys_fork();
-}
-
-HOOK_SYSCALL_ENTRY0(clone3) {
-    return handle_sys_fork();
-}
-
-SYSCALL_KPROBE0(vfork) {
-    return handle_sys_fork();
 }
 
 #define DO_FORK_STRUCT_INPUT 1
 
 int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall) {
-        return 0;
+    struct syscall_cache_t syscall = {
+        .type = EVENT_FORK,
+        .fork.is_thread = 1,
+    };
+
+    u32 kthread_key = 0;
+    u32 *is_kthread = bpf_map_lookup_elem(&is_new_kthread, &kthread_key);
+    if (is_kthread) {
+        syscall.fork.is_kthread = *is_kthread;
+        *is_kthread = 0;
     }
-    syscall->fork.is_thread = 1;
 
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
@@ -116,15 +99,33 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
         bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
 
         if (exit_signal == SIGCHLD) {
-            syscall->fork.is_thread = 0;
+            syscall.fork.is_thread = 0;
         }
     } else {
         u64 flags = (u64)CTX_PARM1(ctx);
         if ((flags & SIGCHLD) == SIGCHLD) {
-            syscall->fork.is_thread = 0;
+            syscall.fork.is_thread = 0;
         }
     }
 
+    cache_syscall(&syscall);
+
+    return 0;
+}
+
+HOOK_ENTRY("kernel_thread")
+int hook_kernel_thread(ctx_t *ctx) {
+    u32 index = 0;
+    u32 value = 1;
+    bpf_map_update_elem(&is_new_kthread, &index, &value, BPF_ANY);
+    return 0;
+}
+
+HOOK_ENTRY("user_mode_thread")
+int hook_user_mode_thread(ctx_t *ctx) {
+    u32 index = 0;
+    u32 value = 1;
+    bpf_map_update_elem(&is_new_kthread, &index, &value, BPF_ANY);
     return 0;
 }
 
@@ -153,7 +154,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall) {
+    if (!syscall || syscall->fork.is_kthread) {
         u32 value = 1;
         // mark as ignored fork not from syscall, ex: kworkers
         bpf_map_update_elem(&pid_ignored, &pid, &value, BPF_ANY);
@@ -288,6 +289,9 @@ int hook_do_exit(ctx_t *ctx) {
         // [activity_dump] cleanup tracing state for this pid
         cleanup_traced_state(tgid);
     }
+
+    // cleanup any remaining syscall cache entry for this pid_tgid
+    pop_syscall(EVENT_ANY);
 
     return 0;
 }
@@ -506,7 +510,7 @@ int tail_call_target_parse_args_envs(void *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
+int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -520,25 +524,24 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
     bpf_probe_read(&interpreter, sizeof(interpreter), (char *)bprm + binprm_file_offset);
 
 #ifdef DEBUG
-    bpf_printk("binprm_file_offset: %d\n", binprm_file_offset);
+    bpf_printk("binprm_file_offset: %d", binprm_file_offset);
 
-    bpf_printk("interpreter file: %llx\n", interpreter);
+    bpf_printk("interpreter file: %llx", interpreter);
 
     const char *s;
     bpf_probe_read(&s, sizeof(s), &bprm->filename);
-    bpf_printk("*filename from binprm: %s\n", s);
+    bpf_printk("*filename from binprm: %s", s);
 
     bpf_probe_read(&s, sizeof(s), &bprm->interp);
-    bpf_printk("*interp from binprm: %s\n", s);
+    bpf_printk("*interp from binprm: %s", s);
 #endif
 
     return handle_interpreted_exec_event(ctx, syscall, interpreter);
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
-    struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
+HOOK_ENTRY("setup_new_exec")
+int hook_setup_new_exec_interp(ctx_t *ctx) {
+    struct linux_binprm *bprm = (struct linux_binprm *) CTX_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 

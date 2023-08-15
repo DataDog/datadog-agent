@@ -11,6 +11,7 @@
 
 #include "tracer/tracer.h"
 #include "tracer/events.h"
+#include "tracer/bind.h"
 #include "tracer/maps.h"
 #include "tracer/stats.h"
 #include "tracer/telemetry.h"
@@ -578,59 +579,32 @@ int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
     return 0;
 }
 
-static __always_inline int sys_exit_bind(struct socket *sock, struct sockaddr *addr, int rc) {
-    if (rc != 0) {
-        return 0;
-    }
+SEC("fentry/inet_bind")
+int BPF_PROG(inet_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_bind");
+    log_debug("fentry/inet_bind\n");
+    return sys_enter_bind(sock, uaddr);
+}
 
-    __u16 type = BPF_CORE_READ(sock, type);
-    if ((type & SOCK_DGRAM) == 0) {
-        return 0;
-    }
-
-    if (addr == NULL) {
-        log_debug("sys_enter_bind: could not read sockaddr, sock=%llx\n", sock);
-        return 0;
-    }
-
-    u16 sin_port = 0;
-    sa_family_t family = addr->sa_family;
-    if (family == AF_INET) {
-        sin_port = ((struct sockaddr_in *)addr)->sin_port;
-    } else if (family == AF_INET6) {
-        sin_port = ((struct sockaddr_in6 *)addr)->sin6_port;
-    }
-
-    sin_port = bpf_ntohs(sin_port);
-    if (sin_port == 0) {
-        sin_port = read_sport(BPF_CORE_READ(sock, sk));
-    }
-    if (sin_port == 0) {
-        log_debug("ERR(sys_exit_bind): sin_port is 0\n");
-        return 0;
-    }
-
-    port_binding_t pb = {};
-    pb.netns = get_netns_from_sock(BPF_CORE_READ(sock, sk));
-    pb.port = sin_port;
-    add_port_bind(&pb, udp_port_bindings);
-    log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
-
-    return 0;
+SEC("fentry/inet6_bind")
+int BPF_PROG(inet6_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet6_bind");
+    log_debug("fentry/inet6_bind\n");
+    return sys_enter_bind(sock, uaddr);
 }
 
 SEC("fexit/inet_bind")
 int BPF_PROG(inet_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet_bind");
     log_debug("fexit/inet_bind: rc=%d\n", rc);
-    return sys_exit_bind(sock, uaddr, rc);
+    return sys_exit_bind(rc);
 }
 
 SEC("fexit/inet6_bind")
 int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet6_bind");
     log_debug("fexit/inet6_bind: rc=%d\n", rc);
-    return sys_exit_bind(sock, uaddr, rc);
+    return sys_exit_bind(rc);
 }
 
 // this kretprobe is essentially creating:

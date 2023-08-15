@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
@@ -56,46 +55,48 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
+	// We have to create the client in the constructor and set its name later
+	c, err := remote.NewUnverifiedGRPCClient(
+		"unknown", version.AgentVersion, []data.Product{}, 5*time.Second,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	rc := rcClient{
 		listeners: deps.Listeners,
 		m:         &sync.Mutex{},
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
-		client: nil,
+		client: c,
 	}
 
 	return rc, nil
 }
 
-// Listen start the remote config client to listen to AGENT_TASK configurations
-func (rc rcClient) Listen(clientName string, products []data.Product) error {
-	c, err := remote.NewUnverifiedGRPCClient(
-		clientName, version.AgentVersion, products, 5*time.Second,
-	)
-	if err != nil {
-		return err
-	}
+// Listen subscribes to AGENT_CONFIG configurations and start the remote config client
+func (rc rcClient) Start(agentName string) error {
+	rc.client.SetAgentName(agentName)
 
-	rc.client = c
-	rc.taskProcessed = map[string]bool{}
-
-	for _, product := range products {
-		switch product {
-		case state.ProductAgentTask:
-			rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
-			break
-		case state.ProductAgentConfig:
-			rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
-			break
-		default:
-			pkglog.Infof("remote config client %s started unsupported product: %s", clientName, product)
-		}
-	}
+	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	rc.client.Start()
 
 	return nil
+}
+
+func (rc rcClient) SubscribeAgentTask() {
+	rc.taskProcessed = map[string]bool{}
+	if rc.client == nil {
+		pkglog.Errorf("No remote-config client")
+		return
+	}
+	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+}
+
+func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig)) {
+	rc.client.Subscribe(string(product), fn)
 }
 
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {
@@ -104,25 +105,60 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		return
 	}
 
-	// TODO RCM-1064: implement priority between CLI and remote-config
-	// If there is no error, override the configs
-	if len(mergedConfig.LogLevel) > 0 && mergedConfig.LogLevel != rc.configState.LatestLogLevel {
-		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
+	// Checks who (the source) is responsible for the last logLevel change
+	// The priority between sources is: CLI > RC > Default
+	source, err := settings.GetRuntimeSource("log_level")
+	if err != nil {
+		pkglog.Errorf("Could not fetch source for 'log_level': %s", err)
+	}
+
+	switch source {
+	case settings.SourceDefault, settings.SourceConfig:
+		// If the log level had been set by default
+		// and if we receive an empty value for log level in the config
+		// then there is nothing to do
+		if len(mergedConfig.LogLevel) == 0 {
+			return
+		}
+
 		// Get the current log level
-		var newFallback seelog.LogLevel
-		newFallback, err = pkglog.GetLogLevel()
-		if err == nil {
-			rc.configState.FallbackLogLevel = newFallback.String()
-			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
-			rc.configState.LatestLogLevel = mergedConfig.LogLevel
+		var newFallback interface{}
+		newFallback, err = settings.GetRuntimeSetting("log_level")
+		if err != nil {
+			break
 		}
-	} else {
-		var currentLogLevel seelog.LogLevel
-		currentLogLevel, err = pkglog.GetLogLevel()
-		if err == nil && currentLogLevel.String() == rc.configState.LatestLogLevel {
-			pkglog.Infof("Removing remote-config log level override, falling back to %s", rc.configState.FallbackLogLevel)
-			err = settings.SetRuntimeSetting("log_level", rc.configState.FallbackLogLevel)
+
+		pkglog.Infof("Changing log level to '%s' through remote config", mergedConfig.LogLevel)
+		rc.configState.FallbackLogLevel = newFallback.(string)
+		// Need to update the log level even if the level stays the same because we need to update the source
+		// Might be possible to add a check in deeper functions to avoid unnecessary work
+		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.SourceRC)
+
+	case settings.SourceRC:
+		// 2 possible situations:
+		//     - we want to change (once again) the log level through RC
+		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
+		var newLevel string
+		var newSource settings.Source
+		if len(mergedConfig.LogLevel) == 0 {
+			newLevel = rc.configState.FallbackLogLevel
+			// Regardless what the source was before RC override, we fallback to SourceConfig as it has now been changed by code
+			newSource = settings.SourceConfig
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", newLevel)
+		} else {
+			newLevel = mergedConfig.LogLevel
+			newSource = settings.SourceRC
+			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
 		}
+		err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
+
+	case settings.SourceCLI:
+		pkglog.Warnf("Remote config could not change the log level due to CLI override")
+		return
+
+	default:
+		pkglog.Errorf("Unknown source '%s' for log level", source.String())
+		return
 	}
 
 	// Apply the new status to all configs
