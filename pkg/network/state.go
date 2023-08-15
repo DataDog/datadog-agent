@@ -6,7 +6,6 @@
 package network
 
 import (
-	"bytes"
 	"fmt"
 	"strconv"
 	"sync"
@@ -64,9 +63,6 @@ const (
 	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
 	// constant is not worth the increased memory cost.
 	DNSResponseCodeNoError = 0
-
-	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
-	ConnectionByteKeyMaxLen = 41
 
 	stateModuleName = "network_tracer__state"
 )
@@ -194,7 +190,7 @@ type networkState struct {
 	maxHTTPStats   int
 	maxKafkaStats  int
 
-	mergeStatsBuffers [2][]byte
+	mergeStatsBuffers [2]ConnectionStatsByteKey
 }
 
 // NewState creates a new network state
@@ -207,10 +203,6 @@ func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats 
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
 		maxKafkaStats:  maxKafkaStats,
-		mergeStatsBuffers: [2][]byte{
-			make([]byte, ConnectionByteKeyMaxLen),
-			make([]byte, ConnectionByteKeyMaxLen),
-		},
 	}
 }
 
@@ -984,32 +976,29 @@ type aggregateConnection struct {
 }
 
 type connectionAggregator struct {
-	conns    map[string][]*aggregateConnection
+	conns    map[ConnectionStatsByteKey][]*aggregateConnection
 	buf      []byte
-	key      string
+	key      ConnectionStatsByteKey
 	resolved bool
 }
 
 func newConnectionAggregator(size int, resolved bool) *connectionAggregator {
 	return &connectionAggregator{
-		conns:    make(map[string][]*aggregateConnection, size),
+		conns:    make(map[ConnectionStatsByteKey][]*aggregateConnection, size),
 		buf:      make([]byte, ConnectionByteKeyMaxLen),
 		resolved: resolved,
 	}
 }
 
-func (a *connectionAggregator) canAggregateIPTranslation(c1, c2 *ConnectionStats) bool {
-	if c1.IPTranslation == c2.IPTranslation ||
-		c1.IPTranslation == nil ||
-		c2.IPTranslation == nil {
-		return true
-	}
+func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation) bool {
+	return t1 == t2 ||
+		t1 == nil ||
+		t2 == nil ||
+		*t1 == *t2
+}
 
-	if *c1.IPTranslation == *c2.IPTranslation {
-		return true
-	}
-
-	return *c1.IPTranslation == *c2.IPTranslation
+func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack) bool {
+	return p1.IsUnknown() || p2.IsUnknown() || p1 == p2
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -1020,7 +1009,7 @@ func (a *connectionAggregator) canAggregateIPTranslation(c1, c2 *ConnectionStats
 //   - the other connection's ip translation is nil OR
 //   - the other connection's ip translation is not nil AND the nat info is the same
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	a.key = string(c.ByteKey(a.buf))
+	a.key = c.ByteKey()
 	aggrConns, ok := a.conns[a.key]
 	if !ok {
 		a.conns[a.key] = []*aggregateConnection{
@@ -1035,7 +1024,8 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	}
 
 	for _, aggrConn := range aggrConns {
-		if !a.canAggregateIPTranslation(aggrConn.ConnectionStats, c) {
+		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation) ||
+			!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
 			continue
 		}
 
@@ -1050,6 +1040,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 		if aggrConn.IPTranslation == nil {
 			aggrConn.IPTranslation = c.IPTranslation
 		}
+		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
 
 		return true
 	}
@@ -1078,7 +1069,9 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 		return false
 	}
 
-	if bytes.Compare(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) != 0 {
+	ns.mergeStatsBuffers[0] = a.ByteKey()
+	ns.mergeStatsBuffers[1] = b.ByteKey()
+	if ns.mergeStatsBuffers[0] != ns.mergeStatsBuffers[1] {
 		log.Debugf("cookie collision for connections %+v and %+v", a, b)
 		// cookie collision
 		return true

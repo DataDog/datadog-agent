@@ -26,6 +26,9 @@ const (
 	maxByteCountChange uint64 = 375 << 30
 	// use typical small MTU size, 1300, to get max packet count
 	maxPacketCountChange uint64 = maxByteCountChange / 1300
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 )
 
 // ConnectionType will be either TCP or UDP
@@ -311,6 +314,8 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
 }
 
+type ConnectionStatsByteKey [ConnectionByteKeyMaxLen]byte
+
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
@@ -318,16 +323,16 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 //	32b     16b     16b      4b      4b     32/128b      32/128b
 //
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf []byte) []byte {
-	return generateConnectionKey(c, buf, false)
+func (c ConnectionStats) ByteKey() ConnectionStatsByteKey {
+	return generateConnectionKey(c, false)
 }
 
 // ByteKeyNAT returns a unique key for this connection represented as a byte slice.
 // The format is similar to the one emitted by `ByteKey` with the sole difference
 // that the addresses used are translated.
 // Currently this key is used only for the aggregation of ephemeral connections.
-func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
-	return generateConnectionKey(c, buf, true)
+func (c ConnectionStats) ByteKeyNAT() ConnectionStatsByteKey {
+	return generateConnectionKey(c, true)
 }
 
 // IsShortLived returns true when a connection went through its whole lifecycle
@@ -341,7 +346,7 @@ const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
 // it should be in sync with ByteKey
 // Note: This is only used in /debug/* endpoints
-func BeautifyKey(key string) string {
+func BeautifyKey(key ConnectionStatsByteKey) string {
 	bytesToAddress := func(buf []byte) util.Address {
 		if len(buf) == 4 {
 			return util.V4AddressFromBytes(buf)
@@ -349,17 +354,15 @@ func BeautifyKey(key string) string {
 		return util.V6AddressFromBytes(buf)
 	}
 
-	raw := []byte(key)
-
 	// First 8 bytes are pid and ports
-	h := binary.LittleEndian.Uint64(raw[:8])
+	h := binary.LittleEndian.Uint64(key[:8])
 	pid := h >> 32
 	sport := (h >> 16) & 0xffff
 	dport := h & 0xffff
 
 	// Then we have the family, type
-	family := (raw[8] >> 4) & 0xf
-	typ := raw[8] & 0xf
+	family := (key[8] >> 4) & 0xf
+	typ := key[8] & 0xf
 
 	// source addr, dest addr
 	addrSize := 4
@@ -367,8 +370,8 @@ func BeautifyKey(key string) string {
 		addrSize = 16
 	}
 
-	source := bytesToAddress(raw[9 : 9+addrSize])
-	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
+	source := bytesToAddress(key[9 : 9+addrSize])
+	dest := bytesToAddress(key[9+addrSize : 9+2*addrSize])
 
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }
@@ -433,7 +436,7 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 	return b.String()
 }
 
-func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
+func generateConnectionKey(c ConnectionStats, useNAT bool) (key ConnectionStatsByteKey) {
 	laddr, sport := c.Source, c.SPort
 	raddr, dport := c.Dest, c.DPort
 	if useNAT {
@@ -445,17 +448,17 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
 	p0 := uint64(c.Pid)<<32 | uint64(sport)<<16 | uint64(dport)
-	binary.LittleEndian.PutUint64(buf[0:], p0)
+	binary.LittleEndian.PutUint64(key[0:], p0)
 	n += 8
 
 	// Family (4 bits) + Type (4 bits) = 8 bits
-	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
+	key[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += laddr.WriteTo(key[n:]) // 4 or 16 bytes
+	n += raddr.WriteTo(key[n:]) // 4 or 16 bytes
 
-	return buf[:n]
+	return key
 }
 
 // Add returns s+other
