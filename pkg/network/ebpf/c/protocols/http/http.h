@@ -161,7 +161,9 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
 
     bool empty_payload = skb_info->data_off == skb->len;
     if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
-            return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
+        // if the payload data is empty or encrypted packet, we only
+        // process it if the packet represents a TCP termination
+        return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
 
     return true;
