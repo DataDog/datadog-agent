@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
@@ -586,8 +587,8 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 
 	stats.StaticTags |= uint64(s.Conn_tags)
-	if network.IsValidProtocolValue(s.Protocol) {
-		stats.Protocol = network.ProtocolType(s.Protocol)
+	if protocols.IsValidProtocolValue(s.Protocol) {
+		stats.Protocol = protocols.ProtocolType(s.Protocol)
 	} else {
 		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
 	}

@@ -46,7 +46,7 @@ var (
 	// knownProtocols maps individual protocol types, to their specification,
 	// for the Monitor to use during its initialisation.
 	knownProtocols = map[protocols.ProtocolType]protocols.ProtocolSpec{
-		protocols.HTTP: http.Spec,
+		protocols.ProtocolHTTP: http.Spec,
 	}
 )
 

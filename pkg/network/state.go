@@ -274,7 +274,7 @@ func (ns *networkState) GetDelta(
 
 	for protocolType, protocolStats := range usmStats {
 		switch protocolType {
-		case protocols.HTTP:
+		case protocols.ProtocolHTTP:
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
 			ns.storeHTTPStats(stats)
 		}
@@ -1013,9 +1013,9 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 		a.IPTranslation = b.IPTranslation
 	}
 
-	if a.Protocol == ProtocolUnknown && b.Protocol != ProtocolUnknown {
+	if a.Protocol == protocols.ProtocolUnknown && b.Protocol != protocols.ProtocolUnknown {
 		a.Protocol = b.Protocol
-	} else if b.Protocol == ProtocolUnknown && a.Protocol != ProtocolUnknown {
+	} else if b.Protocol == protocols.ProtocolUnknown && a.Protocol != protocols.ProtocolUnknown {
 		b.Protocol = a.Protocol
 	}
 

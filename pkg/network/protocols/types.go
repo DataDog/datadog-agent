@@ -5,42 +5,63 @@
 
 package protocols
 
+import (
+	model "github.com/DataDog/agent-payload/v5/process"
+)
+
 type ProtocolType uint16
 
 const (
-	Unknown ProtocolType = iota
-	HTTP
-	HTTP2
-	Kafka
-	TLS
-	Mongo
-	Postgres
-	AMQP
-	Redis
-	MySQL
+	ProtocolUnclassified = ProtocolType(model.ProtocolType_protocolUnclassified)
+	ProtocolUnknown      = ProtocolType(model.ProtocolType_protocolUnknown)
+	ProtocolHTTP         = ProtocolType(model.ProtocolType_protocolHTTP)
+	ProtocolHTTP2        = ProtocolType(model.ProtocolType_protocolHTTP2)
+	ProtocolTLS          = ProtocolType(model.ProtocolType_protocolTLS)
+	ProtocolKafka        = ProtocolType(model.ProtocolType_protocolKafka)
+	ProtocolMongo        = ProtocolType(model.ProtocolType_protocolMongo)
+	ProtocolPostgres     = ProtocolType(model.ProtocolType_protocolPostgres)
+	ProtocolAMQP         = ProtocolType(model.ProtocolType_protocolAMQP)
+	ProtocolRedis        = ProtocolType(model.ProtocolType_protocolRedis)
+	ProtocolMySQL        = ProtocolType(model.ProtocolType_protocolMySQL)
+)
+
+var (
+	supportedProtocols = map[ProtocolType]struct{}{
+		ProtocolUnclassified: {},
+		ProtocolUnknown:      {},
+		ProtocolHTTP:         {},
+		ProtocolHTTP2:        {},
+		ProtocolTLS:          {},
+		ProtocolKafka:        {},
+		ProtocolMongo:        {},
+		ProtocolPostgres:     {},
+		ProtocolAMQP:         {},
+		ProtocolRedis:        {},
+		ProtocolMySQL:        {},
+	}
 )
 
 func (p ProtocolType) String() string {
 	switch p {
-	case Unknown:
+	case ProtocolUnknown:
 		return "Unknown"
-	case HTTP:
+	case ProtocolHTTP:
 		return "HTTP"
-	case HTTP2:
+	case ProtocolHTTP2:
 		return "HTTP2"
-	case Kafka:
+	case ProtocolKafka:
 		return "Kafka"
-	case TLS:
+	case ProtocolTLS:
 		return "TLS"
-	case Mongo:
+	case ProtocolMongo:
 		return "Mongo"
-	case Postgres:
+	case ProtocolPostgres:
 		return "Postgres"
-	case AMQP:
+	case ProtocolAMQP:
 		return "AMPQ"
-	case Redis:
+	case ProtocolRedis:
 		return "Redis"
-	case MySQL:
+	case ProtocolMySQL:
 		return "MySQL"
 	default:
 		// shouldn't happen
@@ -48,26 +69,8 @@ func (p ProtocolType) String() string {
 	}
 }
 
-type Stack struct {
-	Api         ProtocolType
-	Application ProtocolType
-	Encryption  ProtocolType
-}
-
-func (s *Stack) MergeWith(other Stack) {
-	if s.Api == Unknown {
-		s.Api = other.Api
-	}
-
-	if s.Application == Unknown {
-		s.Application = other.Application
-	}
-
-	if s.Encryption == Unknown {
-		s.Encryption = other.Encryption
-	}
-}
-
-func (s *Stack) Contains(proto ProtocolType) bool {
-	return s.Api == proto || s.Application == proto || s.Encryption == proto
+// IsValidProtocolValue checks if a given value is a valid protocol.
+func IsValidProtocolValue(val uint8) bool {
+	_, ok := supportedProtocols[ProtocolType(val)]
+	return ok
 }

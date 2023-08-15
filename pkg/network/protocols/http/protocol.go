@@ -184,7 +184,7 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
 	return &protocols.ProtocolStats{
-		Type:  protocols.HTTP,
+		Type:  protocols.ProtocolHTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
 }
