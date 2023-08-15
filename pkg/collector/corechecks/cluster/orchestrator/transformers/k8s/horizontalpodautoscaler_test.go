@@ -24,14 +24,14 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 	exampleTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 	minReplicas := new(int32)
 	*minReplicas = 1
-	resourceQuantity := resource.MustParse("10")
+	resourceQuantity := resource.MustParse("5332")
 	window := new(int32)
 	*window = 10
 	selectPolicy := v2.MaxChangePolicySelect
 	oberservedGeneration := new(int64)
 	*oberservedGeneration = 1
 	averageUtilization := new(int32)
-	*averageUtilization = 1000
+	*averageUtilization = 60
 
 	tests := map[string]struct {
 		input    v2.HorizontalPodAutoscaler
@@ -228,7 +228,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									},
 								},
 								Current: v2.MetricValueStatus{
-									AverageValue: &resourceQuantity,
+									Value: &resourceQuantity,
 								},
 							},
 						},
@@ -287,7 +287,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 								},
 								Target: &model.MetricTarget{
 									Type:  "Value",
-									Value: 10,
+									Value: 5332,
 								},
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
@@ -306,7 +306,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							Pods: &model.PodsMetricSource{
 								Target: &model.MetricTarget{
 									Type:  "Utilization",
-									Value: 1000,
+									Value: 60,
 								},
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
@@ -326,7 +326,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 								ResourceName: "CPU",
 								Target: &model.MetricTarget{
 									Type:  "Utilization",
-									Value: 1000,
+									Value: 60,
 								},
 							},
 						},
@@ -336,7 +336,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 								ResourceName: "CPU",
 								Target: &model.MetricTarget{
 									Type:  "Utilization",
-									Value: 1000,
+									Value: 60,
 								},
 								Container: "agent",
 							},
@@ -346,7 +346,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							External: &model.ExternalMetricSource{
 								Target: &model.MetricTarget{
 									Type:  "Utilization",
-									Value: 1000,
+									Value: 60,
 								},
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
@@ -389,7 +389,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name:       "agent",
 									ApiVersion: "v1",
 								},
-								Current: 10,
+								Current: 5332,
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
 									LabelSelector: []*model.LabelSelectorRequirement{
@@ -405,7 +405,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 						{
 							Type: "Pods",
 							Pods: &model.PodsMetricStatus{
-								Current: 10,
+								Current: 5332,
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
 									LabelSelector: []*model.LabelSelectorRequirement{
@@ -422,21 +422,21 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							Type: "Resource",
 							Resource: &model.ResourceMetricStatus{
 								ResourceName: "CPU",
-								Current:      1000,
+								Current:      60,
 							},
 						},
 						{
 							Type: "ContainerResource",
 							ContainerResource: &model.ContainerResourceMetricStatus{
 								ResourceName: "CPU",
-								Current:      1000,
+								Current:      60,
 								Container:    "agent",
 							},
 						},
 						{
 							Type: "External",
 							External: &model.ExternalMetricStatus{
-								Current: 10,
+								Current: 5332,
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
 									LabelSelector: []*model.LabelSelectorRequirement{
@@ -566,7 +566,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							External: &model.ExternalMetricSource{
 								Target: &model.MetricTarget{
 									Type:  "Utilization",
-									Value: 1000,
+									Value: 60,
 								},
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
@@ -584,7 +584,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 						{
 							Type: "External",
 							External: &model.ExternalMetricStatus{
-								Current: 10,
+								Current: 5332,
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
 								},
@@ -772,7 +772,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 								},
 								Target: &model.MetricTarget{
 									Type:  "AverageValue",
-									Value: 10,
+									Value: 5332,
 								},
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
@@ -791,7 +791,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 							Pods: &model.PodsMetricSource{
 								Target: &model.MetricTarget{
 									Type:  "AverageValue",
-									Value: 10,
+									Value: 5332,
 								},
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
@@ -833,7 +833,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 									Name:       "agent",
 									ApiVersion: "v1",
 								},
-								Current: 10,
+								Current: 5332,
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
 									LabelSelector: []*model.LabelSelectorRequirement{
@@ -849,7 +849,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 						{
 							Type: "Pods",
 							Pods: &model.PodsMetricStatus{
-								Current: 10,
+								Current: 5332,
 								Metric: &model.MetricIdentifier{
 									Name: "CPU",
 									LabelSelector: []*model.LabelSelectorRequirement{

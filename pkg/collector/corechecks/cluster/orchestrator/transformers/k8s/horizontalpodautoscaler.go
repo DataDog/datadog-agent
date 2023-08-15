@@ -111,13 +111,11 @@ func extractMetricTarget(m v2.MetricTarget) *model.MetricTarget {
 		}
 	case v2.ValueMetricType:
 		if m.Value != nil {
-			v, _ := m.Value.AsInt64()
-			mt.Value = v
+			mt.Value = m.Value.ToDec().MilliValue()
 		}
 	case v2.AverageValueMetricType:
 		if m.AverageValue != nil {
-			v, _ := m.AverageValue.AsInt64()
-			mt.Value = v
+			mt.Value = m.AverageValue.ToDec().MilliValue()
 		}
 	}
 	return &mt
@@ -306,12 +304,10 @@ func extractObjectMetricStatus(s *v2.ObjectMetricStatus) *model.ObjectMetricStat
 	}
 	// ObjectMetric only supports value and AverageValue
 	if s.Current.Value != nil {
-		value, _ := s.Current.Value.AsInt64()
-		m.Current = value
+		m.Current = s.Current.Value.ToDec().MilliValue()
 	}
 	if s.Current.AverageValue != nil {
-		value, _ := s.Current.AverageValue.AsInt64()
-		m.Current = value
+		m.Current = s.Current.AverageValue.ToDec().MilliValue()
 	}
 	return &m
 }
@@ -328,8 +324,7 @@ func extractPodsMetricStatus(s *v2.PodsMetricStatus) *model.PodsMetricStatus {
 
 	// Only AverageValue is supported for PodsMetric
 	if s.Current.AverageValue != nil {
-		value, _ := s.Current.AverageValue.AsInt64()
-		m.Current = value
+		m.Current = s.Current.AverageValue.ToDec().MilliValue()
 	}
 	return &m
 }
@@ -343,10 +338,9 @@ func extractResourceMetricStatus(s *v2.ResourceMetricStatus) *model.ResourceMetr
 	m := model.ResourceMetricStatus{
 		ResourceName: s.Name.String(),
 	}
-	// Only AverageValue and AvertageUtilization is supported for ResourceMetric
+	// Only AverageValue and AverageUtilization is supported for ResourceMetric
 	if s.Current.AverageValue != nil {
-		value, _ := s.Current.AverageValue.AsInt64()
-		m.Current = value
+		m.Current = s.Current.AverageValue.ToDec().MilliValue()
 	}
 	if s.Current.AverageUtilization != nil {
 		m.Current = int64(*s.Current.AverageUtilization)
@@ -381,12 +375,10 @@ func extractExternalMetricStatus(s *v2.ExternalMetricStatus) *model.ExternalMetr
 	}
 	// Only Value and AverageValue is supported for ResourceMetric
 	if s.Current.Value != nil {
-		value, _ := s.Current.Value.AsInt64()
-		m.Current = value
+		m.Current = s.Current.Value.ToDec().MilliValue()
 	}
 	if s.Current.AverageValue != nil {
-		value, _ := s.Current.AverageValue.AsInt64()
-		m.Current = value
+		m.Current = s.Current.AverageValue.ToDec().MilliValue()
 	}
 	return &m
 }
