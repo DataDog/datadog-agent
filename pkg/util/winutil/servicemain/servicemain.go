@@ -153,24 +153,27 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	// https://learn.microsoft.com/en-us/windows/win32/services/service-servicemain-function
 	changes <- svc.Status{State: svc.StartPending}
 
-	const runningCmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
+	executeRun := true
 
 	err := s.service.Init()
 	if err != nil {
+		s.eventlog(messagestrings.MSG_AGENT_START_FAILURE, err.Error())
 		if errors.Is(err, ErrCleanStopAfterInit) {
 			// Service requested to exit successfully. We must enter SERVICE_RUNNING state and stay there
 			// for a period of time to ensure the service manager treats the start as successful.
 			// See ErrCleanStopAfterInit and runTimeExitGate for more information.
-			changes <- svc.Status{State: svc.Running, Accepts: runningCmdsAccepted}
-			<-runTimeExitGate()
+			// We must still process control requests, in case we receive a STOP signal. If we don't
+			// respond to a STOP signal within a few seconds it will fail. So continue and enter
+			// RUNNING state and start the control handler, but don't execute Service.Run().
+			executeRun = false
+		} else {
 			return
 		}
-		s.eventlog(messagestrings.MSG_AGENT_START_FAILURE, err.Error())
-		return
 	}
 
 	// Now tell SCM that we are SERVICE_RUNNING
 	// per MSDN: For best system performance, your application should enter the running state within 25-100 milliseconds.
+	const runningCmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPreShutdown
 	changes <- svc.Status{State: svc.Running, Accepts: runningCmdsAccepted}
 	s.eventlog(messagestrings.MSG_SERVICE_STARTED, s.service.Name())
 
@@ -181,44 +184,50 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	}()
 
 	ctx, cancelfunc := context.WithCancel(context.Background())
+	defer cancelfunc()
 
 	// goroutine to handle service control requests
 	// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nc-winsvc-lphandler_function
-	go func() {
-		for c := range r {
-			switch c.Cmd {
-			case svc.Interrogate:
-				// current status query
-				changes <- c.CurrentStatus
-			case svc.Stop, svc.PreShutdown, svc.Shutdown:
-				// Must report SERVICE_STOP_PENDING within a few seconds of receiving the control request
-				// or else the service manager may consider the stop a failure.
-				changes <- svc.Status{State: svc.StopPending}
-				// stop
-				s.eventlog(messagestrings.MSG_RECEIVED_STOP_SVC_COMMAND, s.service.Name())
-				cancelfunc()
-				// We set SERVICE_STOP_PENDING, so SCM won't send anymore control requests
-				return
-			default:
-				// unexpected control
-				s.eventlog(messagestrings.MSG_UNEXPECTED_CONTROL_REQUEST, fmt.Sprintf("%d", c.Cmd))
-			}
-		}
-	}()
+	go s.controlHandlerLoop(cancelfunc, r, changes)
 
 	// Now that we are in SERVICE_RUNNING state, start the exit gate timer.
 	exitGate := runTimeExitGate()
 
-	// Run the actual agent/service
-	err = s.service.Run(ctx)
-	if err != nil {
-		s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
-	} else {
-		// Run returned success, ensure the service is alive long enough to be considered successful.
-		defer func() { <-exitGate }()
+	if executeRun {
+		// Run the actual agent/service
+		err = s.service.Run(ctx)
+		if err != nil {
+			s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+			return
+		}
 	}
 
-	// golang sets the status to SERVICE_STOPPED before returning from svc.Run() so we don't
-	// need to do so here.
+	// Run was skipped or returned success, block to ensure the service is alive long enough to be considered successful.
+	<-exitGate
+
+	// golang sets the status to SERVICE_STOPPED with ssec,errno before returning from svc.Run()
+	// so we don't need to do so here.
 	return
+}
+
+func (s *controlHandler) controlHandlerLoop(cancelFunc context.CancelFunc, r <-chan svc.ChangeRequest, changes chan<- svc.Status) {
+	for c := range r {
+		switch c.Cmd {
+		case svc.Interrogate:
+			// current status query
+			changes <- c.CurrentStatus
+		case svc.Stop, svc.PreShutdown, svc.Shutdown:
+			// Must report SERVICE_STOP_PENDING within a few seconds of receiving the control request
+			// or else the service manager may consider the stop a failure.
+			changes <- svc.Status{State: svc.StopPending}
+			// stop
+			s.eventlog(messagestrings.MSG_RECEIVED_STOP_SVC_COMMAND, s.service.Name())
+			cancelFunc()
+			// We set SERVICE_STOP_PENDING, so SCM won't send anymore control requests
+			return
+		default:
+			// unexpected control
+			s.eventlog(messagestrings.MSG_UNEXPECTED_CONTROL_REQUEST, fmt.Sprintf("%d", c.Cmd))
+		}
+	}
 }
