@@ -28,7 +28,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/metrics/event => ./pkg/metrics/event
 	github.com/DataDog/datadog-agent/pkg/metrics/model => ./pkg/metrics/model/
+	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck => ./pkg/metrics/servicecheck/
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
@@ -579,7 +581,9 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/metrics/event v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/model v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-beta.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000
