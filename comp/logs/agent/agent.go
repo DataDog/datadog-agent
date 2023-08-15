@@ -55,7 +55,7 @@ type dependencies struct {
 	Config configComponent.Component
 }
 
-// Agent represents the data pipeline that collects, decodes,
+// agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type agent struct {
