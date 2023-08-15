@@ -24,7 +24,7 @@ func TestExtractHorizontalPodAutoscaler(t *testing.T) {
 	exampleTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 	minReplicas := new(int32)
 	*minReplicas = 1
-	resourceQuantity := resource.MustParse("5332")
+	resourceQuantity := resource.MustParse("5332m")
 	window := new(int32)
 	*window = 10
 	selectPolicy := v2.MaxChangePolicySelect
