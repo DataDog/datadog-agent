@@ -12,11 +12,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var cliDetectors = []languagemodels.Detector{
+	detectors.JRubyDetector{},
+}
 
 type languageFromCLI struct {
 	name      languagemodels.LanguageName
@@ -56,6 +61,8 @@ var exactMatches = map[string]languageFromCLI{
 	"rubyw": {name: languagemodels.Ruby},
 }
 
+// languageNameFromCmdline returns a process's language from its command.
+// If the language is not detected, languagemodels.Unknown is returned.
 func languageNameFromCommand(command string) languagemodels.LanguageName {
 	// First check to see if there is an exact match
 	if lang, ok := exactMatches[command]; ok {
@@ -97,6 +104,24 @@ func DetectLanguage(procs []languagemodels.Process, sysprobeConfig config.Config
 	unknownPids := make([]int32, 0, len(procs))
 	langsToModify := make(map[int32]*languagemodels.Language, len(procs))
 	for i, proc := range procs {
+		// Language-specific detectors should precede matches on the command/exe
+		for _, detector := range cliDetectors {
+			lang, err := detector.DetectLanguage(proc)
+			if err != nil {
+				log.Warnf("unable to detect language for process %d: %s", proc.GetPid(), err)
+				continue
+			}
+
+			if lang.Name != languagemodels.Unknown {
+				langs[i] = &lang
+				break
+			}
+		}
+
+		if langs[i] != nil {
+			break
+		}
+
 		exe := getExe(proc.GetCmdline())
 		languageName := languageNameFromCommand(exe)
 		if languageName == languagemodels.Unknown {

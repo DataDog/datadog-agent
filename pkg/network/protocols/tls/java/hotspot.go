@@ -32,7 +32,7 @@ import (
 //	o touch .attach_pid<pid-of-java>
 //	o kill -SIGQUIT <pid-of-java>
 //	o java process check if .attach_pid<his-pid> exit
-//	o then create an unix socket .java_pid<his-pid>
+//	o then create a unix socket .java_pid<his-pid>
 //	o we can write command through the unix socket
 //	<pid-of-java> refers to the namespaced pid of the process.
 //
@@ -103,8 +103,8 @@ func getPathOwner(path string) (uint32, uint32, error) {
 //
 //	o dstPath is path to the copy of agent-usm.jar (from container perspective), this would be pass to the hotspot command
 //	o cleanup must be called to remove the created file
-func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cleanup func(), err error) {
-	dstPath = h.cwd + "/" + filepath.Base(agent)
+func (h *Hotspot) copyAgent(agent string, uid int, gid int) (string, func(), error) {
+	dstPath := filepath.Join(h.cwd, filepath.Base(agent))
 	// path from the host point of view pointing to the process root namespace (/proc/pid/root/usr/...)
 	nsDstPath := h.root + dstPath
 	if dst, err := os.Stat(nsDstPath); err == nil {
@@ -132,9 +132,9 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 	if err != nil {
 		return "", nil, err
 	}
-	_, err = io.Copy(dst, srcAgent)
-	dst.Close() // we are closing the file here as Chown will be call just after on the same path
-	if err != nil {
+	_, copyErr := io.Copy(dst, srcAgent)
+	dst.Close() // we are closing the file here as Chown will be called just after on the same path
+	if copyErr != nil {
 		return "", nil, err
 	}
 	if err := syscall.Chown(nsDstPath, uid, gid); err != nil {
@@ -178,7 +178,7 @@ func (h *Hotspot) dialunix(raddr *net.UnixAddr, withCredential bool) (*net.UnixC
 
 // connect to the previously created hotspot unix socket
 // return close function must be call when finished
-func (h *Hotspot) connect(withCredential bool) (close func(), err error) {
+func (h *Hotspot) connect(withCredential bool) (func(), error) {
 	h.conn = nil
 	addr, err := net.ResolveUnixAddr("unix", h.socketPath)
 	if err != nil {
