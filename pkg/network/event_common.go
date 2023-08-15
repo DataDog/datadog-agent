@@ -456,7 +456,7 @@ func generateConnectionKey(c ConnectionStats, useNAT bool) (key ConnectionStatsB
 	n++
 
 	n += laddr.WriteTo(key[n:]) // 4 or 16 bytes
-	n += raddr.WriteTo(key[n:]) // 4 or 16 bytes
+	raddr.WriteTo(key[n:])      // 4 or 16 bytes
 
 	return key
 }
