@@ -23,17 +23,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	httpInFlightMap  = "http_in_flight"
 	http2InFlightMap = "http2_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
 	protocolDispatcherSocketFilterFunction   = "socket__protocol_dispatcher"
+	protocolDispatcherProgramsMap            = "protocols_progs"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	connectionStatesMap                      = "connection_states"
 
@@ -106,7 +109,7 @@ type subprogram interface {
 
 var http2TailCall = manager.TailCallRoute{
 	ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-	Key:           uint32(protocols.ProgramHTTP2),
+	Key:           uint32(http.ProtocolHTTP2),
 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
 		EBPFFuncName: "socket__http2_filter",
 	},
@@ -181,14 +184,14 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 		tailCalls = append(tailCalls,
 			manager.TailCallRoute{
 				ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-				Key:           uint32(protocols.ProgramKafka),
+				Key:           uint32(http.ProtocolKafka),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__kafka_filter",
 				},
 			},
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherClassificationPrograms,
-				Key:           uint32(protocols.DispatcherKafkaProg),
+				Key:           uint32(http.DispatcherKafkaProg),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__protocol_dispatcher_kafka",
 				},

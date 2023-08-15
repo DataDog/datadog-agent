@@ -80,7 +80,7 @@ func FormatConnection(
 	c.IntraHost = conn.IntraHost
 	c.LastTcpEstablished = conn.Last.TCPEstablished
 	c.LastTcpClosed = conn.Last.TCPClosed
-	c.Protocol = formatProtocolStack(conn.ProtocolStack, conn.StaticTags)
+	c.Protocol = formatProtocol(conn.Protocol, conn.StaticTags)
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
@@ -293,4 +293,26 @@ func unsafeStringSlice(key string) []byte {
 	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
 	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
 	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
+}
+
+// formatProtocol converts a single protocol into a protobuf representation of protocol stack.
+// i.e: the input is ProtocolHTTP2 and the output should be:
+//
+//	&model.ProtocolStack{
+//			Stack: []model.ProtocolType{
+//				model.ProtocolType_protocolHTTP2,
+//			},
+//		}
+func formatProtocol(protocol network.ProtocolType, staticTags uint64) *model.ProtocolStack {
+	if protocol == network.ProtocolUnclassified {
+		protocol = network.ProtocolUnknown
+	}
+
+	stack := []model.ProtocolType{}
+	if network.IsTLSTag(staticTags) {
+		stack = append(stack, model.ProtocolType(network.ProtocolTLS))
+	}
+	return &model.ProtocolStack{
+		Stack: append(stack, model.ProtocolType(protocol)),
+	}
 }

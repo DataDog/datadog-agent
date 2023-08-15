@@ -113,8 +113,6 @@ static __always_inline bool http_should_flush_previous_state(http_transaction_t 
         (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
-// http_process is responsible for parsing traffic and emitting events
-// representing HTTP transactions.
 static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
     char *buffer = (char *)http_stack->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;

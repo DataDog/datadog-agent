@@ -1013,7 +1013,11 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 		a.IPTranslation = b.IPTranslation
 	}
 
-	a.ProtocolStack.MergeWith(b.ProtocolStack)
+	if a.Protocol == ProtocolUnknown && b.Protocol != ProtocolUnknown {
+		a.Protocol = b.Protocol
+	} else if b.Protocol == ProtocolUnknown && a.Protocol != ProtocolUnknown {
+		b.Protocol = a.Protocol
+	}
 
 	return false
 }

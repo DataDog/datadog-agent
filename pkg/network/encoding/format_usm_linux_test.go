@@ -13,30 +13,31 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
 func TestFormatTLSProtocols(t *testing.T) {
 	tests := []struct {
 		name       string
-		protocol   protocols.Stack
+		protocol   network.ProtocolType
 		staticTags uint64
 		want       *model.ProtocolStack
 	}{
 		{
 			name:       "GnuTLS - unknown protocol",
-			protocol:   protocols.Stack{Application: protocols.Unknown},
+			protocol:   network.ProtocolUnknown,
 			staticTags: http.TLS | http.GnuTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
+					model.ProtocolType_protocolUnknown,
 				},
 			},
 		},
 		{
 			name:       "OpenSSL - HTTP protocol",
-			protocol:   protocols.Stack{Application: protocols.HTTP},
+			protocol:   network.ProtocolHTTP,
 			staticTags: http.TLS | http.OpenSSL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -47,7 +48,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "GoTLS - MySQL protocol",
-			protocol:   protocols.Stack{Application: protocols.MySQL},
+			protocol:   network.ProtocolMySQL,
 			staticTags: http.TLS | http.Go,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -58,7 +59,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "Unknown static tags - MySQL protocol",
-			protocol:   protocols.Stack{Application: protocols.MySQL},
+			protocol:   network.ProtocolMySQL,
 			staticTags: 0x80000000,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -69,7 +70,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocolStack(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, formatProtocol(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

@@ -4,16 +4,12 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
-#include "port_range.h"
 
 #include "protocols/amqp/helpers.h"
 #include "protocols/classification/common.h"
 #include "protocols/classification/defs.h"
 #include "protocols/classification/maps.h"
 #include "protocols/classification/structs.h"
-#include "protocols/classification/stack-helpers.h"
-#include "protocols/classification/usm-context.h"
-#include "protocols/classification/routing.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
@@ -22,41 +18,6 @@
 #include "protocols/redis/helpers.h"
 #include "protocols/postgres/helpers.h"
 #include "protocols/tls/tls.h"
-
-// Some considerations about multiple protocol classification:
-//
-// * There are 3 protocol layers: API, Application and Encryption
-//
-// * Each protocol belongs to a specific layer (a `protocol_t` value encodes both the
-// protocol ID itself and the protocol layer it belongs to)
-//
-// * Once a layer is "known" (for example, the application-layer protocol is
-// classified), we only attempt to classify the remaining layers;
-//
-// * Protocol classification can be sliced/grouped into multiple BPF tail call
-// programs (this is what we currently have now, but it is worth noting that in the
-// new design all protocols from a given program must belong to the same layer)
-//
-// * If all 3 layers of a connection are known we don't do anything; In addition to
-// that, there is a helper `mark_as_fully_classified` that works as a sort of
-// special-case for this. For example, if we're in a socket filter context and we
-// have classified a connection as a MySQL (application-level), we can call this
-// helper to indicate that no further classification attempts are necessary (there
-// won't be any api-level protocols above MySQL and if we were able to determine
-// the application-level protocol from a socket filter context, it means we're not
-// dealing with encrypted traffic).
-// Calling this helper is optional and it works mostly as an optimization;
-//
-// * The tail-call jumping between different programs is completely abstracted by the
-// `classification_next_program` helper. This helper knows how to either select the
-// next program from a given layer, or to skip a certain layer if the protocol is
-// already known;
-//
-// So, for example, if we have a connection that doesn't have any classified
-// protocols yet calling `classification_next_program multiple` times will result in
-// traversing all programs from all layers in the sequence defined in the routing.h
-// file.  If, for example, application-layer is known, calling this helper multiple
-// times will result in traversing only the api and encryption-layer programs
 
 static __always_inline bool is_protocol_classification_supported() {
     __u64 val = 0;
@@ -109,10 +70,12 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-// updates the the protocol stack and adds the current layer to the routing skip list
-static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
-    set_protocol(stack, proto);
-    usm_ctx->routing_skip_layers |= proto;
+__maybe_unused static __always_inline void save_protocol(conn_tuple_t *skb_tup, protocol_t cur_fragment_protocol) {
+    bpf_map_update_with_telemetry(connection_protocol, skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
+    conn_tuple_t inverse_skb_conn_tup;
+    bpf_memcpy(&inverse_skb_conn_tup, skb_tup, sizeof(conn_tuple_t));
+    flip_tuple(&inverse_skb_conn_tup);
+    bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
@@ -130,93 +93,119 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    usm_context_t *usm_ctx = usm_context_init(skb, &skb_tup, &skb_info);
-    if (!usm_ctx) {
+    // Currently TLS is marked by a connection tag rather than the protocol stack,
+    // but as we add support for multiple protocols in the stack, we should revisit this implementation,
+    // and unify it with the following if clause.
+    //
+    // The connection is TLS encrypted, thus we cannot classify the protocol using socket filter.
+    if (is_tls_connection_cached(&skb_tup)) {
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
-    if (!protocol_stack) {
+    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
+    if (cur_fragment_protocol_ptr) {
         return;
     }
 
-    if (is_fully_classified(protocol_stack) || is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION)) {
+    // Get the buffer the fragment will be read into from a per-cpu array map.
+    // This will avoid doing unaligned stack access while parsing the protocols,
+    // which is forbidden and will make the verifier fail.
+    const u32 key = 0;
+    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
+    if (request_fragment == NULL) {
+        log_debug("could not get classification buffer from map");
         return;
     }
 
-    // Load information that will be later on used to route tail-calls
-    init_routing_cache(usm_ctx, protocol_stack);
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
+    const size_t payload_length = skb->len - skb_info.data_off;
+    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
 
-    const char *buffer = &(usm_ctx->buffer.data[0]);
-    // TLS classification
-    if (is_tls(buffer, usm_ctx->buffer.size)) {
-        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
-        // The connection is TLS encrypted, thus we cannot classify the protocol
-        // using the socket filter and therefore we can bail out;
+    // In the context of socket filter, we can classify the protocol if it is plain text,
+    // so if the protocol is encrypted, then we have to rely on our uprobes to classify correctly the protocol.
+    if (is_tls(request_fragment, final_fragment_size)) {
+        const bool t = true;
+        bpf_map_update_with_telemetry(tls_connection, &skb_tup, &t, BPF_ANY);
+        flip_tuple(&skb_tup);
+        bpf_map_update_with_telemetry(tls_connection, &skb_tup, &t, BPF_ANY);
         return;
     }
 
-    // If application-layer is known we don't bother to check for HTTP protocols and skip to the next layers
-    if (is_protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
-        goto next_program;
-    }
-
-    protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
-    if (cur_fragment_protocol) {
-        update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
-        // this is mostly an optimization *for now* since we won't be classifying
-        // any other protocols if we have detected HTTP traffic
-        mark_as_fully_classified(protocol_stack);
+    protocol_t cur_fragment_protocol = classify_applayer_protocols(request_fragment, final_fragment_size);
+    // If there has been a change in the classification, save the new protocol.
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        save_protocol(&skb_tup, cur_fragment_protocol);
         return;
     }
 
- next_program:
-    classification_next_program(skb, usm_ctx);
+    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_QUEUES_PROG);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
-    usm_context_t *usm_ctx = usm_context(skb);
-    if (!usm_ctx) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t skb_tup = {0};
+
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
+    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
         return;
     }
-    const char *buffer = &(usm_ctx->buffer.data[0]);
-    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &usm_ctx->skb_info, buffer, usm_ctx->buffer.size);
-    if (!cur_fragment_protocol) {
-        goto next_program;
-    }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
-    if (!protocol_stack) {
+    // Get the buffer the fragment will be read into from a per-cpu array map.
+    // This will avoid doing unaligned stack access while parsing the protocols,
+    // which is forbidden and will make the verifier fail.
+    const u32 key = 0;
+    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
+    if (request_fragment == NULL) {
+        log_debug("could not get classification buffer from map");
         return;
     }
-    update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
-    mark_as_fully_classified(protocol_stack);
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
 
- next_program:
-    classification_next_program(skb, usm_ctx);
+    const size_t payload_length = skb->len - skb_info.data_off;
+    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+
+    protocol_t cur_fragment_protocol = classify_queue_protocols(skb, &skb_info, request_fragment, final_fragment_size);
+    // If there has been a change in the classification, save the new protocol.
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        save_protocol(&skb_tup, cur_fragment_protocol);
+        return;
+    }
+
+    bpf_tail_call_compat(skb, &classification_progs, CLASSIFICATION_DBS_PROG);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
-    usm_context_t *usm_ctx = usm_context(skb);
-    if (!usm_ctx) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t skb_tup = {0};
+
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
+    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
         return;
     }
 
-    const char *buffer = &usm_ctx->buffer.data[0];
-    protocol_t cur_fragment_protocol = classify_db_protocols(&usm_ctx->tuple, buffer, usm_ctx->buffer.size);
-    if (!cur_fragment_protocol) {
-        goto next_program;
-    }
-
-    protocol_stack_t *protocol_stack = get_protocol_stack(&usm_ctx->tuple);
-    if (!protocol_stack) {
+    // Get the buffer the fragment will be read into from a per-cpu array map.
+    // This will avoid doing unaligned stack access while parsing the protocols,
+    // which is forbidden and will make the verifier fail.
+    const u32 key = 0;
+    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
+    if (request_fragment == NULL) {
+        log_debug("could not get classification buffer from map");
         return;
     }
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
 
-    update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
-    mark_as_fully_classified(protocol_stack);
- next_program:
-    classification_next_program(skb, usm_ctx);
+    const size_t payload_length = skb->len - skb_info.data_off;
+    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+
+    protocol_t cur_fragment_protocol = classify_db_protocols(&skb_tup, request_fragment, final_fragment_size);
+
+    // If there has been a change in the classification, save the new protocol.
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        save_protocol(&skb_tup, cur_fragment_protocol);
+    }
 }
 
 #endif

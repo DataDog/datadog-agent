@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
@@ -75,6 +74,11 @@ func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
 }
 
+func isTLSTag(staticTags uint64) bool {
+	// we check only if the TLS tag has set, not like network.IsTLSTag()
+	return staticTags&network.ConnTagTLS > 0
+}
+
 type USMSuite struct {
 	suite.Suite
 }
@@ -85,8 +89,7 @@ func TestUSMSuite(t *testing.T) {
 	})
 }
 
-func (s *USMSuite) TestEnableHTTPMonitoring() {
-	t := s.T()
+func TestEnableHTTPMonitoring(t *testing.T) {
 	if !httpSupported() {
 		t.Skip("HTTP monitoring not supported")
 	}
@@ -351,33 +354,6 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 		}
 		return found
 	}, 15*time.Second, 5*time.Second, "couldn't find USM HTTPS stats")
-
-	// check NPM static TLS tag
-	found := false
-	for _, c := range allConnections {
-		httpKey, foundKey := httpKeys[c.SPort]
-		if !foundKey {
-			continue
-		}
-		_, foundPid := fetchPids[c.Pid]
-		if foundPid && c.DPort == httpKey.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("NPM TLS tag not found")
-		for _, c := range allConnections {
-			httpKey, foundKey := httpKeys[c.SPort]
-			if !foundKey {
-				continue
-			}
-			_, foundPid := fetchPids[c.Pid]
-			if foundPid {
-				t.Logf("pid %d connection %# v \nhttp %# v\n", c.Pid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
-			}
-		}
-	}
 }
 
 const (
@@ -665,7 +641,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		}
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, protocols.HTTP, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP, tlsNotExpected)
 		HTTPServer.Shutdown()
 
 		gRPCServer, err := grpc.NewServer(HTTPServer.address)
@@ -679,7 +655,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
 		gRPCServer.Stop()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, protocols.HTTP2, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, network.ProtocolHTTP2, tlsNotExpected)
 	})
 }
 
@@ -903,7 +879,7 @@ func (s *USMSuite) TestJavaInjection() {
 							}
 
 							for _, c := range payload.Conns {
-								if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
 									return true
 								}
 							}
@@ -1178,7 +1154,7 @@ func (s *USMSuite) TestTLSClassification() {
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
-						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
+						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
 							return true
 						}
 					}
@@ -1305,45 +1281,20 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				require.NoError(t, err)
 				t.Cleanup(closer)
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 						DialContext:     defaultDialer.DialContext,
 					},
 				}
-
-				// Ensure that we see HTTPS requests being traced *before* the actual test assertions
-				// This is done to reduce test test flakiness due to uprobe attachment delays
-				require.Eventually(t, func() bool {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/warm-up", ctx.targetAddress))
-					if err != nil {
-						return false
-					}
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
-
-					httpData := getConnections(t, tr).HTTP
-					for httpKey := range httpData {
-						if httpKey.Path.Content == resp.Request.URL.Path {
-							return true
-						}
-					}
-
-					return false
-				}, 5*time.Second, 100*time.Millisecond, "couldn't detect HTTPS traffic being traced (test setup validation)")
-
-				t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
-				for i := 0; i < 3; i++ {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
-					require.NoError(t, err)
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
-					client.CloseIdleConnections()
-				}
-
-				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, protocols.HTTP, tlsExpected)
+				resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
+				require.NoError(t, err)
+				_, _ = io.Copy(io.Discard, resp.Body)
+				_ = resp.Body.Close()
+				client.CloseIdleConnections()
 			},
+			validation: validateProtocolConnection(network.ProtocolHTTP, tlsExpected),
 		},
 	}
 	for _, tt := range tests {

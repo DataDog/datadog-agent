@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
@@ -152,6 +151,7 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 			probes.PidFDBySockMap:                    {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TLSConnectionMap:                  {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
@@ -585,10 +585,11 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Cookie:           network.StatCookie(s.Cookie),
 	}
 
-	stats.ProtocolStack = protocols.Stack{
-		Api:         protocols.API(s.Protocol_stack.Api),
-		Application: protocols.Application(s.Protocol_stack.Application),
-		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
+	stats.StaticTags |= uint64(s.Conn_tags)
+	if network.IsValidProtocolValue(s.Protocol) {
+		stats.Protocol = network.ProtocolType(s.Protocol)
+	} else {
+		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
 	}
 
 	if t.Type() == netebpf.TCP {
