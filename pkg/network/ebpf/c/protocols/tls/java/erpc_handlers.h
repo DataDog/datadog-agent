@@ -143,10 +143,10 @@ int kprobe_handle_async_payload(struct pt_regs *ctx) {
         return 1;
     }
     bufferPtr+=sizeof(peer_t);
-    log_debug("[handle_async_payload] pid: %d; peer domain: %s; peer port: %d\n",
-         peer_key.pid,
-         peer_key.peer.domain,
-         peer_key.peer.port);
+//    log_debug("[handle_async_payload] pid: %d; peer domain: %s; peer port: %d\n",
+//         peer_key.pid,
+//         peer_key.peer.domain,
+//         peer_key.peer.port);
 
     //get connection tuple
     conn_tuple_t * actual_connection = bpf_map_lookup_elem(&java_conn_tuple_by_peer, &peer_key);

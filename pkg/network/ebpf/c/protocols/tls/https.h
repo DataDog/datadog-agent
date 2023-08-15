@@ -29,7 +29,7 @@
 
 #define HTTPS_PORT 443
 
-static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
+static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
 
 static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {
     http_transaction_t http;

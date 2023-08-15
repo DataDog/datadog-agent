@@ -113,16 +113,22 @@ BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
 // one we extract from the sock object, and then we are not able to correctly classify those protocols.
 // To overcome those problems, we save two maps that translates from conn tuple of sk_buff to conn tuple of sock* and vice
 // versa (the vice versa is used for cleanup purposes).
-BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
+//BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
 
 // Map to hold conn_tuple_t parameter for tcp_close calls
 // to be used in kretprobe/tcp_close.
-BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
+//BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 
 // This program array is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,
 // as we dispatching more protocols, we reached that limit, thus we workaround it
 // by using tail call.
-BPF_PROG_ARRAY(tcp_close_progs, 1)
+//BPF_PROG_ARRAY(tcp_close_progs, 1)
+
+// This entry point is needed to bypass a memory limit on socket filters.
+// There is a limitation on number of instructions can be attached to a socket filter,
+// as we classify more protocols, we reached that limit, thus we workaround it
+// by using tail call.
+//BPF_PROG_ARRAY(classification_progs, CLASSIFICATION_PROG_MAX)
 
 #endif

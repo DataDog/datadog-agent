@@ -73,12 +73,6 @@ type BindSyscallArgs struct {
 	Addr *_Ctype_struct_sockaddr
 	Sk   *_Ctype_struct_sock
 }
-type ProtocolStack struct {
-	Api         uint8
-	Application uint8
-	Encryption  uint8
-	Flags       uint8
-}
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
