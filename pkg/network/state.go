@@ -223,18 +223,16 @@ func (ns *networkState) GetTelemetryDelta(
 	return nil
 }
 
-func partitionConns(conns []ConnectionStats, partition func(c *ConnectionStats) bool) (a, b []ConnectionStats) {
-	// length of a
+func filterConnections(conns []ConnectionStats, keep func(c *ConnectionStats) bool) []ConnectionStats {
 	p := 0
 	for i := range conns {
-		// true = a, false = b
-		if partition(&conns[i]) {
+		if keep(&conns[i]) {
 			conns[p], conns[i] = conns[i], conns[p]
 			p++
 		}
 	}
 
-	return conns[:p], conns[p:]
+	return conns[:p]
 }
 
 // GetDelta returns the connections for the given client
@@ -650,7 +648,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 	activeByCookie := ns.getConnsByCookie(active)
 
 	// connections aggregated by tuple
-	closed, _ = partitionConns(client.closedConnections, func(closedConn *ConnectionStats) bool {
+	closed = filterConnections(client.closedConnections, func(closedConn *ConnectionStats) bool {
 		cookie := closedConn.Cookie
 		if activeConn := activeByCookie[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
@@ -681,8 +679,8 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 	// Active connections
 	newStats := make(map[StatCookie]StatCounters, len(activeByCookie))
-	active, _ = partitionConns(active, func(c *ConnectionStats) bool {
-		if _, isActive := activeByCookie[c.Cookie]; !isActive {
+	active = filterConnections(active, func(c *ConnectionStats) bool {
+		if a := activeByCookie[c.Cookie]; a != c {
 			return false
 		}
 
@@ -701,15 +699,15 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 	client.stats = newStats
 
-	aggr := newConnectionAggregator(len(active)+len(closed), false)
+	aggr := newConnectionAggregator(len(active) + len(closed))
 	defer aggr.finalize()
 
-	_, active = partitionConns(active, func(c *ConnectionStats) bool {
-		return aggr.Aggregate(c)
+	active = filterConnections(active, func(c *ConnectionStats) bool {
+		return !aggr.Aggregate(c)
 	})
 
-	_, closed = partitionConns(closed, func(c *ConnectionStats) bool {
-		return aggr.Aggregate(c)
+	closed = filterConnections(closed, func(c *ConnectionStats) bool {
+		return !aggr.Aggregate(c)
 	})
 
 	return active, closed
@@ -971,17 +969,13 @@ type aggregateConnection struct {
 }
 
 type connectionAggregator struct {
-	conns    map[ConnectionStatsByteKey][]*aggregateConnection
-	buf      []byte
-	key      ConnectionStatsByteKey
-	resolved bool
+	conns map[ConnectionStatsByteKey][]*aggregateConnection
+	key   ConnectionStatsByteKey
 }
 
-func newConnectionAggregator(size int, resolved bool) *connectionAggregator {
+func newConnectionAggregator(size int) *connectionAggregator {
 	return &connectionAggregator{
-		conns:    make(map[ConnectionStatsByteKey][]*aggregateConnection, size),
-		buf:      make([]byte, ConnectionByteKeyMaxLen),
-		resolved: resolved,
+		conns: make(map[ConnectionStatsByteKey][]*aggregateConnection, size),
 	}
 }
 
