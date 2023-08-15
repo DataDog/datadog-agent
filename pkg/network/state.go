@@ -243,14 +243,14 @@ func (ns *networkState) GetTelemetryDelta(
 }
 
 func trimConns(conns []ConnectionStats, trim func(c *ConnectionStats) bool) []ConnectionStats {
-	trimmed := conns[:0]
+	keep := conns[:0]
 	for i := range conns {
 		if !trim(&conns[i]) {
-			trimmed = append(trimmed, conns[i])
+			keep = append(keep, conns[i])
 		}
 	}
 
-	return trimmed
+	return keep
 }
 
 // GetDelta returns the connections for the given client
@@ -700,9 +700,6 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 		return false
 	})
 
-	aggr := newConnectionAggregator(len(active)+len(closed), false)
-	defer aggr.finalize()
-
 	// Active connections
 	for cookie, c := range active {
 		ns.createStatsForCookie(client, cookie)
@@ -713,7 +710,12 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 			delete(active, cookie)
 			continue
 		}
+	}
 
+	aggr := newConnectionAggregator(len(active)+len(closed), false)
+	defer aggr.finalize()
+
+	for cookie, c := range active {
 		if aggr.Aggregate(c) {
 			delete(active, cookie)
 		}
@@ -723,7 +725,6 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 		return aggr.Aggregate(c)
 	})
 
-	client.closedConnections = closed
 	return closed
 }
 
