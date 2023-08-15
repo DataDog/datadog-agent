@@ -189,7 +189,7 @@ func (h *Hotspot) connect(withCredential bool) (close func(), err error) {
 		return nil, err
 	}
 
-	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+	if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		conn.Close()
 		return nil, err
 	}
