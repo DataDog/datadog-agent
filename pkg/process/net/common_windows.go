@@ -16,7 +16,7 @@ import (
 const (
 	connectionsURL       = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
 	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
-	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
+	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	statsURL             = "http://localhost:3333/debug/stats"
 	netType              = "tcp"
 
