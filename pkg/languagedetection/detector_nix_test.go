@@ -8,15 +8,10 @@
 package languagedetection
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"path"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDetectLanguage(t *testing.T) {
@@ -267,20 +262,4 @@ func BenchmarkDetectLanguage(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		DetectLanguage(procs, nil)
 	}
-}
-
-func startTestUnixServer(t *testing.T, handler http.Handler) string {
-	t.Helper()
-
-	socketPath := path.Join(t.TempDir(), "test.sock")
-	listener, err := net.NewListener(socketPath)
-	require.NoError(t, err)
-	t.Cleanup(listener.Stop)
-
-	srv := httptest.NewUnstartedServer(handler)
-	srv.Listener = listener.GetListener()
-	srv.Start()
-	t.Cleanup(srv.Close)
-
-	return socketPath
 }
