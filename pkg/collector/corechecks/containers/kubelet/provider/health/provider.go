@@ -5,17 +5,17 @@
 
 //go:build kubelet
 
-package node
+package health
 
 import (
+	"fmt"
 	"context"
-	"encoding/json"
 	"bufio"
 	"regexp"
 	"net/http"
-	"strings"
 	"bytes"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -38,7 +38,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	// Collect raw data
 	healthCheckRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/healthz")
 	if err != nil {	
-		errMsg := fmt.Sprintf("Kubelet health check failed: %s", e)
+		errMsg := fmt.Sprintf("Kubelet health check failed: %s", err)
 		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)	
 		return err
 	}
@@ -54,22 +54,19 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue;
 		}
 		status := result[1]
-		var singleCheckStatus servicecheck.ServiceCheckStatus
-		service_check_name := service_check_base + "." + result[1]
+		service_check_name := service_check_base + "." + result[2]
 		if status == "+"{
 			sender.ServiceCheck(service_check_name, servicecheck.ServiceCheckOK, "", p.config.Tags, "")
-		}
-		else{
+		} else {
 			sender.ServiceCheck(service_check_name, servicecheck.ServiceCheckCritical, "", p.config.Tags, "")
 			is_ok = false;
 		}
 	}
 	// Report metrics
-	var serviceCheckStatus servicecheck.ServiceCheckStatus
 	if is_ok == true {
 		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckOK, "", p.config.Tags, "")	
 	}else{
-		errMsg = fmt.Sprintf("Kubelet is unhealthy, http response code = %d", responseCode)
+		errMsg := fmt.Sprintf("Kubelet is unhealthy, http response code = %d", responseCode)
 		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)			
 	}
 	return nil
