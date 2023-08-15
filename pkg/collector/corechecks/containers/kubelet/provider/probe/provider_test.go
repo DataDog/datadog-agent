@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -292,7 +294,7 @@ func TestProvider_Provide(t *testing.T) {
 				ProbesMetricsEndpoint: tt.probesEndpoint,
 			}
 
-			p := NewProvider(
+			p, err := NewProvider(
 				&containers.Filter{
 					Enabled:         true,
 					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
@@ -300,6 +302,7 @@ func TestProvider_Provide(t *testing.T) {
 				config,
 				store,
 			)
+			assert.NoError(t, err)
 
 			err = p.Provide(kubeletMock, mockSender)
 			if !reflect.DeepEqual(err, tt.want.err) {

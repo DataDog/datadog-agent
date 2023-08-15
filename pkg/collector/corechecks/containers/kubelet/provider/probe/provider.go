@@ -25,16 +25,16 @@ import (
 type Provider struct {
 	filter *containers.Filter
 	store  workloadmeta.Store
-	*prometheus.Provider
+	prometheus.Provider
 }
 
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) *Provider {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,
 		store:  store,
 	}
 
-	transformers := map[string]func(*model.Sample, sender.Sender){
+	transformers := prometheus.Transformers{
 		"prober_probe_total": provider.proberProbeTotal,
 	}
 
@@ -43,33 +43,39 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 		scraperConfig.Path = "/metrics/probes"
 	}
 
-	provider.Provider = prometheus.NewProvider(config, transformers, scraperConfig)
-	return provider
+	promProvider, err := prometheus.NewProvider(config, transformers, scraperConfig)
+	if err != nil {
+		return nil, err
+	}
+	provider.Provider = promProvider
+	return provider, nil
 }
 
 func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) {
 	metricSuffix := ""
 
 	probeType := metric.Metric["probe_type"]
-	if probeType == "Liveness" {
+	switch probeType {
+	case "Liveness":
 		metricSuffix = "liveness_probe"
-	} else if probeType == "Readiness" {
+	case "Readiness":
 		metricSuffix = "readiness_probe"
-	} else if probeType == "Startup" {
+	case "Startup":
 		metricSuffix = "startup_probe"
-	} else {
+	default:
 		log.Debugf("Unsupported probe type %s", probeType)
 		return
 	}
 
 	result := metric.Metric["result"]
-	if result == "successful" {
+	switch result {
+	case "successful":
 		metricSuffix += ".success.total"
-	} else if result == "failed" {
+	case "failed":
 		metricSuffix += ".failure.total"
-	} else if result == "unknown" {
+	case "unknown":
 		metricSuffix += ".unknown.total"
-	} else {
+	default:
 		log.Debugf("Unsupported probe result %s", result)
 		return
 	}

@@ -24,6 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TransformerFunc outlines the function signature for any transformers which will be used with the prometheus Provider
+type TransformerFunc func(*model.Sample, sender.Sender)
+
+// Transformers is a mapping of metric names to their desired TransformerFunc
+type Transformers map[string]TransformerFunc
+
 // Provider provides the metrics related to data collected from a prometheus Kubelet endpoint.
 //
 // It is based on the python openmetrics mixin which is defined in the integrations-core repo, however in its current
@@ -32,7 +38,7 @@ import (
 type Provider struct {
 	Config              *common.KubeletConfig
 	ScraperConfig       *ScraperConfig
-	transformers        map[string]func(*model.Sample, sender.Sender)
+	transformers        Transformers
 	metricMapping       map[string]string
 	wildcardRegex       *regexp.Regexp
 	ignoredMetrics      map[string]bool
@@ -45,7 +51,7 @@ type ScraperConfig struct {
 	AllowNotFound bool
 }
 
-func NewProvider(config *common.KubeletConfig, transformers map[string]func(*model.Sample, sender.Sender), scraperConfig *ScraperConfig) *Provider {
+func NewProvider(config *common.KubeletConfig, transformers Transformers, scraperConfig *ScraperConfig) (Provider, error) {
 	if config == nil {
 		config = &common.KubeletConfig{}
 	}
@@ -82,7 +88,7 @@ func NewProvider(config *common.KubeletConfig, transformers map[string]func(*mod
 	if len(wildcardMetrics) > 0 {
 		wildcardRegex, err = regexp.Compile(strings.Join(wildcardMetrics, "|"))
 		if err != nil {
-			return nil
+			return Provider{}, err
 		}
 	}
 
@@ -100,11 +106,11 @@ func NewProvider(config *common.KubeletConfig, transformers map[string]func(*mod
 	if len(ignoredMetricsWildcard) > 0 {
 		ignoredRegex, err = regexp.Compile(strings.Join(ignoredMetricsWildcard, "|"))
 		if err != nil {
-			return nil
+			return Provider{}, err
 		}
 	}
 
-	return &Provider{
+	return Provider{
 		Config:              config,
 		ScraperConfig:       scraperConfig,
 		transformers:        transformers,
@@ -112,7 +118,7 @@ func NewProvider(config *common.KubeletConfig, transformers map[string]func(*mod
 		wildcardRegex:       wildcardRegex,
 		ignoredMetrics:      ignoredMetrics,
 		ignoredMetricsRegex: ignoredRegex,
-	}
+	}, nil
 }
 
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
