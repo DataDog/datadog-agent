@@ -2036,15 +2036,16 @@ func testConfig() *config.Config {
 func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	t := s.T()
 	cfg := testConfig()
+	// disable IPv6 via config to trigger logic in GuessSocketSK
 	cfg.CollectTCPv6Conns = false
 	cfg.CollectUDPv6Conns = false
 	kv, err := kernel.HostVersion()
 	kv470 := kernel.VersionCode(4, 7, 0)
-	if err != nil {
-		t.FailNow()
-	}
+	require.NoError(t, err)
 	if kv >= kv470 {
+		// will only be run on kernels < 4.7.0 matching the GuessSocketSK check
 		t.Skip()
 	}
+	// fail if tracer cannot start
 	_ = setupTracer(t, cfg)
 }
