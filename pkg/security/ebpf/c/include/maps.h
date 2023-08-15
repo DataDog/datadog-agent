@@ -73,7 +73,7 @@ BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, u32, struct discarder_stats_t, EVENT_LA
 BPF_PERCPU_ARRAY_MAP(fb_approver_stats, u32, struct approver_stats_t, EVENT_LAST_APPROVER)
 BPF_PERCPU_ARRAY_MAP(bb_approver_stats, u32, struct approver_stats_t, EVENT_LAST_APPROVER)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, u32, struct str_array_buffer_t, 1)
-BPF_PERCPU_ARRAY_MAP(process_event_gen, u32, struct process_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(process_event_gen, u32, struct process_event_t, EVENT_GEN_SIZE)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, u32, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_bb, u32, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(is_discarded_by_inode_gen, u32, struct is_discarded_by_inode_t, 1)
