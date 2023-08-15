@@ -130,7 +130,7 @@ func (c *ConnectionsCheck) Realtime() bool { return false }
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 
-func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time, groupID int32) (model.MessageBody, error) {
+func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time, groupID int32) model.MessageBody {
 	err := c.processData.Fetch()
 	if err != nil {
 		log.Warnf("error collecting processes for filter and extraction: %s", err)
@@ -145,15 +145,8 @@ func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time
 	log.Debugf("collected connections in %s", time.Since(start))
 
 	res := processBatchGRPC(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID, batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult, batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags, batch.AgentConfiguration, c.serviceExtractor)
-	return res, nil
+	return res
 
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // Run runs the ConnectionsCheck to collect the active network connections
@@ -164,14 +157,6 @@ func min(a, b int) int {
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 	var batchMessages []model.MessageBody
-	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
-	if err != nil {
-		if c.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
-		}
-		return nil, ErrTracerStillNotInitialized
-	}
-
 	var conns *model.Connections
 	if c.syscfg.GRPCServerEnabled {
 		// Create a context with a timeout of 10 seconds
@@ -210,16 +195,12 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 			}
 			log.Infof("[grpc] the number of connections in grpc is %d", len(batch.Conns))
 
-			message, err := c.handleBatch(batch, start, nextGroupID())
-			if err != nil {
-				return nil, err
-			}
-			batchMessages = append(batchMessages, message)
+			batchMessages = append(batchMessages, c.handleBatch(batch, start, nextGroupID()))
 		}
 		return StandardRunResult(batchMessages), nil
 	}
 
-	conns, err = c.getConnections(tu)
+	conns, err := c.getConnections()
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
 		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
@@ -250,7 +231,14 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {}
 
-func (c *ConnectionsCheck) getConnections(tu *net.RemoteSysProbeUtil) (*model.Connections, error) {
+func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
+	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
+	if err != nil {
+		if c.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
+		}
+		return nil, ErrTracerStillNotInitialized
+	}
 	return tu.GetConnections(c.tracerClientID)
 }
 
@@ -519,6 +507,13 @@ func batchConnections(
 		cxs = cxs[batchSize:]
 	}
 	return batches
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func groupSize(total, maxBatchSize int) int32 {
