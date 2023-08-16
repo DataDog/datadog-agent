@@ -122,6 +122,13 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 	}
 }
 
+// SetArnFromExtensionResponse sets the execution context from the Extension API response
+func (ec *ExecutionContext) SetArnFromExtensionResponse(arn string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.arn = strings.ToLower(arn)
+}
+
 // SetInitTime sets the agent initialization time
 func (ec *ExecutionContext) SetInitializationTime(time time.Time) {
 	ec.m.Lock()
