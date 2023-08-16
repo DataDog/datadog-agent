@@ -9,11 +9,11 @@ package probe
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 )
@@ -44,7 +44,7 @@ func newAvailableFunctionsBasedExcluder() (*availableFunctionsBasedExcluder, err
 		available[name] = struct{}{}
 	}
 
-	fmt.Printf("size available: %d\n", len(available))
+	seclog.Debugf("available functions excluder: entry count: %d\n", len(available))
 
 	return &availableFunctionsBasedExcluder{
 		available: available,
