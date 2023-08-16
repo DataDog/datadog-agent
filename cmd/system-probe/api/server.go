@@ -37,7 +37,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 		if err != nil {
 			return fmt.Errorf("error creating IPC socket: %s", err)
 		}
-		grpcServer = grpc.NewServer()
+		grpcServer = grpc.NewServer(grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024))
 	}
 
 	mux := gorilla.NewRouter()

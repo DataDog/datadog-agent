@@ -130,13 +130,7 @@ func (c *ConnectionsCheck) Realtime() bool { return false }
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 
-func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time, groupID int32) model.MessageBody {
-	err := c.processData.Fetch()
-	if err != nil {
-		log.Warnf("error collecting processes for filter and extraction: %s", err)
-	} else {
-		c.dockerFilter.Filter(batch)
-	}
+func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time, groupID int32, isFirst bool) model.MessageBody {
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(batch)
 
@@ -144,8 +138,10 @@ func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	res := processBatchGRPC(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID, batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult, batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags, batch.AgentConfiguration, c.serviceExtractor)
-	return res
+	return processBatchGRPC(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID,
+		batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult,
+		batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags,
+		batch.AgentConfiguration, c.serviceExtractor, isFirst)
 
 }
 
@@ -155,9 +151,6 @@ func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
-	start := time.Now()
-	var batchMessages []model.MessageBody
-	var conns *model.Connections
 	if c.syscfg.GRPCServerEnabled {
 		// Create a context with a timeout of 10 seconds
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -170,12 +163,22 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		defer conn.Close()
 		client := connectionserver.NewSystemProbeClient(conn)
 
-		response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: c.tracerClientID})
+		response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: c.tracerClientID}, grpc.MaxCallRecvMsgSize(100*1024*1024), grpc.MaxCallSendMsgSize(100*1024*1024))
 		if err != nil {
 			return nil, err
 		}
 
+		processFetchSucceeded := true
+		if err := c.processData.Fetch(); err != nil {
+			processFetchSucceeded = false
+			log.Warnf("error collecting processes for filter and extraction: %s", err)
+		}
+
+		unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
+		var batchMessages []model.MessageBody
+
 		for {
+			start := time.Now()
 			res, err := response.Recv()
 			if err == io.EOF {
 				break
@@ -184,7 +187,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 				return nil, err
 			}
 
-			batch, err := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf).Unmarshal(res.Data)
+			batch, err := unmarshaler.Unmarshal(res.Data)
 			if err != nil {
 				// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
 				if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
@@ -194,11 +197,16 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 				return nil, err
 			}
 			log.Infof("[grpc] the number of connections in grpc is %d", len(batch.Conns))
+			if !processFetchSucceeded {
+				c.dockerFilter.Filter(batch)
+			}
 
-			batchMessages = append(batchMessages, c.handleBatch(batch, start, nextGroupID()))
+			batchMessages = append(batchMessages, c.handleBatch(batch, start, nextGroupID(), len(batchMessages) == 0))
+			netEncoding.ConnsToPool(batch)
 		}
 		return StandardRunResult(batchMessages), nil
 	}
+	start := time.Now()
 
 	conns, err := c.getConnections()
 	if err != nil {
@@ -559,9 +567,9 @@ func processBatchGRPC(
 	tags []string,
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
+	isFirst bool,
 ) model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
-	batches := make([]model.MessageBody, 0, groupSize)
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
@@ -682,14 +690,13 @@ func processBatchGRPC(
 	}
 
 	// only add the telemetry to the first message to prevent double counting
-	if len(batches) == 0 {
+	if isFirst {
 		cc.ConnTelemetryMap = connTelemetryMap
 		cc.CompilationTelemetryByAsset = compilationTelemetry
 		cc.KernelHeaderFetchResult = kernelHeaderFetchResult
 		cc.CORETelemetryByAsset = coreTelemetry
 		cc.PrebuiltEBPFAssets = prebuiltAssets
 	}
-	batches = append(batches, cc)
 
-	return batches[0]
+	return cc
 }

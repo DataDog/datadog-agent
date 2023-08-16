@@ -20,6 +20,17 @@ import (
 
 const maxRoutes = math.MaxInt32
 
+var connsPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.Connections)
+	},
+}
+
+func ConnsToPool(o *model.Connections) {
+	o.Reset()
+	connsPool.Put(o)
+}
+
 var connPool = sync.Pool{
 	New: func() interface{} {
 		return new(model.Connection)
