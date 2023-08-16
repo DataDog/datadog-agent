@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -1105,6 +1105,13 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -1125,6 +1132,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
@@ -1185,6 +1193,13 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -1205,6 +1220,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 

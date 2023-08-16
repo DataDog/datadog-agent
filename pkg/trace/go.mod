@@ -42,7 +42,7 @@ require (
 )
 
 require (
-	github.com/DataDog/go-tuf v1.0.1-0.5.2 // indirect
+	github.com/DataDog/go-tuf v1.0.2-0.5.2 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect

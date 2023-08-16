@@ -8,7 +8,6 @@ package writer
 import (
 	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"runtime"
 	"sync"
 	"testing"
@@ -363,7 +362,7 @@ func deserializePayload(p payload) (*pb.AgentPayload, error) {
 		return nil, err
 	}
 	defer gzipr.Close()
-	uncompressedBytes, err := ioutil.ReadAll(gzipr)
+	uncompressedBytes, err := io.ReadAll(gzipr)
 	if err != nil {
 		return nil, err
 	}

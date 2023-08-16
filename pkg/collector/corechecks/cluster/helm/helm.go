@@ -174,19 +174,23 @@ func (hc *HelmCheck) Cancel() {
 
 func (hc *HelmCheck) setupInformers() error {
 	secretInformer := hc.informerFactory.Core().V1().Secrets()
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
 		UpdateFunc: hc.updateSecret,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
 	go secretInformer.Informer().Run(hc.informersStopCh)
 
 	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
-	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addConfigmap,
 		DeleteFunc: hc.deleteConfigmap,
 		UpdateFunc: hc.updateConfigmap,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to config map informer: %v", err)
+	}
 	go configmapInformer.Informer().Run(hc.informersStopCh)
 
 	return apiserver.SyncInformers(

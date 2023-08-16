@@ -9,12 +9,15 @@
 package {{.Name}}
 
 import (
-    {{if ne $.Platform "windows"}}"net"{{end}}
+    "net"
 	"reflect"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
+
+// Aliases used to avoid compilation error in case of unused imported package
+type NetIP = net.IP
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -293,9 +296,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{end}}
 		{{end}}
 		{{end}}
-		}
+	}
 
-		return nil, &eval.ErrFieldNotFound{Field: field}
+	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
 func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
@@ -415,7 +418,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{end}}
 			{{end}}
 		{{end}}
-		}
+	}
 
-		return &eval.ErrFieldNotFound{Field: field}
+	return &eval.ErrFieldNotFound{Field: field}
 }

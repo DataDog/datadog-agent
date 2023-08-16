@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -224,9 +224,9 @@ func (lc *LambdaLogsCollector) processMessage(
 		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
-			state := lc.executionContext.GetCurrentState()
-			proactiveInit = state.ProactiveInit
-			coldStart = state.Coldstart
+			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+			proactiveInit = coldStartTags.IsProactiveInit
+			coldStart = coldStartTags.IsColdStart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		outOfMemoryRequestId := ""
