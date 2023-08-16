@@ -157,6 +157,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}
 	if len(functionArn) > 0 {
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
+		serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 	}
 
 	// api key reading
