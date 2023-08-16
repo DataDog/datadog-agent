@@ -94,6 +94,10 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
+
+	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
+	// in the core agent if the process check is disabled.
+	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 )
 
 // Datadog is the global configuration object
@@ -129,12 +133,6 @@ func PrometheusScrapeChecksTransformer(in string) interface{} {
 		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
 	}
 	return promChecks
-}
-
-// MetadataProviders helps unmarshalling `metadata_providers` config param
-type MetadataProviders struct {
-	Name     string        `mapstructure:"name"`
-	Interval time.Duration `mapstructure:"interval"`
 }
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
@@ -849,12 +847,14 @@ func InitConfig(config Config) {
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
 	config.BindEnv("internal_profiling.profile_dd_url")
+	config.BindEnvAndSetDefault("internal_profiling.unix_socket", "") // file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
+	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
 
@@ -1113,7 +1113,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector
-	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
+	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
@@ -1176,6 +1176,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -1251,6 +1252,9 @@ func InitConfig(config Config) {
 
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
+
+	// Language Detection
+	config.BindEnvAndSetDefault("language_detection.enabled", false)
 
 	setupAPM(config)
 	SetupOTLP(config)
@@ -1547,6 +1551,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	}
 
 	SanitizeAPIKeyConfig(config, "api_key")
+	SanitizeAPIKeyConfig(config, "logs_config.api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -1842,12 +1847,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-// FileUsedDir returns the absolute path to the folder containing the config
-// file used to populate the registry
-func FileUsedDir() string {
-	return filepath.Dir(Datadog.ConfigFileUsed())
-}
-
 func isLocalAddress(address string) (string, error) {
 	if address == "localhost" {
 		return address, nil
@@ -2004,34 +2003,6 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-// GetConfiguredTags returns list of tags from a configuration, based on
-// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
-// if includeDogdstatsd is true.
-func GetConfiguredTags(config Config, includeDogstatsd bool) []string {
-	tags := config.GetStringSlice("tags")
-	extraTags := config.GetStringSlice("extra_tags")
-
-	var dsdTags []string
-	if includeDogstatsd {
-		dsdTags = config.GetStringSlice("dogstatsd_tags")
-	}
-
-	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
-	combined = append(combined, tags...)
-	combined = append(combined, extraTags...)
-	combined = append(combined, dsdTags...)
-
-	return combined
-}
-
-// GetGlobalConfiguredTags returns complete list of user configured tags.
-//
-// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
-// if includeDogstatsd is true.
-func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
-	return GetConfiguredTags(Datadog, includeDogstatsd)
-}
-
 func bindVectorOptions(config Config, datatype DataType) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
@@ -2065,28 +2036,6 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 		return pipelineURL, nil
 	}
 	return "", nil
-}
-
-// GetTraceAgentDefaultEnv returns the default env for the trace agent
-func GetTraceAgentDefaultEnv() string {
-	defaultEnv := ""
-	if Datadog.IsSet("apm_config.env") {
-		defaultEnv = Datadog.GetString("apm_config.env")
-		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
-	} else if Datadog.IsSet("env") {
-		defaultEnv = Datadog.GetString("env")
-		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
-	} else {
-		for _, tag := range GetConfiguredTags(Datadog, false) {
-			if strings.HasPrefix(tag, "env:") {
-				defaultEnv = strings.TrimPrefix(tag, "env:")
-				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
-				return defaultEnv
-			}
-		}
-	}
-
-	return defaultEnv
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled

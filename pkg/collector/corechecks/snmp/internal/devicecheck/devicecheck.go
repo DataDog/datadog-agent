@@ -15,6 +15,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -150,7 +151,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	agentTags := config.GetGlobalConfiguredTags(false)
+	agentTags := configUtils.GetConfiguredTags(config.Datadog, false)
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
@@ -219,25 +220,27 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 
 		detectedMetrics, metricTagConfigs := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
-		d.config.Metrics = []checkconfig.MetricsConfig{}
+		d.config.RequestedMetrics = detectedMetrics
+		d.config.RequestedMetricTags = metricTagConfigs
 		d.config.AddUptimeMetric()
-		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, metricTagConfigs, d.config.CollectTopology)
+		d.config.RebuildMetadataMetricsAndTags()
 	} else if d.config.AutodetectProfile {
 		// detect using sysObjectID
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		d.config.AutodetectProfile = false // do not try to auto detect profile next time
-
 		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
-		err = d.config.RefreshWithProfile(profile)
-		if err != nil {
-			// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
-			return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
+		if profile != d.config.Profile {
+			log.Debugf("detected profile change: %s -> %s", d.config.Profile, profile)
+			err = d.config.SetProfile(profile)
+			if err != nil {
+				// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
+				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
+			}
 		}
 	}
 	return nil

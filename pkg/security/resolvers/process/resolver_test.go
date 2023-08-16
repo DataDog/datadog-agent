@@ -534,3 +534,116 @@ func TestExecBomb(t *testing.T) {
 
 	testCacheSize(t, resolver)
 }
+
+func TestIsExecChildRuntime(t *testing.T) {
+	resolver, err := NewResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent.ForkTime = time.Now()
+	parent.FileEvent.Inode = 1
+
+	// parent
+	resolver.AddForkEntry(parent)
+
+	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child.PPid = parent.Pid
+	child.FileEvent.Inode = 1
+
+	// parent
+	//     \ child
+	resolver.AddForkEntry(child)
+
+	// parent
+	//     \ child
+	//      \ child2
+
+	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child2.FileEvent.Inode = 2
+	child2.PPid = child.Pid
+	resolver.AddExecEntry(child2)
+
+	// parent
+	//     \ child
+	//      \ child2
+	//       \ child3
+
+	child3 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child3.FileEvent.Inode = 3
+	child3.PPid = child2.Pid
+	resolver.AddExecEntry(child3)
+
+	assert.False(t, parent.IsExecChild)
+	assert.False(t, parent.IsThread) // root node, no fork
+
+	assert.False(t, child.IsExecChild)
+	assert.True(t, child.IsThread)
+
+	assert.False(t, child2.IsExecChild)
+	assert.False(t, child2.IsThread)
+
+	assert.True(t, child3.IsExecChild)
+	assert.False(t, child3.IsThread)
+
+	child4 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child4.FileEvent.Inode = 3
+	child4.PPid = child3.Pid
+	resolver.AddExecEntry(child4)
+
+	assert.True(t, child3.IsExecChild)
+	assert.False(t, child3.IsThread)
+}
+
+func TestIsExecChildSnapshot(t *testing.T) {
+	resolver, err := NewResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent.ForkTime = time.Now()
+	parent.FileEvent.Inode = 1
+	parent.IsThread = true
+
+	// parent
+	resolver.insertEntry(parent, nil, model.ProcessCacheEntryFromSnapshot)
+
+	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child.PPid = parent.Pid
+	child.FileEvent.Inode = 2
+	child.IsThread = true
+
+	// parent
+	//     \ child
+
+	resolver.setAncestor(child)
+	resolver.insertEntry(child, nil, model.ProcessCacheEntryFromSnapshot)
+
+	assert.False(t, parent.IsExecChild)
+	assert.True(t, parent.IsThread) // root node, no fork
+
+	assert.False(t, child.IsExecChild)
+	assert.True(t, child.IsThread)
+
+	// parent
+	//     \ child
+	//      \ child2
+
+	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child2.FileEvent.Inode = 3
+	child2.PPid = child.Pid
+	resolver.AddExecEntry(child2)
+
+	assert.False(t, child2.IsExecChild)
+	assert.False(t, child2.IsThread)
+
+	child3 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child3.FileEvent.Inode = 4
+	child3.PPid = child2.Pid
+	resolver.AddExecEntry(child3)
+
+	assert.True(t, child3.IsExecChild)
+	assert.False(t, child3.IsThread)
+}

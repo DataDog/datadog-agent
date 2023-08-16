@@ -146,6 +146,38 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				Debug: map[string]interface{}{},
 			},
 		},
+		{
+			path: "logs_enabled.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig:       map[string]interface{}{},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				LogsEnabled:              true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			path: "logs_disabled.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig:       map[string]interface{}{},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				LogsEnabled:              false,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
 	}
 
 	for _, testInstance := range tests {

@@ -737,7 +737,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
+        for gobin in ["gotls_client", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
@@ -1500,6 +1500,10 @@ def print_failed_tests(_, output_dir):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
         test_results = {}
 
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
+
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
                 tgz.extractall(path=unpack_dir)
@@ -1513,7 +1517,7 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            if action == "pass" or action == "fail":
+                            if action == "pass" or action == "fail" or action == "skip":
                                 test_key = f"{package}.{name}"
                                 res = test_results.get(test_key)
                                 if res is None:
@@ -1522,7 +1526,7 @@ def print_failed_tests(_, output_dir):
 
                                 if res == "fail":
                                     print(f"re-ran [{test_platform}] {package} {name}: {action}")
-                                if action == "pass" and res == "fail":
+                                if (action == "pass" or action == "skip") and res == "fail":
                                     test_results[test_key] = action
 
         for key, res in test_results.items():

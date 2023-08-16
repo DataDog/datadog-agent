@@ -6,7 +6,6 @@
 package appsec
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -15,34 +14,24 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	if err := waf.Health(); err != nil {
-		t.Skip("host not supported by appsec", err)
-	}
-
 	for _, appsecEnabled := range []bool{true, false} {
 		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
-		for _, proxyEnabled := range []bool{true, false} {
-			proxyEnabledStr := strconv.FormatBool(proxyEnabled)
-			t.Run(fmt.Sprintf("new/%s/%s", appsecEnabledStr, proxyEnabledStr), func(t *testing.T) {
-				t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", appsecEnabledStr)
-				t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", proxyEnabledStr)
-				lp, pp, err := New()
-				switch {
-				case !appsecEnabled:
-					require.Nil(t, lp)
-					require.Nil(t, pp)
-				case proxyEnabled:
-					require.Nil(t, lp)
-					require.NotNil(t, pp)
-				case !proxyEnabled:
-					require.NotNil(t, lp)
-					require.Nil(t, pp)
-				default:
-					panic("unexpected case")
-				}
-				require.NoError(t, err)
-			})
-		}
+		t.Run("new", func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", appsecEnabledStr)
+			lp, err := New()
+			if err := waf.Health(); err != nil {
+				// host not supported by appsec
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			if appsecEnabled {
+				require.NotNil(t, lp)
+			} else {
+				require.Nil(t, lp)
+			}
+		})
 	}
 }
 

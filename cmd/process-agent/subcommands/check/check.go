@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -108,8 +108,7 @@ func runCheckCmd(deps dependencies) error {
 	defer cancel()
 
 	// Now that the logger is configured log host info
-	hostStatus := host.GetStatusInformation()
-	deps.Log.Infof("running on platform: %s", hostStatus.Platform)
+	deps.Log.Infof("running on platform: %s", hostMetadataUtils.GetPlatformName())
 	agentVersion, _ := version.Agent()
 	deps.Log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -158,10 +157,10 @@ func runCheckCmd(deps dependencies) error {
 
 		names = append(names, ch.Name())
 
-		_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   deps.Syscfg.Object().MaxConnsPerMessage,
-			SystemProbeAddress:   deps.Syscfg.Object().SocketAddress,
+			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
+			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
 		}
 

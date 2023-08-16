@@ -13,9 +13,6 @@ dependency 'pip2'
 
 
 if arm?
-  # psycopg2 doesn't come with pre-built wheel on the arm architecture.
-  # to compile from source, it requires the `pg_config` executable present on the $PATH
-  dependency 'postgresql'
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
@@ -24,10 +21,19 @@ if arm?
 end
 
 if osx?
+  dependency 'postgresql'
   dependency 'unixodbc'
 end
 
 if linux?
+  # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
+  #   to compile from source, it requires the `pg_config` executable present on the $PATH
+  # * We also need it to build psycopg[c] Python dependency
+  # * Note: because having unixodbc already built breaks postgresql build,
+  #   we made unixodbc depend on postgresql to ensure proper build order.
+  #   If we're ever removing/changing one of these dependencies, we need to
+  #   take this into account.
+  dependency 'postgresql'
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
@@ -223,14 +229,17 @@ build do
       end
 
       if !blacklist_flag
+        if line.start_with?('psycopg[binary]') && !windows?
+            line.sub! 'psycopg[binary]', 'psycopg[c]'
+        end
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line
             lib_req["req_lines"].push(line)
           end
+        end
         # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
         # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
-        end
         requirements.push(line)
       end
     end
