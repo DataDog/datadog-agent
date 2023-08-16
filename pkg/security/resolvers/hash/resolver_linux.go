@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package hash
 
 import (
@@ -231,7 +229,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	var lastErr error
 	var f *os.File
 	for _, pidCandidate := range rootPIDs {
-		f, lastErr = os.Open(utils.ProcRootFilePath(int32(pidCandidate), file.PathnameStr))
+		f, lastErr = os.Open(utils.ProcRootFilePath(pidCandidate, file.PathnameStr))
 		if lastErr == nil {
 			break
 		}

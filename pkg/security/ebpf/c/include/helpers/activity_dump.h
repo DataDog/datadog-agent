@@ -44,7 +44,7 @@ __attribute__((always_inline)) struct activity_dump_config *lookup_or_delete_tra
 }
 
 __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing_event() {
-    u32 key = 0;
+    u32 key = bpf_get_current_pid_tgid() % EVENT_GEN_SIZE;
     struct cgroup_tracing_event_t *evt = bpf_map_lookup_elem(&cgroup_tracing_event_gen, &key);
     if (evt == NULL) {
         return 0;

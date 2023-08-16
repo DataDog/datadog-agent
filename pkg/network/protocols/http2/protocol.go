@@ -37,11 +37,14 @@ type protocol struct {
 }
 
 const (
-	inFlightMap    = "http2_in_flight"
-	dynamicTable   = "http2_dynamic_table"
-	staticTable    = "http2_static_table"
-	filterTailCall = "socket__http2_filter"
-	eventStream    = "http2"
+	inFlightMap          = "http2_in_flight"
+	dynamicTable         = "http2_dynamic_table"
+	dynamicTableCounter  = "http2_dynamic_counter_table"
+	http2IterationsTable = "http2_iterations"
+	staticTable          = "http2_static_table"
+	filterTailCall       = "socket__http2_filter"
+	parserTailCall       = "socket__http2_frames_parser"
+	eventStream          = "http2"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -56,6 +59,12 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: staticTable,
 		},
+		{
+			Name: dynamicTableCounter,
+		},
+		{
+			Name: http2IterationsTable,
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -63,6 +72,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP2),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: parserTailCall,
 			},
 		},
 	},
@@ -96,10 +112,22 @@ func (p *protocol) Name() string {
 // We also configure the http2 event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
