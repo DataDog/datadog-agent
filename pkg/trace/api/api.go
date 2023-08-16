@@ -501,6 +501,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			}
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Problematic paylod: %+v", req)
 		return
 	}
 	if !ranHook {
