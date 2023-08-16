@@ -327,7 +327,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if c.Tags == nil {
-		c.Tags = make(map[string]struct{})
+		c.Tags = make(map[string]struct{}, 3)
 	}
 
 	addTag := func(k, v string) {
