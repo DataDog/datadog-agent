@@ -9,6 +9,14 @@
 // classification procedures on the same connection
 BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_wrapper_t, 0)
 
+static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
+    protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
+    if (!wrapper) {
+        return NULL;
+    }
+    return &wrapper->stack;
+}
+
 static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
@@ -22,12 +30,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     protocol_stack_wrapper_t empty_wrapper = {0};
     empty_wrapper.updated = bpf_ktime_get_ns();
     bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST);
-    wrapper = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
-    if (!wrapper) {
-        return NULL;
-    }
-
-    return &wrapper->stack;
+    return __get_protocol_stack(&normalized_tup);
 }
 
 __maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {

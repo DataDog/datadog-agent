@@ -57,14 +57,6 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
-static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
-    protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
-    if (!wrapper) {
-        return NULL;
-    }
-    return &wrapper->stack;
-}
-
 static __always_inline void update_protocol_classification_information(conn_tuple_t *t, conn_stats_ts_t *stats) {
     if (is_fully_classified(&stats->protocol_stack)) {
         return;
