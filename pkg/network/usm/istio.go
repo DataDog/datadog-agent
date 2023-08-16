@@ -158,8 +158,8 @@ func (m *istioMonitor) sync() {
 }
 
 func (m *istioMonitor) handleProcessExec(pid uint32) {
-	path, ok := m.isEnvoyProcess(pid)
-	if !ok {
+	path := m.getEnvoyPath(pid)
+	if path == "" {
 		return
 	}
 
@@ -178,8 +178,8 @@ func (m *istioMonitor) handleProcessExit(pid uint32) {
 	m.registry.Unregister(pid)
 }
 
-// isEnvoyProcess determines whether or not a given PID represents an envoy process
-// Aside from a boolean we also return the path of the executable
+// getEnvoyPath returns the executable path of the envoy binary for a given PID.
+// In case the PID doesn't represent an envoy process, an empty string is returned.
 //
 // TODO:
 // refine process detection heuristic so we can remove the number of false
@@ -190,13 +190,13 @@ func (m *istioMonitor) handleProcessExit(pid uint32) {
 // to "envoy", since the command line arguments look more or less the following:
 //
 // /usr/local/bin/envoy -cetc/istio/proxy/envoy-rev.json ...
-func (m *istioMonitor) isEnvoyProcess(pid uint32) (string, bool) {
+func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 	cmdlinePath := fmt.Sprintf("%s/%d/cmdline", m.procRoot, pid)
 
 	f, err := os.Open(cmdlinePath)
 	if err != nil {
 		// This can happen often in the context of ephemeral processes
-		return "", false
+		return ""
 	}
 	defer f.Close()
 
@@ -210,15 +210,15 @@ func (m *istioMonitor) isEnvoyProcess(pid uint32) (string, bool) {
 	buffer := *bufferPtr
 	n, _ := f.Read(buffer)
 	if n == 0 {
-		return "", false
+		return ""
 	}
 
 	buffer = buffer[:n]
 	i := bytes.Index(buffer, envoyCmd)
 	if i < 0 {
-		return "", false
+		return ""
 	}
 
 	executable := buffer[:i+len(envoyCmd)]
-	return string(executable), true
+	return string(executable)
 }

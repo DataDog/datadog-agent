@@ -19,19 +19,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsEnvoyProcess(t *testing.T) {
+func TesGetEnvoyPath(t *testing.T) {
 	_ = createFakeProcFS(t)
 	monitor := newIstioTestMonitor(t)
 
 	t.Run("an actual envoy process", func(t *testing.T) {
-		path, ok := monitor.isEnvoyProcess(uint32(1))
-		assert.True(t, ok)
+		path := monitor.getEnvoyPath(uint32(1))
 		assert.Equal(t, "/usr/local/bin/envoy", path)
 	})
 	t.Run("something else", func(t *testing.T) {
-		path, ok := monitor.isEnvoyProcess(uint32(2))
-		assert.False(t, ok)
-		assert.Equal(t, "", path)
+		path := monitor.getEnvoyPath(uint32(2))
+		assert.Empty(t, "", path)
 	})
 }
 
