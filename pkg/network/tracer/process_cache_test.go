@@ -10,7 +10,6 @@ package tracer
 import (
 	"fmt"
 	"math/rand"
-	"strconv"
 	"testing"
 	"time"
 
@@ -363,6 +362,4 @@ func BenchmarkProcessCacheMem(b *testing.B) {
 			ContainerID: "container1",
 		})
 	}
-	fmt.Printf("cache: " + strconv.Itoa(pc.cache.Len()) + "\n")
-	fmt.Printf("cachebypid: " + strconv.Itoa(len(pc.cacheByPid)) + "\n")
 }
