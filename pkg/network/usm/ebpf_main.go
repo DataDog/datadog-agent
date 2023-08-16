@@ -147,7 +147,13 @@ func (e *ebpfProgram) Init() error {
 }
 
 func (e *ebpfProgram) Start() error {
-	e.mapCleaner = e.setupMapCleaner()
+	mapCleaner, err := e.setupMapCleaner()
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+	} else {
+		e.mapCleaner = mapCleaner
+	}
+
 	return e.Manager.Start()
 }
 
@@ -277,11 +283,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
-func (e *ebpfProgram) setupMapCleaner() *ddebpf.MapCleaner {
+func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
 	mapCleaner, err := ddebpf.NewMapCleaner(e.connectionProtocolMap, new(netebpf.ConnTuple), new(netebpf.ProtocolStackWrapper))
 	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return nil
+		return nil, err
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
@@ -295,7 +300,7 @@ func (e *ebpfProgram) setupMapCleaner() *ddebpf.MapCleaner {
 		return (now - updated) > ttl
 	})
 
-	return mapCleaner
+	return mapCleaner, nil
 }
 
 func getAssetName(module string, debug bool) string {
