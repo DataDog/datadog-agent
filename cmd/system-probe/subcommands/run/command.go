@@ -170,13 +170,28 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
-	resolver := &usergroup.Resolver{}
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
-	uid := os.Getuid()
-	gid := os.Getgid()
-	log.Infof("current user id/name: %s/%s", strconv.Itoa(uid), resolver.ResolveUser(uid))
-	log.Infof("current group id/name: %s/%s, ", strconv.Itoa(gid), resolver.ResolveGroup(gid))
+
+	resolver, err := usergroup.NewResolver()
+	if err != nil {
+		log.Warn("cannot create user/group resolver")
+	} else {
+		uid := os.Getuid()
+		gid := os.Getgid()
+		userName, err := resolver.ResolveUser(uid)
+		if err == nil {
+			log.Infof("current user id/name: %s/%s", strconv.Itoa(uid), userName)
+		} else {
+			log.Warn("unable to resolve user")
+		}
+		groupName, err := resolver.ResolveGroup(gid)
+		if err == nil {
+			log.Infof("current group id/name: %s/%s, ", strconv.Itoa(gid), groupName)
+		} else {
+			log.Warn("unable to resolve group")
+		}
+	}
 
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
