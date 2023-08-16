@@ -25,6 +25,7 @@ import (
 	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestGetContainerStats_Containerd(t *testing.T) {
