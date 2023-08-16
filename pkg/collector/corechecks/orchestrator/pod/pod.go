@@ -10,7 +10,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,11 +30,11 @@ import (
 
 const checkName = "pod"
 
-var groupID int32
+var groupID atomic.Int32
 
 func nextGroupID() int32 {
-	atomic.AddInt32(&groupID, 1)
-	return groupID
+	groupID.Add(1)
+	return groupID.Load()
 }
 
 func init() {
@@ -44,13 +44,12 @@ func init() {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	hostInfo                *checks.HostInfo
-	clusterID               string
-	containerFailedLogLimit *util.LogLimit
-	sender                  sender.Sender
-	processor               *processors.Processor
-	config                  *oconfig.OrchestratorConfig
-	instance                *oinstance.OrchestratorInstance
+	hostInfo  *checks.HostInfo
+	clusterID string
+	sender    sender.Sender
+	processor *processors.Processor
+	config    *oconfig.OrchestratorConfig
+	instance  *oinstance.OrchestratorInstance
 }
 
 func podFactory() check.Check {
@@ -153,4 +152,3 @@ func (c *Check) Run() error {
 	return nil
 
 }
-
