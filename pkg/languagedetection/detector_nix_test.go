@@ -10,10 +10,8 @@ package languagedetection
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDetectLanguage(t *testing.T) {
@@ -111,13 +109,13 @@ func TestDetectLanguage(t *testing.T) {
 			name:     "jruby",
 			cmdline:  []string{"java", "-Djruby.home=/usr/share/jruby", "-Djruby.lib=/usr/share/jruby/lib", "org.jruby.Main", "prog.rb"},
 			comm:     "java",
-			expected: languagemodels.Java, // TODO: not yet implemented
+			expected: languagemodels.Ruby,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			process := []*procutil.Process{makeProcess(tc.cmdline, tc.comm)}
+			process := []languagemodels.Process{makeProcess(tc.cmdline, tc.comm)}
 			expected := []*languagemodels.Language{{Name: tc.expected}}
-			assert.Equal(t, expected, DetectLanguage(process))
+			assert.Equal(t, expected, DetectLanguage(process, nil))
 		})
 	}
 }
@@ -254,7 +252,7 @@ func BenchmarkDetectLanguage(b *testing.B) {
 		},
 	}
 
-	var procs []*procutil.Process
+	var procs []languagemodels.Process
 	for _, command := range commands {
 		procs = append(procs, makeProcess(command.cmdline, command.comm))
 	}
@@ -262,6 +260,6 @@ func BenchmarkDetectLanguage(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		DetectLanguage(procs)
+		DetectLanguage(procs, nil)
 	}
 }

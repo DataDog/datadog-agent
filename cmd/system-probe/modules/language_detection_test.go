@@ -28,14 +28,19 @@ const mockPid = 1
 
 func TestLanguageDetectionEndpoint(t *testing.T) {
 	mockGoLanguage := languagemodels.Language{Name: languagemodels.Go, Version: "go version go1.19.10 linux/arm64"}
+	proc := &languageDetectionProto.Process{Pid: mockPid}
 
 	mockDetector := mockDetector{}
-	mockDetector.On("DetectLanguage", mockPid).Return(mockGoLanguage, nil).Once()
-	languagedetection.MockPrivilegedDetectors(t, []languagedetection.Detector{&mockDetector})
+	mockDetector.On("DetectLanguage", mock.MatchedBy(
+		func(proc languagemodels.Process) bool {
+			return proc.GetPid() == mockPid
+		})).
+		Return(mockGoLanguage, nil).Once()
+	languagedetection.MockPrivilegedDetectors(t, []languagemodels.Detector{&mockDetector})
 
 	rec := httptest.NewRecorder()
 
-	reqProto := languageDetectionProto.DetectLanguageRequest{Processes: []*languageDetectionProto.Process{{Pid: mockPid}}}
+	reqProto := languageDetectionProto.DetectLanguageRequest{Processes: []*languageDetectionProto.Process{proc}}
 	reqBytes, err := proto.Marshal(&reqProto)
 	require.NoError(t, err)
 
@@ -65,7 +70,7 @@ type mockDetector struct {
 	mock.Mock
 }
 
-func (m *mockDetector) DetectLanguage(pid int) (languagemodels.Language, error) {
-	args := m.Mock.Called(pid)
+func (m *mockDetector) DetectLanguage(proc languagemodels.Process) (languagemodels.Language, error) {
+	args := m.Mock.Called(proc)
 	return args.Get(0).(languagemodels.Language), args.Error(1)
 }

@@ -12,17 +12,16 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 const (
@@ -78,7 +77,7 @@ func CreateAgent() (*Agent, error) {
 	status.Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars)
 
 	// setup global processing rules
-	processingRules, err := config.GlobalProcessingRules()
+	processingRules, err := config.GlobalProcessingRules(coreConfig.Datadog)
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)

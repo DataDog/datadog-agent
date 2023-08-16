@@ -21,7 +21,7 @@ github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
 [teams."Agent Shared Components"]
-jira_project = "ASC"
+jira_project = "ASCII"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",

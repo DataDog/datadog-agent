@@ -52,17 +52,21 @@ func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinform
 	controller.isLeaderNotif = isLeaderNotif
 	controller.generateTemplates()
 
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleSecret,
 		UpdateFunc: controller.handleSecretUpdate,
 		DeleteFunc: controller.handleSecret,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
 
-	webhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := webhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleWebhook,
 		UpdateFunc: controller.handleWebhookUpdate,
 		DeleteFunc: controller.handleWebhook,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to webhook informer: %v", err)
+	}
 
 	return controller
 }

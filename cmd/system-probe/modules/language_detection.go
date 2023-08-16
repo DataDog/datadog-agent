@@ -53,14 +53,6 @@ func (l *languageDetectionModule) RegisterGRPC(_ *grpc.Server) error {
 
 func (l languageDetectionModule) Close() {}
 
-func getRequestPids(proto *languageDetectionProto.DetectLanguageRequest) []int {
-	pids := make([]int, len(proto.Processes))
-	for i, lang := range proto.GetProcesses() {
-		pids[i] = int(lang.Pid)
-	}
-	return pids
-}
-
 func toDetectLanguageResponse(langs []languagemodels.Language) *languageDetectionProto.DetectLanguageResponse {
 	resp := &languageDetectionProto.DetectLanguageResponse{
 		Languages: make([]*languageDetectionProto.Language, len(langs)),
@@ -93,7 +85,12 @@ func detectLanguage(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	resp := toDetectLanguageResponse(languagedetection.DetectWithPrivileges(getRequestPids(&req)))
+	procs := make([]languagemodels.Process, 0, len(req.Processes))
+	for _, proc := range req.Processes {
+		procs = append(procs, proc)
+	}
+
+	resp := toDetectLanguageResponse(languagedetection.DetectWithPrivileges(procs))
 	b, err = proto.Marshal(resp)
 	if err != nil {
 		handleError(writer, http.StatusInternalServerError, fmt.Errorf("seralize response: %v", err))
