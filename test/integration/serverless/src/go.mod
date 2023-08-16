@@ -11,7 +11,6 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.41.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.1 // indirect
-	github.com/DataDog/datadog-go v4.8.2+incompatible // indirect
 	github.com/DataDog/datadog-go/v5 v5.2.0 // indirect
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork // indirect
 	github.com/DataDog/sketches-go v1.4.1 // indirect
@@ -32,7 +31,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.7 // indirect
 	github.com/aws/aws-xray-sdk-go v1.8.0 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
-	github.com/cenkalti/backoff v2.1.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
@@ -41,9 +39,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.15.13 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0 // indirect
