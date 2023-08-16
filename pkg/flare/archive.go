@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -88,8 +88,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return functionOutputToBytes(diagnose.RunMetadataAvail), nil })
-	fb.AddFileFromFunc("connectivity.log", getDatadogConnectivity)
+	fb.AddFileFromFunc("diagnose.log", getDiagnoses)
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
@@ -299,10 +298,17 @@ func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url s
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDatadogConnectivity() ([]byte, error) {
+func getDiagnoses() ([]byte, error) {
 	fct := func(w io.Writer) error {
-		return connectivity.RunDatadogConnectivityDiagnose(w, false)
+		diagCfg := diagnosis.Config{
+			Verbose:               true,
+			RunningInAgentProcess: true,
+			RunLocal:              true,
+		}
+
+		return diagnose.RunStdOut(w, diagCfg)
 	}
+
 	return functionOutputToBytes(fct), nil
 }
 

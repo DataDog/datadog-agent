@@ -15,16 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	_ "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity" // no direct calls to connectivity but there is a callback
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/cihub/seelog"
 	"github.com/fatih/color"
 )
-
-func init() {
-	diagnosis.Register("connectivity-datadog-autodiscovery", diagnoseMetadataAutodiscoveryConnectivity)
-}
 
 // Overall running statistics
 type counters struct {
@@ -149,13 +143,13 @@ func matchRegExList(regexList []*regexp.Regexp, s string) bool {
 
 // Currently used only to match Diagnose Suite name. In future will be
 // extended to diagnose name or category
-func matchConfigFilters(cfg diagnosis.Config, s string) bool {
-	if len(cfg.Include) > 0 && len(cfg.Exclude) > 0 {
-		return matchRegExList(cfg.Include, s) && !matchRegExList(cfg.Exclude, s)
-	} else if len(cfg.Include) > 0 {
-		return matchRegExList(cfg.Include, s)
-	} else if len(cfg.Exclude) > 0 {
-		return !matchRegExList(cfg.Exclude, s)
+func matchConfigFilters(diagCfg diagnosis.Config, s string) bool {
+	if len(diagCfg.Include) > 0 && len(diagCfg.Exclude) > 0 {
+		return matchRegExList(diagCfg.Include, s) && !matchRegExList(diagCfg.Exclude, s)
+	} else if len(diagCfg.Include) > 0 {
+		return matchRegExList(diagCfg.Include, s)
+	} else if len(diagCfg.Exclude) > 0 {
+		return !matchRegExList(diagCfg.Exclude, s)
 	}
 	return true
 }
@@ -220,7 +214,7 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -319,7 +313,7 @@ func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -328,8 +322,8 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 	diagnoses, err := Run(diagCfg)
 	if err != nil && !diagCfg.RunLocal {
-		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-		fmt.Fprintln(w, "running diagnose command locally")
+		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 		// attempt to do so locally
 		diagCfg.RunLocal = true
@@ -338,7 +332,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 	if err != nil {
 		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-		return
+		return err
 	}
 
 	var c counters
@@ -363,74 +357,6 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 	outputNewLineIfNeeded(w, &lastDot)
 	c.summary(w)
-}
-
-func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.Config) []diagnosis.Diagnosis {
-	if len(diagnosis.MetadataAvailCatalog) == 0 {
-		return nil
-	}
-
-	var sortedDiagnosis []string
-	for name := range diagnosis.MetadataAvailCatalog {
-		sortedDiagnosis = append(sortedDiagnosis, name)
-	}
-	sort.Strings(sortedDiagnosis)
-
-	var diagnoses []diagnosis.Diagnosis
-	for _, name := range sortedDiagnosis {
-		err := diagnosis.MetadataAvailCatalog[name]()
-
-		// Will always add successful diagnosis because particular environment is auto-discovered
-		// and may not exist and or configured but knowing if we can or cannot connect to it
-		// could be still beneficial
-		var diagnosisString string
-		if err == nil {
-			diagnosisString = fmt.Sprintf("Successfully connected to %s environment", name)
-		} else {
-			diagnosisString = fmt.Sprintf("[Ignore if not applied] %s", err.Error())
-		}
-
-		diagnoses = append(diagnoses, diagnosis.Diagnosis{
-			Result:    diagnosis.DiagnosisSuccess,
-			Name:      name,
-			Diagnosis: diagnosisString,
-		})
-	}
-
-	return diagnoses
-}
-
-// Runs all registered metadata availability checks, output it in writer
-func RunMetadataAvail(w io.Writer) error {
-	if w != color.Output {
-		color.NoColor = true
-	}
-
-	// Use temporarily a custom logger to our Writer
-	customLogger, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg - %Ns%n")
-	if err != nil {
-		return err
-	}
-	log.RegisterAdditionalLogger("diagnose", customLogger)
-	defer log.UnregisterAdditionalLogger("diagnose")
-
-	var sortedDiagnosis []string
-	for name := range diagnosis.MetadataAvailCatalog {
-		sortedDiagnosis = append(sortedDiagnosis, name)
-	}
-	sort.Strings(sortedDiagnosis)
-
-	for _, name := range sortedDiagnosis {
-		fmt.Fprintf(w, "=== Running %s diagnosis ===\n", color.BlueString(name))
-		err := diagnosis.MetadataAvailCatalog[name]()
-		statusString := color.GreenString("PASS")
-		if err != nil {
-			statusString = color.RedString("FAIL")
-			log.Infof("diagnosis error for %s: %v", name, err)
-		}
-		log.Flush()
-		fmt.Fprintf(w, "===> %s\n\n", statusString)
-	}
 
 	return nil
 }
