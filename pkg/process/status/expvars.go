@@ -246,7 +246,7 @@ type StatusInfo struct {
 	LogFile                         string                 `json:"log_file"`
 	DropCheckPayloads               []string               `json:"drop_check_payloads"`
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
-	LanguageDetectionEnabled        bool                   `json:language_detection_enabled`
+	LanguageDetectionEnabled        bool                   `json:"language_detection_enabled"`
 }
 
 func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {

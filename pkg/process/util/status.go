@@ -92,7 +92,7 @@ type ProcessExpvars struct {
 	Endpoints                       map[string][]string `json:"endpoints"`
 	DropCheckPayloads               []string            `json:"drop_check_payloads"`
 	SystemProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
-	LanguageDetectionEnabled        bool                `json:language_detection_enabled`
+	LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
 }
 
 // Status holds runtime information from process-agent
