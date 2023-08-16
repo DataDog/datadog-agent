@@ -81,7 +81,13 @@ func (c *Check) Run() error {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
 
-	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
+	// Append manifestMessages behind metadataMessages to avoiding modifying the func signature.
+	// Split the messages during forwarding.
+	metadataMessages := append(processResult.MetadataMessages, processResult.ManifestMessages...)
+
+	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
+
+	c.sender.OrchestratorMetadata(metadataMessages, c.clusterID, int(orchestrator.K8sPod))
 
 	return nil
 
