@@ -1202,6 +1202,11 @@ func (p *Probe) Snapshot() error {
 	return p.resolvers.Snapshot()
 }
 
+// Stop the probe
+func (p *Probe) Stop() {
+	_ = p.Manager.StopReaders(manager.CleanAll)
+}
+
 // Close the probe
 func (p *Probe) Close() error {
 	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
@@ -1243,10 +1248,7 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		}
 
 		eventCtor := func() eval.Event {
-			return &model.Event{
-				FieldHandlers:    p.fieldHandlers,
-				ContainerContext: &model.ContainerContext{},
-			}
+			return NewEvent(p.fieldHandlers)
 		}
 
 		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)

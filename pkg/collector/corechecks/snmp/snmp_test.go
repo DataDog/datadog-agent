@@ -34,6 +34,8 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
@@ -1708,10 +1710,10 @@ metric_tags:
 	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	devices := chk.discovery.GetDiscoveredDeviceConfigs()
-	assert.Equal(t, 4, len(devices))
-
+	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2039,9 +2041,10 @@ metric_tags:
 	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	devices := chk.discovery.GetDiscoveredDeviceConfigs()
-	assert.Equal(t, 4, len(devices))
+	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2305,9 +2308,10 @@ metrics:
 	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	devices := chk.discovery.GetDiscoveredDeviceConfigs()
-	assert.Equal(t, 4, len(devices))
+	_, err = waitForDiscoveredDevices(chk.discovery, 4, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -2488,4 +2492,23 @@ community_string: public
 	// check Cancel does not panic when called with single check
 	// it shouldn't try to stop discovery
 	chk.Cancel()
+}
+
+// Wait for discovery to be completed
+func waitForDiscoveredDevices(discovery *discovery.Discovery, expectedDeviceCount int, timeout time.Duration) ([]*devicecheck.DeviceCheck, error) {
+	timeoutTimer := time.After(timeout)
+	tick := time.Tick(100 * time.Millisecond)
+
+	for {
+		select {
+		case <-timeoutTimer:
+			devices := discovery.GetDiscoveredDeviceConfigs()
+			return nil, fmt.Errorf("Discovery timed out, expecting %d devices but only %d found", expectedDeviceCount, len(devices))
+		case <-tick:
+			devices := discovery.GetDiscoveredDeviceConfigs()
+			if len(devices) == expectedDeviceCount {
+				return devices, nil
+			}
+		}
+	}
 }

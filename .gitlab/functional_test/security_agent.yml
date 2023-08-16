@@ -79,7 +79,7 @@ kitchen_test_security_agent_arm64:
   extends:
     - .kitchen_test_security_agent
     - .kitchen_ec2_location_us_east_1
-    - .kitchen_ec2_spot_instances
+    - .kitchen_ec2
   rules:
     !reference [.on_security_agent_changes_or_manual]
   needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64" ]

@@ -205,6 +205,7 @@ def generate_protobuf(ctx):
         'trace': (False, True),
         'process': (False, False),
         'workloadmeta': (False, False),
+        'languagedetection': (False, False),
     }
 
     # maybe put this in a separate function

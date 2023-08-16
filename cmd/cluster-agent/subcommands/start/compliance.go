@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,12 +43,12 @@ func runCompliance(ctx context.Context, senderManager sender.SenderManager, apiC
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(coreconfig.Datadog, logsConfig, endpointPrefix, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+			endpoints, err = config.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, logs.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
 

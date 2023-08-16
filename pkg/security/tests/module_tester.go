@@ -892,8 +892,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return testMod, err
 		}
 
-		if err = testMod.reloadConfiguration(); err != nil {
-			return testMod, err
+		if opts.preStartCallback != nil {
+			opts.preStartCallback(testMod)
+		}
+
+		if !opts.disableRuntimeSecurity {
+			if err = testMod.reloadPolicies(); err != nil {
+				return testMod, err
+			}
 		}
 
 		if ruleDefs != nil && logStatusMetrics {
@@ -1032,8 +1038,8 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 	tm.cmdWrapper.Run(t, name, fnc)
 }
 
-func (tm *testModule) reloadConfiguration() error {
-	log.Debugf("reload configuration with testDir: %s", tm.Root())
+func (tm *testModule) reloadPolicies() error {
+	log.Debugf("reload policies with testDir: %s", tm.Root())
 	policiesDir := tm.Root()
 
 	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
@@ -1124,7 +1130,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 
 	select {
 	case <-time.After(getEventTimeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1193,10 +1199,27 @@ func (et ErrTimeout) Error() string {
 }
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test
-func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
-	return ErrTimeout{
-		fmt.Sprintf("timeout, details: %s, probe stats: %+v", GetStatusMetrics(probe), spew.Sdump(ddebpf.GetProbeStats())),
+func (tm *testModule) NewTimeoutError() ErrTimeout {
+	var msg strings.Builder
+
+	msg.WriteString("timeout, details: ")
+	msg.WriteString(GetStatusMetrics(tm.probe))
+	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
+
+	events := tm.ruleEngine.StopEventCollector()
+	if len(events) != 0 {
+		msg.WriteString("\nevents evaluated:\n")
+
+		for _, event := range events {
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
+			for field, value := range event.Fields {
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
+			}
+			msg.WriteString("}\n")
+		}
 	}
+
+	return ErrTimeout{msg.String()}
 }
 
 // ActionMessage is used to send a message from an action function to its callback
@@ -1272,7 +1295,7 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHan
 		tb.FailNow()
 		return nil
 	case <-time.After(getEventTimeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1322,7 +1345,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 
 	select {
 	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1390,7 +1413,7 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Ev
 
 	select {
 	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
