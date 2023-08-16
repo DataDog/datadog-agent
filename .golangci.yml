@@ -54,7 +54,7 @@ issues:
     - text: "package github.com/golang/protobuf/proto is deprecated: .*"
       linters: [staticcheck]
   new: true
-  new-from-rev: 8f01c6cb4f477746f9457ab8bac6c3ff72df9bfd
+  new-from-rev: dd12c4c34cd3d90327cc6882e83df58902301318
 
 linters:
   disable-all: true
