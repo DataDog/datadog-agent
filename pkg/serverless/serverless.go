@@ -172,6 +172,9 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
 	log.Debug("Received invocation event...")
 	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
+	if daemon.ExecutionContext.GetColdStartTagsForRequestID(requestID).IsColdStart {
+		daemon.ExtraTags.Tags = nil
+	}
 	daemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 	daemon.StartLogCollection()
 	coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(requestID)
