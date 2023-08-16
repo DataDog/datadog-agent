@@ -182,10 +182,11 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 	h := &promHistogram{
 		ph: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-				Buckets:   buckets,
+				Subsystem:                    subsystem,
+				Name:                         name,
+				Help:                         help,
+				Buckets:                      buckets,
+				NativeHistogramZeroThreshold: opts.NativeHistogramZeroThreshold,
 			},
 			tags,
 		),

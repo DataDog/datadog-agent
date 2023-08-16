@@ -15,7 +15,7 @@ var (
 	// StatusError is the value for the "status" tag that represents an error
 	StatusError = "error"
 
-	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
+	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true, NativeHistogramZeroThreshold: -0.1}
 )
 
 var (

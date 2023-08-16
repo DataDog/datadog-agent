@@ -1,0 +1,4 @@
+fixes:
+  - |
+    - Updated ``datadog.agent.sbom_generation_duration`` to only be observed for successful scans, improving accuracy of the metric.
+    - Improved agent histogram metrics to accurately report 0 values, providing more precise measurement.

@@ -125,16 +125,15 @@ func (s *Scanner) start(ctx context.Context) {
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
 				scanResult := collector.Scan(scanContext, request.ScanRequest, request.opts)
-				if scanResult.Error != nil {
-					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-				}
-
 				generationDuration := time.Since(createdAt)
 				scanResult.CreatedAt = createdAt
 				scanResult.Duration = generationDuration
-
+				if scanResult.Error != nil {
+					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
+				} else {
+					telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
+				}
 				cancel()
-				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
 				sendResult(scanResult)
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)

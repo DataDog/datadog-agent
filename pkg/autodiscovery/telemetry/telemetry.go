@@ -60,6 +60,6 @@ var (
 		"Poll duration distribution by config provider (in seconds).",
 		// The default prometheus buckets are adapted to measure response time of network services
 		prometheus.DefBuckets,
-		telemetry.Options{NoDoubleUnderscoreSep: true},
+		telemetry.Options{NoDoubleUnderscoreSep: true, NativeHistogramZeroThreshold: -0.1},
 	)
 )

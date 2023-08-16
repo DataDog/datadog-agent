@@ -23,7 +23,7 @@ var (
 	apiElapsed = telemetry.NewHistogramWithOpts("", "api_elapsed",
 		[]string{"handler", "status", "forwarded"}, "Poll duration distribution by config provider (in seconds).",
 		prometheus.DefBuckets,
-		telemetry.Options{NoDoubleUnderscoreSep: true})
+		telemetry.Options{NoDoubleUnderscoreSep: true, NativeHistogramZeroThreshold: -0.1})
 )
 
 // TelemetryHandler provides a http handler and emits requests telemetry for it.

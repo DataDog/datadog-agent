@@ -38,7 +38,7 @@ var (
 	elapsedTelemetry = telemetry.NewHistogramWithOpts("external_metrics", "api_elapsed",
 		[]string{"namespace", "handler", "in_error"}, "Count of API Requests received",
 		prometheus.DefBuckets,
-		telemetry.Options{NoDoubleUnderscoreSep: true})
+		telemetry.Options{NoDoubleUnderscoreSep: true, NativeHistogramZeroThreshold: -0.1})
 )
 
 func setDatadogMetricTelemetry(ddm *datadoghq.DatadogMetric) {

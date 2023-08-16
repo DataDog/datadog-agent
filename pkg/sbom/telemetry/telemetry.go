@@ -13,7 +13,7 @@ const (
 	subsystem = "sbom"
 )
 
-var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
+var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true, NativeHistogramZeroThreshold: -0.1}
 
 var (
 	// SBOMAttempts tracks sbom collection attempts.
