@@ -123,8 +123,8 @@ github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbi
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/CycloneDX/cyclonedx-go v0.7.1 h1:5w1SxjGm9MTMNTuRbEPyw21ObdbaagTWF/KfF0qHTRE=
 github.com/CycloneDX/cyclonedx-go v0.7.1/go.mod h1:N/nrdWQI2SIjaACyyDs/u7+ddCkyl/zkNs8xFsHF2Ps=
-github.com/DataDog/agent-payload/v5 v5.0.94-0.20230816194557-98c33b02bd66 h1:t5N+yN0AV9IqocoC74kGBp6rhP8XUh42358Hf2ShL+I=
-github.com/DataDog/agent-payload/v5 v5.0.94-0.20230816194557-98c33b02bd66/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
+github.com/DataDog/agent-payload/v5 v5.0.94-0.20230816201042-520695c2fef1 h1:+Vah78fEijFluy4aHylvzF8JJsz4nraUTMTbCAkTu9c=
+github.com/DataDog/agent-payload/v5 v5.0.94-0.20230816201042-520695c2fef1/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1 h1:vYoZgFDFkHeSRYtDVFGYw6rWbx2wWJxztCj1e9YJdQ0=
 github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1/go.mod h1:+Y+4klVWKPOnZx6XESG7QHydOaUGEXyH2j/vSg9JiNM=
 github.com/DataDog/aptly v1.5.2 h1:qnuKf01NDOtpxvs/1H3WVM6HxrHbRuuADVO1gNnelg8=
