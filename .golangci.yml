@@ -53,7 +53,6 @@ issues:
     # TODO: Needs manual update
     - text: "package github.com/golang/protobuf/proto is deprecated: .*"
       linters: [staticcheck]
-  new: true
   new-from-rev: dd12c4c34cd3d90327cc6882e83df58902301318
 
 linters:
