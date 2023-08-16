@@ -344,7 +344,7 @@ func TestProcessCacheGet(t *testing.T) {
 }
 
 func BenchmarkProcessCacheMem(b *testing.B) {
-	pc, _ := newProcessCache(50, nil)
+	pc, _ := newProcessCache(b.N, nil)
 
 	envs := map[string]string{
 		"DD_SERVICE": "service",
@@ -362,35 +362,6 @@ func BenchmarkProcessCacheMem(b *testing.B) {
 			Envs:        envs,
 			ContainerID: "container1",
 		})
-
-		pc.add(&process{
-			Pid:         uint32(rand.Int()),
-			StartTime:   5,
-			Envs:        envs,
-			ContainerID: "container1",
-		})
-
-		pc.add(&process{
-			Pid:         uint32(rand.Int()),
-			StartTime:   5,
-			Envs:        envs,
-			ContainerID: "container1",
-		})
-
-		pc.add(&process{
-			Pid:         uint32(rand.Int()),
-			StartTime:   5,
-			Envs:        envs,
-			ContainerID: "container2",
-		})
-
-		pc.add(&process{
-			Pid:         uint32(rand.Int()),
-			StartTime:   5,
-			Envs:        envs,
-			ContainerID: "container2",
-		})
-
 	}
 	fmt.Printf("cache: " + strconv.Itoa(pc.cache.Len()) + "\n")
 	fmt.Printf("cachebypid: " + strconv.Itoa(len(pc.cacheByPid)) + "\n")
