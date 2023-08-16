@@ -11,7 +11,7 @@
         "origin": "lambda",
         "spans": [
           {
-            "service": "aws.lambda",
+            "service": "integration-tests-service",
             "name": "aws.lambda",
             "resource": "integration-tests-extension-XXXXXX-trace-node",
             "trace_id": null,
@@ -21,20 +21,32 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-0",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
               "datadog_lambda": "X.X.X",
+              "dd_extension_version": "123",
               "env": "integration-tests-env",
               "function.response.body": "ok",
               "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-node",
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-node",
               "language": "javascript",
+              "memorysize": "1024",
+              "region": "eu-west-1",
               "request_id": "null",
               "resource_names": "integration-tests-extension-XXXXXX-trace-node",
+              "runtime": "nodejs14.x",
               "runtime-id": "null",
               "service": "integration-tests-service",
               "tagA": "valueA tagB:valueB",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "version": "integration-tests-version"
             },
             "metrics": {
@@ -60,18 +72,31 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
+              "dd_extension_version": "123",
               "env": "integration-tests-env",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-node",
+              "functionname": "integration-tests-extension-XXXXXX-trace-node",
               "language": "javascript",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "runtime": "nodejs14.x",
               "runtime-id": "null",
               "service": "integration-tests-service",
               "tagA": "valueA tagB:valueB",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "version": "integration-tests-version"
             },
             "metrics": {
               "_dd.measured": 1,
               "_sampling_priority_v1": 1,
-              "_top_level": 1,
               "process_id": null
             },
             "type": ""
@@ -98,7 +123,7 @@
         "origin": "lambda",
         "spans": [
           {
-            "service": "aws.lambda",
+            "service": "integration-tests-service",
             "name": "aws.lambda",
             "resource": "integration-tests-extension-XXXXXX-trace-node",
             "trace_id": null,
@@ -108,9 +133,14 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-0",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
               "datadog_lambda": "X.X.X",
+              "dd_extension_version": "123",
               "env": "integration-tests-env",
               "function.request.body": "testing request payload",
               "function.response.body": "ok",
@@ -118,11 +148,18 @@
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-node",
               "language": "javascript",
+              "memorysize": "1024",
+              "region": "eu-west-1",
               "request_id": "null",
               "resource_names": "integration-tests-extension-XXXXXX-trace-node",
+              "runtime": "nodejs14.x",
               "runtime-id": "null",
               "service": "integration-tests-service",
               "tagA": "valueA tagB:valueB",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "version": "integration-tests-version"
             },
             "metrics": {
@@ -148,18 +185,31 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
+              "dd_extension_version": "123",
               "env": "integration-tests-env",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-node",
+              "functionname": "integration-tests-extension-XXXXXX-trace-node",
               "language": "javascript",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "runtime": "nodejs14.x",
               "runtime-id": "null",
               "service": "integration-tests-service",
               "tagA": "valueA tagB:valueB",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "version": "integration-tests-version"
             },
             "metrics": {
               "_dd.measured": 1,
               "_sampling_priority_v1": 1,
-              "_top_level": 1,
               "process_id": null
             },
             "type": ""
@@ -186,7 +236,7 @@
         "origin": "lambda",
         "spans": [
           {
-            "service": "aws.lambda",
+            "service": "integration-tests-service",
             "name": "aws.lambda.cold_start",
             "resource": "integration-tests-extension-XXXXXX-trace-node",
             "trace_id": null,
@@ -196,7 +246,24 @@
             "duration": null,
             "error": 0,
             "meta": {
-              "_dd.origin": "lambda"
+              "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-node",
+              "functionname": "integration-tests-extension-XXXXXX-trace-node",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "runtime": "nodejs14.x",
+              "service": "integration-tests-service",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "version": "integration-tests-version"
             },
             "metrics": {
               "_sampling_priority_rate_v1": 1,
@@ -210,8 +277,8 @@
       }
     ],
     "tags": null,
-    "env": "",
+    "env": "integration-tests-env",
     "hostname": "",
-    "app_version": ""
+    "app_version": "integration-tests-version"
   }
 ]
