@@ -46,6 +46,8 @@ require (
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
+	github.com/DataDog/datadog-api-client-go v1.16.0 // indirect
+	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230717121422-5aa5874ade95 // indirect
