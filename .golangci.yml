@@ -68,6 +68,7 @@ linters:
     - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - depguard    # Depguard is useful for preventing specific packages from being used
     - bodyclose   # checks whether HTTP response body is closed successfully
+    - gosimple
 
 linters-settings:
   depguard:
@@ -98,7 +99,3 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
-  revive:
-    rules:
-      - name: package-comments
-        disabled: true

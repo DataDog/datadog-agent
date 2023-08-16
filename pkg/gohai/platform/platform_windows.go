@@ -126,64 +126,64 @@ const (
 )
 
 const (
-	IMAGE_FILE_MACHINE_UNKNOWN = uint16(0x0)
-	// IMAGE_FILE_MACHINE_TARGET_HOST is useful for indicating we want to interact with the host and not a WoW guest.
+	// imageFileMachineUnknown = uint16(0x0)
+	// imageFileMachineTargetHost is useful for indicating we want to interact with the host and not a WoW guest.
 	// Win10/2016 and above only
-	IMAGE_FILE_MACHINE_TARGET_HOST = uint16(0x0001)
-	// IMAGE_FILE_MACHINE_I386 is Intel 386.
-	IMAGE_FILE_MACHINE_I386 = uint16(0x014c)
-	// IMAGE_FILE_MACHINE_R3000 is MIPS little-endian, = uint16(0x160 big-endian
-	IMAGE_FILE_MACHINE_R3000 = uint16(0x0162)
-	// IMAGE_FILE_MACHINE_R4000 is MIPS little-endian
-	IMAGE_FILE_MACHINE_R4000 = uint16(0x0166)
-	// IMAGE_FILE_MACHINE_R10000 is MIPS little-endian
-	IMAGE_FILE_MACHINE_R10000 = uint16(0x0168)
-	// IMAGE_FILE_MACHINE_WCEMIPSV2 is MIPS little-endian WCE v2
-	IMAGE_FILE_MACHINE_WCEMIPSV2 = uint16(0x0169)
-	// IMAGE_FILE_MACHINE_ALPHA is Alpha_AXP
-	IMAGE_FILE_MACHINE_ALPHA = uint16(0x0184)
-	// IMAGE_FILE_MACHINE_SH3 is SH3 little-endian
-	IMAGE_FILE_MACHINE_SH3    = uint16(0x01a2)
-	IMAGE_FILE_MACHINE_SH3DSP = uint16(0x01a3)
-	// IMAGE_FILE_MACHINE_SH3E is SH3E little-endian
-	IMAGE_FILE_MACHINE_SH3E = uint16(0x01a4)
-	// IMAGE_FILE_MACHINE_SH4 is SH4 little-endian
-	IMAGE_FILE_MACHINE_SH4 = uint16(0x01a6)
-	// IMAGE_FILE_MACHINE_SH5 is SH5
-	IMAGE_FILE_MACHINE_SH5 = uint16(0x01a8)
-	// IMAGE_FILE_MACHINE_ARM is ARM Little-Endian
-	IMAGE_FILE_MACHINE_ARM = uint16(0x01c0)
-	// IMAGE_FILE_MACHINE_THUMB is ARM Thumb/Thumb-2 Little-Endian
-	IMAGE_FILE_MACHINE_THUMB = uint16(0x01c2)
-	// IMAGE_FILE_MACHINE_ARMNT is ARM Thumb-2 Little-Endian
-	IMAGE_FILE_MACHINE_ARMNT = uint16(0x01c4)
-	IMAGE_FILE_MACHINE_AM33  = uint16(0x01d3)
-	// IMAGE_FILE_MACHINE_POWERPC is IBM PowerPC Little-Endian
-	IMAGE_FILE_MACHINE_POWERPC   = uint16(0x01F0)
-	IMAGE_FILE_MACHINE_POWERPCFP = uint16(0x01f1)
-	// IMAGE_FILE_MACHINE_IA64 is Intel 64
-	IMAGE_FILE_MACHINE_IA64 = uint16(0x0200)
-	// IMAGE_FILE_MACHINE_MIPS16 is MIPS
-	IMAGE_FILE_MACHINE_MIPS16 = uint16(0x0266)
-	// IMAGE_FILE_MACHINE_ALPHA64 is ALPHA64
-	IMAGE_FILE_MACHINE_ALPHA64 = uint16(0x0284)
-	// IMAGE_FILE_MACHINE_MIPSFPU is MIPS
-	IMAGE_FILE_MACHINE_MIPSFPU = uint16(0x0366)
-	// IMAGE_FILE_MACHINE_MIPSFPU16 is MIPS
-	IMAGE_FILE_MACHINE_MIPSFPU16 = uint16(0x0466)
-	IMAGE_FILE_MACHINE_AXP64     = IMAGE_FILE_MACHINE_ALPHA64
-	// IMAGE_FILE_MACHINE_TRICORE is Infineon
-	IMAGE_FILE_MACHINE_TRICORE = uint16(0x0520)
-	IMAGE_FILE_MACHINE_CEF     = uint16(0x0CEF)
-	// IMAGE_FILE_MACHINE_EBC is EFI Byte Code
-	IMAGE_FILE_MACHINE_EBC = uint16(0x0EBC)
-	// IMAGE_FILE_MACHINE_AMD64 is AMD64 (K8)
-	IMAGE_FILE_MACHINE_AMD64 = uint16(0x8664)
-	// IMAGE_FILE_MACHINE_M32R is M32R little-endian
-	IMAGE_FILE_MACHINE_M32R = uint16(0x9041)
-	// IMAGE_FILE_MACHINE_ARM64 is ARM64 Little-Endian
-	IMAGE_FILE_MACHINE_ARM64 = uint16(0xAA64)
-	IMAGE_FILE_MACHINE_CEE   = uint16(0xC0EE)
+	// imageFileMachineTargetHost = uint16(0x0001)
+	// imageFileMachineI386 is Intel 386.
+	// imageFileMachineI386 = uint16(0x014c)
+	// imageFileMachineR3000 is MIPS little-endian, = uint16(0x160 big-endian
+	// imageFileMachineR3000 = uint16(0x0162)
+	// imageFileMachineR4000 is MIPS little-endian
+	// imageFileMachineR4000 = uint16(0x0166)
+	// imageFileMachineR10000 is MIPS little-endian
+	// imageFileMachineR10000 = uint16(0x0168)
+	// imageFileMachineWcemipsv2 is MIPS little-endian WCE v2
+	// imageFileMachineWcemipsv2 = uint16(0x0169)
+	// imageFileMachineAlpha is Alpha_AXP
+	// imageFileMachineAlpha = uint16(0x0184)
+	// imageFileMachineSh3 is SH3 little-endian
+	// imageFileMachineSh3    = uint16(0x01a2)
+	// imageFileMachineSh3dsp = uint16(0x01a3)
+	// imageFileMachineSh3e is SH3E little-endian
+	// imageFileMachineSh3e = uint16(0x01a4)
+	// imageFileMachineSh4 is SH4 little-endian
+	// imageFileMachineSh4 = uint16(0x01a6)
+	// imageFileMachineSh5 is SH5
+	// imageFileMachineSh5 = uint16(0x01a8)
+	// imageFileMachineArm is ARM Little-Endian
+	// imageFileMachineArm = uint16(0x01c0)
+	// imageFileMachineThumb is ARM Thumb/Thumb-2 Little-Endian
+	// imageFileMachineThumb = uint16(0x01c2)
+	// imageFileMachineArmnt is ARM Thumb-2 Little-Endian
+	// imageFileMachineArmnt = uint16(0x01c4)
+	// imageFileMachineAm33  = uint16(0x01d3)
+	// imageFileMachinePowerpc is IBM PowerPC Little-Endian
+	// imageFileMachinePowerpc   = uint16(0x01F0)
+	// imageFileMachinePowerpcfp = uint16(0x01f1)
+	// imageFileMachineIa64 is Intel 64
+	// imageFileMachineIa64 = uint16(0x0200)
+	// imageFileMachineMips16 is MIPS
+	// imageFileMachineMips16 = uint16(0x0266)
+	// imageFileMachineAlpha64 is ALPHA64
+	// imageFileMachineAlpha64 = uint16(0x0284)
+	// imageFileMachineMipsfpu is MIPS
+	// imageFileMachineMipsfpu = uint16(0x0366)
+	// imageFileMachineMipsfpu16 is MIPS
+	// imageFileMachineMipsfpu16 = uint16(0x0466)
+	// imageFileMachineAxp64     = imageFileMachineAlpha64
+	// imageFileMachineTricore is Infineon
+	// imageFileMachineTricore = uint16(0x0520)
+	// imageFileMachineCef     = uint16(0x0CEF)
+	// imageFileMachineEbc is EFI Byte Code
+	// imageFileMachineEbc = uint16(0x0EBC)
+	// imageFileMachineAmd64 is AMD64 (K8)
+	imageFileMachineAmd64 = uint16(0x8664)
+	// imageFileMachineM32r is M32R little-endian
+	// imageFileMachineM32r = uint16(0x9041)
+	// imageFileMachineArm64 is ARM64 Little-Endian
+	imageFileMachineArm64 = uint16(0xAA64)
+	// imageFileMachineCee   = uint16(0xC0EE)
 )
 const registryHive = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 const productNameKey = "ProductName"
@@ -308,10 +308,10 @@ func getNativeArchInfo() string {
 			if b != uintptr(0) {
 				// check to see the native processor type.
 				switch pnative {
-				case IMAGE_FILE_MACHINE_AMD64:
+				case imageFileMachineAmd64:
 					// it's already set to this
 					nativearch = "x86_64"
-				case IMAGE_FILE_MACHINE_ARM64:
+				case imageFileMachineArm64:
 					nativearch = "ARM64"
 				}
 			}
