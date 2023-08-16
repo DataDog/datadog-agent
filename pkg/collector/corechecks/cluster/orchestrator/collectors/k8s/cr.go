@@ -90,7 +90,7 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 		return nil, collectors.NewListingError(err)
 	}
 	if len(list) > defaultMaximumCRDQuota {
-		return nil, collectors.NewListingError(fmt.Errorf("%s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, defaultMaximumCRDQuota))
+		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, defaultMaximumCRDQuota))
 	}
 
 	ctx := &processors.ProcessorContext{
