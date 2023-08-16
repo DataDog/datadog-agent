@@ -136,6 +136,10 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// serverless parts
 	// ----------------
 
+	// immediately starts the communication server
+	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
+	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
+
 	// extension registration
 	serverlessID, functionArn, err := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
 	if err != nil {
@@ -149,9 +153,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
 	}
 
-	// immediately starts the communication server
-	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
-	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
