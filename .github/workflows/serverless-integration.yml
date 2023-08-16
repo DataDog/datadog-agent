@@ -52,7 +52,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
         with:
           timeout_minutes: 45
-          max_attempts: 1
+          max_attempts: 2
           command: |
             export RAWLOGS_DIR=$(mktemp -d)
             echo "rawlogs=$RAWLOGS_DIR" >> $GITHUB_OUTPUT
