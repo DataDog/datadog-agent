@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
@@ -1564,6 +1565,13 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 
+	pidNsConstants, err := getPidNamespaceConstants()
+	if err != nil {
+		return nil, err
+	}
+
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, pidNsConstants...)
+
 	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
 	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
 	// process
@@ -1871,4 +1879,28 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
+}
+
+func getPidNamespaceConstants() ([]manager.ConstantEditor, error) {
+	fi, err := os.Stat("/proc/self/ns/pid")
+	if err != nil {
+		return nil, err
+	}
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, errors.New("failed to stat namespace pid file")
+	}
+
+	fmt.Printf("device: %d, inode: %d\n", stat.Dev, stat.Ino)
+
+	return []manager.ConstantEditor{
+		{
+			Name:  "pid_namespace_device",
+			Value: stat.Dev,
+		},
+		{
+			Name:  "pid_namespace_inode",
+			Value: stat.Ino,
+		},
+	}, nil
 }
