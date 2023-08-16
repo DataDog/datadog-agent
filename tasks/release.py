@@ -105,38 +105,40 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_changelog(ctx, new_version, target="all"):
+def update_changelog(ctx, new_version=None, target="all"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
     By default generates Agent and Cluster Agent changelogs.
     Use target == "agent" or target == "cluster-agent" to only generate one or the other.
+    If new_version is omitted, a changelog since last tag on the current branch
+    will be generated.
     """
     generate_agent = target in ["all", "agent"]
     generate_cluster_agent = target in ["all", "cluster-agent"]
 
-    new_version_int = list(map(int, new_version.split(".")))
+    if new_version is not None:
+        new_version_int = list(map(int, new_version.split(".")))
+        if len(new_version_int) != 3:
+            print(f"Error: invalid version: {new_version_int}")
+            raise Exit(1)
 
-    if len(new_version_int) != 3:
-        print(f"Error: invalid version: {new_version_int}")
-        raise Exit(1)
+        # let's avoid losing uncommitted change with 'git reset --hard'
+        try:
+            ctx.run("git diff --exit-code HEAD", hide="both")
+        except Failure:
+            print("Error: You have uncommitted change, please commit or stash before using update_changelog")
+            return
 
-    # let's avoid losing uncommitted change with 'git reset --hard'
-    try:
-        ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure:
-        print("Error: You have uncommitted change, please commit or stash before using update_changelog")
-        return
+        # make sure we are up to date
+        ctx.run("git fetch")
 
-    # make sure we are up to date
-    ctx.run("git fetch")
-
-    # let's check that the tag for the new version is present (needed by reno)
-    try:
-        ctx.run(f"git tag --list | grep {new_version}")
-    except Failure:
-        print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
-        raise
+        # let's check that the tag for the new version is present
+        try:
+            ctx.run(f"git tag --list | grep {new_version}")
+        except Failure:
+            print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
+            raise
 
     if generate_agent:
         update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
@@ -145,6 +147,10 @@ def update_changelog(ctx, new_version, target="all"):
 
 
 def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
+    if new_version is None:
+        latest_version = current_version(ctx, 7)
+        ctx.run(f"reno -q --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {latest_version}")
+        return
     new_version_int = list(map(int, new_version.split(".")))
 
     # removing releasenotes from bugfix on the old minor.
@@ -1161,7 +1167,13 @@ Make sure that milestone is open before trying again.""",
     updated_pr = github.update_pr(
         pull_number=pr["number"],
         milestone_number=milestone["number"],
-        labels=["changelog/no-changelog", "qa/skip-qa", "team/agent-platform", "team/agent-core"],
+        labels=[
+            "changelog/no-changelog",
+            "qa/skip-qa",
+            "team/agent-platform",
+            "team/agent-release-management",
+            "category/release_operations",
+        ],
     )
 
     if not updated_pr or not updated_pr.get("number") or not updated_pr.get("html_url"):

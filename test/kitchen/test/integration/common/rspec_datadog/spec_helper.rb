@@ -5,12 +5,15 @@ require 'rbconfig'
 require 'yaml'
 require 'find'
 require 'tempfile'
+require 'fileutils'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
 # logged.
 RSpec.configure do |c|
-  c.default_formatter = "documentation"
+  c.add_formatter "documentation"
+  FileUtils.mkdir_p '/tmp'
+  c.add_formatter("RspecJunitFormatter", "/tmp/kitchen/rspec.xml")
 end
 
 os_cache = nil
@@ -413,7 +416,9 @@ def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
-  signature_hash = "720FE30A376658011C45FF1BE04BDAC071F0DEA2"
+  ##
+  ## signature below is for new cert acquired May 2023 using new hsm-backed signing method
+  signature_hash = "B03F29CC07566505A718583E9270A6EE17678742"
   if output.upcase.strip == signature_hash.upcase.strip
     return true
   end
@@ -431,14 +436,18 @@ shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Datadog Signing Keys'
 end
 
-shared_examples_for 'Agent behavior' do
+shared_examples_for 'Basic Agent behavior' do
   it_behaves_like 'a running Agent with no errors'
-  it_behaves_like 'a running Agent with APM'
-  it_behaves_like 'a running Agent with APM manually disabled'
-  it_behaves_like 'an Agent with python3 enabled'
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
+  it_behaves_like 'an Agent with Python'
+end
+
+shared_examples_for 'Agent behavior' do
+  include_examples 'Basic Agent behavior'
+  it_behaves_like 'a running Agent with APM'
+  it_behaves_like 'a running Agent with APM manually disabled'
   if deploy_cws?
     it_behaves_like 'a running Agent with CWS enabled'
   end
@@ -694,7 +703,9 @@ shared_examples_for 'an Agent that restarts' do
   end
 end
 
-shared_examples_for 'an Agent with python3 enabled' do
+# Checks that the Agent can run Python 3.
+# If running on an Agent 6, also check that it can run Python 2.
+shared_examples_for 'an Agent with Python' do
   it 'restarts after python_version is set to 3' do
     conf_path = get_conf_file("datadog.yaml")
     f = File.read(conf_path)
@@ -715,7 +726,7 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(result).to be_truthy
   end
 
-  it 'restarts after python_version is set back to 2' do
+  it 'restarts after python_version is set to 2' do
     skip if info.include? "v7."
     conf_path = get_conf_file("datadog.yaml")
     f = File.read(conf_path)
@@ -727,7 +738,7 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(output).to be_truthy
   end
 
-  it 'runs Python 2 after python_version is set back to 2' do
+  it 'runs Python 2 after python_version is set to 2' do
     skip if info.include? "v7."
     result = false
     python_version = fetch_python_version

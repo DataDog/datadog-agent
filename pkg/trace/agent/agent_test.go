@@ -23,13 +23,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -311,6 +311,44 @@ func TestProcess(t *testing.T) {
 			t.Fatal("timed out")
 		}
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
+	})
+
+	t.Run("aas", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.InAzureAppServices = true
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		go agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		timeout := time.After(2 * time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			tp = ss.TracerPayload
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+
+		for _, chunk := range tp.Chunks {
+			for i, span := range chunk.Spans {
+				if i == 0 {
+					// root span should contain all aas tags
+					for tag := range traceutil.GetAppServicesTags() {
+						assert.Contains(t, span.Meta, tag)
+					}
+				} else {
+					// other spans should only contain site name and type
+					assert.Contains(t, span.Meta, "aas.site.name")
+					assert.Contains(t, span.Meta, "aas.site.type")
+				}
+			}
+		}
 	})
 
 	t.Run("DiscardSpans", func(t *testing.T) {
@@ -948,14 +986,6 @@ func TestSampling(t *testing.T) {
 
 func TestSample(t *testing.T) {
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
-	a := &Agent{
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-		RareSampler:       sampler.NewRareSampler(config.New()),
-		EventProcessor:    newEventProcessor(cfg),
-		conf:              cfg,
-	}
 	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
 		root := &pb.Span{
 			Service:  "serv1",
@@ -1022,6 +1052,14 @@ func TestSample(t *testing.T) {
 		},
 	}
 	for name, tt := range tests {
+		a := &Agent{
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+			RareSampler:       sampler.NewRareSampler(config.New()),
+			EventProcessor:    newEventProcessor(cfg),
+			conf:              cfg,
+		}
 		t.Run(name, func(t *testing.T) {
 			// before := traceutil.CopyTraceChunk(tt.trace.TraceChunk)
 			before := tt.trace.TraceChunk.ShallowCopy()
@@ -1041,7 +1079,7 @@ func TestSample(t *testing.T) {
 
 func TestPartialSamplingFree(t *testing.T) {
 	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
-	statsChan := make(chan pb.StatsPayload, 100)
+	statsChan := make(chan *pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
@@ -1479,21 +1517,21 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 
 func TestConvertStats(t *testing.T) {
 	testCases := []struct {
-		in            pb.ClientStatsPayload
+		in            *pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
-		out           pb.ClientStatsPayload
+		out           *pb.ClientStatsPayload
 	}{
 		{
-			in: pb.ClientStatsPayload{
+			in: &pb.ClientStatsPayload{
 				Hostname: "tracer_hots",
 				Env:      "tracer_env",
 				Version:  "code_version",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name------",
@@ -1521,17 +1559,17 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
-			out: pb.ClientStatsPayload{
+			out: &pb.ClientStatsPayload{
 				Hostname:      "tracer_hots",
 				Env:           "tracer_env",
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name",
@@ -1565,8 +1603,8 @@ func TestConvertStats(t *testing.T) {
 }
 
 func TestMergeDuplicates(t *testing.T) {
-	in := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+	in := &pb.ClientStatsBucket{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",
@@ -1605,8 +1643,8 @@ func TestMergeDuplicates(t *testing.T) {
 			},
 		},
 	}
-	expected := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+	expected := &pb.ClientStatsBucket{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",

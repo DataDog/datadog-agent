@@ -230,6 +230,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.Swap, &cs.Swap)
 	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
+	convertField(cgs.Peak, &cs.Peak)
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
@@ -257,13 +258,14 @@ func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPU
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
-	cs.Limit = computeCPULimitPct(cgs, parentCPUStatsRetriever)
+	cs.Limit, cs.DefaultedLimit = computeCPULimitPct(cgs, parentCPUStatsRetriever)
 
 	return cs
 }
 
-func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) *float64 {
+func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) (*float64, bool) {
 	limitPct := computeCgroupCPULimitPct(cgs)
+	defaulted := false
 
 	// Check parent cgroup as it's used on ECS
 	if limitPct == nil {
@@ -277,9 +279,10 @@ func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(pare
 	// Always reporting a limit allows to compute CPU % accurately.
 	if limitPct == nil {
 		limitPct = pointer.Ptr(float64(systemutils.HostCPUCount() * 100))
+		defaulted = true
 	}
 
-	return limitPct
+	return limitPct, defaulted
 }
 
 func computeCgroupCPULimitPct(cgs *cgroups.CPUStats) *float64 {

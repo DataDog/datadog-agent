@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestReplacer(t *testing.T) {
@@ -84,7 +84,7 @@ func TestReplacer(t *testing.T) {
 	t.Run("stats", func(t *testing.T) {
 		for _, tt := range []struct {
 			rules     [][3]string
-			got, want pb.ClientGroupedStats
+			got, want *pb.ClientGroupedStats
 		}{
 			{
 				rules: [][3]string{
@@ -92,11 +92,11 @@ func TestReplacer(t *testing.T) {
 					{"resource.name", "prod", "stage"},
 					{"*", "123abc", "[REDACTED]"},
 				},
-				got: pb.ClientGroupedStats{
+				got: &pb.ClientGroupedStats{
 					Resource:       "this is 123abc on prod",
 					HTTPStatusCode: 400,
 				},
-				want: pb.ClientGroupedStats{
+				want: &pb.ClientGroupedStats{
 					Resource:       "this is [REDACTED] on stage",
 					HTTPStatusCode: 200,
 				},
@@ -105,18 +105,18 @@ func TestReplacer(t *testing.T) {
 				rules: [][3]string{
 					{"*", "200", "202"},
 				},
-				got: pb.ClientGroupedStats{
+				got: &pb.ClientGroupedStats{
 					Resource:       "/code/200/profile",
 					HTTPStatusCode: 200,
 				},
-				want: pb.ClientGroupedStats{
+				want: &pb.ClientGroupedStats{
 					Resource:       "/code/202/profile",
 					HTTPStatusCode: 202,
 				},
 			},
 		} {
 			tr := NewReplacer(parseRulesFromString(tt.rules))
-			tr.ReplaceStatsGroup(&tt.got)
+			tr.ReplaceStatsGroup(tt.got)
 			assert.Equal(tt.got, tt.want)
 		}
 	})

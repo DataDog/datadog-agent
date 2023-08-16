@@ -8,10 +8,15 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
@@ -71,7 +76,7 @@ func TestMacroMerge(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -124,7 +129,7 @@ func TestRuleMerge(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -242,7 +247,7 @@ func TestActionSetVariable(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
@@ -253,10 +258,10 @@ func TestActionSetVariable(t *testing.T) {
 	}
 
 	event := model.NewDefaultEvent()
-	event.(*model.Event).Type = uint32(model.FileOpenEventType)
+	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.(*model.Event).ProcessCacheEntry = processCacheEntry
+	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
@@ -278,7 +283,7 @@ func TestActionSetVariable(t *testing.T) {
 	scopedVariables := evaluationSet.RuleSets[DefaultRuleSetTagValue].scopedVariables["process"].(*eval.ScopedVariables)
 
 	assert.Equal(t, scopedVariables.Len(), 1)
-	event.(*model.Event).ProcessCacheEntry.Release()
+	event.ProcessCacheEntry.Release()
 	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
@@ -317,7 +322,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 	}
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
 	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() == nil {
 		t.Error("expected policy to fail to load")
 	}
@@ -690,4 +695,159 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			t.Log(err)
 		}
 	})
+}
+
+// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestLoadPolicy"
+func TestLoadPolicy(t *testing.T) {
+	type args struct {
+		name         string
+		source       string
+		fileContent  string
+		macroFilters []MacroFilter
+		ruleFilters  []RuleFilter
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *Policy
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "empty yaml file",
+			args: args{
+				name:         "myLocal.policy",
+				source:       PolicyProviderTypeRC,
+				fileContent:  ``,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+			},
+		},
+		{
+			name: "empty yaml file with new line char",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+			},
+		},
+		{
+			name: "no rules in yaml file",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `
+rules:
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicyProviderTypeRC,
+				Rules:  nil,
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "broken yaml file",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `
+broken
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
+			},
+		},
+		{
+			name: "disabled tag",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `rules:
+ - id: rule_test
+   disabled: true
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicyProviderTypeRC,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "",
+						Disabled:   true,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicyProviderTypeRC,
+						},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "combine:override tag",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicyProviderTypeRC,
+				fileContent: `rules:
+ - id: rule_test
+   expression: open.file.path == "/etc/gshadow"
+   combine: override
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicyProviderTypeRC,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "open.file.path == \"/etc/gshadow\"",
+						Combine:    OverridePolicy,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicyProviderTypeRC,
+						},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := strings.NewReader(tt.args.fileContent)
+
+			got, err := LoadPolicy(tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+
+			if !tt.wantErr(t, err, fmt.Sprintf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)) {
+				return
+			}
+
+			if !cmp.Equal(tt.want, got, cmpopts.IgnoreFields(RuleDefinition{}, "Policy")) {
+				t.Errorf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+			}
+		})
+	}
 }

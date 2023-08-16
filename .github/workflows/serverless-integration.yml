@@ -45,6 +45,7 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Run tests if AWS credentials are available
+        id: test
         uses: nick-fields/retry@v2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
@@ -53,5 +54,15 @@ jobs:
           timeout_minutes: 30
           max_attempts: 2
           command: |
+            export RAWLOGS_DIR=$(mktemp -d)
+            echo "rawlogs=$RAWLOGS_DIR" >> $GITHUB_OUTPUT
             cd go/src/github.com/DataDog/datadog-agent
-            ARCHITECTURE=${{ matrix.architecture }} ./test/integration/serverless/run.sh
+            ARCHITECTURE=${{ matrix.architecture }} RAWLOGS_DIR=$RAWLOGS_DIR \
+                ./test/integration/serverless/run.sh
+
+      - name: Archive raw logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: rawlogs
+          path: ${{ steps.test.outputs.rawlogs }}

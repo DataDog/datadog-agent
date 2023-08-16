@@ -16,6 +16,9 @@ import (
 	"sync"
 	"time"
 
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -487,7 +490,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, eventTags...)
-	msg.tags = append(msg.tags, common.QueryAccountIdTag())
+	msg.tags = append(msg.tags, common.QueryAccountIDTag())
 
 	a.enqueue(msg)
 }
@@ -564,6 +567,34 @@ func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPolici
 		return nil, err
 	}
 	return &api.ReloadPoliciesResultMessage{}, nil
+}
+
+// GetRuleSetReport reports the ruleset loaded
+func (a *APIServer) GetRuleSetReport(ctx context.Context, params *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
+		return nil, errors.New("no rule engine")
+	}
+
+	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
+	if ruleSet == nil {
+		return nil, fmt.Errorf("failed to get loaded rule set")
+	}
+
+	cfg := &pconfig.Config{
+		EnableKernelFilters: a.probe.Config.Probe.EnableKernelFilters,
+		EnableApprovers:     a.probe.Config.Probe.EnableApprovers,
+		EnableDiscarders:    a.probe.Config.Probe.EnableDiscarders,
+		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
+	}
+
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.GetRuleSetReportResultMessage{
+		RuleSetReportMessage: api.FromKFiltersToProtoRuleSetReport(report),
+	}, nil
 }
 
 // Apply a rule set

@@ -21,12 +21,6 @@ import (
 	"github.com/DataDog/viper"
 )
 
-// SetupConfig fires up the configuration system
-func SetupConfig(confFilePath string) error {
-	_, err := SetupConfigWithWarnings(confFilePath, "")
-	return err
-}
-
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
 func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
 	return setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, false, true, config.SystemProbe.GetEnvVars())
@@ -54,7 +48,7 @@ func setupConfig(cfg config.Config, origin string, confFilePath string, configNa
 	}
 	cfg.AddConfigPath(path.DefaultConfPath)
 	// load the configuration
-	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets)
+	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets, nil)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
@@ -92,19 +86,19 @@ func SelectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(co
 // SetupInternalProfiling is a common helper to configure runtime settings for internal profiling.
 func SetupInternalProfiling(cfg config.ConfigReader, configPrefix string) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, settings.SourceConfig); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
 		}
 	}
 
 	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SourceConfig); err != nil {
 			log.Errorf("Error mutex profile fraction: %v", err)
 		}
 	}
 
 	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true)
+		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SourceConfig)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}

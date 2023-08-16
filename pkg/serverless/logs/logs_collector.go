@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -142,6 +142,15 @@ func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAP
 	return stringRecord
 }
 
+// createStringRecordForTimeoutLog returns the `Task timed out` log using the platform.report message
+func createStringRecordForTimeoutLog(l *LambdaLogAPIMessage) string {
+	durationMs := l.objectRecord.reportLogItem.durationMs
+	durationSeconds := durationMs / 1000
+	timeStr := l.time.Format(time.RFC3339Nano)
+	return fmt.Sprintf(`%s %s Task timed out after %.2f seconds`, timeStr, l.objectRecord.requestID, durationSeconds)
+
+}
+
 // removeInvalidTracingItem is a temporary fix to handle malformed JSON tracing object
 func removeInvalidTracingItem(data []byte) []byte {
 	return []byte(strings.ReplaceAll(string(data), ",\"tracing\":}", ""))
@@ -161,10 +170,18 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			if message.stringRecord == "" && message.logType != logTypeFunction {
 				continue
 			}
+
+			isErrorLog := message.logType == logTypeFunction && serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord)
 			if message.objectRecord.requestID != "" {
-				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID)
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID, isErrorLog)
 			} else {
-				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, lc.lastRequestID)
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, lc.lastRequestID, isErrorLog)
+			}
+
+			// Create the timeout log from the REPORT log if a timeout status is detected
+			isTimeoutLog := message.logType == logTypePlatformReport && message.objectRecord.status == timeoutStatus
+			if isTimeoutLog {
+				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(createStringRecordForTimeoutLog(&message)), message.time, lc.arn, message.objectRecord.requestID, isTimeoutLog)
 			}
 		}
 	}
@@ -207,9 +224,9 @@ func (lc *LambdaLogsCollector) processMessage(
 		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
-			state := lc.executionContext.GetCurrentState()
-			proactiveInit = state.ProactiveInit
-			coldStart = state.Coldstart
+			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+			proactiveInit = coldStartTags.IsProactiveInit
+			coldStart = coldStartTags.IsColdStart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		outOfMemoryRequestId := ""

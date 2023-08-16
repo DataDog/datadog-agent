@@ -11,8 +11,8 @@
 #include "dentry_resolver.h"
 #include "discarders.h"
 
-static __attribute__((always_inline)) void bump_path_id() {
-    u32 key = 0;
+static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
+    u32 key = mount_id % PATH_ID_MAP_SIZE;
 
     u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
     if (prev_id) {
@@ -20,8 +20,8 @@ static __attribute__((always_inline)) void bump_path_id() {
     }
 }
 
-static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
-    u32 key = 0;
+static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalidate) {
+    u32 key = mount_id % PATH_ID_MAP_SIZE;
 
     u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
     if (!prev_id) {
@@ -37,6 +37,10 @@ static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
     }
 
     return id;
+}
+
+static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
+    path_key->path_id = get_path_id(path_key->mount_id, invalidate);
 }
 
 static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
@@ -64,7 +68,7 @@ static __attribute__((always_inline)) void dec_mount_ref(ctx_t *ctx, u32 mount_i
     }
 
     bump_mount_discarder_revision(mount_id);
-    bump_path_id();
+    bump_path_id(mount_id);
 
     struct mount_released_event_t event = {
         .mount_id = mount_id,
@@ -86,7 +90,7 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     }
 
     bump_mount_discarder_revision(mount_id);
-    bump_path_id();
+    bump_path_id(mount_id);
 
     struct mount_released_event_t event = {
         .mount_id = mount_id,
@@ -95,7 +99,7 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
-void __attribute__((always_inline)) fill_resolver_mnt(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+void __attribute__((always_inline)) fill_resolver_mnt(void *ctx, struct syscall_cache_t *syscall, int dr_type) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->unshare_mntns.mnt));
     syscall->unshare_mntns.root_key.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt);
     syscall->unshare_mntns.root_key.ino = get_dentry_ino(dentry);
@@ -111,7 +115,10 @@ void __attribute__((always_inline)) fill_resolver_mnt(struct pt_regs *ctx, struc
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, dr_type);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(syscall->type);
 }
 
 int __attribute__((always_inline)) get_pipefs_mount_id(void) {
@@ -143,7 +150,7 @@ void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, st
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
-    file->path_key.path_id = get_path_id(invalidate);
+    file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
     }

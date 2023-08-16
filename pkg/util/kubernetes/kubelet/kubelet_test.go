@@ -432,7 +432,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_https_kubelet_port", -1)
-	mockConfig.Set("kubelet_wait_on_missing_container", 1)
+	mockConfig.Set("kubelet_wait_on_missing_container", 5)
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -774,7 +774,9 @@ func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 4)
+	require.Len(suite.T(), pods.Items, 4)
+
+	assert.Equal(suite.T(), pods.ExpiredCount, 0)
 }
 
 func (suite *KubeletTestSuite) TestPodListExpire() {
@@ -812,12 +814,14 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 3)
+	require.Len(suite.T(), pods.Items, 3)
+
+	assert.Equal(suite.T(), pods.ExpiredCount, 1)
 
 	// Test we kept the right pods
 	expectedNames := []string{"dd-agent-ntepl", "hello5-1550509440-rlgvf", "hello8-1550505780-kdnjx"}
 	var podNames []string
-	for _, p := range pods {
+	for _, p := range pods.Items {
 		podNames = append(podNames, p.Metadata.Name)
 	}
 	assert.Equal(suite.T(), expectedNames, podNames)
@@ -858,9 +862,9 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 1)
+	require.Len(suite.T(), pods.Items, 1)
 
-	for _, po := range pods {
+	for _, po := range pods.Items {
 		require.NotNil(suite.T(), po)
 	}
 }
@@ -911,10 +915,10 @@ func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	pods, err := kubeutil.ForceGetLocalPodList(ctx)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 9)
+	require.Len(suite.T(), pods.Items, 9)
 
 	found := false
-	for _, po := range pods {
+	for _, po := range pods.Items {
 		if po.Metadata.Name == "cassandra-0" {
 			found = po.Spec.Volumes[0].PersistentVolumeClaim.ClaimName == "cassandra-data-cassandra-0"
 			break

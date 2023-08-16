@@ -1,0 +1,18 @@
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+* cmd/agent/gui/views/templates/generalStatus.tmpl
+*/}}
+====================
+Remote Configuration
+====================
+    {{ with .remoteConfiguration }}
+    {{ if not .disabledReason }}
+    Organization enabled: {{ if and .orgEnabled (eq .orgEnabled "true") }}True{{ else }}False{{ end }}
+    API Key: {{ if and .apiKeyScoped (eq .apiKeyScoped "true") }}Authorized{{ else }}Not authorized, add the Remote Configuration Read permission to enable it for this agent.{{ end }}
+    Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}
+    {{ else }}
+    Remote Configuration is disabled because {{ .disabledReason }}
+    {{ end }}
+    {{ else }}
+    Remote Configuration is disabled
+    {{ end }}

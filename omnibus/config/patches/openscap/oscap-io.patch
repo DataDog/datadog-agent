@@ -40,7 +40,7 @@
 +endif()
 --- /dev/null
 +++ b/utils/oscap-io/oscap-io.c
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,222 @@
 +#include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
@@ -51,7 +51,8 @@
 +#define nelem(x) (sizeof(x)/sizeof((x)[0]))
 +#define dprintf if(verbose)printf
 +
-+int verbose;
++int verbose = 0;
++int syschar = 0;
 +
 +static char *argv0;
 +
@@ -72,7 +73,10 @@
 +
 +	n = xccdf_session_load(session);
 +	if (n != 0) {
-+		fprintf(stderr, "error: xccdf_session_load: %s\n", oscap_err_get_full_error());
++		char *err = oscap_err_get_full_error();
++		fprintf(stderr, "error: xccdf_session_load: %s\n", err);
++		free(err);
++		xccdf_session_free(session);
 +		return NULL;
 +	}
 +
@@ -163,6 +167,9 @@
 +		dprintf("rule %s returned failures or errors\n", rule);
 +	}
 +
++	if (syschar)
++		xccdf_session_print_syschar(session);
++
 +	xccdf_session_result_reset(session);
 +
 +	return 0;
@@ -203,7 +210,7 @@
 +static void
 +usage()
 +{
-+	fprintf(stderr, "usage: %s [ -v ] xccdf\n", argv0);
++	fprintf(stderr, "usage: %s [ -v ] [ -syschar ] xccdf\n", argv0);
 +	exit(1);
 +}
 +
@@ -222,6 +229,8 @@
 +	while (argc > 1) {
 +		if (strncmp(argv[0], "-v", 2) == 0)
 +			verbose = 1;
++		else if (strncmp(argv[0], "-syschar", 8) == 0)
++			syschar = 1;
 +		else
 +			usage();
 +		argc--;

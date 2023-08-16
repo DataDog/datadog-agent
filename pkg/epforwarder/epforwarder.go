@@ -10,13 +10,15 @@ import (
 	"strings"
 	"sync"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,6 +50,7 @@ const (
 var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMSamples,
+		category:               "DBM",
 		contentType:            http.JSONContentType,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
@@ -60,6 +63,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:              eventTypeDBMMetrics,
+		category:               "DBM",
 		contentType:            http.JSONContentType,
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
@@ -88,6 +92,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:              eventTypeDBMActivity,
+		category:               "DBM",
 		contentType:            http.JSONContentType,
 		endpointsConfigPrefix:  "database_monitoring.activity.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
@@ -100,6 +105,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
+		category:                      "NDM",
 		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.metadata.",
 		hostnameEndpointPrefix:        "ndm-intake.",
@@ -111,6 +117,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeSnmpTraps,
+		category:                      "NDM",
 		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.snmp_traps.forwarder.",
 		hostnameEndpointPrefix:        "snmp-traps-intake.",
@@ -122,6 +129,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeNetworkDevicesNetFlow,
+		category:                      "NDM",
 		contentType:                   http.JSONContentType,
 		endpointsConfigPrefix:         "network_devices.netflow.forwarder.",
 		hostnameEndpointPrefix:        "ndmflow-intake.",
@@ -144,6 +152,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeContainerLifecycle,
+		category:                      "Container",
 		contentType:                   http.ProtobufContentType,
 		endpointsConfigPrefix:         "container_lifecycle.",
 		hostnameEndpointPrefix:        "contlcycle-intake.",
@@ -155,6 +164,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeContainerImages,
+		category:                      "Container",
 		contentType:                   http.ProtobufContentType,
 		endpointsConfigPrefix:         "container_image.",
 		hostnameEndpointPrefix:        "contimage-intake.",
@@ -166,6 +176,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeContainerSBOM,
+		category:                      "SBOM",
 		contentType:                   http.ProtobufContentType,
 		endpointsConfigPrefix:         "sbom.",
 		hostnameEndpointPrefix:        "sbom-intake.",
@@ -176,6 +187,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 }
+
+var globalReceiver *diagnostic.BufferedMessageReceiver
 
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
@@ -199,12 +212,63 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
+
+	// Stream to console if debug mode is enabled
+	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
+
 	select {
 	case p.in <- e:
 		return nil
 	default:
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
+}
+
+func init() {
+	diagnosis.Register("connectivity-datadog-event-platform", diagnose)
+}
+
+// Enumerate known epforwarder pipelines and endpoints to test each of them connectivity
+func diagnose(diagnoseCfg diagnosis.Config) []diagnosis.Diagnosis {
+
+	var diagnoses []diagnosis.Diagnosis
+
+	for _, desc := range passthroughPipelineDescs {
+		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
+		endpoints, err := config.BuildHTTPEndpointsWithConfig(coreConfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		if err != nil {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Result:      diagnosis.DiagnosisFail,
+				Name:        "Endpoints configuration",
+				Diagnosis:   "Misconfiguration of agent endpoints",
+				Remediation: "Please validate Agent configuration",
+				RawError:    err,
+			})
+			continue
+		}
+
+		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
+		name := fmt.Sprintf("Connectivity to %s", url)
+		if err == nil {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Result:    diagnosis.DiagnosisSuccess,
+				Category:  desc.category,
+				Name:      name,
+				Diagnosis: fmt.Sprintf("Connectivity to `%s` is Ok", url),
+			})
+		} else {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Result:      diagnosis.DiagnosisFail,
+				Category:    desc.category,
+				Name:        name,
+				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
+				Remediation: "Please validate Agent configuration and firewall to access " + url,
+				RawError:    err,
+			})
+		}
+	}
+
+	return diagnoses
 }
 
 // SendEventPlatformEventBlocking sends messages to the event platform intake.
@@ -214,6 +278,10 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
+
+	// Stream to console if debug mode is enabled
+	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
+
 	p.in <- e
 	return nil
 }
@@ -267,14 +335,16 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender   *sender.Sender
-	strategy sender.Strategy
-	in       chan *message.Message
-	auditor  auditor.Auditor
+	sender                    *sender.Sender
+	strategy                  sender.Strategy
+	in                        chan *message.Message
+	auditor                   auditor.Auditor
+	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 }
 
 type passthroughPipelineDesc struct {
 	eventType   string
+	category    string
 	contentType string
 	// intakeTrackType is the track type to use for the v2 intake api. When blank, v1 is used instead.
 	intakeTrackType               config.IntakeTrackType
@@ -290,7 +360,7 @@ type passthroughPipelineDesc struct {
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(coreConfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
 		return nil, err
 	}
@@ -348,10 +418,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
-		strategy: strategy,
-		in:       inputChan,
-		auditor:  a,
+		sender:                    sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy:                  strategy,
+		in:                        inputChan,
+		auditor:                   a,
+		diagnosticMessageReceiver: GetGlobalReceiver(),
 	}, nil
 }
 
@@ -409,4 +480,12 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 		p.strategy = nil
 	}
 	return f
+}
+
+func GetGlobalReceiver() *diagnostic.BufferedMessageReceiver {
+	if globalReceiver == nil {
+		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{})
+	}
+
+	return globalReceiver
 }

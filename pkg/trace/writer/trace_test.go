@@ -8,7 +8,6 @@ package writer
 import (
 	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"runtime"
 	"sync"
 	"testing"
@@ -16,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -363,7 +362,7 @@ func deserializePayload(p payload) (*pb.AgentPayload, error) {
 		return nil, err
 	}
 	defer gzipr.Close()
-	uncompressedBytes, err := ioutil.ReadAll(gzipr)
+	uncompressedBytes, err := io.ReadAll(gzipr)
 	if err != nil {
 		return nil, err
 	}

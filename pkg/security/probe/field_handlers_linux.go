@@ -3,27 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package probe
 
 import (
 	"path"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
 
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
-
-type FieldHandlers struct {
-	resolvers *resolvers.Resolvers
-}
 
 // ResolveFilePath resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
@@ -121,42 +112,13 @@ func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountE
 
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	if ev.ContainerContext.ID != "" {
-		if ev.ContainerContext == eventZero.ContainerContext {
-			if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
-				ev.ContainerContext = &containerContext.ContainerContext
-			}
+	if ev.ContainerContext.ID != "" && !ev.ContainerContext.Resolved {
+		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
+			ev.ContainerContext = &containerContext.ContainerContext
+			ev.ContainerContext.Resolved = true
 		}
 	}
 	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
-// ResolveContainerID resolves the container ID of the event
-func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
-	if len(e.ID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.ID = entry.ContainerID
-		}
-	}
-	return e.ID
-}
-
-// ResolveContainerCreatedAt resolves the container creation time of the event
-func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
-	if e.CreatedAt == 0 {
-		if containerContext, _ := fh.ResolveContainerContext(ev); containerContext != nil {
-			e.CreatedAt = containerContext.CreatedAt
-		}
-	}
-	return int(e.CreatedAt)
-}
-
-// ResolveContainerTags resolves the container tags of the event
-func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
-	if len(e.Tags) == 0 && e.ID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
-	}
-	return e.Tags
 }
 
 // ResolveRights resolves the rights of a file
@@ -178,11 +140,6 @@ func (fh *FieldHandlers) ResolveChownGID(ev *model.Event, e *model.ChownEvent) s
 		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
 	return e.Group
-}
-
-// ResolveProcessCreatedAt resolves process creation time
-func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Process) int {
-	return int(e.ExecTime.UnixNano())
 }
 
 // ResolveProcessArgv0 resolves the first arg of the event
@@ -212,16 +169,6 @@ func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Proc
 func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
 	_, truncated := sprocess.GetProcessArgv(process)
 	return truncated
-}
-
-// ResolveProcessArgsFlags resolves the arguments flags of the event
-func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
-	return args.ParseProcessFlags(fh.ResolveProcessArgv(ev, process))
-}
-
-// ResolveProcessArgsOptions resolves the arguments options of the event
-func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
-	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
 // ResolveProcessEnvsTruncated returns whether the envs are truncated
@@ -306,89 +253,12 @@ func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCa
 	return ev.ProcessCacheEntry, true
 }
 
-// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
-	if ev.PIDContext.IsKworker {
-		return model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
-	}
-
-	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true)
-	}
-
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
-		return ev.ProcessCacheEntry, false
-	}
-
-	return ev.ProcessCacheEntry, true
-}
-
-// GetProcessService returns the service tag based on the process context
-func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
-	}
-
-	var serviceValues []string
-
-	// first search in the process context itself
-	if entry.EnvsEntry != nil {
-		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
-			serviceValues = append(serviceValues, service)
-		}
-	}
-
-	inContainer := entry.ContainerID != ""
-
-	// while in container check for each ancestor
-	for ancestor := entry.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
-		if inContainer && ancestor.ContainerID == "" {
-			break
-		}
-
-		if ancestor.EnvsEntry != nil {
-			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
-				serviceValues = append(serviceValues, service)
-			}
-		}
-	}
-
-	return bestGuessServiceTag(serviceValues)
-}
-
 // ResolveFileFieldsGroup resolves the group id of the file to a group name
 func (fh *FieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.FileFields) string {
 	if len(e.Group) == 0 {
 		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
 	return e.Group
-}
-
-func bestGuessServiceTag(serviceValues []string) string {
-	if len(serviceValues) == 0 {
-		return ""
-	}
-
-	firstGuess := serviceValues[0]
-
-	// first we sort base on len, biggest len first
-	sort.Slice(serviceValues, func(i, j int) bool {
-		return len(serviceValues[j]) < len(serviceValues[i]) // reverse
-	})
-
-	// we then compare [i] and [i + 1] to check if [i + 1] is a prefix of [i]
-	for i := 0; i < len(serviceValues)-1; i++ {
-		if !strings.HasPrefix(serviceValues[i], serviceValues[i+1]) {
-			// if it's not a prefix it means we have multiple disjoints services
-			// we then return the first guess, closest in the process tree
-			return firstGuess
-		}
-	}
-
-	// we have a prefix chain, let's return the biggest one
-	return serviceValues[0]
 }
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
@@ -422,11 +292,6 @@ func (fh *FieldHandlers) ResolveEventTime(ev *model.Event) time.Time {
 		}
 	}
 	return ev.Timestamp
-}
-
-// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
-func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) int {
-	return int(fh.ResolveEventTime(ev).UnixNano())
 }
 
 // ResolveAsync resolves the async flag

@@ -19,11 +19,14 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -224,6 +227,48 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 	}
+}
+
+func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
+	procs := make([]*languagepb.Process, len(pids))
+	for i, pid := range pids {
+		procs[i] = &languagepb.Process{Pid: pid}
+	}
+	reqBytes, err := proto.Marshal(&languagepb.DetectLanguageRequest{Processes: procs})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, languageDetectionURL, bytes.NewBuffer(reqBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var resProto languagepb.DetectLanguageResponse
+	err = proto.Unmarshal(resBody, &resProto)
+	if err != nil {
+		return nil, err
+	}
+
+	langs := make([]languagemodels.Language, len(pids))
+	for i, lang := range resProto.Languages {
+		langs[i] = languagemodels.Language{
+			Name:    languagemodels.LanguageName(lang.Name),
+			Version: lang.Version,
+		}
+	}
+	return langs, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

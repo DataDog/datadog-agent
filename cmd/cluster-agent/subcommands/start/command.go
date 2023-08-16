@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -44,7 +45,6 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -94,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
+func start(log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -150,7 +150,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 
 	// Initialize remote configuration
 	var rcClient *remote.Client
-	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
 		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
@@ -379,23 +379,23 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 
 // initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
 func initRuntimeSettings() error {
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
 		return err
 	}
 
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeMutexProfileFraction()); err != nil {
 		return err
 	}
 
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeBlockProfileRate()); err != nil {
 		return err
 	}
 
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingGoroutines()); err != nil {
 		return err
 	}
 
-	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-cluster-agent"})
+	return commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"))
 }
 
 func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {

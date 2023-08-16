@@ -46,7 +46,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
 end
 
@@ -160,6 +160,10 @@ package :msi do
   if ENV['SIGN_PFX']
     signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
   end
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    dd_wcssign true
+  end
+
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
