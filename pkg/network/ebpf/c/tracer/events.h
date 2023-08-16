@@ -82,7 +82,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         conn.conn_stats.cookie = get_sk_cookie(sk);
     }
 
-    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
+    conn.conn_stats.timestamp = bpf_ktime_get_ns();
 
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
@@ -102,6 +102,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         return;
     case 2:
         batch_ptr->c2 = conn;
+        batch_ptr->len++;
+        return;
+    case 3:
+        batch_ptr->c3 = conn;
         batch_ptr->len++;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.

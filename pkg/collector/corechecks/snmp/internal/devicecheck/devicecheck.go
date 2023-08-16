@@ -220,10 +220,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 
 		detectedMetrics, metricTagConfigs := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
-		d.config.RequestedMetrics = detectedMetrics
-		d.config.RequestedMetricTags = metricTagConfigs
-		d.config.AddUptimeMetric()
-		d.config.RebuildMetadataMetricsAndTags()
+		d.config.SetAutodetectProfile(detectedMetrics, metricTagConfigs)
 	} else if d.config.AutodetectProfile {
 		// detect using sysObjectID
 		sysObjectID, err := session.FetchSysObjectID(sess)
