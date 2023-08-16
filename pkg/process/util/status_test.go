@@ -66,6 +66,7 @@ func TestGetStatus(t *testing.T) {
 		ConnectionsQueueBytes:           8 * 1024,
 		PodQueueBytes:                   4 * 1024,
 		SystemProbeProcessModuleEnabled: true,
+		LanguageDetectionEnabled:        true,
 	}
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
@@ -73,6 +74,7 @@ func TestGetStatus(t *testing.T) {
 	cfg := ddconfig.Mock(t)
 	ddconfig.SetFeatures(t)
 	cfg.Set("hostname", "test") // Prevents panic since feature detection has not run
+	cfg.Set("language_detection.enabled", true)
 
 	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
