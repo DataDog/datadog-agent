@@ -226,9 +226,12 @@ func (ns *networkState) GetTelemetryDelta(
 func filterConnections(conns []ConnectionStats, keep func(c *ConnectionStats) bool) []ConnectionStats {
 	p := 0
 	for i := range conns {
-		if keep(&conns[i]) {
-			conns[p], conns[i] = conns[i], conns[p]
+		// swap first so that the connection pointer
+		// passed to keep will be stable
+		conns[p], conns[i] = conns[i], conns[p]
+		if keep(&conns[p]) {
 			p++
+			continue
 		}
 	}
 
@@ -399,31 +402,42 @@ func (ns *networkState) RegisterClient(id string) {
 	_ = ns.getClient(id)
 }
 
-// getConnsByCookie returns a mapping of cookie -> connection for easier access + manipulation
-func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[StatCookie]*ConnectionStats {
+// mergeByCookie merges connections with the same cookie and returns an index by cookie
+//
+// The passed connections slice is modified to remove duplicate connections that have
+// the same cookie, returning a subset of connections. The returned map has pointers
+// into this returned slice. The removed connections are merged with the one connection
+// (per cookie) that is retained.
+func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStats, map[StatCookie]*ConnectionStats) {
 	connsByKey := make(map[StatCookie]*ConnectionStats, len(conns))
-	for i := range conns {
-		var c *ConnectionStats
-		if c = connsByKey[conns[i].Cookie]; c == nil {
-			connsByKey[conns[i].Cookie] = &conns[i]
-			continue
+	conns = filterConnections(conns, func(c *ConnectionStats) bool {
+		ck := connsByKey[c.Cookie]
+		if ck == nil {
+			connsByKey[c.Cookie] = c
+			return true
 		}
 
 		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *c, conns[i])
+			log.Tracef("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *ck, *c)
 		}
 
-		if ns.mergeConnectionStats(c, &conns[i]) {
+		if ns.mergeConnectionStats(ck, c) {
 			// cookie collision
 			stateTelemetry.statsCookieCollisions.Inc()
 			// pick the latest one
-			if conns[i].LastUpdateEpoch > c.LastUpdateEpoch {
-				connsByKey[conns[i].Cookie] = &conns[i]
+			if c.LastUpdateEpoch > ck.LastUpdateEpoch {
+				// we overwrite the value here without
+				// updating the pointer in the map
+				// since we have already decided to
+				// not filter that pointer
+				*ck = *c
 			}
 		}
-	}
 
-	return connsByKey
+		return false
+	})
+
+	return conns, connsByKey
 }
 
 func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
@@ -645,9 +659,16 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 	client := ns.clients[id]
 	client.lastFetch = now
 
-	activeByCookie := ns.getConnsByCookie(active)
+	// index active connection by cookie, merging
+	// connections with the same cookie
+	active, activeByCookie := ns.mergeByCookie(active)
 
 	// connections aggregated by tuple
+	aggr := newConnectionAggregator(len(active) + len(client.closedConnections))
+	defer aggr.finalize()
+
+	// filter closed connections, keeping those that have changed or have not
+	// been aggregated into another connection
 	closed = filterConnections(client.closedConnections, func(closedConn *ConnectionStats) bool {
 		cookie := closedConn.Cookie
 		if activeConn := activeByCookie[cookie]; activeConn != nil {
@@ -674,13 +695,14 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 			return false
 		}
 
-		return true
+		return !aggr.Aggregate(closedConn)
 	})
 
-	// Active connections
+	// do the same for active connections
+	// keep stats for only active connections
 	newStats := make(map[StatCookie]StatCounters, len(activeByCookie))
 	active = filterConnections(active, func(c *ConnectionStats) bool {
-		if a := activeByCookie[c.Cookie]; a != c {
+		if _, isActive := activeByCookie[c.Cookie]; !isActive {
 			return false
 		}
 
@@ -694,15 +716,12 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 			return false
 		}
 
-		return true
+		return !aggr.Aggregate(c)
 	})
 
 	client.stats = newStats
 
-	aggr := newConnectionAggregator(len(active) + len(closed))
-	defer aggr.finalize()
-
-	return aggr.Aggregate(active), aggr.Aggregate(closed)
+	return active, closed
 }
 
 func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c *ConnectionStats) {
@@ -989,62 +1008,53 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 //   - the ip translation is nil OR
 //   - the other connection's ip translation is nil OR
 //   - the other connection's ip translation is not nil AND the nat info is the same
-func (a *connectionAggregator) Aggregate(conns []ConnectionStats) []ConnectionStats {
-	p := 0
-	keepConn := func(i int) *ConnectionStats {
-		conns[i], conns[p] = conns[p], conns[i]
-		p++
-		return &conns[p-1]
-	}
-loop:
-	for i := range conns {
-		c := &conns[i]
-		a.key = c.ByteKey()
-		aggrConns, ok := a.conns[a.key]
-		if !ok {
-			c = keepConn(i)
-			a.conns[a.key] = []*aggregateConnection{
-				{
-					ConnectionStats: c,
-					rttSum:          uint64(c.RTT),
-					rttVarSum:       uint64(c.RTTVar),
-					count:           1,
-				}}
+//   - the protocol stack is all unknown OR
+//   - the other connection's protocol stack is unknown
+//   - the other connection's protocol stack is not unknown AND equal
+func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
+	a.key = c.ByteKey()
+	aggrConns, ok := a.conns[a.key]
+	if !ok {
+		a.conns[a.key] = []*aggregateConnection{
+			{
+				ConnectionStats: c,
+				rttSum:          uint64(c.RTT),
+				rttVarSum:       uint64(c.RTTVar),
+				count:           1,
+			}}
 
+		return false
+	}
+
+	for _, aggrConn := range aggrConns {
+		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation) ||
+			!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
 			continue
 		}
 
-		for _, aggrConn := range aggrConns {
-			if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation) ||
-				!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
-				continue
-			}
-
-			aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-			aggrConn.Last = aggrConn.Last.Add(c.Last)
-			aggrConn.rttSum += uint64(c.RTT)
-			aggrConn.rttVarSum += uint64(c.RTTVar)
-			aggrConn.count++
-			if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-				aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
-			}
-			if aggrConn.IPTranslation == nil {
-				aggrConn.IPTranslation = c.IPTranslation
-			}
-			aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
-			continue loop
+		aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
+		aggrConn.Last = aggrConn.Last.Add(c.Last)
+		aggrConn.rttSum += uint64(c.RTT)
+		aggrConn.rttVarSum += uint64(c.RTTVar)
+		aggrConn.count++
+		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
+			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
 		}
-
-		c = keepConn(i)
-		a.conns[a.key] = append(aggrConns, &aggregateConnection{
-			ConnectionStats: c,
-			rttSum:          uint64(c.RTT),
-			rttVarSum:       uint64(c.RTTVar),
-			count:           1,
-		})
+		if aggrConn.IPTranslation == nil {
+			aggrConn.IPTranslation = c.IPTranslation
+		}
+		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
+		return true
 	}
 
-	return conns[:p]
+	a.conns[a.key] = append(aggrConns, &aggregateConnection{
+		ConnectionStats: c,
+		rttSum:          uint64(c.RTT),
+		rttVarSum:       uint64(c.RTTVar),
+		count:           1,
+	})
+
+	return false
 }
 
 func (a *connectionAggregator) finalize() {
