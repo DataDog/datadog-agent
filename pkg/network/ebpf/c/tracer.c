@@ -883,7 +883,8 @@ int kretprobe__tcp_connect(struct pt_regs *ctx) {
     // from tcp_ongoing_connect_pid as tcp_finish_connect
     // kprobe or tcp_close kprobe may not be called
     // for this tcp_connect call
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, skpp);
+    struct sock *sk = *skpp;
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
 
 cleanup:
     bpf_map_delete_elem(&tcp_connect_args, &pid_tgid);
