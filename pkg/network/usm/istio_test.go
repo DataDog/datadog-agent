@@ -14,12 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TesGetEnvoyPath(t *testing.T) {
+func TestGetEnvoyPath(t *testing.T) {
 	_ = createFakeProcFS(t)
 	monitor := newIstioTestMonitor(t)
 
@@ -141,11 +142,11 @@ func TestIstioSync(t *testing.T) {
 func createFakeProcFS(t *testing.T) (procRoot string) {
 	procRoot = t.TempDir()
 
-	// Setup environment variables accordingly
-	previousEnv := os.Getenv("HOST_PROC")
-	os.Setenv("HOST_PROC", procRoot)
+	// Inject fake ProcFS path
+	previousFn := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return procRoot }
 	t.Cleanup(func() {
-		os.Setenv("HOST_PROC", previousEnv)
+		kernel.ProcFSRoot = previousFn
 	})
 
 	// Taken from a real istio-proxy container
@@ -200,5 +201,6 @@ func newIstioTestMonitor(t *testing.T) *istioMonitor {
 
 	monitor := newIstioMonitor(cfg, nil)
 	require.NotNil(t, monitor)
+
 	return monitor
 }
