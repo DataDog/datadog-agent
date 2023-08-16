@@ -98,7 +98,7 @@ func (z *Traces) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var zb0003 uint32
 	zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
 	if err != nil {
-		err = msgp.WrapError(err)
+		err = msgp.Cause(msgp.WrapError(err))
 		return
 	}
 	if cap((*z)) >= int(zb0003) {
@@ -110,7 +110,7 @@ func (z *Traces) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		var zb0004 uint32
 		zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
 		if err != nil {
-			err = msgp.WrapError(err, zb0001)
+			err = msgp.Cause(msgp.WrapError(err, zb0001))
 			return
 		}
 		if cap((*z)[zb0001]) >= int(zb0004) {
@@ -131,7 +131,7 @@ func (z *Traces) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				bts, err = (*z)[zb0001][zb0002].UnmarshalMsg(bts)
 				if err != nil {
-					err = msgp.WrapError(err, zb0001, zb0002)
+					err = msgp.Cause(msgp.WrapError(err, zb0001, zb0002))
 					return
 				}
 			}
