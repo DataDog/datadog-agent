@@ -69,14 +69,16 @@ func (c *Check) Run() error {
 	ctx := &processors.ProcessorContext{
 		ClusterID:          c.clusterID,
 		Cfg:                c.config,
-		HostName:           c.hostInfo.HostName,
 		MsgGroupID:         groupID,
 		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 
-	processResult, processed := c.processor.Process(ctx, podList)
+	if c.hostInfo != nil {
+		ctx.HostName = c.hostInfo.HostName
+	}
 
+	processResult, processed := c.processor.Process(ctx, podList)
 	if processed == -1 {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
@@ -94,8 +96,11 @@ func (c *Check) Run() error {
 }
 
 // Configure the CPU check
+// nil check to allow for overrides
 func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, data, initConfig, source)
+	c.BuildID(integrationConfigDigest, data, initConfig)
+
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -113,24 +118,32 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	}
 
 	// load instance level config
-	err = c.instance.Parse(data)
-	if err != nil {
-		_ = log.Error("could not parse check instance config")
-		return err
+	if c.instance == nil {
+		err = c.instance.Parse(data)
+		if err != nil {
+			_ = log.Error("could not parse check instance config")
+			return err
+		}
 	}
 
-	c.clusterID, err = clustername.GetClusterID()
-	if err != nil {
-		return err
+	if c.clusterID == "" {
+		c.clusterID, err = clustername.GetClusterID()
+		if err != nil {
+			return err
+		}
 	}
 
-	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
-
-	sender, err := c.GetSender()
-	if err != nil {
-		return err
+	if c.processor == nil {
+		c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
 	}
-	c.sender = sender
+
+	if c.sender == nil {
+		sender, err := c.GetSender()
+		if err != nil {
+			return err
+		}
+		c.sender = sender
+	}
 
 	return nil
 }

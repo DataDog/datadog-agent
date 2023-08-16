@@ -7,8 +7,25 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"testing"
 
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	testHostName = "test-host"
 )
 
 // dummyKubelet allows tests to mock a kubelet's responses
@@ -67,4 +84,70 @@ func (d *dummyKubelet) Start() (*httptest.Server, int, error) {
 	return d.parsePort(ts)
 }
 
+type PodTestSuite struct {
+	suite.Suite
+	check        *Check
+	dummyKubelet *dummyKubelet
+	testServer   *httptest.Server
+	mockSender   *mocksender.MockSender
+	kubeUtil     kubelet.KubeUtilInterface
+}
 
+func (suite *PodTestSuite) SetupTest() {
+	kubelet.ResetGlobalKubeUtil()
+	kubelet.ResetCache()
+
+	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
+
+	mockConfig := config.Mock(nil)
+
+	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender.SetupAcceptAll()
+	suite.mockSender = mockSender
+
+	suite.dummyKubelet = newDummyKubelet()
+	ts, kubeletPort, err := suite.dummyKubelet.Start()
+	require.Nil(suite.T(), err)
+	suite.testServer = ts
+
+	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.Set("kubelet_tls_verify", false)
+	mockConfig.Set("orchestrator_explorer.enabled", true)
+	mockConfig.Set("orchestrator_explorer.manifest_collection.enabled", true)
+
+	hostInfo := &checks.HostInfo{
+		HostName: testHostName,
+	}
+	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
+	require.NotNil(suite.T(), kubeutil)
+	suite.kubeUtil = kubeutil
+
+	suite.check = &Check{
+		sender:    mockSender,
+		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers)),
+		hostInfo:  hostInfo,
+		config:    oconfig.NewDefaultOrchestratorConfig(),
+	}
+	suite.check.config.OrchestrationCollectionEnabled = true
+	suite.check.config.CollectorDiscoveryEnabled = true
+	suite.check.config.IsManifestCollectionEnabled = true
+}
+
+func (suite *PodTestSuite) TearDownTest() {
+	suite.testServer.Close()
+}
+
+func TestProviderTestSuite(t *testing.T) {
+	suite.Run(t, new(PodTestSuite))
+}
+
+func (suite *PodTestSuite) TestTransformPods() {
+	err := suite.dummyKubelet.loadPodList("../testdata/pods.json")
+	require.Nil(suite.T(), err)
+	err = suite.check.Run()
+	require.Nil(suite.T(), err)
+
+	suite.mockSender.AssertNumberOfCalls(suite.T(), "OrchestratorMetadata", 1)
+}
