@@ -236,8 +236,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
-
 	// starts otlp agent
 	wg.Add(1)
 	go func() {
@@ -338,6 +336,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			serverlessDaemon.InvocationProcessor,
 		)
 	}
+
+	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
