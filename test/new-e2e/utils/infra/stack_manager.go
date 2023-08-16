@@ -154,7 +154,10 @@ func (sm *StackManager) ForceRemoveStack(ctx context.Context, name string) error
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 
-	stack := sm.stacks[name]
+	stack, ok := sm.stacks[name]
+	if !ok {
+		return fmt.Errorf("stack %s is not present", name)
+	}
 
 	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
 	defer cancel()
