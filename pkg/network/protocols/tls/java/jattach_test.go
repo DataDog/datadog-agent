@@ -8,7 +8,6 @@
 package java
 
 import (
-	"io/ioutil"
 	"os"
 	"strings"
 	"syscall"
@@ -66,7 +65,7 @@ func testInject(t *testing.T, prefix string) {
 		time.Sleep(200 * time.Millisecond) // give a chance to the process to give his report/output
 	}()
 
-	tfile, err := ioutil.TempFile("", "TestAgentLoaded.agentmain.*")
+	tfile, err := os.CreateTemp("", "TestAgentLoaded.agentmain.*")
 	require.NoError(t, err)
 	tfile.Close()
 	os.Remove(tfile.Name())

@@ -120,7 +120,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.mutex_profile_fraction"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
-	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")

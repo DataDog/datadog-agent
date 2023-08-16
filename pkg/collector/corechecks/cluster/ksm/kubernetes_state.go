@@ -338,7 +338,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 }
 
 func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceList, error) {
-	resources, err := client.ServerResources()
+	_, resources, err := client.ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
