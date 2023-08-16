@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -126,7 +125,7 @@ func (m *WindowsMonitor) GetHTTPStats() map[types.ProtocolType]interface{} {
 	m.telemetry.Log()
 
 	ret := make(map[types.ProtocolType]interface{})
-	ret[protocols.HTTP] = stats
+	ret[types.ProtocolHTTP] = stats
 
 	return ret
 }
