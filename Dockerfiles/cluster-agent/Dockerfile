@@ -41,7 +41,7 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sy
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
-LABEL baseimage.os "ubuntu lunar"
+LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 
 ARG CIBUILD
