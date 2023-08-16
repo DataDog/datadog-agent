@@ -52,7 +52,7 @@
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
     - invoke -e golangci-lint --targets=./pkg/security/tests --concurrency 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
   variables:
-    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
 
 .tests_windows_sysprobe:
   stage: source_test
