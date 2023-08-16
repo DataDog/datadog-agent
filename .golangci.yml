@@ -70,6 +70,7 @@ linters:
     - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - depguard    # Depguard is useful for preventing specific packages from being used
     - bodyclose   # checks whether HTTP response body is closed successfully
+    - gosimple    # Linter for Go source code that specializes in simplifying code.
 
 linters-settings:
   depguard:
