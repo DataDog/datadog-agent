@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
@@ -21,44 +20,44 @@ func TestProtocolValue(t *testing.T) {
 	tests := []struct {
 		name        string
 		kernelValue http.ProtocolType
-		expected    network.ProtocolType
+		expected    ProtocolType
 	}{
 		{
 			name:        "ProtocolUnknown",
 			kernelValue: http.ProtocolUnknown,
-			expected:    network.ProtocolUnknown,
+			expected:    ProtocolUnknown,
 		},
 		{
 			name:        "ProtocolHTTP",
 			kernelValue: http.ProtocolHTTP,
-			expected:    network.ProtocolHTTP,
+			expected:    ProtocolHTTP,
 		},
 		{
 			name:        "ProtocolHTTP2",
 			kernelValue: http.ProtocolHTTP2,
-			expected:    network.ProtocolHTTP2,
+			expected:    ProtocolHTTP2,
 		},
 		{
 			name:        "ProtocolTLS",
 			kernelValue: http.ProtocolTLS,
-			expected:    network.ProtocolTLS,
+			expected:    ProtocolTLS,
 		},
 		{
 			name:        "ProtocolAMQP",
 			kernelValue: http.ProtocolAMQP,
-			expected:    network.ProtocolAMQP,
+			expected:    ProtocolAMQP,
 		},
 		{
 			name:        "ProtocolRedis",
 			kernelValue: http.ProtocolRedis,
-			expected:    network.ProtocolRedis,
+			expected:    ProtocolRedis,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, int(test.expected), int(test.kernelValue))
-			require.True(t, network.IsValidProtocolValue(uint8(test.kernelValue)))
+			require.True(t, IsValidProtocolValue(uint8(test.kernelValue)))
 		})
 	}
 }

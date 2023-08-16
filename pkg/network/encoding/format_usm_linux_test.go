@@ -13,20 +13,20 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
 func TestFormatTLSProtocols(t *testing.T) {
 	tests := []struct {
 		name       string
-		protocol   network.ProtocolType
+		protocol   protocols.ProtocolType
 		staticTags uint64
 		want       *model.ProtocolStack
 	}{
 		{
 			name:       "GnuTLS - unknown protocol",
-			protocol:   network.ProtocolUnknown,
+			protocol:   protocols.ProtocolUnknown,
 			staticTags: http.TLS | http.GnuTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -37,7 +37,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "OpenSSL - HTTP protocol",
-			protocol:   network.ProtocolHTTP,
+			protocol:   protocols.ProtocolHTTP,
 			staticTags: http.TLS | http.OpenSSL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -48,7 +48,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "GoTLS - MySQL protocol",
-			protocol:   network.ProtocolMySQL,
+			protocol:   protocols.ProtocolMySQL,
 			staticTags: http.TLS | http.Go,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
@@ -59,7 +59,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 		},
 		{
 			name:       "Unknown static tags - MySQL protocol",
-			protocol:   network.ProtocolMySQL,
+			protocol:   protocols.ProtocolMySQL,
 			staticTags: 0x80000000,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
