@@ -8,7 +8,7 @@
     "chunks": [
       {
         "priority": 1,
-        "origin": "",
+        "origin": "lambda",
         "spans": [
           {
             "service": "integration-tests-extension-XXXXXX-otlp-python",
@@ -21,23 +21,39 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-9",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
               "cloud_provider": "aws",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "functionname": "integration-tests-extension-XXXXXX-otlp-python",
+              "memorysize": "1024",
               "otel.library.name": "otlpPython",
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
+              "runtime": "provided.al2",
+              "service": "integration-tests-service",
               "span.kind": "internal",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "telemetry.auto.version": "0.39b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0"
+              "telemetry.sdk.version": "1.18.0",
+              "version": "integration-tests-version"
             },
             "metrics": null,
             "type": "custom"
@@ -53,25 +69,41 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
               "cloud_provider": "aws",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
               "faas.execution": "null",
               "faas.id": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "functionname": "integration-tests-extension-XXXXXX-otlp-python",
+              "memorysize": "1024",
               "otel.library.name": "opentelemetry.instrumentation.aws_lambda",
               "otel.library.version": "0.39b0",
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
+              "runtime": "provided.al2",
+              "service": "integration-tests-service",
               "span.kind": "server",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "telemetry.auto.version": "0.39b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0"
+              "telemetry.sdk.version": "1.18.0",
+              "version": "integration-tests-version"
             },
             "metrics": {
               "_top_level": 1
@@ -90,7 +122,7 @@
     },
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": ""
+    "app_version": "integration-tests-version"
   },
   {
     "container_id": "",
@@ -101,7 +133,7 @@
     "chunks": [
       {
         "priority": 1,
-        "origin": "",
+        "origin": "lambda",
         "spans": [
           {
             "service": "integration-tests-extension-XXXXXX-otlp-python",
@@ -114,23 +146,39 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-9",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
               "cloud_provider": "aws",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "functionname": "integration-tests-extension-XXXXXX-otlp-python",
+              "memorysize": "1024",
               "otel.library.name": "otlpPython",
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
+              "runtime": "provided.al2",
+              "service": "integration-tests-service",
               "span.kind": "internal",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "telemetry.auto.version": "0.39b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0"
+              "telemetry.sdk.version": "1.18.0",
+              "version": "integration-tests-version"
             },
             "metrics": null,
             "type": "custom"
@@ -146,25 +194,41 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
               "cloud.provider": "aws",
               "cloud.region": "eu-west-1",
               "cloud_provider": "aws",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
               "faas.execution": "null",
               "faas.id": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
               "faas.instance": "null",
               "faas.name": "integration-tests-extension-XXXXXX-otlp-python",
               "faas.version": "$LATEST",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-otlp-python",
+              "functionname": "integration-tests-extension-XXXXXX-otlp-python",
+              "memorysize": "1024",
               "otel.library.name": "opentelemetry.instrumentation.aws_lambda",
               "otel.library.version": "0.39b0",
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
+              "runtime": "provided.al2",
+              "service": "integration-tests-service",
               "span.kind": "server",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
               "telemetry.auto.version": "0.39b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0"
+              "telemetry.sdk.version": "1.18.0",
+              "version": "integration-tests-version"
             },
             "metrics": {
               "_top_level": 1
@@ -183,6 +247,6 @@
     },
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": ""
+    "app_version": "integration-tests-version"
   }
 ]
