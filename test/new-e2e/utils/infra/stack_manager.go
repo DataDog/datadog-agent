@@ -150,7 +150,9 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 	return sm.deleteStack(ctx, name, stack)
 }
 
-func (sm *StackManager) ForceRemoveStack(ctx context.Context, name string) error {
+// ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
+// It DOES NOT perform any cleanup of the resources created by the stack. Call `DeleteStack` for correct cleanup.
+func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 
