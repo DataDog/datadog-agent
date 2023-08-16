@@ -11,8 +11,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 )
 
@@ -21,7 +23,12 @@ type availableFunctionsBasedExcluder struct {
 }
 
 func newAvailableFunctionsBasedExcluder() (*availableFunctionsBasedExcluder, error) {
-	f, err := os.Open("/sys/kernel/debug/tracing/available_filter_functions")
+	tracingRoot, err := tracefs.Root()
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(filepath.Join(tracingRoot, "available_filter_functions"))
 	if err != nil {
 		return nil, err
 	}
