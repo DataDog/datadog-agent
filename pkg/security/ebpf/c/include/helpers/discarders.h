@@ -353,7 +353,7 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
 }
 
 int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
     if (is_runtime_discarded() && is_runtime_request()) {

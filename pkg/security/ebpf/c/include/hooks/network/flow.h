@@ -27,7 +27,7 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx) {
 
     // Register service PID
     if (key.port != 0) {
-        u64 id = bpf_get_current_pid_tgid();
+        u64 id = get_ns_current_pid_tgid();
         u32 tid = (u32)id;
         u32 pid = id >> 32;
 

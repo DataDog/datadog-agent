@@ -9,7 +9,7 @@
 SEC("tracepoint/raw_syscalls/sys_enter")
 int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     struct syscall_monitor_entry_t zero = {};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
     u64 now = bpf_ktime_get_ns();
     struct syscall_monitor_event_t event = {};

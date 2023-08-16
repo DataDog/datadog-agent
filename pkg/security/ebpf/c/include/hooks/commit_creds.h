@@ -24,7 +24,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         return 0;
     }
 
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 pid = get_ns_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
         return 0;
@@ -254,7 +254,7 @@ int hook_commit_creds(ctx_t *ctx) {
     struct pid_cache_t new_pid_entry = {};
 
     // update pid_cache entry for the current process
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    u32 pid = get_ns_current_pid_tgid() >> 32;
     u8 new_entry = 0;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {

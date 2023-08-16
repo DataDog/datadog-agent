@@ -9,7 +9,7 @@ int __attribute__((always_inline)) handle_register_span_memory(void *data) {
    struct span_tls_t tls = {};
    bpf_probe_read(&tls, sizeof(tls), data);
 
-   u64 pid_tgid = bpf_get_current_pid_tgid();
+   u64 pid_tgid = get_ns_current_pid_tgid();
    u32 tgid = pid_tgid >> 32;
 
    bpf_map_update_elem(&span_tls, &tgid, &tls, BPF_NOEXIST);
@@ -18,7 +18,7 @@ int __attribute__((always_inline)) handle_register_span_memory(void *data) {
 }
 
 int __attribute__((always_inline)) unregister_span_memory() {
-   u64 pid_tgid = bpf_get_current_pid_tgid();
+   u64 pid_tgid = get_ns_current_pid_tgid();
    u32 tgid = pid_tgid >> 32;
 
    bpf_map_delete_elem(&span_tls, &tgid);
@@ -27,7 +27,7 @@ int __attribute__((always_inline)) unregister_span_memory() {
 }
 
 void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
-   u64 pid_tgid = bpf_get_current_pid_tgid();
+   u64 pid_tgid = get_ns_current_pid_tgid();
    u32 tgid = pid_tgid >> 32;
 
    struct span_tls_t *tls = bpf_map_lookup_elem(&span_tls, &tgid);

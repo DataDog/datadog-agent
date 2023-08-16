@@ -2,6 +2,7 @@
 #define _CONSTANTS_CUSTOM_H
 
 #include "macros.h"
+#include "helpers/pid_tgid.h"
 
 #define TTY_NAME_LEN 64
 #define CONTAINER_ID_LEN 64
@@ -147,7 +148,7 @@ static __attribute__((always_inline)) int is_runtime_request() {
     u64 pid;
     LOAD_CONSTANT("runtime_pid", pid);
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     return pid_tgid >> 32 == pid;
 }
 

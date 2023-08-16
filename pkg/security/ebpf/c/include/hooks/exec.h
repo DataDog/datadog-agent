@@ -21,7 +21,7 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **
     };
     cache_syscall(&syscall);
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
     // exec is called from a non leader thread:
@@ -234,7 +234,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
 HOOK_ENTRY("do_coredump")
 int hook_do_coredump(ctx_t *ctx) {
-    u64 key = bpf_get_current_pid_tgid();
+    u64 key = get_ns_current_pid_tgid();
     u8 in_coredump = 1;
 
     bpf_map_update_elem(&tasks_in_coredump, &key, &in_coredump, BPF_ANY);
@@ -244,7 +244,7 @@ int hook_do_coredump(ctx_t *ctx) {
 
 HOOK_ENTRY("do_exit")
 int hook_do_exit(ctx_t *ctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
 
@@ -298,7 +298,7 @@ HOOK_ENTRY("exit_itimers")
 int hook_exit_itimers(ctx_t *ctx) {
     void *signal = (void *)CTX_PARM1(ctx);
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
     struct proc_cache_t *pc = get_proc_cache(tgid);
@@ -604,7 +604,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     }
 
     // check if this is a thread first
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
 

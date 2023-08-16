@@ -9,7 +9,7 @@
 #include "perf_ring.h"
 
 int __attribute__((always_inline)) start_veth_state_machine() {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
     struct veth_state_t state = {
         .state = STATE_NEWLINK,
     };
@@ -43,7 +43,7 @@ int kprobe_rtnl_create_link(struct pt_regs *ctx) {
 
 SEC("kprobe/register_netdevice")
 int kprobe_register_netdevice(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
     struct register_netdevice_cache_t entry = {
         .device = (struct net_device *)PT_REGS_PARM1(ctx),
     };
@@ -53,7 +53,7 @@ int kprobe_register_netdevice(struct pt_regs *ctx) {
 
 SEC("kprobe/dev_get_valid_name")
 int kprobe_dev_get_valid_name(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
         struct net *net = (struct net *)PT_REGS_PARM1(ctx);
@@ -64,7 +64,7 @@ int kprobe_dev_get_valid_name(struct pt_regs *ctx) {
 
 SEC("kprobe/dev_new_index")
 int kprobe_dev_new_index(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
 
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
@@ -76,7 +76,7 @@ int kprobe_dev_new_index(struct pt_regs *ctx) {
 
 SEC("kretprobe/dev_new_index")
 int kretprobe_dev_new_index(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
 
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
@@ -87,7 +87,7 @@ int kretprobe_dev_new_index(struct pt_regs *ctx) {
 
 SEC("kprobe/__dev_get_by_index")
 int kprobe___dev_get_by_index(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
     struct net *net = (struct net *)PT_REGS_PARM1(ctx);
 
     struct device_ifindex_t entry = {
@@ -106,7 +106,7 @@ int kprobe___dev_get_by_index(struct pt_regs *ctx) {
 
 SEC("kprobe/__dev_get_by_name")
 int kprobe___dev_get_by_name(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
     struct net *net = (struct net *)PT_REGS_PARM1(ctx);
 
     struct device_name_t name = {
@@ -130,7 +130,7 @@ int kprobe___dev_get_by_name(struct pt_regs *ctx) {
 
 SEC("kretprobe/register_netdevice")
 int kretprobe_register_netdevice(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
     int ret = PT_REGS_RC(ctx);
     if (ret != 0) {
         // interface registration failed, remove cache entry
@@ -231,7 +231,7 @@ int kretprobe_register_netdevice(struct pt_regs *ctx) {
 };
 
 __attribute__((always_inline)) int trace_dev_change_net_namespace(struct pt_regs *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
+    u64 id = get_ns_current_pid_tgid();
     struct net *net = (struct net *)PT_REGS_PARM2(ctx);
 
     // lookup cache

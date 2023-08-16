@@ -36,7 +36,7 @@ struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached
 void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
-    u64 key = bpf_get_current_pid_tgid();
+    u64 key = get_ns_current_pid_tgid();
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 
     monitor_syscalls(syscall->type, 1);
@@ -54,12 +54,12 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
-    u64 key = bpf_get_current_pid_tgid();
+    u64 key = get_ns_current_pid_tgid();
     return peek_task_syscall(key, type);
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
-    u64 key = bpf_get_current_pid_tgid();
+    u64 key = get_ns_current_pid_tgid();
     struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
     if (!syscall) {
         return NULL;
@@ -71,7 +71,7 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*p
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type)) {
-    u64 key = bpf_get_current_pid_tgid();
+    u64 key = get_ns_current_pid_tgid();
     struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
     if (!syscall) {
         return NULL;
@@ -100,7 +100,7 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
-    u64 key = bpf_get_current_pid_tgid();
+    u64 key = get_ns_current_pid_tgid();
     struct syscall_cache_t *syscall = pop_task_syscall(key, type);
 #ifdef DEBUG
     if (!syscall) {
@@ -111,7 +111,7 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
 }
 
 int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {
-    u64 key = bpf_get_current_pid_tgid();
+    u64 key = get_ns_current_pid_tgid();
     bpf_map_delete_elem(&syscalls, &key);
     monitor_syscalls(syscall->type, -1);
     return 0;
@@ -133,7 +133,7 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         pass_to_userspace = check_approvers(syscall);
     }
 
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u32 tgid = get_ns_current_pid_tgid() >> 32;
     u32 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
     if (cookie != NULL) {
         u64 now = bpf_ktime_get_ns();
@@ -159,7 +159,7 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
 struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u64 pid_tgid = get_ns_current_pid_tgid();
         u32 tgid = pid_tgid >> 32;
         u32 pid = pid_tgid;
         u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
@@ -181,7 +181,7 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersona
 struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
     if (!syscall) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u64 pid_tgid = get_ns_current_pid_tgid();
         u32 tgid = pid_tgid >> 32;
         u32 pid = pid_tgid;
         u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);

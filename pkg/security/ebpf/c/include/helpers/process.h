@@ -88,7 +88,7 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
 }
 
 static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
     return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
 

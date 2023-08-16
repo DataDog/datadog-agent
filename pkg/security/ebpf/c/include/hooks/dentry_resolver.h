@@ -573,7 +573,7 @@ int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+    if (is_activity_dump_running(ctx, get_ns_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
@@ -590,7 +590,7 @@ int fentry_dentry_resolver_ad_filter(ctx_t *ctx) {
         return 0;
     }
 
-    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+    if (is_activity_dump_running(ctx, get_ns_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
@@ -607,7 +607,7 @@ int tracepoint_dentry_resolver_ad_filter(void *ctx) {
         return 0;
     }
 
-    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+    if (is_activity_dump_running(ctx, get_ns_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 

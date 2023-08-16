@@ -99,7 +99,7 @@ int hook_security_socket_bind(ctx_t *ctx) {
 
     // Register service PID
     if (key.port != 0) {
-        u64 id = bpf_get_current_pid_tgid();
+        u64 id = get_ns_current_pid_tgid();
         u32 tid = (u32) id;
 
         // add netns information

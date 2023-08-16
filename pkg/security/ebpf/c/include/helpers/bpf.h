@@ -7,7 +7,7 @@
 
 __attribute__((always_inline)) void save_obj_fd(struct syscall_cache_t *syscall) {
     struct bpf_tgid_fd_t key = {
-        .tgid = bpf_get_current_pid_tgid() >> 32,
+        .tgid = get_ns_current_pid_tgid() >> 32,
         .fd = syscall->bpf.retval,
     };
 
@@ -29,7 +29,7 @@ __attribute__((always_inline)) void save_obj_fd(struct syscall_cache_t *syscall)
 
 __attribute__((always_inline)) u32 fetch_map_id(int fd) {
     struct bpf_tgid_fd_t key = {
-        .tgid = bpf_get_current_pid_tgid() >> 32,
+        .tgid = get_ns_current_pid_tgid() >> 32,
         .fd = fd,
     };
 
@@ -42,7 +42,7 @@ __attribute__((always_inline)) u32 fetch_map_id(int fd) {
 
 __attribute__((always_inline)) u32 fetch_prog_id(int fd) {
     struct bpf_tgid_fd_t key = {
-        .tgid = bpf_get_current_pid_tgid() >> 32,
+        .tgid = get_ns_current_pid_tgid() >> 32,
         .fd = fd,
     };
 

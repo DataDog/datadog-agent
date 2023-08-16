@@ -5,7 +5,7 @@
 #include "maps.h"
 
 void __attribute__((always_inline)) cache_ioctx_pid_tgid(void *ioctx) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_ns_current_pid_tgid();
 #ifdef DEBUG
     bpf_printk("pid = %d", (u32)pid_tgid);
     bpf_printk("tgid = %d", pid_tgid >> 32);
