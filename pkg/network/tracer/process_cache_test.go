@@ -341,7 +341,7 @@ func TestProcessCacheGet(t *testing.T) {
 }
 
 func BenchmarkProcessCacheMem(b *testing.B) {
-	pc, _ := newProcessCache(10, nil)
+	pc, _ := newProcessCache(50, nil)
 
 	envs := map[string]string{
 		"DD_SERVICE": "service",
@@ -385,5 +385,8 @@ func BenchmarkProcessCacheMem(b *testing.B) {
 			Envs:        envs,
 			ContainerID: "container1",
 		})
+
+		assert.Equal(b, pc.cache.Len(), 5)
+		assert.Equal(b, len(pc.cacheByPid), 5)
 	}
 }
