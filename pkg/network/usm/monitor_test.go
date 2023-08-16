@@ -33,11 +33,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -66,7 +66,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			// Replace the HTTP protocol with a Mock
-			patchProtocolMock(t, protocols.HTTP, tt.spec)
+			patchProtocolMock(t, types.ProtocolHTTP, tt.spec)
 
 			cfg := networkconfig.New()
 			cfg.EnableHTTPMonitoring = true
@@ -744,7 +744,7 @@ func getHttpStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
 	allStats := mon.GetProtocolStats()
 	require.NotNil(t, allStats)
 
-	httpStats, ok := allStats[protocols.HTTP]
+	httpStats, ok := allStats[types.ProtocolHTTP]
 	require.True(t, ok)
 
 	return httpStats.(map[http.Key]*http.RequestStats)

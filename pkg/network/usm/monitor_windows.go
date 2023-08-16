@@ -14,13 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Monitor is the interface to HTTP monitoring
 type Monitor interface {
 	Start()
-	GetHTTPStats() map[protocols.ProtocolType]interface{}
+	GetHTTPStats() map[types.ProtocolType]interface{}
 	Stop() error
 }
 
@@ -109,7 +110,7 @@ func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
+func (m *WindowsMonitor) GetHTTPStats() map[types.ProtocolType]interface{} {
 	// dbtodo  This is now going to cause any pending transactions
 	// to be read and then stuffed into the channel.  Which then I think
 	// creates a race condition that there still could be some mid-
@@ -124,7 +125,7 @@ func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
 
 	m.telemetry.Log()
 
-	ret := make(map[protocols.ProtocolType]interface{})
+	ret := make(map[types.ProtocolType]interface{})
 	ret[protocols.HTTP] = stats
 
 	return ret

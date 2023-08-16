@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -229,7 +229,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 							Alias: "subnet-foo",
 						},
 					},
-					Protocol: protocols.ProtocolHTTP,
+					Protocol: types.ProtocolHTTP,
 				},
 				{
 					Source:     util.AddressFromString("10.1.1.1"),
@@ -240,7 +240,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 					Family:     network.AFINET6,
 					Direction:  network.LOCAL,
 					StaticTags: tagOpenSSL | tagTLS,
-					Protocol:   protocols.ProtocolHTTP2,
+					Protocol:   types.ProtocolHTTP2,
 				},
 			},
 		},
@@ -585,14 +585,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(protocols.ProtocolUnknown, 0),
+				Protocol:         formatProtocol(types.ProtocolUnknown, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(protocols.ProtocolUnknown, 0),
+				Protocol:         formatProtocol(types.ProtocolUnknown, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -699,14 +699,14 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocol(protocols.ProtocolUnknown, 0),
+				Protocol:          formatProtocol(types.ProtocolUnknown, 0),
 			},
 			{
 				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocol(protocols.ProtocolUnknown, 0),
+				Protocol:          formatProtocol(types.ProtocolUnknown, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{

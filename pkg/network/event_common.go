@@ -14,9 +14,9 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -267,7 +267,7 @@ type ConnectionStats struct {
 
 	ContainerID *string
 
-	Protocol protocols.ProtocolType
+	Protocol types.ProtocolType
 }
 
 // Via has info about the routing decision for a flow

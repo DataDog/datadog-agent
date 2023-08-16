@@ -15,7 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -304,14 +304,14 @@ func unsafeStringSlice(key string) []byte {
 //				model.ProtocolType_protocolHTTP2,
 //			},
 //		}
-func formatProtocol(protocol protocols.ProtocolType, staticTags uint64) *model.ProtocolStack {
-	if protocol == protocols.ProtocolUnclassified {
-		protocol = protocols.ProtocolUnknown
+func formatProtocol(protocol types.ProtocolType, staticTags uint64) *model.ProtocolStack {
+	if protocol == types.ProtocolUnclassified {
+		protocol = types.ProtocolUnknown
 	}
 
 	var stack []model.ProtocolType
 	if network.IsTLSTag(staticTags) {
-		stack = append(stack, model.ProtocolType(protocols.ProtocolTLS))
+		stack = append(stack, model.ProtocolType(types.ProtocolTLS))
 	}
 	return &model.ProtocolStack{
 		Stack: append(stack, model.ProtocolType(protocol)),

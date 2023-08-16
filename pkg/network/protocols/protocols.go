@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 )
 
 const ProtocolDispatcherProgramsMap = "protocols_progs"
@@ -51,7 +52,7 @@ type EbpfProgram interface {
 // Protocol implementation. It associates a ProtocolType and stats from this
 // protocols' monitoring.
 type ProtocolStats struct {
-	Type  ProtocolType
+	Type  types.ProtocolType
 	Stats interface{}
 }
 
