@@ -53,46 +53,10 @@ type Check struct {
 	instance                *oinstance.OrchestratorInstance
 }
 
-// Run executes the check
-func (c *Check) Run() error {
-	kubeUtil, err := kubelet.GetKubeUtil()
-	if err != nil {
-		return err
+func podFactory() check.Check {
+	return &Check{
+		CheckBase: core.NewCheckBase(checkName),
 	}
-
-	podList, err := kubeUtil.GetRawLocalPodList(context.TODO())
-	if err != nil {
-		return err
-	}
-
-	groupID := nextGroupID()
-	ctx := &processors.ProcessorContext{
-		ClusterID:          c.clusterID,
-		Cfg:                c.config,
-		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
-		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
-	}
-
-	if c.hostInfo != nil {
-		ctx.HostName = c.hostInfo.HostName
-	}
-
-	processResult, processed := c.processor.Process(ctx, podList)
-	if processed == -1 {
-		return fmt.Errorf("unable to process pods: a panic occurred")
-	}
-
-	// Append manifestMessages behind metadataMessages to avoiding modifying the func signature.
-	// Split the messages during forwarding.
-	metadataMessages := append(processResult.MetadataMessages, processResult.ManifestMessages...)
-
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
-
-	c.sender.OrchestratorMetadata(metadataMessages, c.clusterID, int(orchestrator.K8sPod))
-
-	return nil
-
 }
 
 // Configure the CPU check
@@ -148,8 +112,45 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	return nil
 }
 
-func podFactory() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
+// Run executes the check
+func (c *Check) Run() error {
+	kubeUtil, err := kubelet.GetKubeUtil()
+	if err != nil {
+		return err
 	}
+
+	podList, err := kubeUtil.GetRawLocalPodList(context.TODO())
+	if err != nil {
+		return err
+	}
+
+	groupID := nextGroupID()
+	ctx := &processors.ProcessorContext{
+		ClusterID:          c.clusterID,
+		Cfg:                c.config,
+		MsgGroupID:         groupID,
+		NodeType:           orchestrator.K8sPod,
+		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
+	}
+
+	if c.hostInfo != nil {
+		ctx.HostName = c.hostInfo.HostName
+	}
+
+	processResult, processed := c.processor.Process(ctx, podList)
+	if processed == -1 {
+		return fmt.Errorf("unable to process pods: a panic occurred")
+	}
+
+	// Append manifestMessages behind metadataMessages to avoiding modifying the func signature.
+	// Split the messages during forwarding.
+	metadataMessages := append(processResult.MetadataMessages, processResult.ManifestMessages...)
+
+	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
+
+	c.sender.OrchestratorMetadata(metadataMessages, c.clusterID, int(orchestrator.K8sPod))
+
+	return nil
+
 }
+
