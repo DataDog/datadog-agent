@@ -95,8 +95,8 @@ def follow_workflow_run(run):
     while True:
         # Do not fail outright for temporary failures
         try:
-            workflow = GithubAPI('DataDog/datadog-agent-macos-build')
-            run = workflow.workflow_run(run.id)
+            github = GithubAPI('DataDog/datadog-agent-macos-build')
+            run = github.workflow_run(run.id)
         except GithubException:
             failures += 1
             print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
