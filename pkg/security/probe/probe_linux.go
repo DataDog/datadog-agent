@@ -29,6 +29,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -76,7 +77,7 @@ var (
 	defaultEventTypes = []eval.EventType{
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
-		model.ExecEventType.String(),
+		model.ExitEventType.String(),
 	}
 )
 
@@ -283,6 +284,7 @@ func (p *Probe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
+	ebpfcheck.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -297,11 +299,7 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	return p.updateProbes([]eval.EventType{
-		model.ForkEventType.String(),
-		model.ExecEventType.String(),
-		model.ExecEventType.String(),
-	})
+	return p.updateProbes(nil)
 }
 
 func (p *Probe) PlaySnapshot() {
@@ -511,7 +509,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			seclog.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.ArgsEnvsEventType:
@@ -1023,6 +1021,17 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *Probe) isNeededForSecurityProfile(eventType eval.EventType) bool {
+	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
+		for _, e := range p.Config.RuntimeSecurity.AnomalyDetectionEventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (p *Probe) validEventTypeForConfig(eventType string) bool {
 	if eventType == "dns" && !p.Config.Probe.NetworkEnabled {
 		return false
@@ -1052,7 +1061,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -1193,6 +1202,11 @@ func (p *Probe) Snapshot() error {
 	return p.resolvers.Snapshot()
 }
 
+// Stop the probe
+func (p *Probe) Stop() {
+	_ = p.Manager.StopReaders(manager.CleanAll)
+}
+
 // Close the probe
 func (p *Probe) Close() error {
 	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
@@ -1202,6 +1216,7 @@ func (p *Probe) Close() error {
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
+	ebpfcheck.RemoveNameMappings(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err
@@ -1233,10 +1248,7 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		}
 
 		eventCtor := func() eval.Event {
-			return &model.Event{
-				FieldHandlers:    p.fieldHandlers,
-				ContainerContext: &model.ContainerContext{},
-			}
+			return NewEvent(p.fieldHandlers)
 		}
 
 		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
@@ -1593,7 +1605,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.Probe.ERPCDentryResolutionEnabled, p.Config.Probe.NetworkEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.Config.Probe.ERPCDentryResolutionEnabled, p.Config.Probe.NetworkEnabled, useMmapableMaps, p.useFentry)
 	if !p.Config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
@@ -1610,6 +1622,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	resolversOpts := resolvers.ResolversOpts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
+		UseRingBuffer:         useRingBuffers,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

@@ -26,6 +26,9 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -33,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const InterfaceLocalMulticastIPv6 = "ff01::1"
@@ -83,6 +85,7 @@ func (t *tracerOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (t *tracerOffsetGuesser) Close() {
+	ebpfcheck.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping tracer offset guesser: %s", err)
 	}
@@ -478,10 +481,19 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			if err != nil {
 				return fmt.Errorf("error getting kernel version: %w", err)
 			}
-			// no tracepoint support in kernels < 4.7
-			if kv < kernel.VersionCode(4, 7, 0) {
+			kv470 := kernel.VersionCode(4, 7, 0)
+
+			// if IPv6 enabled & kv lower than 4.7.0, skip guessing for some fields
+			if (t.guessTCPv6 || t.guessUDPv6) && kv < kv470 {
 				next = GuessDAddrIPv6
 			}
+
+			// if both IPv6 disabled and kv lower than 4.7.0, skip to the end
+			if !t.guessTCPv6 && !t.guessUDPv6 && kv < kv470 {
+				t.logAndAdvance(t.status.Offset_socket_sk, GuessNotApplicable)
+				return t.setReadyState(mp)
+			}
+
 			t.logAndAdvance(t.status.Offset_socket_sk, next)
 			break
 		}

@@ -3,7 +3,7 @@
   allow_failure: true
   stage: kitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   script:
     - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/dists/pipeline-$DD_PIPELINE_ID --recursive
     - aws s3 rm s3://$RPM_TESTING_S3_BUCKET/testing/pipeline-$DD_PIPELINE_ID --recursive
@@ -20,7 +20,7 @@
   allow_failure: true
   stage: kitchen_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   dependencies: []
   before_script:
   script:

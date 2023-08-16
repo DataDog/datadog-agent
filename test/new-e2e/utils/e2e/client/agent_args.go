@@ -8,13 +8,13 @@ package client
 // agentArgs contains the arguments for the Agent commands.
 // Its value is populated using the functional options pattern.
 type agentArgs struct {
-	Args string
+	Args []string
 }
 
 type AgentArgsOption = func(*agentArgs)
 
 // WithArgs sets the Agent arguments
-func WithArgs(args string) AgentArgsOption {
+func WithArgs(args []string) AgentArgsOption {
 	return func(a *agentArgs) {
 		a.Args = args
 	}

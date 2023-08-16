@@ -223,6 +223,21 @@ func (j *JMXFetch) Start(manage bool) error {
 		return fmt.Errorf("incompatible options %q and %q", jvmContainerSupport, jvmCgroupMemoryAwareness)
 	} else if useContainerSupport {
 		javaOptions += jvmContainerSupport
+		maxHeapSizeAsPercentRAM := config.Datadog.GetFloat64("jmx_max_ram_percentage")
+		passOption := true
+		// These options overwrite the -XX:MaxRAMPercentage option, log a warning if they are found in the javaOptions
+		if strings.Contains(javaOptions, "Xmx") || strings.Contains(javaOptions, "XX:MaxHeapSize") {
+			log.Warnf("Java option -XX:MaxRAMPercentage will not take effect since either -Xmx or XX:MaxHeapSize is already present. These options override MaxRAMPercentage.")
+			passOption = false
+		}
+		if maxHeapSizeAsPercentRAM < 0.00 || maxHeapSizeAsPercentRAM > 100.0 {
+			log.Warnf("The value for MaxRAMPercentage must be between 0.0 and 100.0 for the option to take effect")
+			passOption = false
+		}
+		if passOption {
+			maxRAMPercentOption := fmt.Sprintf(" -XX:MaxRAMPercentage=%.4f", maxHeapSizeAsPercentRAM)
+			javaOptions += maxRAMPercentOption
+		}
 	} else if useCgroupMemoryLimit {
 		passOption := true
 		// This option is incompatible with the Xmx and Xms options, log a warning if there are found in the javaOptions
@@ -449,12 +464,6 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	if j.JavaToolsJarPath == "" {
 		if instanceConf.ToolsJarPath != "" {
 			j.JavaToolsJarPath = instanceConf.ToolsJarPath
-		}
-	}
-
-	if instanceConf.ProcessNameRegex != "" {
-		if j.JavaToolsJarPath == "" {
-			return fmt.Errorf("You must specify the path to tools.jar. See http://docs.datadoghq.com/integrations/java/ for more information")
 		}
 	}
 

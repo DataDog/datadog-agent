@@ -14,7 +14,7 @@ var spliceProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_get_pipe_info",
+			EBPFFuncName: "rethook_get_pipe_info",
 		},
 	},
 	{
@@ -25,12 +25,12 @@ var spliceProbes = []*manager.Probe{
 	},
 }
 
-func getSpliceProbes() []*manager.Probe {
+func getSpliceProbes(fentry bool) []*manager.Probe {
 	spliceProbes = append(spliceProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "splice",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return spliceProbes
 }

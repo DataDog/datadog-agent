@@ -15,12 +15,14 @@ import (
 
 // All System Probe modules should register their factories here
 var All = []module.Factory{
+	EBPFProbe,
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
 	EventMonitor,
 	Process,
 	DynamicInstrumentation,
+	LanguageDetectionModule,
 }
 
 func inactivityEventLog(duration time.Duration) {

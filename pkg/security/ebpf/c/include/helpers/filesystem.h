@@ -99,7 +99,7 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
-void __attribute__((always_inline)) fill_resolver_mnt(struct pt_regs *ctx, struct syscall_cache_t *syscall) {
+void __attribute__((always_inline)) fill_resolver_mnt(void *ctx, struct syscall_cache_t *syscall, int dr_type) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->unshare_mntns.mnt));
     syscall->unshare_mntns.root_key.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt);
     syscall->unshare_mntns.root_key.ino = get_dentry_ino(dentry);
@@ -115,7 +115,7 @@ void __attribute__((always_inline)) fill_resolver_mnt(struct pt_regs *ctx, struc
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, dr_type);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(syscall->type);

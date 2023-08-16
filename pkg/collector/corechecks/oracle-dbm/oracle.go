@@ -18,6 +18,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -29,7 +30,6 @@ import (
 
 var MAX_OPEN_CONNECTIONS = 10
 var DEFAULT_SQL_TRACED_RUNS = 10
-
 var DB_TIMEOUT = "20000"
 
 // The structure is filled by activity sampling and serves as a filter for query metrics
@@ -53,6 +53,7 @@ type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
+	dbCustomQueries                         *sqlx.DB
 	dbmEnabled                              bool
 	agentVersion                            string
 	checkInterval                           float64
@@ -67,13 +68,42 @@ type Check struct {
 	dbHostname                              string
 	dbVersion                               string
 	driver                                  string
+	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	filePath                                string
 	isRDS                                   bool
 	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
+	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
+}
+
+func handleServiceCheck(c *Check, err error) {
+	sender, errSender := c.GetSender()
+	if errSender != nil {
+		log.Errorf("failed to get sender for service check %s", err)
+	}
+
+	message := ""
+	var status servicecheck.ServiceCheckStatus
+	if err == nil {
+		status = servicecheck.ServiceCheckOK
+	} else {
+		status = servicecheck.ServiceCheckCritical
+		log.Errorf("failed to connect: %s", err)
+	}
+	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
+	sender.Commit()
+}
+
+func checkIntervalExpired(lastRun *time.Time, collectionInterval int64) bool {
+	start := time.Now()
+	if lastRun.IsZero() || start.Sub(*lastRun).Milliseconds() >= collectionInterval*1000 {
+		*lastRun = start
+		return true
+	}
+	return false
 }
 
 // Run executes the check.
@@ -81,33 +111,57 @@ func (c *Check) Run() error {
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
+			handleServiceCheck(c, err)
 			c.Teardown()
 			return err
 		}
 		if db == nil {
 			c.Teardown()
+			handleServiceCheck(c, fmt.Errorf("empty connection"))
 			return fmt.Errorf("empty connection")
 		}
 		c.db = db
 	}
 
-	if c.config.SysMetrics.Enabled {
-		log.Trace("Entered sysmetrics")
-		err := c.SysMetrics()
+	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
+
+	if metricIntervalExpired {
+		err := c.OS_Stats()
 		if err != nil {
-			return fmt.Errorf("failed to collect sysmetrics %w", err)
+			db, errConnect := c.Connect()
+			if errConnect != nil {
+				handleServiceCheck(c, errConnect)
+			} else if db == nil {
+				handleServiceCheck(c, fmt.Errorf("empty connection"))
+			} else {
+				handleServiceCheck(c, nil)
+			}
+			if errClosing := CloseDatabaseConnection(db); err != nil {
+				log.Errorf("Error closing connection %s", errClosing)
+			}
+			return fmt.Errorf("failed to collect os stats %w", err)
+		} else {
+			handleServiceCheck(c, nil)
 		}
-	}
-	if c.config.Tablespaces.Enabled {
-		err := c.Tablespaces()
-		if err != nil {
-			return err
+
+		if c.config.SysMetrics.Enabled {
+			log.Trace("Entered sysmetrics")
+			err := c.SysMetrics()
+			if err != nil {
+				return fmt.Errorf("failed to collect sysmetrics %w", err)
+			}
 		}
-	}
-	if c.config.ProcessMemory.Enabled {
-		err := c.ProcessMemory()
-		if err != nil {
-			return err
+		if c.config.Tablespaces.Enabled {
+			err := c.Tablespaces()
+			if err != nil {
+				return err
+			}
+		}
+		if c.config.ProcessMemory.Enabled {
+			err := c.ProcessMemory()
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -124,10 +178,18 @@ func (c *Check) Run() error {
 				}
 			}
 		}
-		if c.config.SharedMemory.Enabled {
-			err := c.SharedMemory()
-			if err != nil {
-				return err
+		if metricIntervalExpired {
+			if c.config.SharedMemory.Enabled {
+				err := c.SharedMemory()
+				if err != nil {
+					return err
+				}
+			}
+			if len(c.config.CustomQueries) > 0 {
+				err := c.CustomQueries()
+				if err != nil {
+					log.Errorf("failed to execute custom queries %s", err)
+				}
 			}
 		}
 	}
@@ -242,6 +304,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	var cloudRows int
 	if connectionType == "PDB" {
+		c.connectedToPdb = true
 		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
 		err := r.Scan(&cloudRows)
 		if err != nil {
@@ -301,6 +364,15 @@ func (c *Check) Teardown() {
 	c.planEmitted = nil
 }
 
+func CloseDatabaseConnection(db *sqlx.DB) error {
+	if db != nil {
+		if err := db.Close(); err != nil {
+			return fmt.Errorf("failed to close oracle connection: %s", err)
+		}
+	}
+	return nil
+}
+
 // Configure configures the Oracle check.
 func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
@@ -327,6 +399,19 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 	c.tags = c.config.Tags
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
+	c.tags = append(c.tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
+	if c.config.TnsAlias != "" {
+		c.tags = append(c.tags, fmt.Sprintf("tns-alias:%s", c.config.TnsAlias))
+	}
+	if c.config.Port != 0 {
+		c.tags = append(c.tags, fmt.Sprintf("port:%d", c.config.Port))
+	}
+	if c.config.Server != "" {
+		c.tags = append(c.tags, fmt.Sprintf("server:%s", c.config.Server))
+	}
+	if c.config.ServiceName != "" {
+		c.tags = append(c.tags, fmt.Sprintf("service:%s", c.config.ServiceName))
+	}
 
 	c.tagsString = strings.Join(c.tags, ",")
 
@@ -354,7 +439,7 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 	if err == nil {
 		return common.ObfuscatedStatement{
 			Statement:      obfuscatedStatement.Query,
-			QuerySignature: common.GetQuerySignature(statement),
+			QuerySignature: common.GetQuerySignature(obfuscatedStatement.Query),
 			Commands:       obfuscatedStatement.Metadata.Commands,
 			Tables:         strings.Split(obfuscatedStatement.Metadata.TablesCSV, ","),
 			Comments:       obfuscatedStatement.Metadata.Comments,
@@ -380,7 +465,7 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
 	err := c.db.Select(s, sql, binds...)
-	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
+	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "ORA-06413") || strings.Contains(err.Error(), "database is closed")) {
 		db, err := c.Connect()
 		if err != nil {
 			c.Teardown()
