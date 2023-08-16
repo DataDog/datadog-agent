@@ -8,7 +8,6 @@
 package cgroups
 
 import (
-	"bytes"
 	"strconv"
 	"time"
 
@@ -51,13 +50,12 @@ func (c *cgroupV1) parseCPUController(stats *CPUStats) {
 			return nil
 		}
 
-		if bytes.Equal(key, []byte("nr_throttled")) {
+		switch string(key) {
+		case "nr_throttled":
 			stats.ThrottledPeriods = &intVal
-		}
-		if bytes.Equal(key, []byte("throttled_time")) {
+		case "throttled_time":
 			stats.ThrottledTime = &intVal
-		}
-		if bytes.Equal(key, []byte("nr_periods")) {
+		case "nr_periods":
 			stats.ElapsedPeriods = &intVal
 		}
 
