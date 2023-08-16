@@ -702,15 +702,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 	aggr := newConnectionAggregator(len(active) + len(closed))
 	defer aggr.finalize()
 
-	active = filterConnections(active, func(c *ConnectionStats) bool {
-		return !aggr.Aggregate(c)
-	})
-
-	closed = filterConnections(closed, func(c *ConnectionStats) bool {
-		return !aggr.Aggregate(c)
-	})
-
-	return active, closed
+	return aggr.Aggregate(active), aggr.Aggregate(closed)
 }
 
 func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c *ConnectionStats) {
@@ -997,51 +989,62 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 //   - the ip translation is nil OR
 //   - the other connection's ip translation is nil OR
 //   - the other connection's ip translation is not nil AND the nat info is the same
-func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	a.key = c.ByteKey()
-	aggrConns, ok := a.conns[a.key]
-	if !ok {
-		a.conns[a.key] = []*aggregateConnection{
-			{
-				ConnectionStats: c,
-				rttSum:          uint64(c.RTT),
-				rttVarSum:       uint64(c.RTTVar),
-				count:           1,
-			}}
-
-		return false
+func (a *connectionAggregator) Aggregate(conns []ConnectionStats) []ConnectionStats {
+	p := 0
+	keepConn := func(i int) *ConnectionStats {
+		conns[i], conns[p] = conns[p], conns[i]
+		p++
+		return &conns[p-1]
 	}
+loop:
+	for i := range conns {
+		c := &conns[i]
+		a.key = c.ByteKey()
+		aggrConns, ok := a.conns[a.key]
+		if !ok {
+			c = keepConn(i)
+			a.conns[a.key] = []*aggregateConnection{
+				{
+					ConnectionStats: c,
+					rttSum:          uint64(c.RTT),
+					rttVarSum:       uint64(c.RTTVar),
+					count:           1,
+				}}
 
-	for _, aggrConn := range aggrConns {
-		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation) ||
-			!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
 			continue
 		}
 
-		aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-		aggrConn.Last = aggrConn.Last.Add(c.Last)
-		aggrConn.rttSum += uint64(c.RTT)
-		aggrConn.rttVarSum += uint64(c.RTTVar)
-		aggrConn.count++
-		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
-		}
-		if aggrConn.IPTranslation == nil {
-			aggrConn.IPTranslation = c.IPTranslation
-		}
-		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
+		for _, aggrConn := range aggrConns {
+			if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation) ||
+				!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
+				continue
+			}
 
-		return true
+			aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
+			aggrConn.Last = aggrConn.Last.Add(c.Last)
+			aggrConn.rttSum += uint64(c.RTT)
+			aggrConn.rttVarSum += uint64(c.RTTVar)
+			aggrConn.count++
+			if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
+				aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
+			}
+			if aggrConn.IPTranslation == nil {
+				aggrConn.IPTranslation = c.IPTranslation
+			}
+			aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
+			continue loop
+		}
+
+		c = keepConn(i)
+		a.conns[a.key] = append(aggrConns, &aggregateConnection{
+			ConnectionStats: c,
+			rttSum:          uint64(c.RTT),
+			rttVarSum:       uint64(c.RTTVar),
+			count:           1,
+		})
 	}
 
-	a.conns[a.key] = append(aggrConns, &aggregateConnection{
-		ConnectionStats: c,
-		rttSum:          uint64(c.RTT),
-		rttVarSum:       uint64(c.RTTVar),
-		count:           1,
-	})
-
-	return false
+	return conns[:p]
 }
 
 func (a *connectionAggregator) finalize() {
