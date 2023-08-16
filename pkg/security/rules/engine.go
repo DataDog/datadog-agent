@@ -84,7 +84,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	}
 
 	// register as event handler
-	if err := probe.AddEventHandler(model.UnknownEventType, engine); err != nil {
+	if err := probe.AddSECLModelEventHandler(model.UnknownEventType, engine); err != nil {
 		return nil, err
 	}
 
