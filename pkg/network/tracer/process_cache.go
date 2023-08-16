@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/philpearl/intern"
+
 	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,11 +50,11 @@ var processCacheTelemetry = struct {
 }
 
 type process struct {
-	Pid         uint32
-	Envs        map[string]string
-	ContainerID string
-	StartTime   int64
-	Expiry      int64
+	Pid            uint32
+	Envs           map[string]string
+	ContainerIndex int
+	StartTime      int64
+	Expiry         int64
 }
 
 type processList []*process
@@ -72,6 +74,8 @@ type processCache struct {
 	// means no filter, and any process can be inserted the cache
 	filteredEnvs map[string]struct{}
 
+	containerIDs *intern.Intern
+
 	in      chan *process
 	stopped chan struct{}
 	stop    sync.Once
@@ -88,6 +92,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
+		containerIDs: intern.New(maxProcs),
 	}
 
 	for _, e := range filteredEnvs {
@@ -173,11 +178,12 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 		return nil
 	}
 
+	container := pc.containerIDs.Save(entry.ContainerID)
 	return &process{
-		Pid:         entry.Pid,
-		Envs:        envs,
-		ContainerID: entry.ContainerID,
-		StartTime:   entry.ExecTime.UnixNano(),
+		Pid:            entry.Pid,
+		Envs:           envs,
+		ContainerIndex: container,
+		StartTime:      entry.ExecTime.UnixNano(),
 	}
 }
 
@@ -273,6 +279,10 @@ func (pc *processCache) Describe(ch chan<- *prometheus.Desc) {
 // Collect returns the current state of all metrics of the collector.
 func (pc *processCache) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(processCacheTelemetry.cacheLength, prometheus.GaugeValue, float64(pc.cache.Len()))
+}
+
+func (pc *processCache) GetContainerID(index int) string {
+	return pc.containerIDs.Get(index)
 }
 
 func (pl processList) update(p *process) processList {

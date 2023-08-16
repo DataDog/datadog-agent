@@ -76,7 +76,8 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 					assert.NotNil(t, p)
 					assert.Equal(t, entry.Pid, p.Pid)
 					if entry.ContainerID != "" {
-						assert.Equal(t, entry.ContainerID, p.ContainerID)
+						containerID := pc.GetContainerID(p.ContainerIndex)
+						assert.Equal(t, entry.ContainerID, containerID)
 					}
 					l := te.envs
 					if len(te.filter) > 0 {
