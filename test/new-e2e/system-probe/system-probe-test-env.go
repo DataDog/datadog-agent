@@ -244,5 +244,5 @@ func Destroy(name string) error {
 }
 
 func (env *TestEnv) RemoveStack() error {
-	return infra.GetStackManager().ForceRemoveStack(env.context, env.name)
+	return infra.GetStackManager().ForceRemoveStackConfiguration(env.context, env.name)
 }

@@ -158,7 +158,7 @@ func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name 
 
 	stack, ok := sm.stacks[name]
 	if !ok {
-		return fmt.Errorf("stack %s is not present", name)
+		return fmt.Errorf("unable to remove stack %s: stack not present", name)
 	}
 
 	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
