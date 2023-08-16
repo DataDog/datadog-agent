@@ -133,16 +133,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		return nil, nil
 	}
 
-	// immediately starts the communication server
-	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
-	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
-	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
-	if err != nil {
-		log.Debug("Unable to restore the state from file")
-	} else {
-		serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
-		serverlessDaemon.StartLogCollection()
-	}
 	// serverless parts
 	// ----------------
 
@@ -157,7 +147,17 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}
 	if len(functionArn) > 0 {
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
+	}
+
+	// immediately starts the communication server
+	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
+	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
+	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
+	if err != nil {
+		log.Debug("Unable to restore the state from file")
+	} else {
 		serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
+		serverlessDaemon.StartLogCollection()
 	}
 
 	// api key reading
