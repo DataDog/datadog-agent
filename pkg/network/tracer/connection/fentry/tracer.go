@@ -13,13 +13,14 @@ import (
 	"os"
 	"syscall"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const probeUID = "net"
@@ -27,11 +28,12 @@ const probeUID = "net"
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
-		return nil, ErrorNotSupported
+		return nil, nil, ErrorNotSupported
 	}
 
+	var m *manager.Manager
 	err := ddebpf.LoadCOREAsset(&config.Config, netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
@@ -91,8 +93,8 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return nil, nil
+	return m, nil, nil
 }

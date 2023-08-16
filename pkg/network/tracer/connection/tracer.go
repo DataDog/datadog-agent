@@ -203,7 +203,7 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 	var m *manager.Manager
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -217,9 +217,9 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		if err != nil {
 			return nil, err
 		}
-		m.DumpHandler = dumpMapsHandler
 		tracerType = TracerType(kprobeTracerType)
 	}
+	m.DumpHandler = dumpMapsHandler
 	ebpfcheck.AddNameMappings(m, "npm_tracer")
 
 	batchMgr, err := newConnBatchManager(m)
