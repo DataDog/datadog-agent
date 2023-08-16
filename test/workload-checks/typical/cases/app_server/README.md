@@ -2,12 +2,8 @@
 
 ## Purpose
 
-Demonstrates an Agent configuration typical of one deployed on an application
-server.
-
-## Notes
-
-The purpose above is not quite true. I'm fully guessing at what the 'normal'
-Agent configuration for such a situation would be like. Instead we're
-demonstrating a situation where Agent has two components flipped on and lading
-produces load into both.
+Simulates a relatively busy application server on which DogStatsD metrics,
+traces and TCP streamed logs are present on which the client user is interested
+in OTel but has not made a complete transition. DogStatsD, TCP logs, and APM
+traces make up the load. We make claims about throughput, UDS packet loss and
+memory, CPU resource consumption.
