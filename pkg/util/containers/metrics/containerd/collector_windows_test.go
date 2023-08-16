@@ -64,7 +64,10 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Windows metrics",
 			containerdMetrics: &types.Metric{
-				Data: windowsMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: windowsMetricsAny.GetTypeUrl(),
+					Value:   windowsMetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
@@ -143,7 +146,10 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		{
 			name: "Windows",
 			containerdMetrics: &types.Metric{
-				Data: windowsMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: windowsMetricsAny.GetTypeUrl(),
+					Value:   windowsMetricsAny.GetValue(),
+				},
 			},
 			expectedNetworkStats: nil, // Does not return anything on Windows
 		},

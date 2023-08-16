@@ -210,7 +210,12 @@ github.com/google/flatbuffers: Copyright (c) 2014 Google
 github.com/godror/knownpb/internal: Copyright 2014, 2021 Tamás Gulácsi
 github.com/godror/knownpb/timestamppb: Copyright 2019, 2021 Tamás Gulácsi
 
-
+# Copyright information is in the README
+github.com/google/gnostic/compiler: Copyright 2017-2020, Google LLC.
+github.com/google/gnostic/extensions: Copyright 2017-2020, Google LLC.
+github.com/google/gnostic/jsonschema: Copyright 2017-2020, Google LLC.
+github.com/google/gnostic/openapiv2: Copyright 2017-2020, Google LLC.
+github.com/google/gnostic/openapiv3: Copyright 2017-2020, Google LLC.
 github.com/google/s2a-go: Copyright (c) 2020 Google
 github.com/google/s2a-go/fallback: Copyright (c) 2020 Google
 github.com/google/s2a-go/internal/authinfo: Copyright (c) 2020 Google
