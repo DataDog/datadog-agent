@@ -201,7 +201,7 @@ func (cr *timestampContextResolver) updateTrackedContext(contextKey ckey.Context
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) (ckey.ContextKey, bool) {
 	contextKey, ok := cr.resolver.trackContext(metricSampleContext)
-	if ok {
+	if ok == true {
 		cr.lastSeenByKey[contextKey] = currentTimestamp
 	}
 	return contextKey, ok
