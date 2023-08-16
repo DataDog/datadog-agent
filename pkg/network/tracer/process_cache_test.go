@@ -9,7 +9,10 @@ package tracer
 
 import (
 	"fmt"
+	"math/rand"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -349,44 +352,46 @@ func BenchmarkProcessCacheMem(b *testing.B) {
 		"DD_ENV":     "env",
 	}
 
+	rand.Seed(time.Now().UnixNano())
+
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		pc.add(&process{
-			Pid:         1111,
+			Pid:         uint32(rand.Int()),
 			StartTime:   5,
 			Envs:        envs,
 			ContainerID: "container1",
 		})
 
 		pc.add(&process{
-			Pid:         2222,
+			Pid:         uint32(rand.Int()),
 			StartTime:   5,
 			Envs:        envs,
 			ContainerID: "container1",
 		})
 
 		pc.add(&process{
-			Pid:         3333,
+			Pid:         uint32(rand.Int()),
 			StartTime:   5,
 			Envs:        envs,
 			ContainerID: "container1",
 		})
 
 		pc.add(&process{
-			Pid:         4444,
+			Pid:         uint32(rand.Int()),
 			StartTime:   5,
 			Envs:        envs,
-			ContainerID: "container1",
+			ContainerID: "container2",
 		})
 
 		pc.add(&process{
-			Pid:         5555,
+			Pid:         uint32(rand.Int()),
 			StartTime:   5,
 			Envs:        envs,
-			ContainerID: "container1",
+			ContainerID: "container2",
 		})
 
-		assert.Equal(b, pc.cache.Len(), 5)
-		assert.Equal(b, len(pc.cacheByPid), 5)
 	}
+	fmt.Printf("cache: " + strconv.Itoa(pc.cache.Len()) + "\n")
+	fmt.Printf("cachebypid: " + strconv.Itoa(len(pc.cacheByPid)) + "\n")
 }
