@@ -93,7 +93,7 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             to_download.append(f)
 
     if len(to_download) == 0:
-        info("[-] No update required for rootfs images")
+        warn("[-] No update required for rootfs images")
         return
 
     # download files to be updates
