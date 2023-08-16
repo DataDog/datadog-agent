@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 func TestDetectLanguage(t *testing.T) {
@@ -50,9 +49,9 @@ func TestDetectLanguage(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			process := []*procutil.Process{makeProcess(tc.cmdline, "")}
+			process := []languagemodels.Process{makeProcess(tc.cmdline, "")}
 			expected := []*languagemodels.Language{{Name: tc.expected}}
-			assert.Equal(t, expected, DetectLanguage(process))
+			assert.Equal(t, expected, DetectLanguage(process, nil))
 		})
 	}
 }

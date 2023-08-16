@@ -54,13 +54,15 @@ func TestInsertFileEvent(t *testing.T) {
 
 	for _, path := range pathToInserts {
 		event := &model.Event{
+			BaseEvent: model.BaseEvent{
+				FieldHandlers: &model.DefaultFieldHandlers{},
+			},
 			Open: model.OpenEvent{
 				File: model.FileEvent{
 					IsPathnameStrResolved: true,
 					PathnameStr:           path,
 				},
 			},
-			FieldHandlers: &model.DefaultFieldHandlers{},
 		}
 		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false, nil, nil)
 	}
@@ -149,18 +151,20 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 	}
 
 	evt := &model.Event{
-		Type:             uint32(model.ExecEventType),
-		FieldHandlers:    &model.DefaultFieldHandlers{},
-		ContainerContext: &model.ContainerContext{},
-		ProcessContext:   &model.ProcessContext{},
+		BaseEvent: model.BaseEvent{
+			Type:             uint32(model.ExecEventType),
+			FieldHandlers:    &model.DefaultFieldHandlers{},
+			ContainerContext: &model.ContainerContext{},
+			ProcessContext:   &model.ProcessContext{},
+			ProcessCacheEntry: &model.ProcessCacheEntry{
+				ProcessContext: model.ProcessContext{
+					Process:  lineageDup[0],
+					Ancestor: ancestor,
+				},
+			},
+		},
 		Exec: model.ExecEvent{
 			Process: &model.Process{},
-		},
-		ProcessCacheEntry: &model.ProcessCacheEntry{
-			ProcessContext: model.ProcessContext{
-				Process:  lineageDup[0],
-				Ancestor: ancestor,
-			},
 		},
 	}
 	return evt

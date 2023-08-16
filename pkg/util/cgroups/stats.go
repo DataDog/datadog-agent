@@ -56,6 +56,8 @@ type MemoryStats struct {
 	SwapLimit         *uint64 // Memory+Swap (thus >= Limit)
 	SwapHighThreshold *uint64 // cgroupv2 only
 
+	Peak *uint64 // cgroupv1: mapped to max_usage_in_bytes. cgroupv2: peak.
+
 	PSISome PSIStats
 	PSIFull PSIStats
 }

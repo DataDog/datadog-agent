@@ -48,7 +48,7 @@ func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 	}
 
 	if workloadmeta.Enabled(config) {
-		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
+		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
 		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
 	}
 

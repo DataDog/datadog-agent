@@ -14,17 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-const (
-	// EventFlagsAsync async event
-	EventFlagsAsync = 1 << iota
-	// EventFlagsSavedByAD saved by ad
-	EventFlagsSavedByAD
-	// EventFlagsActivityDumpSample an AD sample
-	EventFlagsActivityDumpSample
-	// EventFlagsSecurityProfileInProfile true if the event was found in a profile
-	EventFlagsSecurityProfileInProfile
-)
-
 func validateReadSize(size, read int) (int, error) {
 	if size != read {
 		return 0, ErrIncorrectDataSize

@@ -10,8 +10,8 @@ package net
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}
@@ -47,4 +47,9 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 // Register is not supported
 func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return ebpf.ErrNotImplemented
+}
+
+// DetectLanguage is not supported
+func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
+	return nil, ebpf.ErrNotImplemented
 }

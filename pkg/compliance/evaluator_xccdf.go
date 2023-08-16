@@ -215,6 +215,9 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		t := time.NewTimer(timeout)
 		for {
 			select {
+			case <-p.DoneCh:
+				// The oscap-io process has been terminated.
+				return
 			case <-t.C:
 				log.Warnf("oscap-io has been inactive for %s; exiting", timeout)
 				err := p.Kill()

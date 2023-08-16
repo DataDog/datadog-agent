@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var detectorsWithPrivilege = []Detector{
-	&detectors.GoDetector{},
+var detectorsWithPrivilege = []languagemodels.Detector{
+	detectors.NewGoDetector(),
 }
 
 var (
@@ -34,12 +34,18 @@ func handleDetectorError(err error) {
 	}
 }
 
+<<<<<<< HEAD
 // DetectWithPrivileges exported function should have comment or be unexported
 func DetectWithPrivileges(pids []int) []languagemodels.Language {
 	languages := make([]languagemodels.Language, len(pids))
 	for i, pid := range pids {
+=======
+func DetectWithPrivileges(procs []languagemodels.Process) []languagemodels.Language {
+	languages := make([]languagemodels.Language, len(procs))
+	for i, proc := range procs {
+>>>>>>> main
 		for _, detector := range detectorsWithPrivilege {
-			lang, err := detector.DetectLanguage(pid)
+			lang, err := detector.DetectLanguage(proc)
 			if err != nil {
 				handleDetectorError(err)
 				continue
@@ -51,7 +57,7 @@ func DetectWithPrivileges(pids []int) []languagemodels.Language {
 }
 
 // MockPrivilegedDetectors exported function should have comment or be unexported
-func MockPrivilegedDetectors(t *testing.T, newDetectors []Detector) {
+func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detector) {
 	oldDetectors := detectorsWithPrivilege
 	t.Cleanup(func() { detectorsWithPrivilege = oldDetectors })
 	detectorsWithPrivilege = newDetectors

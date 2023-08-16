@@ -10,7 +10,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -267,7 +266,7 @@ func readFileLimit(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := ioutil.ReadAll(io.LimitReader(f, maxSize))
+	data, err := io.ReadAll(io.LimitReader(f, maxSize))
 	if err != nil {
 		return "", err
 	}

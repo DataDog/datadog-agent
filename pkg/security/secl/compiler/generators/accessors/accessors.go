@@ -14,7 +14,6 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
-	"go/types"
 	"log"
 	"os"
 	"os/exec"
@@ -39,26 +38,56 @@ const (
 )
 
 var (
-	filename               string
-	pkgname                string
-	output                 string
-	verbose                bool
-	docOutput              string
-	fieldHandlersOutput    string
-	buildTags              string
-	fieldHandlersBuildTags string
+	modelFile           string
+	typesFile           string
+	pkgname             string
+	output              string
+	verbose             bool
+	docOutput           string
+	fieldHandlersOutput string
+	buildTags           string
 )
 
-var (
-	packagesLookupMap map[string]*types.Package
-)
+type AstFiles struct {
+	files []*ast.File
+}
 
-func resolveSymbol(pkg, symbol string) (types.Object, error) {
-	if typePackage, found := packagesLookupMap[pkg]; found {
-		return typePackage.Scope().Lookup(symbol), nil
+func (af *AstFiles) LookupSymbol(symbol string) *ast.Object {
+	for _, file := range af.files {
+		if obj := file.Scope.Lookup(symbol); obj != nil {
+			return obj
+		}
+	}
+	return nil
+}
+
+func (af *AstFiles) GetSpecs() []ast.Spec {
+	var specs []ast.Spec
+
+	for _, file := range af.files {
+		for _, decl := range file.Decls {
+			decl, ok := decl.(*ast.GenDecl)
+			if !ok || decl.Doc == nil {
+				continue
+			}
+
+			var genaccessors bool
+			for _, doc := range decl.Doc.List {
+				if strings.Contains(doc.Text, "genaccessors") {
+					genaccessors = true
+					break
+				}
+			}
+
+			if !genaccessors {
+				continue
+			}
+
+			specs = append(specs, decl.Specs...)
+		}
 	}
 
-	return nil, fmt.Errorf("failed to retrieve package info for %s", pkg)
+	return specs
 }
 
 func origTypeToBasicType(kind string) string {
@@ -94,6 +123,9 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 
 	if prefix != "" {
 		name = prefix + "." + name
+	}
+
+	if aliasPrefix != "" {
 		alias = aliasPrefix + "." + alias
 	}
 
@@ -146,15 +178,15 @@ func handleEmbedded(module *common.Module, name, prefix, event string, fieldType
 		log.Printf("handleEmbedded name: %s", name)
 	}
 
-	prefixedFieldName := fmt.Sprintf("%s.%s", prefix, name)
-	if len(prefix) == 0 {
-		prefixedFieldName = name
+	if prefix != "" {
+		name = fmt.Sprintf("%s.%s", prefix, name)
 	}
+
 	fieldType, isPointer, isArray := getFieldIdentName(fieldTypeExpr)
 
 	// maintain a list of all the fields
-	module.AllFields[prefixedFieldName] = &common.StructField{
-		Name:          prefixedFieldName,
+	module.AllFields[name] = &common.StructField{
+		Name:          name,
 		Event:         event,
 		OrigType:      qualifiedType(module, fieldType),
 		IsOrigTypePtr: isPointer,
@@ -182,18 +214,18 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 	}
 
 	module.Iterators[alias] = &common.StructField{
-		Name:                prefixedFieldName,
-		ReturnType:          qualifiedType(module, iterator),
-		Event:               event,
-		OrigType:            qualifiedType(module, fieldType),
-		IsOrigTypePtr:       isPointer,
-		IsArray:             isArray,
-		Weight:              field.weight,
-		CommentText:         fieldCommentText,
-		OpOverrides:         opOverrides,
-		CachelessResolution: field.cachelessResolution,
-		SkipADResolution:    field.skipADResolution,
-		Check:               field.check,
+		Name:             prefixedFieldName,
+		ReturnType:       qualifiedType(module, iterator),
+		Event:            event,
+		OrigType:         qualifiedType(module, fieldType),
+		IsOrigTypePtr:    isPointer,
+		IsArray:          isArray,
+		Weight:           field.weight,
+		CommentText:      fieldCommentText,
+		OpOverrides:      opOverrides,
+		Helper:           field.helper,
+		SkipADResolution: field.skipADResolution,
+		Check:            field.check,
 	}
 
 	return module.Iterators[alias]
@@ -202,30 +234,35 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 // handleFieldWithHandler adds non-embedded fields with handlers to list of exposed SECL fields and event types of the module
 func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, containerStructName, event, fieldCommentText, opOverrides, handler string, isPointer, isArray bool, fieldIterator *common.StructField) {
 	alias := field.name
+
 	if aliasPrefix != "" {
 		alias = aliasPrefix + "." + alias
 	}
 
+	if event == "" {
+		log.Printf("event type not specified for field: %s", prefixedFieldName)
+	}
+
 	module.Fields[alias] = &common.StructField{
-		Prefix:              prefix,
-		Name:                prefixedFieldName,
-		BasicType:           origTypeToBasicType(fieldType),
-		Struct:              containerStructName,
-		Handler:             handler,
-		ReturnType:          origTypeToBasicType(fieldType),
-		Event:               event,
-		OrigType:            fieldType,
-		Iterator:            fieldIterator,
-		IsArray:             isArray,
-		Weight:              field.weight,
-		CommentText:         fieldCommentText,
-		OpOverrides:         opOverrides,
-		CachelessResolution: field.cachelessResolution,
-		SkipADResolution:    field.skipADResolution,
-		IsOrigTypePtr:       isPointer,
-		Check:               field.check,
-		Alias:               alias,
-		AliasPrefix:         aliasPrefix,
+		Prefix:           prefix,
+		Name:             prefixedFieldName,
+		BasicType:        origTypeToBasicType(fieldType),
+		Struct:           containerStructName,
+		Handler:          handler,
+		ReturnType:       origTypeToBasicType(fieldType),
+		Event:            event,
+		OrigType:         fieldType,
+		Iterator:         fieldIterator,
+		IsArray:          isArray,
+		Weight:           field.weight,
+		CommentText:      fieldCommentText,
+		OpOverrides:      opOverrides,
+		Helper:           field.helper,
+		SkipADResolution: field.skipADResolution,
+		IsOrigTypePtr:    isPointer,
+		Check:            field.check,
+		Alias:            alias,
+		AliasPrefix:      aliasPrefix,
 	}
 
 	if field.lengthField {
@@ -280,7 +317,7 @@ type seclField struct {
 	name                   string
 	iterator               string
 	handler                string
-	cachelessResolution    bool
+	helper                 bool // mark the handler as just a helper and not a real resolver. Won't be called by ResolveFields
 	skipADResolution       bool
 	lengthField            bool
 	weight                 int64
@@ -321,8 +358,8 @@ func parseFieldDef(def string) (seclField, error) {
 			case "opts":
 				for _, opt := range strings.Split(value, "|") {
 					switch opt {
-					case "cacheless_resolution":
-						field.cachelessResolution = true
+					case "helper":
+						field.helper = true
 					case "length":
 						field.lengthField = true
 					case "skip_ad":
@@ -339,7 +376,7 @@ func parseFieldDef(def string) (seclField, error) {
 }
 
 // handleSpecRecursive is a recursive function that walks through the fields of a module
-func handleSpecRecursive(module *common.Module, astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
+func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
 	if verbose {
 		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 	}
@@ -364,21 +401,15 @@ func handleSpecRecursive(module *common.Module, astFile *ast.File, spec interfac
 			tag = reflect.StructTag(field.Tag.Value[1 : len(field.Tag.Value)-1])
 		}
 
-		if p, ok := tag.Lookup("platform"); ok {
-			platform := common.Platform(p)
-			compatiblePlatform := platform == common.Unspecified || platform == module.Platform
-			if !compatiblePlatform {
-				continue
-			}
-		}
-
 		if e, ok := tag.Lookup("event"); ok {
 			event = e
 			if _, ok = module.EventTypes[e]; !ok {
 				module.EventTypes[e] = common.NewEventTypeMetada()
 				dejavu = make(map[string]bool) // clear dejavu map when it's a new event type
 			}
-			module.EventTypes[e].Doc = fieldCommentText
+			if e != "*" {
+				module.EventTypes[e].Doc = fieldCommentText
+			}
 		}
 
 		if isEmbedded := len(field.Names) == 0; isEmbedded {
@@ -387,16 +418,24 @@ func handleSpecRecursive(module *common.Module, astFile *ast.File, spec interfac
 			}
 
 			ident, _ := field.Type.(*ast.Ident)
-			if starExpr, ok := field.Type.(*ast.StarExpr); ident == nil && ok {
-				ident, _ = starExpr.X.(*ast.Ident)
+			if ident == nil {
+				if starExpr, ok := field.Type.(*ast.StarExpr); ok {
+					ident, _ = starExpr.X.(*ast.Ident)
+				}
 			}
 
 			if ident != nil {
-				embedded := astFile.Scope.Lookup(ident.Name)
+				name := ident.Name
+				if prefix != "" {
+					name = prefix + "." + ident.Name
+				}
+
+				embedded := astFiles.LookupSymbol(ident.Name)
 				if embedded != nil {
 					handleEmbedded(module, ident.Name, prefix, event, field.Type)
-
-					handleSpecRecursive(module, astFile, embedded.Decl, prefix+"."+ident.Name, aliasPrefix, event, fieldIterator, dejavu)
+					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, event, fieldIterator, dejavu)
+				} else {
+					log.Printf("failed to resolve symbol for %+v in %s", ident.Name, pkgname)
 				}
 			}
 		} else {
@@ -424,13 +463,12 @@ func handleSpecRecursive(module *common.Module, astFile *ast.File, spec interfac
 
 			fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
-			prefixedFieldName := fmt.Sprintf("%s.%s", prefix, fieldBasename)
-			if len(prefix) == 0 {
-				prefixedFieldName = fieldBasename
+			prefixedFieldName := fieldBasename
+			if prefix != "" {
+				prefixedFieldName = fmt.Sprintf("%s.%s", prefix, fieldBasename)
 			}
 
 			for _, seclField := range fields {
-
 				handleNonEmbedded(module, seclField, prefixedFieldName, event, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
@@ -438,6 +476,7 @@ func handleSpecRecursive(module *common.Module, astFile *ast.File, spec interfac
 				}
 
 				if handler := seclField.handler; handler != "" {
+
 					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
 
 					delete(dejavu, fieldBasename)
@@ -458,21 +497,21 @@ func handleSpecRecursive(module *common.Module, astFile *ast.File, spec interfac
 				if isBasicType(fieldType) {
 					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
 				} else {
-					if symbol, err := resolveSymbol(pkgname, fieldType); err != nil || symbol == nil {
-						log.Printf("failed to resolve symbol for %+v in %s", fieldType, pkgname)
-					} else {
+					spec := astFiles.LookupSymbol(fieldType)
+					if spec != nil {
+						newPrefix, newAliasPrefix := fieldBasename, alias
 
-						spec := astFile.Scope.Lookup(fieldType)
-						var newPrefix, newAliasPrefix string
 						if prefix != "" {
 							newPrefix = prefix + "." + fieldBasename
-							newAliasPrefix = aliasPrefix + "." + alias
-						} else {
-							newPrefix = fieldBasename
-							newAliasPrefix = alias
 						}
 
-						handleSpecRecursive(module, astFile, spec.Decl, newPrefix, newAliasPrefix, event, fieldIterator, dejavu)
+						if aliasPrefix != "" {
+							newAliasPrefix = aliasPrefix + "." + alias
+						}
+
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, fieldIterator, dejavu)
+					} else {
+						log.Printf("failed to resolve symbol for %+v in %s", fieldType, pkgname)
 					}
 				}
 
@@ -515,39 +554,34 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 	return opOverrides, fields
 }
 
-func parseFile(filename string, pkgName string) (*common.Module, error) {
+func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
+	var astFiles AstFiles
+
+	for _, file := range files {
+		pkgs, err := packages.Load(cfg, file)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
+			return nil, errors.New("failed to get syntax from parse file")
+		}
+
+		astFiles.files = append(astFiles.files, pkgs[0].Syntax[0])
+	}
+
+	return &astFiles, nil
+}
+
+func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
 		BuildFlags: []string{"-mod=mod", fmt.Sprintf("-tags=%s", buildTags)},
 	}
 
-	pkgs, err := packages.Load(&cfg, filename)
+	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-		return nil, errors.New("failed to get syntax from parse file")
-	}
-
-	pkg := pkgs[0]
-	astFile := pkg.Syntax[0]
-
-	packagesLookupMap = make(map[string]*types.Package)
-	for _, typePackage := range pkg.Imports {
-		p := typePackage.Types
-		packagesLookupMap[p.Path()] = p
-	}
-	packagesLookupMap[pkgName] = pkg.Types
-
-	formattedBuildTags := formatBuildTags(buildTags)
-	formattedFieldHandlersBuildTags := formatBuildTags(fieldHandlersBuildTags)
-	for _, comment := range astFile.Comments {
-		commentText := comment.Text()
-		if strings.HasPrefix(commentText, "+build ") {
-			formattedBuildTags = append(formattedBuildTags, commentText)
-			formattedFieldHandlersBuildTags = append(formattedFieldHandlersBuildTags, commentText)
-		}
 	}
 
 	moduleName := path.Base(path.Dir(output))
@@ -556,22 +590,14 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 	}
 
 	module := &common.Module{
-		Name:                   moduleName,
-		SourcePkg:              pkgName,
-		TargetPkg:              pkgName,
-		BuildTags:              formattedBuildTags,
-		FieldHandlersBuildTags: formattedFieldHandlersBuildTags,
-		Fields:                 make(map[string]*common.StructField),
-		AllFields:              make(map[string]*common.StructField),
-		Iterators:              make(map[string]*common.StructField),
-		EventTypes:             make(map[string]*common.EventTypeMetadata),
-		Platform:               common.Unspecified,
-	}
-
-	if strings.Contains(buildTags, "linux") || strings.Contains(buildTags, "unix") {
-		module.Platform = common.Linux
-	} else if strings.Contains(buildTags, "windows") {
-		module.Platform = common.Windows
+		Name:       moduleName,
+		SourcePkg:  pkgName,
+		TargetPkg:  pkgName,
+		BuildTags:  formatBuildTags(buildTags),
+		Fields:     make(map[string]*common.StructField),
+		AllFields:  make(map[string]*common.StructField),
+		Iterators:  make(map[string]*common.StructField),
+		EventTypes: make(map[string]*common.EventTypeMetadata),
 	}
 
 	// If the target package is different from the model package
@@ -580,26 +606,8 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		module.TargetPkg = path.Clean(path.Join(pkgName, path.Dir(output)))
 	}
 
-	for _, decl := range astFile.Decls {
-		if decl, ok := decl.(*ast.GenDecl); ok {
-			genaccessors := false
-			if decl.Doc != nil {
-				for _, doc := range decl.Doc.List {
-					if strings.Contains(doc.Text, "genaccessors") {
-						genaccessors = true
-						break
-					}
-				}
-			}
-
-			if !genaccessors {
-				continue
-			}
-
-			for _, spec := range decl.Specs {
-				handleSpecRecursive(module, astFile, spec, "", "", "", nil, make(map[string]bool))
-			}
-		}
+	for _, spec := range astFiles.GetSpecs() {
+		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, make(map[string]bool))
 	}
 
 	return module, nil
@@ -636,7 +644,7 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 }
 
 func getFieldHandler(allFields map[string]*common.StructField, field *common.StructField) string {
-	if field.Handler == "" || field.Iterator != nil || field.CachelessResolution {
+	if field.Handler == "" || field.Iterator != nil || field.Helper {
 		return ""
 	}
 
@@ -756,7 +764,7 @@ var accessorsTemplateCode string
 var fieldHandlersTemplate string
 
 func main() {
-	module, err := parseFile(filename, pkgname)
+	module, err := parseFile(modelFile, typesFile, pkgname)
 	if err != nil {
 		panic(err)
 	}
@@ -769,7 +777,7 @@ func main() {
 
 	if docOutput != "" {
 		os.Remove(docOutput)
-		if err := doc.GenerateDocJSON(module, path.Dir(filename), docOutput); err != nil {
+		if err := doc.GenerateDocJSON(module, path.Dir(modelFile), docOutput); err != nil {
 			panic(err)
 		}
 	}
@@ -838,10 +846,10 @@ func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
 	flag.StringVar(&fieldHandlersOutput, "field-handlers", "", "Field handlers output file")
-	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
+	flag.StringVar(&modelFile, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
+	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
-	flag.StringVar(&fieldHandlersBuildTags, "field-handlers-tags", "", "build tags used for field handlers")
 	flag.StringVar(&output, "output", "", "Go generated file")
 	flag.Parse()
 }

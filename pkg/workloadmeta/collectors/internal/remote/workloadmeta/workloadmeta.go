@@ -52,6 +52,7 @@ func (s *stream) Recv() (interface{}, error) {
 
 type streamHandler struct {
 	port int
+	config.Config
 }
 
 func init() {
@@ -60,14 +61,14 @@ func init() {
 	workloadmeta.RegisterRemoteCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
 			CollectorID:   collectorID,
-			StreamHandler: &streamHandler{},
+			StreamHandler: &streamHandler{Config: config.Datadog},
 		}
 	})
 }
 
 func (s *streamHandler) Port() int {
 	if s.port == 0 {
-		return config.Datadog.GetInt("cmd_port")
+		return s.Config.GetInt("cmd_port")
 	}
 	// for tests
 	return s.port

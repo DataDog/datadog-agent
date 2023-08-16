@@ -52,6 +52,7 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				Swap:             pointer.Ptr(0.0),
 				OOMEvents:        pointer.Ptr(10.0),
 				PartialStallTime: pointer.Ptr(97000.0),
+				Peak:             pointer.Ptr(50000.0),
 			},
 			IO: &metrics.ContainerIOStats{
 				Devices: map[string]metrics.DeviceIOStats{
