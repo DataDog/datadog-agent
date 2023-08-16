@@ -150,13 +150,12 @@ func (m *Monitor) Start() error {
 		if err != nil {
 			if errors.Is(err, syscall.ENOMEM) {
 				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+			} else {
+				err = fmt.Errorf("could not enable USM: %s", err)
 			}
 
 			m.Stop()
 
-			if err != nil {
-				err = fmt.Errorf("could not enable USM: %s", err)
-			}
 			startupError = err
 		}
 	}()
