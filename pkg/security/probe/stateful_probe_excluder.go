@@ -14,13 +14,19 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 )
 
+// availableFunctionsBasedExcluder is a FunctionExcluder based on reading entries in
+// `/sys/kernel/{debug,}/tracing/available_filter_functions`, i.e. the list of hookable
+// functions provided by the kernel
 type availableFunctionsBasedExcluder struct {
 	available map[string]struct{}
 }
+
+var _ manager.FunctionExcluder = (*availableFunctionsBasedExcluder)(nil)
 
 func newAvailableFunctionsBasedExcluder() (*availableFunctionsBasedExcluder, error) {
 	tracingRoot, err := tracefs.Root()
