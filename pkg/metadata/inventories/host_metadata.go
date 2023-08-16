@@ -17,7 +17,7 @@ import (
 
 // for testing purpose
 var (
-	cpuGet      = cpu.Get
+	cpuGet      = cpu.CollectInfo
 	memoryGet   = memory.CollectInfo
 	networkGet  = network.Get
 	platformGet = platform.CollectInfo
@@ -90,21 +90,23 @@ func fetchFromMetadata(key string, metadata AgentMetadata) string {
 func getHostMetadata() *HostMetadata {
 	metadata := &HostMetadata{}
 
-	cpuInfo, warnings, err := cpuGet()
+	cpuInfo := cpuGet()
+	_, warnings, err := cpuInfo.AsJSON()
 	if err != nil {
 		logErrorf("Failed to retrieve cpu metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.CPUCores = cpuInfo.CpuCores
-		metadata.CPULogicalProcessors = cpuInfo.CpuLogicalProcessors
-		metadata.CPUVendor = cpuInfo.VendorId
-		metadata.CPUModel = cpuInfo.ModelName
-		metadata.CPUModelID = cpuInfo.Model
-		metadata.CPUFamily = cpuInfo.Family
-		metadata.CPUStepping = cpuInfo.Stepping
-		metadata.CPUFrequency = cpuInfo.Mhz
-		metadata.CPUCacheSize = cpuInfo.CacheSizeBytes
+		metadata.CPUCores = cpuInfo.CPUCores.ValueOrDefault()
+		metadata.CPULogicalProcessors = cpuInfo.CPULogicalProcessors.ValueOrDefault()
+		metadata.CPUVendor = cpuInfo.VendorID.ValueOrDefault()
+		metadata.CPUModel = cpuInfo.ModelName.ValueOrDefault()
+		metadata.CPUModelID = cpuInfo.Model.ValueOrDefault()
+		metadata.CPUFamily = cpuInfo.Family.ValueOrDefault()
+		metadata.CPUStepping = cpuInfo.Stepping.ValueOrDefault()
+		metadata.CPUFrequency = cpuInfo.Mhz.ValueOrDefault()
+		cpuCacheSize := cpuInfo.CacheSizeKB.ValueOrDefault()
+		metadata.CPUCacheSize = cpuCacheSize * 1024
 	}
 
 	platformInfo := platformGet()
@@ -128,10 +130,9 @@ func getHostMetadata() *HostMetadata {
 	} else {
 		logWarnings(warnings)
 
-		// Value() returns the default value of the type in case of error so we can use it directly
-		memoryTotalKb, _ := memoryInfo.TotalBytes.Value()
+		memoryTotalKb := memoryInfo.TotalBytes.ValueOrDefault()
 		metadata.MemoryTotalKb = memoryTotalKb / 1024
-		metadata.MemorySwapTotalKb, _ = memoryInfo.SwapTotalKb.Value()
+		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
 	networkInfo, warnings, err := networkGet()

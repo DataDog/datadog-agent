@@ -22,14 +22,14 @@ type httpEncoder struct {
 	byConnection *USMConnectionIndex[http.Key, *http.RequestStats]
 }
 
-func newHTTPEncoder(payload *network.Connections) *httpEncoder {
-	if len(payload.HTTP) == 0 {
+func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
+	if len(httpPayloads) == 0 {
 		return nil
 	}
 
 	return &httpEncoder{
 		builder: model.NewHTTPAggregationsBuilder(nil),
-		byConnection: GroupByConnection("http", payload.HTTP, func(key http.Key) types.ConnectionKey {
+		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 	}

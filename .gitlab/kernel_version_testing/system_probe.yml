@@ -116,6 +116,8 @@ upload_dependencies_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
   tags: ["arch:amd64"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -189,6 +191,8 @@ upload_system_probe_tests_arm64:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
   allow_failure: true
   script:
     # Build dependencies directory
@@ -276,8 +280,10 @@ kernel_matrix_testing_setup_env:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV
+    - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
+    # Force remove pulumi stack files so the infra cleaner does not fail trying to remove stale stacks
+    - pulumi stack rm -y --force $(pulumi stack ls -a | grep kernel-matrix-testing-$CI_PIPELINE_ID | cut -d ' ' -f 1)
     - pulumi logout
   artifacts:
     when: always
@@ -294,6 +300,8 @@ kernel_matrix_testing_setup_env:
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
@@ -329,7 +337,7 @@ kernel_matrix_testing_run_tests_x64:
     ARCH: "x86_64"
   parallel:
     matrix:
-      - TAG: ["bionic", "focal", "jammy"]
+      - TAG: ["bionic", "focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
 
 kernel_matrix_testing_run_tests_arm64:
   extends:
@@ -340,7 +348,7 @@ kernel_matrix_testing_run_tests_arm64:
     ARCH: "arm64"
   parallel:
     matrix:
-      - TAG: ["focal", "jammy"]
+      - TAG: ["focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
@@ -348,6 +356,8 @@ kernel_matrix_testing_cleanup:
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
   when: always
   tags: ["arch:amd64"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:

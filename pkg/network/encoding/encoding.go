@@ -69,11 +69,11 @@ func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connecti
 	})
 
 	routeIndex := make(map[string]RouteIdx)
-	httpEncoder := newHTTPEncoder(conns)
+	httpEncoder := newHTTPEncoder(conns.HTTP)
 	defer httpEncoder.Close()
-	kafkaEncoder := newKafkaEncoder(conns)
+	kafkaEncoder := newKafkaEncoder(conns.Kafka)
 	defer kafkaEncoder.Close()
-	http2Encoder := newHTTP2Encoder(conns)
+	http2Encoder := newHTTP2Encoder(conns.HTTP2)
 	defer http2Encoder.Close()
 
 	ipc := make(ipCache, len(conns.Conns)/2)

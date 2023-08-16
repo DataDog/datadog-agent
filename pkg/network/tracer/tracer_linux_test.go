@@ -15,6 +15,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1785,10 +1786,54 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.True(t, conn.IntraHost)
 }
 
+func (s *TracerSuite) TestUDPIncomingDirectionFix() {
+	t := s.T()
+
+	server := &UDPServer{
+		network: "udp",
+		address: "localhost:8125",
+		onMessage: func(b []byte, n int) []byte {
+			return b
+		},
+	}
+
+	cfg := testConfig()
+	cfg.ProtocolClassificationEnabled = false
+	tr := setupTracer(t, cfg)
+
+	err := server.Run(64)
+	require.NoError(t, err)
+	t.Cleanup(server.Shutdown)
+
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	err = syscall.Bind(sfd, &syscall.SockaddrInet4{Addr: netip.MustParseAddr("127.0.0.1").As4()})
+	require.NoError(t, err)
+
+	err = syscall.Sendto(sfd, []byte("foo"), 0, &syscall.SockaddrInet4{Port: 8125, Addr: netip.MustParseAddr("127.0.0.1").As4()})
+	require.NoError(t, err)
+
+	_sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	sa := _sa.(*syscall.SockaddrInet4)
+	ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
+	raddr, err := net.ResolveUDPAddr("udp", server.address)
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		conn, _ = findConnection(net.UDPAddrFromAddrPort(ap), raddr, conns)
+		return conn != nil
+	}, 3*time.Second, 500*time.Millisecond)
+
+	assert.Equal(t, network.OUTGOING, conn.Direction)
+}
+
 func (s *TracerSuite) TestGetMapsTelemetry() {
 	t := s.T()
-	// We need the tracepoints on open syscall in order
-	// to test.
 	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
@@ -1852,9 +1897,12 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	}
 
 	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
-	_, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0xdeadbeef), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
+	addr, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
 	require.Zero(t, sysErr)
-	syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(0xdeadbeef), uintptr(0))
+	syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(addr), uintptr(0))
+	t.Cleanup(func() {
+		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
+	})
 
 	stats, err := tr.GetStats()
 	require.NoError(t, err)

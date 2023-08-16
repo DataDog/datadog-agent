@@ -59,7 +59,7 @@ func CollectInfo() *Info {
 	return info
 }
 
-// Returns an interface which can be marshalled to a JSON and contains the value of non-errored fields.
+// AsJSON returns an interface which can be marshalled to a JSON and contains the value of non-errored fields.
 func (info *Info) AsJSON() (interface{}, []string, error) {
 	return utils.AsJSON(info, false)
 }

@@ -46,6 +46,20 @@ const (
 	MaxTracedCgroupsCount = 128
 )
 
+const (
+	// EventFlagsAsync async event
+	EventFlagsAsync = 1 << iota
+
+	// EventFlagsSavedByAD saved by ad
+	EventFlagsSavedByAD
+
+	// EventFlagsActivityDumpSample an AD sample
+	EventFlagsActivityDumpSample
+
+	// InProfile true if the event was found in a profile
+	EventFlagsSecurityProfileInProfile
+)
+
 var (
 	// vmConstants is the list of protection flags for a virtual memory segment
 	// generate_constants:Virtual Memory flags,Virtual Memory flags define the protection of a virtual memory segment.

@@ -15,9 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/agent-payload/pb"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/agent-payload/v5/pb"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )

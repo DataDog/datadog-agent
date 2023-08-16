@@ -7,6 +7,7 @@ package telemetry
 
 import (
 	"net/http"
+	"sync"
 
 	promOtel "go.opentelemetry.io/otel/exporters/prometheus"
 
@@ -17,13 +18,15 @@ import (
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// TODO (components): Remove the global and move this into `newTelemetry` after all telemetry is migrated to the component
+// TODO (components): Remove the globals and move this into `newTelemetry` after all telemetry is migrated to the component
 var (
 	registry = newRegistry()
 	provider = newProvider(registry)
+	mutex    = sync.Mutex{}
 )
 
 type telemetryImpl struct {
+	mutex         *sync.Mutex
 	registry      *prometheus.Registry
 	meterProvider *sdk.MeterProvider
 }
@@ -47,19 +50,8 @@ func newProvider(reg *prometheus.Registry) *sdk.MeterProvider {
 
 func newTelemetry() Component {
 	return &telemetryImpl{
+		mutex:         &mutex,
 		registry:      registry,
-		meterProvider: provider,
-	}
-}
-
-// Same as `newTelemetry“ without the global.
-// Can be merged with `newTelemetry` when the global is removed
-func newMock() Component {
-	reg := prometheus.NewRegistry()
-	provider := newProvider(reg)
-
-	return &telemetryImpl{
-		registry:      reg,
 		meterProvider: provider,
 	}
 }
@@ -74,6 +66,8 @@ func (t *telemetryImpl) Handler() http.Handler {
 }
 
 func (t *telemetryImpl) Reset() {
+	mutex.Lock()
+	defer mutex.Unlock()
 	registry = prometheus.NewRegistry()
 	t.registry = registry
 }
@@ -92,6 +86,9 @@ func (t *telemetryImpl) NewCounter(subsystem, name string, tags []string, help s
 }
 
 func (t *telemetryImpl) NewCounterWithOpts(subsystem, name string, tags []string, help string, opts Options) Counter {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	name = opts.NameWithSeparator(subsystem, name)
 
 	c := &promCounter{
@@ -104,7 +101,7 @@ func (t *telemetryImpl) NewCounterWithOpts(subsystem, name string, tags []string
 			tags,
 		),
 	}
-	_ = t.registry.Register(c.pc)
+	t.registry.MustRegister(c.pc)
 	return c
 }
 
@@ -113,6 +110,9 @@ func (t *telemetryImpl) NewSimpleCounter(subsystem, name, help string) SimpleCou
 }
 
 func (t *telemetryImpl) NewSimpleCounterWithOpts(subsystem, name, help string, opts Options) SimpleCounter {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	name = opts.NameWithSeparator(subsystem, name)
 
 	pc := prometheus.NewCounter(prometheus.CounterOpts{
@@ -121,7 +121,7 @@ func (t *telemetryImpl) NewSimpleCounterWithOpts(subsystem, name, help string, o
 		Help:      help,
 	})
 
-	_ = t.registry.Register(pc)
+	t.registry.MustRegister(pc)
 	return &simplePromCounter{c: pc}
 }
 
@@ -130,6 +130,9 @@ func (t *telemetryImpl) NewGauge(subsystem, name string, tags []string, help str
 }
 
 func (t *telemetryImpl) NewGaugeWithOpts(subsystem, name string, tags []string, help string, opts Options) Gauge {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	name = opts.NameWithSeparator(subsystem, name)
 
 	g := &promGauge{
@@ -142,7 +145,7 @@ func (t *telemetryImpl) NewGaugeWithOpts(subsystem, name string, tags []string, 
 			tags,
 		),
 	}
-	_ = t.registry.Register(g.pg)
+	t.registry.MustRegister(g.pg)
 	return g
 }
 
@@ -151,6 +154,9 @@ func (t *telemetryImpl) NewSimpleGauge(subsystem, name, help string) SimpleGauge
 }
 
 func (t *telemetryImpl) NewSimpleGaugeWithOpts(subsystem, name, help string, opts Options) SimpleGauge {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	name = opts.NameWithSeparator(subsystem, name)
 
 	pc := &simplePromGauge{g: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -159,7 +165,7 @@ func (t *telemetryImpl) NewSimpleGaugeWithOpts(subsystem, name, help string, opt
 		Help:      help,
 	})}
 
-	_ = t.registry.Register(pc.g)
+	t.registry.MustRegister(pc.g)
 	return pc
 }
 
@@ -168,6 +174,9 @@ func (t *telemetryImpl) NewHistogram(subsystem, name string, tags []string, help
 }
 
 func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []string, help string, buckets []float64, opts Options) Histogram {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	name = opts.NameWithSeparator(subsystem, name)
 
 	h := &promHistogram{
@@ -182,7 +191,7 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 		),
 	}
 
-	_ = t.registry.Register(h.ph)
+	t.registry.MustRegister(h.ph)
 	return h
 }
 
@@ -191,6 +200,9 @@ func (t *telemetryImpl) NewSimpleHistogram(subsystem, name, help string, buckets
 }
 
 func (t *telemetryImpl) NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
 	name = opts.NameWithSeparator(subsystem, name)
 
 	pc := &simplePromHistogram{h: prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -200,6 +212,6 @@ func (t *telemetryImpl) NewSimpleHistogramWithOpts(subsystem, name, help string,
 		Buckets:   buckets,
 	})}
 
-	_ = t.registry.Register(pc.h)
+	t.registry.MustRegister(pc.h)
 	return pc
 }

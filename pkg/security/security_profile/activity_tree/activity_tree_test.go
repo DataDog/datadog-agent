@@ -51,13 +51,15 @@ func TestInsertFileEvent(t *testing.T) {
 
 	for _, path := range pathToInserts {
 		event := &model.Event{
+			BaseEvent: model.BaseEvent{
+				FieldHandlers: &model.DefaultFieldHandlers{},
+			},
 			Open: model.OpenEvent{
 				File: model.FileEvent{
 					IsPathnameStrResolved: true,
 					PathnameStr:           path,
 				},
 			},
-			FieldHandlers: &model.DefaultFieldHandlers{},
 		}
 		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false, nil, nil)
 	}
@@ -146,18 +148,20 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 	}
 
 	evt := &model.Event{
-		Type:             uint32(model.ExecEventType),
-		FieldHandlers:    &model.DefaultFieldHandlers{},
-		ContainerContext: &model.ContainerContext{},
-		ProcessContext:   &model.ProcessContext{},
+		BaseEvent: model.BaseEvent{
+			Type:             uint32(model.ExecEventType),
+			FieldHandlers:    &model.DefaultFieldHandlers{},
+			ContainerContext: &model.ContainerContext{},
+			ProcessContext:   &model.ProcessContext{},
+			ProcessCacheEntry: &model.ProcessCacheEntry{
+				ProcessContext: model.ProcessContext{
+					Process:  lineageDup[0],
+					Ancestor: ancestor,
+				},
+			},
+		},
 		Exec: model.ExecEvent{
 			Process: &model.Process{},
-		},
-		ProcessCacheEntry: &model.ProcessCacheEntry{
-			ProcessContext: model.ProcessContext{
-				Process:  lineageDup[0],
-				Ancestor: ancestor,
-			},
 		},
 	}
 	return evt
@@ -1886,6 +1890,318 @@ var activityTreeInsertExecEventTestCases = []struct {
 																						{
 																							Process: model.Process{
 																								IsExecChild: true,
+																								FileEvent: model.FileEvent{
+																									PathnameStr: "/bin/du",
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/12_bis
+	// ---------------
+	//
+	//      /bin/apache         +          systemd                                              ==>>              /bin/bash          /bin/apache
+	//          |                            |- /bin/bash                                                            |                    |
+	//       /bin/ls                         |- /bin/webserver                                                 /bin/webserver          /bin/ls
+	//          |                            |- /bin/apache                                                          |                    |
+	//       /bin/date                       |- /bin/wc                                                         /bin/apache           /bin/date
+	//          |                            |- /bin/id                                                              |                    |
+	//       /bin/du                         |- /bin/ls                                                           /bin/wc              /bin/du
+	//                                       |- /bin/date                                                            |
+	//                                       |- /bin/passwd                                                       /bin/id
+	//                                       |- /bin/bpftool                                                         |
+	//                                       |- /bin/du                                                           /bin/ls
+	//                                                                                                               |
+	//                                                                                                            /bin/date
+	//                                                                                                               |
+	//                                                                                                           /bin/passwd
+	//                                                                                                               |
+	//                                                                                                           /bin/bpftool
+	//                                                                                                               |
+	//                                                                                                           /bin/du
+	{
+		name: "exec/12_bis",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/apache",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/ls",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/date",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												FileEvent: model.FileEvent{
+													PathnameStr: "/bin/du",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/bash",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 1,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/webserver",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/apache",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 3,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/wc",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/id",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 5,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 6,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/date",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 7,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/passwd",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 8,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/bpftool",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 9,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/du",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 10,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/du",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/apache",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/ls",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/date",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												FileEvent: model.FileEvent{
+													PathnameStr: "/bin/du",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/bash",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/webserver",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/apache",
+										},
+									},
+									Children: []*ProcessNode{
+										{
+											Process: model.Process{
+												FileEvent: model.FileEvent{
+													PathnameStr: "/bin/wc",
+												},
+											},
+											Children: []*ProcessNode{
+												{
+													Process: model.Process{
+														FileEvent: model.FileEvent{
+															PathnameStr: "/bin/id",
+														},
+													},
+													Children: []*ProcessNode{
+														{
+															Process: model.Process{
+																FileEvent: model.FileEvent{
+																	PathnameStr: "/bin/ls",
+																},
+															},
+															Children: []*ProcessNode{
+																{
+																	Process: model.Process{
+																		FileEvent: model.FileEvent{
+																			PathnameStr: "/bin/date",
+																		},
+																	},
+																	Children: []*ProcessNode{
+																		{
+																			Process: model.Process{
+																				FileEvent: model.FileEvent{
+																					PathnameStr: "/bin/passwd",
+																				},
+																			},
+																			Children: []*ProcessNode{
+																				{
+																					Process: model.Process{
+																						FileEvent: model.FileEvent{
+																							PathnameStr: "/bin/bpftool",
+																						},
+																					},
+																					Children: []*ProcessNode{
+																						{
+																							Process: model.Process{
 																								FileEvent: model.FileEvent{
 																									PathnameStr: "/bin/du",
 																								},

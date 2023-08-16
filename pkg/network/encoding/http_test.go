@@ -102,7 +102,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		out.EndpointAggregations[1].StatsByStatusCode[code] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
-	httpEncoder := newHTTPEncoder(in)
+	httpEncoder := newHTTPEncoder(in.HTTP)
 	aggregations, tags, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
@@ -166,7 +166,7 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 			key: httpReqStats,
 		},
 	}
-	httpEncoder := newHTTPEncoder(payload)
+	httpEncoder := newHTTPEncoder(payload.HTTP)
 	httpAggregations, tags, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
 
 	require.NotNil(t, httpAggregations)
@@ -244,7 +244,7 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 		},
 	}
 
-	httpEncoder := newHTTPEncoder(in)
+	httpEncoder := newHTTPEncoder(in.HTTP)
 
 	// assert that the first connection matching the HTTP data will get
 	// back a non-nil result
@@ -331,7 +331,7 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 		in.HTTP[httpKeyWin] = httpStats
 	}
 
-	httpEncoder := newHTTPEncoder(in)
+	httpEncoder := newHTTPEncoder(in.HTTP)
 
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP stats
@@ -434,7 +434,7 @@ func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
 	b.ReportAllocs()
 	var h *httpEncoder
 	for i := 0; i < b.N; i++ {
-		h = newHTTPEncoder(&payload)
+		h = newHTTPEncoder(payload.HTTP)
 	}
 	runtime.KeepAlive(h)
 }
