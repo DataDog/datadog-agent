@@ -10,7 +10,6 @@
 #include "tracer/telemetry.h"
 #include "cookie.h"
 #include "sock.h"
-#include "port_range.h"
 #include "protocols/classification/shared-tracer-maps.h"
 #include "protocols/tls/tags-types.h"
 #include "ip.h"
