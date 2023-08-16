@@ -8,14 +8,18 @@ package noop
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNoopParserHandleMessages(t *testing.T) {
 	parser := New()
-	testMsg := []byte("Foo")
-	msg, err := parser.Parse(testMsg)
+	logMessage := message.Message{
+		Content: []byte("Foo"),
+	}
+	msg, err := parser.Parse(&logMessage)
 	assert.Nil(t, err)
-	assert.False(t, msg.IsPartial)
-	assert.Equal(t, testMsg, msg.Content)
+	assert.False(t, logMessage.ParsingExtra.IsPartial)
+	assert.Equal(t, logMessage.Content, msg.Content)
 }

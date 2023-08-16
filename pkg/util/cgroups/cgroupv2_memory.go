@@ -94,6 +94,11 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 	nilIfZero(&stats.Limit)
 
+	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.peak"), &stats.Peak); err != nil {
+		reportError(err)
+	}
+	nilIfZero(&stats.Peak)
+
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.swap.current"), &stats.Swap); err != nil {
 		reportError(err)
 	}

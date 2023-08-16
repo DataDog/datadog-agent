@@ -204,8 +204,17 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 	return &Pipeline{col}, nil
 }
 
+func recoverAndStoreError() {
+	if r := recover(); r != nil {
+		err := fmt.Errorf("OTLP pipeline had a panic: %v", r)
+		pipelineError.Store(err)
+		log.Errorf(err.Error())
+	}
+}
+
 // Run the OTLP pipeline.
 func (p *Pipeline) Run(ctx context.Context) error {
+	defer recoverAndStoreError()
 	return p.col.Run(ctx)
 }
 

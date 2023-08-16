@@ -16,7 +16,11 @@ import (
 
 	"github.com/coreos/go-systemd/sdjournal"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,6 +34,7 @@ const (
 
 // Tailer collects logs from a journal.
 type Tailer struct {
+	decoder    *decoder.Decoder
 	source     *sources.LogSource
 	outputChan chan *message.Message
 	journal    Journal
@@ -45,6 +50,7 @@ type Tailer struct {
 // NewTailer returns a new tailer.
 func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal) *Tailer {
 	return &Tailer{
+		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), journald.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		source:     source,
 		outputChan: outputChan,
 		journal:    journal,
@@ -66,15 +72,23 @@ func (t *Tailer) Start(cursor string) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.Identifier())
 	log.Info("Start tailing journal ", t.journalPath(), " with id: ", t.Identifier())
+
+	go t.forwardMessages()
+	t.decoder.Start()
 	go t.tail()
+
 	return nil
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing journal ", t.journalPath(), " with id: ", t.Identifier())
+
+	// stop the tail() routine
 	t.stop <- struct{}{}
+
 	t.source.RemoveInput(t.Identifier())
+
 	<-t.done
 }
 
@@ -158,6 +172,14 @@ func (t *Tailer) setup() error {
 	return nil
 }
 
+func (t *Tailer) forwardMessages() {
+	for decodedMessage := range t.decoder.OutputChan {
+		if len(decodedMessage.Content) > 0 {
+			t.outputChan <- decodedMessage
+		}
+	}
+}
+
 // seek seeks to the cursor if it is not empty or the end of the journal,
 // returns an error if the operation failed.
 func (t *Tailer) seek(cursor string) error {
@@ -192,12 +214,12 @@ func (t *Tailer) seek(cursor string) error {
 func (t *Tailer) tail() {
 	defer func() {
 		t.journal.Close()
+		t.decoder.Stop()
 		t.done <- struct{}{}
 	}()
 	for {
 		select {
 		case <-t.stop:
-			// stop tailing journal
 			return
 		default:
 			n, err := t.journal.Next()
@@ -223,7 +245,12 @@ func (t *Tailer) tail() {
 			select {
 			case <-t.stop:
 				return
-			case t.outputChan <- t.toMessage(entry):
+			case t.decoder.InputChan <- message.NewMessage(
+				t.getContent(entry),
+				t.getOrigin(entry),
+				t.getStatus(entry),
+				time.Now().UnixNano(),
+			):
 			}
 		}
 	}
@@ -261,13 +288,6 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 		}
 	}
 	return false
-}
-
-// toMessage transforms a journal entry into a message.
-// A journal entry has different fields that may vary depending on its nature,
-// for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
-func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) *message.Message {
-	return message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry), time.Now().UnixNano())
 }
 
 // getContent returns all the fields of the entry as a json-string,

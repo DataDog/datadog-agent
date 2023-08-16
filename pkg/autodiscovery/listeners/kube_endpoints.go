@@ -99,15 +99,19 @@ func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Serv
 	l.newService = newSvc
 	l.delService = delSvc
 
-	l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.endpointsAdded,
 		DeleteFunc: l.endpointsDeleted,
 		UpdateFunc: l.endpointsUpdated,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to endpoints informer: %s", err)
+	}
 
-	l.serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := l.serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: l.serviceUpdated,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to service informer: %s", err)
+	}
 
 	// Initial fill
 	endpoints, err := l.endpointsLister.List(labels.Everything())

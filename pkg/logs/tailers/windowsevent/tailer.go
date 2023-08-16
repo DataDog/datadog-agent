@@ -16,6 +16,10 @@ import (
 
 	"github.com/clbanning/mxj"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,6 +59,7 @@ type richEvent struct {
 type Tailer struct {
 	source     *sources.LogSource
 	config     *Config
+	decoder    *decoder.Decoder
 	outputChan chan *message.Message
 	stop       chan struct{}
 	done       chan struct{}
@@ -67,6 +72,7 @@ func NewTailer(source *sources.LogSource, config *Config, outputChan chan *messa
 	return &Tailer{
 		source:     source,
 		config:     config,
+		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), windowsevent.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		outputChan: outputChan,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),

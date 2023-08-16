@@ -7,8 +7,9 @@ package cpu
 
 import (
 	"encoding/binary"
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE is the size of
@@ -29,10 +30,10 @@ func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFO
 }
 
 func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformation")
 	var buflen uint32 = 0
-	err = syscall.Errno(0)
+	err = windows.Errno(0)
 	// first, figure out how much we need
 	status, _, err := getProcInfo.Call(uintptr(0),
 		uintptr(unsafe.Pointer(&buflen)))
@@ -45,7 +46,7 @@ func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 	} else {
 		// this shouldn't happen. Errno won't be set (because the function)
 		// succeeded.  So just return something to indicate we've failed
-		err = syscall.Errno(2)
+		err = windows.Errno(2)
 		return
 	}
 	buf := make([]byte, buflen)

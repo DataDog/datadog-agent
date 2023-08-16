@@ -113,3 +113,14 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestRecoverPanic(t *testing.T) {
+	panicTest := func(v any) {
+		defer recoverAndStoreError()
+		panic(v)
+	}
+	require.NotPanics(t, func() {
+		panicTest("this is a test")
+	})
+	assert.EqualError(t, pipelineError.Load(), "OTLP pipeline had a panic: this is a test")
+}

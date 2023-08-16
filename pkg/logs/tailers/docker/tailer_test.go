@@ -75,7 +75,7 @@ func (m *mockReaderSleep) Close() error {
 
 func NewTestDecoder() *decoder.Decoder {
 	return &decoder.Decoder{
-		InputChan: make(chan *decoder.Input),
+		InputChan: make(chan *message.Message),
 	}
 }
 
