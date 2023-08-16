@@ -133,8 +133,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 		},
 	}
 
-	subprogramProbesResolvers := make([]probeResolver, 0, 3)
-	subprograms := make([]subprogram, 0, 3)
+	subprogramProbesResolvers := make([]probeResolver, 0, 1)
+	subprograms := make([]subprogram, 0, 1)
 	var tailCalls []manager.TailCallRoute
 
 	goTLSProg := newGoTLSProgram(c)

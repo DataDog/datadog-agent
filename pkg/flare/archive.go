@@ -72,7 +72,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
 		fb.RegisterDirPerm(systemProbeConfigBPFDir)
 	}

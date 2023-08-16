@@ -25,7 +25,7 @@ Process Agent
   {{- else}}
   System Probe Process Module Status: Not running
   {{- end}}
-  Process Language Detection Enabled: {{ if and .expvars.language_detection_enabled (eq .expvars.language_detection_enabled "true") }}True{{ else }}False{{ end }}
+  Process Language Detection Enabled: {{ if .expvars.language_detection_enabled }}True{{ else }}False{{ end }}
 
   =================
   Process Endpoints
