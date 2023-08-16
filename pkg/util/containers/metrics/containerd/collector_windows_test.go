@@ -115,8 +115,6 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 				workloadmetaStore: workloadmetaStore,
 			}
 
-			panic(test.containerdMetrics)
-
 			// ID and cache TTL not relevant for these tests
 			result, err := collector.GetContainerStats("test-namespace", containerID, 10*time.Second)
 			assert.NoError(t, err)
