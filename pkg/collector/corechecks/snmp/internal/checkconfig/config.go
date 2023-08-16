@@ -212,6 +212,19 @@ func (c *CheckConfig) SetProfile(profile string) error {
 	return nil
 }
 
+// SetAutodetectProfile sets the profile to the provided auto-detected metrics
+// and tags. This overwrites any preexisting profile but does not affect
+// RequestedMetrics or RequestedMetricTags, which will still be queried.
+func (c *CheckConfig) SetAutodetectProfile(metrics []MetricsConfig, tags []MetricTagConfig) {
+	c.Profile = "autodetect"
+	c.ProfileDef = &profileDefinition{
+		Metrics:    metrics,
+		MetricTags: tags,
+	}
+	c.ProfileTags = nil
+	c.RebuildMetadataMetricsAndTags()
+}
+
 // RebuildMetadataMetricsAndTags rebuilds c.Metrics, c.Metadata, c.MetricTags,
 // and c.OidConfig by merging data from requested metrics/tags and the current
 // profile.
@@ -234,11 +247,6 @@ func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
 	c.DeviceIDTags = coreutil.SortUniqInPlace(c.getDeviceIDTags())
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
-}
-
-// AddUptimeMetric adds the standard uptime metric to requested metrics.
-func (c *CheckConfig) AddUptimeMetric() {
-	c.RequestedMetrics = append(c.RequestedMetrics, uptimeMetricConfig)
 }
 
 // GetStaticTags return static tags built from configuration
@@ -517,10 +525,10 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if instance.UseGlobalMetrics {
 		c.RequestedMetrics = append(c.RequestedMetrics, initConfig.GlobalMetrics...)
 	}
-	c.AddUptimeMetric()
+	// Always request uptime
+	c.RequestedMetrics = append(c.RequestedMetrics, uptimeMetricConfig)
 	normalizeMetrics(c.RequestedMetrics)
 	c.RequestedMetricTags = instance.MetricTags
-
 	errors := ValidateEnrichMetrics(c.RequestedMetrics)
 	errors = append(errors, ValidateEnrichMetricTags(c.RequestedMetricTags)...)
 	if len(errors) > 0 {

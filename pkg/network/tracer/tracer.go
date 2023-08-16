@@ -738,7 +738,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 	}
 	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(ns)
+	rootNS, err := kernel.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -764,7 +764,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}
 	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(ns)
+	rootNS, err := kernel.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -796,31 +796,14 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	if tracer.Type() != connection.TracerTypeKProbeRuntimeCompiled && tracer.Type() != connection.TracerTypeKProbeCORE {
-		if c.EnableGoTLSSupport {
-			log.Warn("disabling USM goTLS support as goTLS requires runtime compilation or CO-RE")
-			c.EnableGoTLSSupport = false
-		}
-	}
-
-	if c.EnableHTTP2Monitoring {
-		log.Info("http2 monitoring enabled")
-	}
-	if c.EnableKafkaMonitoring {
-		log.Info("kafka monitoring enabled")
-	}
-	if c.EnableGoTLSSupport {
-		log.Info("goTLS monitoring enabled")
-	}
-
 	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
 	if err != nil {
-		log.Error(err)
+		log.Errorf("usm initialization failed: %s", err)
 		return nil
 	}
 
 	if err := monitor.Start(); err != nil {
-		log.Error(err)
+		log.Errorf("usm startup failed: %s", err)
 		return nil
 	}
 
