@@ -236,8 +236,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
-
 	// starts otlp agent
 	wg.Add(1)
 	go func() {
