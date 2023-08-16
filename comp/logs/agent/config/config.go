@@ -29,6 +29,9 @@ const (
 	serverlessHTTPEndpointPrefix = "http-intake.logs."
 )
 
+// AgentJSONIntakeProtocol agent json protocol
+const AgentJSONIntakeProtocol = "agent-json"
+
 // DefaultIntakeProtocol indicates that no special protocol is in use for the endpoint intake track type.
 const DefaultIntakeProtocol IntakeProtocol = ""
 
