@@ -8,7 +8,6 @@
 package events
 
 import (
-	"log"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -55,16 +54,11 @@ func UnregisterHandler(handler ProcessEventHandler) {
 
 type eventHandlerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev model.EventInterface) {
+func (h *eventHandlerWrapper) HandleEvent(ev *model.Event) {
 	m := theMonitor.Load()
 	if m != nil {
 		m.(*eventMonitor).HandleEvent(ev)
 	}
-}
-
-// IsEventMonitorConsumer returns if the Event Handler is an Event Monitor Consumer
-func (h *eventHandlerWrapper) IsEventMonitorConsumer() bool {
-	return true
 }
 
 func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
@@ -91,27 +85,15 @@ func newEventMonitor() (*eventMonitor, error) {
 	return &eventMonitor{}, nil
 }
 
-func (e *eventMonitor) HandleEvent(incomingEvent model.EventInterface) {
-	//ev.ResolveFields()
+func (e *eventMonitor) HandleEvent(ev *model.Event) {
+	ev.ResolveFields()
 
 	e.Lock()
 	defer e.Unlock()
 
-	// TODO: This is actually a model.ProcessEvent, NOT model.Event. h(ev.ProcessContext) needs to be changed
-	ev, ok := incomingEvent.(*model.Event)
-
-	if !ok {
-		log.Fatal("Consumer received unknown object")
-	}
-
 	for _, h := range e.handlers {
 		h.HandleProcessEvent(ev.ProcessContext)
 	}
-}
-
-// IsEventMonitorConsumer returns if the Event Handler is an Event Monitor Consumer
-func (e *eventMonitor) IsEventMonitorConsumer() bool {
-	return true
 }
 
 func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {

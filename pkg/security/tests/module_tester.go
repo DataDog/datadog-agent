@@ -1020,11 +1020,6 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 	}
 }
 
-// IsEventMonitorConsumer returns if the Event Handler is an Event Monitor Consumer
-func (tm *testModule) IsEventMonitorConsumer() bool {
-	return false
-}
-
 func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {}
 
 func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
