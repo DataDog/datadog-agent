@@ -188,6 +188,9 @@ func (p *Provider) submitMetric(metric *model.Sample, metricName string, sender 
 
 // ParseMetrics parses prometheus-formatted metrics from the input data.
 func ParseMetrics(data []byte) (model.Vector, error) {
+	// the prometheus TextParser does not support windows line separators, so we need to explicitly remove them
+	data = bytes.Replace(data, []byte("\r"), []byte(""), -1)
+
 	reader := bytes.NewReader(data)
 	var parser expfmt.TextParser
 	mf, err := parser.TextToMetricFamilies(reader)
