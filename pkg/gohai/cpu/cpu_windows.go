@@ -26,13 +26,13 @@ const registryHive = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"
 
 // cacheDescriptor contains cache related information
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-cache_descriptor
-type cacheDescriptor struct {
-	Level         uint8
-	Associativity uint8
-	LineSize      uint16
-	Size          uint32
-	cacheType     uint32
-}
+// type cacheDescriptor struct {
+// 	Level         uint8
+// 	Associativity uint8
+// 	LineSize      uint16
+// 	Size          uint32
+// 	cacheType     uint32
+// }
 
 // systemLogicalProcessorInformation describes the relationship
 // between the specified processor set.
@@ -44,8 +44,6 @@ type systemLogicalProcessorInformation struct {
 	// and a cacheDescriptor structure
 	dataunion [16]byte
 }
-
-//.const systemLogicalProcessorInformationSize = 32
 
 // groupaffinity represents a processor group-specific affinity,
 // such as the affinity of a thread.

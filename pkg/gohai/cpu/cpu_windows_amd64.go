@@ -14,18 +14,18 @@ import (
 
 // systemLogicalProcessorInformationSize is the size of
 // systemLogicalProcessorInformation struct
-const systemLogicalProcessorInformationSize = 32
+// const systemLogicalProcessorInformationSize = 32
 
-func getSystemLogicalProcessorInformationSize() int {
-	return systemLogicalProcessorInformationSize
-}
+// func getSystemLogicalProcessorInformationSize() int {
+// 	return systemLogicalProcessorInformationSize
+// }
 
-func byteArrayToProcessorStruct(data []byte) (info systemLogicalProcessorInformation) {
-	info.ProcessorMask = uintptr(binary.LittleEndian.Uint64(data))
-	info.Relationship = int(binary.LittleEndian.Uint64(data[8:]))
-	copy(info.dataunion[0:16], data[16:32])
-	return
-}
+// func byteArrayToProcessorStruct(data []byte) (info systemLogicalProcessorInformation) {
+// 	info.ProcessorMask = uintptr(binary.LittleEndian.Uint64(data))
+// 	info.Relationship = int(binary.LittleEndian.Uint64(data[8:]))
+// 	copy(info.dataunion[0:16], data[16:32])
+// 	return
+// }
 
 func byteArrayToGroupAffinity(data []byte) (affinity groupaffinity, consumed uint32, err error) {
 	err = nil
