@@ -435,7 +435,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
-func (o *sslProgram) PreStart(*manager.Manager) error {
+func (o *sslProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
 	o.watcher.Start()
 	return nil
 }
