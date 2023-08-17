@@ -64,56 +64,12 @@ func newStackManager(ctx context.Context) (*StackManager, error) {
 	}, nil
 }
 
-// GetStack creates or return a stack based on stack name and config
+// GetStack creates or return a stack based on stack name and config, if error occurs during stack creation it destroy all the resources created
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
 	sm.lock.RLock()
 	defer sm.lock.RUnlock()
 
-	// Build configuration from profile
-	profile := runner.GetProfile()
-	stackName := buildStackName(profile.NamePrefix(), name)
-	deployFunc = runFuncWithRecover(deployFunc)
-
-	// Inject common/managed parameters
-	cm, err := runner.BuildStackParameters(profile, config)
-	if err != nil {
-		return nil, auto.UpResult{}, err
-	}
-
-	stack := sm.stacks[name]
-	if stack == nil {
-		workspace, err := buildWorkspace(ctx, profile, stackName, deployFunc)
-		if err != nil {
-			return nil, auto.UpResult{}, err
-		}
-
-		newStack, err := auto.SelectStack(ctx, stackName, workspace)
-		if auto.IsSelectStack404Error(err) && !failOnMissing {
-			newStack, err = auto.NewStack(ctx, stackName, workspace)
-		}
-		if err != nil {
-			return nil, auto.UpResult{}, err
-		}
-
-		stack = &newStack
-		sm.stacks[name] = stack
-	} else {
-		stack.Workspace().SetProgram(deployFunc)
-	}
-
-	err = stack.SetAllConfig(ctx, cm.ToPulumi())
-	if err != nil {
-		return nil, auto.UpResult{}, err
-	}
-
-	upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-	var loglevel uint = 1
-	defer cancel()
-	upResult, err := stack.Up(upCtx, optup.ProgressStreams(os.Stderr), optup.DebugLogging(debug.LoggingOptions{
-		LogToStdErr:   true,
-		FlowToPlugins: true,
-		LogLevel:      &loglevel,
-	}))
+	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing)
 
 	if err != nil {
 		errDestroy := sm.deleteStack(ctx, name, stack)
@@ -121,7 +77,16 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 			return stack, upResult, errors.Join(err, errDestroy)
 		}
 	}
+
 	return stack, upResult, err
+}
+
+// GetStackNonAtomic creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
+func (sm *StackManager) GetStackNonAtomic(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+	sm.lock.RLock()
+	defer sm.lock.RUnlock()
+
+	return sm.getStack(ctx, name, config, deployFunc, failOnMissing)
 }
 
 func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
@@ -181,6 +146,57 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	defer cancel()
 	err = stack.Workspace().RemoveStack(deleteContext, stack.Name())
 	return err
+}
+
+func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+	// Build configuration from profile
+	profile := runner.GetProfile()
+	stackName := buildStackName(profile.NamePrefix(), name)
+	deployFunc = runFuncWithRecover(deployFunc)
+
+	// Inject common/managed parameters
+	cm, err := runner.BuildStackParameters(profile, config)
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
+
+	stack := sm.stacks[name]
+	if stack == nil {
+		workspace, err := buildWorkspace(ctx, profile, stackName, deployFunc)
+		if err != nil {
+			return nil, auto.UpResult{}, err
+		}
+
+		newStack, err := auto.SelectStack(ctx, stackName, workspace)
+		if auto.IsSelectStack404Error(err) && !failOnMissing {
+			newStack, err = auto.NewStack(ctx, stackName, workspace)
+		}
+		if err != nil {
+			return nil, auto.UpResult{}, err
+		}
+
+		stack = &newStack
+		sm.stacks[name] = stack
+	} else {
+		stack.Workspace().SetProgram(deployFunc)
+	}
+
+	err = stack.SetAllConfig(ctx, cm.ToPulumi())
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
+
+	upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
+	var loglevel uint = 1
+	defer cancel()
+	upResult, err := stack.Up(upCtx, optup.ProgressStreams(os.Stderr), optup.DebugLogging(debug.LoggingOptions{
+		LogToStdErr:   true,
+		FlowToPlugins: true,
+		LogLevel:      &loglevel,
+	}))
+
+	return stack, upResult, err
+
 }
 
 func buildWorkspace(ctx context.Context, profile runner.Profile, stackName string, runFunc pulumi.RunFunc) (auto.Workspace, error) {
