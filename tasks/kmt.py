@@ -358,14 +358,12 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, 
 
 
 @task
-def test(
-    ctx, stack=None, packages=None, run=None, retry=2, rebuild_deps=False, vms="", ssh_key="", go_version=GOVERSION
-):
+def test(ctx, stack=None, packages="", run=None, retry=2, rebuild_deps=False, vms="", ssh_key="", go_version=GOVERSION):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps)
+    prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps, packages=packages)
 
     target_vms = build_target_set(stack, vms, ssh_key)
     args = [
