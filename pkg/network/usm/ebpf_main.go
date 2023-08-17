@@ -106,7 +106,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 }
 
 func (e *ebpfProgram) Init() error {
-	undefinedProbes := make([]manager.ProbeIdentificationPair, 0)
+	undefinedProbes := make([]manager.ProbeIdentificationPair, 0, len(e.tailCallRouter))
 	for _, tc := range e.tailCallRouter {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
