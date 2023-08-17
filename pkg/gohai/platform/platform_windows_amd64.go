@@ -54,8 +54,7 @@ import (
 // }
 
 func platGetServerInfo(data *byte) (si101 serverInfo101) {
-	var outdata []byte
-	outdata = (*[40]byte)(unsafe.Pointer(data))[:]
+	var outdata = (*[40]byte)(unsafe.Pointer(data))[:]
 	si101.sv101PlatformID = binary.LittleEndian.Uint32(outdata)
 
 	// due to 64 bit packing, skip 8 bytes to get to the name string
