@@ -243,8 +243,7 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	var err error
 	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
 	if err != nil {
-		log.Errorf("could not get offsets_data map: %s", err)
-		return err
+		return fmt.Errorf("could not get offsets_data map: %s", err)
 	}
 
 	p.procMonitor.monitor = monitor.GetProcessMonitor()
