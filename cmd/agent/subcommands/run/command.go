@@ -222,10 +222,7 @@ func run(log log.Component,
 		return err
 	}
 
-	select {
-	case err := <-stopCh:
-		return err
-	}
+	return <-stopCh
 }
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
