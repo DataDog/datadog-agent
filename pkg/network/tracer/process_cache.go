@@ -49,11 +49,11 @@ var processCacheTelemetry = struct {
 }
 
 type process struct {
-	Pid            uint32
-	Envs           map[string]string
-	ContainerIndex *intern.Value
-	StartTime      int64
-	Expiry         int64
+	Pid         uint32
+	Envs        map[string]string
+	ContainerID *intern.Value
+	StartTime   int64
+	Expiry      int64
 }
 
 type processList []*process
@@ -174,12 +174,11 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 		return nil
 	}
 
-	container := intern.GetByString(entry.ContainerID)
 	return &process{
-		Pid:            entry.Pid,
-		Envs:           envs,
-		ContainerIndex: container,
-		StartTime:      entry.ExecTime.UnixNano(),
+		Pid:         entry.Pid,
+		Envs:        envs,
+		ContainerID: intern.GetByString(entry.ContainerID),
+		StartTime:   entry.ExecTime.UnixNano(),
 	}
 }
 
