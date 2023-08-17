@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -345,21 +344,20 @@ func TestProcessCacheGet(t *testing.T) {
 func BenchmarkProcessCacheMem(b *testing.B) {
 	pc, _ := newProcessCache(b.N, nil)
 
-	envs := map[string]string{
-		"DD_SERVICE": "service",
-		"DD_VERSION": "version",
-		"DD_ENV":     "env",
-	}
-
-	rand.Seed(time.Now().UnixNano())
-
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		pc.add(&process{
-			Pid:         uint32(rand.Int()),
-			StartTime:   5,
-			Envs:        envs,
-			ContainerID: "container1",
-		})
+		entry := &smodel.ProcessContext{
+			Process: smodel.Process{
+				PIDContext: smodel.PIDContext{
+					Pid: uint32(rand.Int()),
+				},
+				ContainerID: "container",
+				EnvsEntry: &smodel.EnvsEntry{
+					Values: []string{"DD_SERVICE=service", "DD_VERSION=version", "DD_ENV=env"},
+				},
+			},
+		}
+		pc.handleProcessEvent(entry)
 	}
+	
 }
