@@ -52,7 +52,7 @@ func newSystemCollector() (*systemCollector, error) {
 	var err error
 	var hostPrefix string
 
-	if !config.IsFeaturePresent(config.EKSFargate) && (!config.IsHostProcAvailable() || !config.IsHostSysAvailable())  {
+	if !config.IsFeaturePresent(config.EKSFargate) && (!config.IsHostProcAvailable() || !config.IsHostSysAvailable()) {
 		log.Debug("Container metrics system collector not available as host paths not mounted")
 		return nil, provider.ErrPermaFail
 	}
