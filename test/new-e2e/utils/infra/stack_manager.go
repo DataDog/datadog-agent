@@ -66,8 +66,8 @@ func newStackManager(ctx context.Context) (*StackManager, error) {
 
 // GetStack creates or return a stack based on stack name and config, if error occurs during stack creation it destroy all the resources created
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
-	sm.lock.RLock()
-	defer sm.lock.RUnlock()
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
 
 	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing)
 
@@ -81,10 +81,10 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 	return stack, upResult, err
 }
 
-// GetStackNonAtomic creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
-func (sm *StackManager) GetStackNonAtomic(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
-	sm.lock.RLock()
-	defer sm.lock.RUnlock()
+// GetStackNoDeleteOnFailure creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
+func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
 
 	return sm.getStack(ctx, name, config, deployFunc, failOnMissing)
 }
