@@ -167,7 +167,14 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
 	agentMetadata := *p.AgentMetadata
-	assert.Len(t, agentMetadata, 3) // keys are: "test", "full_configuration", "provided_configuration"
+	// keys are:
+	//  - test
+	//  - full_configuration
+	//  - provided_configuration
+	//  - install_method_installer_version
+	//  - install_method_tool": "undefined
+	//  - install_method_tool_version
+	assert.Len(t, agentMetadata, 6)
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta := *p.CheckMetadata
@@ -206,7 +213,15 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
 	agentMetadata = *p.AgentMetadata
-	assert.Len(t, agentMetadata, 4) // keys are: "test", "cloud_provider", "full_configuration" and "provided_configuration"
+	// keys are:
+	//  - test
+	//  - cloud_provider
+	//  - full_configuration
+	//  - provided_configuration
+	//  - install_method_installer_version
+	//  - install_method_tool": "undefined
+	//  - install_method_tool_version
+	assert.Len(t, agentMetadata, 7)
 	assert.Equal(t, true, agentMetadata["test"])
 
 	// no point in asserting every field from the agent configuration. We just check they are present and then set
@@ -270,6 +285,9 @@ func TestGetPayload(t *testing.T) {
 		"agent_metadata":
 		{
 			"cloud_provider": "some_cloud_provider",
+			"install_method_installer_version": "",
+			"install_method_tool": "undefined",
+			"install_method_tool_version": "",
 			"test": true
 		},
 		"host_metadata":
@@ -384,7 +402,7 @@ func TestInitializeConfig(t *testing.T) {
 		return func(t *testing.T) {
 			cfg.Set(cfgName, input)
 			initializeConfig(cfg)
-			require.Equal(t, output, agentMetadata[invName].(string))
+			require.Equal(t, output, agentMetadata[AgentMetadataName(invName)].(string))
 		}
 	}
 
@@ -395,7 +413,7 @@ func TestInitializeConfig(t *testing.T) {
 				cfg.Set(cfgName, input)
 			}
 			initializeConfig(cfg)
-			require.Equal(t, output, agentMetadata[invName].([]string))
+			require.Equal(t, output, agentMetadata[AgentMetadataName(invName)].([]string))
 		}
 	}
 

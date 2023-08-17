@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+package installinfo
 
 import (
 	"encoding/json"
@@ -131,7 +131,7 @@ func Test_logVersionHistoryToFile_maxVersionHistoryEntries(t *testing.T) {
 		entries[i] = versionHistoryEntry{
 			Version:   fmt.Sprintf("%d", i),
 			Timestamp: now.Add(time.Duration(i) * time.Second),
-			InstallMethod: installMethod{
+			InstallMethod: InstallInfo{
 				Tool:             "tool",
 				ToolVersion:      "tool_version",
 				InstallerVersion: "installer_version",
@@ -140,7 +140,7 @@ func Test_logVersionHistoryToFile_maxVersionHistoryEntries(t *testing.T) {
 		expected[i] = versionHistoryEntry{
 			Version:   fmt.Sprintf("%d", i+10),
 			Timestamp: now.Add(time.Duration(i+10) * time.Second),
-			InstallMethod: installMethod{
+			InstallMethod: InstallInfo{
 				Tool:             "tool",
 				ToolVersion:      "tool_version",
 				InstallerVersion: "installer_version",

@@ -74,6 +74,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -559,7 +560,7 @@ func startAgent(
 	go cloudproviders.DetectCloudProvider(context.Background())
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
-	util.LogVersionHistory()
+	installinfo.LogVersionHistory()
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)

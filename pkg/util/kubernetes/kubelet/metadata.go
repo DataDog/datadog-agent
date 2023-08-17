@@ -9,41 +9,40 @@ package kubelet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 )
 
-func init() {
-	container.RegisterMetadataProvider("kubelet", getMetadata)
-}
-
-func getMetadata() (map[string]string, error) {
-	metadata := make(map[string]string)
+// GetMetadata returns metadata about the kubelet runtime such as the kubelet_version.
+func GetMetadata() (map[string]string, error) {
 	if !config.IsFeaturePresent(config.Kubernetes) {
-		return metadata, nil
+		return nil, errors.New("kubelet feature deactivated")
 	}
 
 	ku, err := GetKubeUtil()
 	if err != nil {
-		return metadata, err
+		return nil, err
 	}
+
 	data, err := ku.GetRawMetrics(context.TODO())
 	if err != nil {
-		return metadata, err
+		return nil, err
 	}
+
 	metric, err := ParseMetricFromRaw(data, "kubernetes_build_info")
 	if err != nil {
-		return metadata, err
+		return nil, err
 	}
+
 	re := regexp.MustCompile("(?:gitVersion|git_version)=\"(.*?)\"")
 	matches := re.FindStringSubmatch(metric)
 	if len(matches) < 1 {
-		return metadata, fmt.Errorf("couldn't find kubelet git version")
+		return nil, fmt.Errorf("couldn't find kubelet git version")
 	}
-	metadata["kubelet_version"] = matches[1]
-
-	return metadata, nil
+	return map[string]string{
+		"kubelet_version": matches[1],
+	}, nil
 }

@@ -74,7 +74,7 @@ func logWarnings(warnings []string) {
 	}
 }
 
-func fetchFromMetadata(key string, metadata AgentMetadata) string {
+func fetchFromMetadata(key AgentMetadataName, metadata AgentMetadata) string {
 	if value, ok := metadata[key]; ok {
 		if stringValue, ok := value.(string); ok {
 			return stringValue
@@ -151,12 +151,12 @@ func getHostMetadata() *HostMetadata {
 
 	metadata.AgentVersion = version.AgentVersion
 
-	metadata.CloudProvider = fetchFromMetadata(string(HostCloudProvider), agentMetadata)
-	metadata.CloudProviderSource = fetchFromMetadata(string(HostCloudProviderSource), hostMetadata)
-	metadata.CloudProviderHostID = fetchFromMetadata(string(HostCloudProviderHostID), hostMetadata)
-	metadata.OsVersion = fetchFromMetadata(string(HostOSVersion), hostMetadata)
+	metadata.CloudProvider = fetchFromMetadata(HostCloudProvider, agentMetadata)
+	metadata.CloudProviderSource = fetchFromMetadata(HostCloudProviderSource, hostMetadata)
+	metadata.CloudProviderHostID = fetchFromMetadata(HostCloudProviderHostID, hostMetadata)
+	metadata.OsVersion = fetchFromMetadata(HostOSVersion, hostMetadata)
 
-	metadata.CloudProviderAccountID = fetchFromMetadata(string(HostCloudProviderAccountID), hostMetadata)
+	metadata.CloudProviderAccountID = fetchFromMetadata(HostCloudProviderAccountID, hostMetadata)
 
 	metadata.HypervisorGuestUUID = dmi.GetHypervisorUUID()
 	metadata.DmiProductUUID = dmi.GetProductUUID()

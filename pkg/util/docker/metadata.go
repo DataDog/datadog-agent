@@ -15,35 +15,35 @@ import (
 	"github.com/docker/docker/api/types/swarm"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 )
 
-func init() {
-	container.RegisterMetadataProvider("docker", getMetadata)
-}
-
-func getMetadata() (map[string]string, error) {
+// GetMetadata returns metadata about the docker runtime such as docker_version and if docker_swarm is enabled or not.
+func GetMetadata() (map[string]string, error) {
 	if !config.IsFeaturePresent(config.Docker) {
 		return nil, errors.New("Docker feature deactivated")
 	}
 
-	metadata := make(map[string]string)
 	du, err := GetDockerUtil()
 	if err != nil {
-		return metadata, err
+		return nil, err
 	}
+
 	// short timeout to minimize metadata collection time
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
+
 	i, err := du.cli.Info(ctx)
 	if err != nil {
-		return metadata, err
-	}
-	metadata["docker_version"] = i.ServerVersion
-	metadata["docker_swarm"] = "inactive"
-	if i.Swarm.LocalNodeState == swarm.LocalNodeStateActive {
-		metadata["docker_swarm"] = "active"
+		return nil, err
 	}
 
-	return metadata, nil
+	dockerSwarm := "inactive"
+	if i.Swarm.LocalNodeState == swarm.LocalNodeStateActive {
+		dockerSwarm = "active"
+	}
+
+	return map[string]string{
+		"docker_version": i.ServerVersion,
+		"docker_swarm":   dockerSwarm,
+	}, nil
 }
