@@ -1,3 +1,5 @@
+//go:build kubelet && orchestrator
+
 package pod
 
 import (
