@@ -7,6 +7,7 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -113,6 +114,13 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 		FlowToPlugins: true,
 		LogLevel:      &loglevel,
 	}))
+
+	if err != nil {
+		errDestroy := sm.deleteStack(ctx, name, stack)
+		if errDestroy != nil {
+			return stack, upResult, errors.Join(err, errDestroy)
+		}
+	}
 	return stack, upResult, err
 }
 

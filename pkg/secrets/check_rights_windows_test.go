@@ -8,7 +8,6 @@
 package secrets
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -38,7 +37,7 @@ func TestWrongPath(t *testing.T) {
 }
 
 func TestSpaceInPath(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "super temp")
+	tmpDir, err := os.MkdirTemp("", "super temp")
 	require.Nil(t, err)
 	defer os.Remove(tmpDir)
 	tmpFile, err := os.CreateTemp(tmpDir, "agent-collector-test")
