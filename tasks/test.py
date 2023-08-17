@@ -508,6 +508,7 @@ def test(
     timeout=180,
     arch="x64",
     cache=True,
+    test_run_name="",
     skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
@@ -630,10 +631,14 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
+    test_run_arg = ""
+    if test_run_name != "":
+        test_run_arg = f"-run {test_run_name}"
+
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -642,6 +647,7 @@ def test(
         "build_cpus": build_cpus_opt,
         "covermode_opt": covermode_opt,
         "coverprofile": coverprofile,
+        "test_run_arg": test_run_arg,
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
@@ -963,7 +969,9 @@ def lint_filenames(ctx):
     max_length = 255
     for file in files:
         if (
-            not file.startswith(('test/kitchen/', 'tools/windows/DatadogAgentInstaller'))
+            not file.startswith(
+                ('test/kitchen/', 'tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression')
+            )
             and prefix_length + len(file) > max_length
         ):
             print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
