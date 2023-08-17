@@ -1708,6 +1708,69 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "nvidia container gpu",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_limit",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "amd container gpu",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "amd_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_limit",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "intel container gpu",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "gpu_intel_com_i915",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.gpu_limit",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "kubernetes_io_network_bandwidth",
 			args: args{
 				name: "kube_pod_container_resource_limits",
@@ -1803,6 +1866,69 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 			},
 			expected: &metricsExpected{
 				name:     "kubernetes_state.node.cpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "nvidia node gpu",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "amd node gpu",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "amd_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "intel node gpu",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "gpu_intel_com_i915",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_allocatable",
 				val:      4,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -1947,6 +2073,69 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 			expected: &metricsExpected{
 				name:     "kubernetes_state.node.cpu_capacity",
 				val:      2,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "nvidia node gpu",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_capacity",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "amd node gpu",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "amd_com_gpu",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_capacity",
+				val:      4,
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "intel node gpu",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "gpu_intel_com_i915",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.gpu_capacity",
+				val:      4,
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
 			},

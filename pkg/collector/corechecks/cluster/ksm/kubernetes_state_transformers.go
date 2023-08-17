@@ -236,6 +236,12 @@ func submitContainerResourceMetric(s sender.Sender, name string, metric ksmstore
 		//       and needs to be grabbed some other way. At time of commit, this is via customresources/pod.go.
 		//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
 		"kubernetes_io_network_bandwidth": "network_bandwidth",
+
+		// GPU units
+		"amd_com_gpu":    "gpu",
+		"nvidia_com_gpu": "gpu",
+		// Note: i915 is a driver name. It is unsure if other drivers are currently supported by intel
+		"gpu_intel_com_i915": "gpu",
 	}
 
 	resource, found := metric.Labels["resource"]
@@ -264,7 +270,6 @@ func nodeCapacityTransformer(s sender.Sender, name string, metric ksmstore.DDMet
 // submitNodeResourceMetric can be called by node resource metric transformers to submit resource-specific metrics
 // metricSuffix can be either allocatable or capacity
 func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
-
 	var allowedResources = map[string]string{
 		"cpu":               "cpu",
 		"memory":            "memory",
@@ -274,6 +279,12 @@ func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMe
 		//       and needs to be grabbed some other way. At time of commit, this is via customresources/node.go.
 		//       More info: https://github.com/kubernetes/kube-state-metrics/issues/2027
 		"kubernetes_io_network_bandwidth": "network_bandwidth",
+
+		// GPU units
+		"amd_com_gpu":    "gpu",
+		"nvidia_com_gpu": "gpu",
+		// Note: i915 is a driver name. It is unsure if other drivers are currently supported by intel
+		"gpu_intel_com_i915": "gpu",
 	}
 
 	resource, found := metric.Labels["resource"]
