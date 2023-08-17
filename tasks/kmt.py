@@ -328,9 +328,6 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, 
         )
         copy_dependencies(ctx, stack, target_vms, ssh_key)
         run_cmd_vms(ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True)
-#    run_cmd_vms(ctx, stack, f"apt install rsync", target_vms, ssh_key)
-#    run_cmd_vms(ctx, stack, "update-alternatives --set iptables /usr/sbin/iptables-legacy", target_vms, ssh_key)
-
 
     sync_source(
         ctx,
