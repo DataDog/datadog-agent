@@ -24,6 +24,7 @@ type ConnStats struct {
 	Sent_bytes     uint64
 	Recv_bytes     uint64
 	Timestamp      uint64
+	Duration       uint64
 	Flags          uint32
 	Cookie         uint32
 	Sent_packets   uint64
@@ -42,7 +43,6 @@ type Batch struct {
 	C0  Conn
 	C1  Conn
 	C2  Conn
-	C3  Conn
 	Len uint16
 	Id  uint64
 }
@@ -99,10 +99,10 @@ const (
 	Assured ConnFlags = 0x4
 )
 
-const BatchSize = 0x4
-const SizeofBatch = 0x1f0
+const BatchSize = 0x3
+const SizeofBatch = 0x190
 
-const SizeofConn = 0x78
+const SizeofConn = 0x80
 
 type ClassificationProgram = uint32
 
