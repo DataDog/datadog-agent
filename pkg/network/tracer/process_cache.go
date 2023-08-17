@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
-	"github.com/go4org/intern"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"go4.org/intern"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
