@@ -67,7 +67,7 @@ type groupRelationship struct {
 type processorRelationship struct {
 	Flags           uint8
 	EfficiencyClass uint8
-	wReserved       [20]uint8
+	WReserved       [20]uint8
 	GroupCount      uint16
 	// what follows is an array of zero or more groupaffinity structures
 }

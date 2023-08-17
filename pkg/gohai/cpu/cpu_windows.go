@@ -63,16 +63,19 @@ type systemInfo struct {
 
 // cpuInfo contains information about cpu, eg. number of cores, cache size
 type cpuInfo struct {
-	numaNodeCount       int    // number of NUMA nodes
-	pkgcount            int    // number of packages (physical CPUS)
-	corecount           int    // total number of cores
-	logicalcount        int    // number of logical CPUS
-	l1CacheSize         uint32 // layer 1 cache size
-	l2CacheSize         uint32 // layer 2 cache size
-	l3CacheSize         uint32 // layer 3 cache size
-	relationGroups      int    // number of cpu relation groups
-	maxProcsInGroups    int    // max number of processors
-	activeProcsInGroups int    // active processors
+	numaNodeCount int    // number of NUMA nodes
+	pkgcount      int    // number of packages (physical CPUS)
+	corecount     int    // total number of cores
+	logicalcount  int    // number of logical CPUS
+	l1CacheSize   uint32 // layer 1 cache size
+	l2CacheSize   uint32 // layer 2 cache size
+	l3CacheSize   uint32 // layer 3 cache size
+	//nolint:unused
+	relationGroups int // number of cpu relation groups
+	//nolint:unused
+	maxProcsInGroups int // max number of processors
+	//nolint:unused
+	activeProcsInGroups int // active processors
 
 }
 
