@@ -167,27 +167,27 @@ var goTLSSpec = &protocols.ProtocolSpec{
 	Probes: []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__crypto_tls_Conn_Read",
+				EBPFFuncName: connReadProbe,
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__crypto_tls_Conn_Read__return",
+				EBPFFuncName: connReadRetProbe,
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__crypto_tls_Conn_Write",
+				EBPFFuncName: connWriteProbe,
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__crypto_tls_Conn_Write__return",
+				EBPFFuncName: connWriteRetProbe
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__crypto_tls_Conn_Close",
+				EBPFFuncName: connCloseProbe,
 			},
 		},
 	},
