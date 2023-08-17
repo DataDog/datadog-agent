@@ -257,7 +257,7 @@ func TestServer(t *testing.T) {
 		clock.Add(10 * time.Minute)
 
 		response10Min := httptest.NewRecorder()
-		var getResponse10Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
@@ -267,7 +267,7 @@ func TestServer(t *testing.T) {
 		clock.Add(10 * time.Minute)
 
 		response20Min := httptest.NewRecorder()
-		var getResponse20Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response20Min, request)
 		json.NewDecoder(response20Min.Body).Decode(&getResponse10Min)
@@ -291,7 +291,7 @@ func TestServer(t *testing.T) {
 		postSomePayloads(t, fi)
 
 		response10Min := httptest.NewRecorder()
-		var getResponse10Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
@@ -301,7 +301,7 @@ func TestServer(t *testing.T) {
 		clock.Add(10 * time.Minute)
 
 		response20Min := httptest.NewRecorder()
-		var getResponse20Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response20Min, request)
 		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
