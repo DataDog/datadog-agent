@@ -95,7 +95,7 @@ func TestTrimSingleLine(t *testing.T) {
 }
 
 func TestMultiLineHandler(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
 	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 20, false)
 
@@ -179,7 +179,7 @@ func TestMultiLineHandler(t *testing.T) {
 }
 
 func TestTrimMultiLine(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
 	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false)
 
@@ -208,7 +208,7 @@ func TestTrimMultiLine(t *testing.T) {
 }
 
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
 	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false)
 
@@ -237,7 +237,7 @@ func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 }
 
 func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
+	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
 	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false)
 
