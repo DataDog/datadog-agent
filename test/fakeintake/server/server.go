@@ -31,12 +31,12 @@ import (
 )
 
 type Server struct {
-	mu        sync.RWMutex
-	server    http.Server
-	ready     chan bool
-	clock     clock.Clock
-	retention time.Duration
-	shutdown  chan struct{}
+	mu            sync.RWMutex
+	server        http.Server
+	ready         chan bool
+	clock         clock.Clock
+	retention     time.Duration
+	shutdown      chan struct{}
 	payloadParser PayloadParser
 
 	url string
@@ -54,7 +54,7 @@ func NewServer(options ...func(*Server)) *Server {
 		payloadStore:  map[string][]api.Payload{},
 		clock:         clock.New(),
 		payloadParser: NewPayloadParser(),
-		retention:    15 * time.Minute,
+		retention:     15 * time.Minute,
 	}
 
 	mux := http.NewServeMux()
