@@ -117,7 +117,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
-func newTracer(cfg *config.Config) (rettr *Tracer, reterr error) {
+func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
