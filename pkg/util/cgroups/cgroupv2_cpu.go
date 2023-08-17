@@ -8,7 +8,6 @@
 package cgroups
 
 import (
-	"bytes"
 	"strconv"
 	"time"
 
@@ -55,8 +54,8 @@ func (c *cgroupV2) parseCPUController(stats *CPUStats) {
 func (c *cgroupV2) parseCPUSetController(stats *CPUStats) {
 	// Normally there's only one line, but as the parser works line by line anyway, we do support multiple lines
 	var cpuCount uint64
-	err := parseFile(c.fr, c.pathFor("cpuset.cpus.effective"), func(line []byte) error {
-		cpuCount += ParseCPUSetFormat(string(line))
+	err := parseFile(c.fr, c.pathFor("cpuset.cpus.effective"), func(lineRaw []byte) error {
+		cpuCount += ParseCPUSetFormat(string(lineRaw))
 		return nil
 	})
 
@@ -67,34 +66,33 @@ func (c *cgroupV2) parseCPUSetController(stats *CPUStats) {
 	}
 }
 
-func parseV2CPUStat(stats *CPUStats) func(key, value []byte) error {
-	return func(key, value []byte) error {
+func parseV2CPUStat(stats *CPUStats) func(keyRaw, valueRaw []byte) error {
+	return func(keyRaw, valueRaw []byte) error {
+		key := string(keyRaw)
+		value := string(valueRaw)
+
 		// Do not stop parsing the file if we cannot parse a single value
-		intVal, err := strconv.ParseUint(string(value), 10, 64)
+		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
-			reportError(newValueError(string(value), err))
+			reportError(newValueError(value, err))
 			return nil
 		}
 
-		if bytes.Equal(key, []byte("usage_usec")) {
+		switch key {
+		case "usage_usec":
 			intVal *= uint64(time.Microsecond)
 			stats.Total = &intVal
-		}
-		if bytes.Equal(key, []byte("user_usec")) {
+		case "user_usec":
 			intVal *= uint64(time.Microsecond)
 			stats.User = &intVal
-		}
-		if bytes.Equal(key, []byte("system_usec")) {
+		case "system_usec":
 			intVal *= uint64(time.Microsecond)
 			stats.System = &intVal
-		}
-		if bytes.Equal(key, []byte("nr_periods")) {
+		case "nr_periods":
 			stats.ElapsedPeriods = &intVal
-		}
-		if bytes.Equal(key, []byte("nr_throttled")) {
+		case "nr_throttled":
 			stats.ThrottledPeriods = &intVal
-		}
-		if bytes.Equal(key, []byte("throttled_usec")) {
+		case "throttled_usec":
 			intVal *= uint64(time.Microsecond)
 			stats.ThrottledTime = &intVal
 		}
@@ -103,21 +101,24 @@ func parseV2CPUStat(stats *CPUStats) func(key, value []byte) error {
 	}
 }
 
-func parseV2CPUMax(stats *CPUStats) func(key, value []byte) error {
-	return func(limit, period []byte) error {
-		periodVal, err := strconv.ParseUint(string(period), 10, 64)
+func parseV2CPUMax(stats *CPUStats) func(keyRaw, valueRaw []byte) error {
+	return func(limitRaw, periodRaw []byte) error {
+		period := string(periodRaw)
+		limit := string(limitRaw)
+
+		periodVal, err := strconv.ParseUint(period, 10, 64)
 		if err == nil {
 			stats.SchedulerPeriod = pointer.Ptr(periodVal * uint64(time.Microsecond))
 		} else {
-			return newValueError(string(period), err)
+			return newValueError(period, err)
 		}
 
-		if !bytes.Equal(limit, []byte("max")) {
-			limitVal, err := strconv.ParseUint(string(limit), 10, 64)
+		if limit != "max" {
+			limitVal, err := strconv.ParseUint(limit, 10, 64)
 			if err == nil {
 				stats.SchedulerQuota = pointer.Ptr(limitVal * uint64(time.Microsecond))
 			} else {
-				return newValueError(string(limit), err)
+				return newValueError(limit, err)
 			}
 		}
 

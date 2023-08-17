@@ -42,15 +42,20 @@ func (c *cgroupV1) parseCPUController(stats *CPUStats) {
 		reportError(err)
 	}
 
-	if err := parse2ColumnStats(c.fr, c.pathFor("cpu", "cpu.stat"), 0, 1, func(key, value []byte) error {
-		intVal, err := strconv.ParseUint(string(value), 10, 64)
+	if err := parse2ColumnStats(c.fr, c.pathFor("cpu", "cpu.stat"), 0, 1, func(keyRaw, valueRaw []byte) error {
+
+		// the go compiler will avoid a copy here
+		key := string(keyRaw)
+		value := string(valueRaw)
+
+		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
-			reportError(newValueError(string(value), err))
+			reportError(newValueError(value, err))
 			// Dont't stop parsing on a single faulty value
 			return nil
 		}
 
-		switch string(key) {
+		switch key {
 		case "nr_throttled":
 			stats.ThrottledPeriods = &intVal
 		case "throttled_time":
@@ -95,8 +100,8 @@ func (c *cgroupV1) parseCPUAcctController(stats *CPUStats) {
 func (c *cgroupV1) parseCPUSetController(stats *CPUStats) {
 	// Normally there's only one line, but as the parser works line by line anyway, we do support multiple lines
 	var cpuCount uint64
-	err := parseFile(c.fr, c.pathFor("cpuset", "cpuset.cpus"), func(line []byte) error {
-		cpuCount += ParseCPUSetFormat(string(line))
+	err := parseFile(c.fr, c.pathFor("cpuset", "cpuset.cpus"), func(lineRaw []byte) error {
+		cpuCount += ParseCPUSetFormat(string(lineRaw))
 		return nil
 	})
 
@@ -107,15 +112,20 @@ func (c *cgroupV1) parseCPUSetController(stats *CPUStats) {
 	}
 }
 
-func parseV1CPUAcctStatFn(stats *CPUStats) func(key, val []byte) error {
-	return func(key, val []byte) error {
-		intVal, err := strconv.ParseUint(string(val), 10, 64)
+func parseV1CPUAcctStatFn(stats *CPUStats) func(keyRaw, valRaw []byte) error {
+	return func(keyRaw, valRaw []byte) error {
+
+		// the go compiler will avoid a copy here
+		key := string(keyRaw)
+		valString := string(valRaw)
+
+		intVal, err := strconv.ParseUint(valString, 10, 64)
 		if err != nil {
-			reportError(newValueError(string(val), err))
+			reportError(newValueError(valString, err))
 			return nil
 		}
 
-		switch string(key) {
+		switch key {
 		case "user":
 			stats.User = pointer.Ptr(intVal * UserHZToNano)
 		case "system":

@@ -24,15 +24,18 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 
 	var kernelStack, slab *uint64
 
-	if err := parse2ColumnStats(c.fr, c.pathFor("memory.stat"), 0, 1, func(key, value []byte) error {
-		intVal, err := strconv.ParseUint(string(value), 10, 64)
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory.stat"), 0, 1, func(keyRaw, valueRaw []byte) error {
+		key := string(keyRaw)
+		value := string(valueRaw)
+
+		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
-			reportError(newValueError(string(value), err))
+			reportError(newValueError(value, err))
 			// Dont't stop parsing on a single faulty value
 			return nil
 		}
 
-		switch string(key) {
+		switch key {
 		case "file":
 			stats.Cache = &intVal
 		case "anon":
@@ -113,15 +116,19 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 	nilIfZero(&stats.SwapLimit)
 
-	if err := parse2ColumnStats(c.fr, c.pathFor("memory.events"), 0, 1, func(key, value []byte) error {
-		intVal, err := strconv.ParseUint(string(value), 10, 64)
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory.events"), 0, 1, func(keyRaw, valueRaw []byte) error {
+		// the go compiler will avoid a copy here
+		key := string(keyRaw)
+		value := string(valueRaw)
+
+		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
-			reportError(newValueError(string(value), err))
+			reportError(newValueError(value, err))
 			// Dont't stop parsing on a single faulty value
 			return nil
 		}
 
-		switch string(key) {
+		switch key {
 		case "oom":
 			stats.OOMEvents = &intVal
 		case "oom_kill":

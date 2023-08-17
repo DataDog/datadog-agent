@@ -21,9 +21,9 @@ const (
 // of processor IDs, with hyphenated ranges representing closed sets.
 // So "0,1,5-8" represents processors 0, 1, 5, 6, 7, 8.
 // The function returns the count of CPUs, in this case 6.
-func ParseCPUSetFormat(lineS string) uint64 {
+func ParseCPUSetFormat(lineRaw string) uint64 {
 
-	line := []byte(lineS)
+	line := []byte(lineRaw)
 
 	var numCPUs uint64
 

@@ -26,15 +26,19 @@ func (c *cgroupV1) GetMemoryStats(stats *MemoryStats) error {
 		return &ControllerNotFoundError{Controller: "memory"}
 	}
 
-	if err := parse2ColumnStats(c.fr, c.pathFor("memory", "memory.stat"), 0, 1, func(key, value []byte) error {
-		intVal, err := strconv.ParseUint(string(value), 10, 64)
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory", "memory.stat"), 0, 1, func(keyRaw, valueRaw []byte) error {
+		// the go compiler is smart enough to not turn this into a copy
+		key := string(keyRaw)
+		value := string(valueRaw)
+
+		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
-			reportError(newValueError(string(value), err))
+			reportError(newValueError(value, err))
 			// Dont't stop parsing on a single faulty value
 			return nil
 		}
 
-		switch string(key) {
+		switch key {
 		case "total_cache":
 			stats.Cache = &intVal
 		case "total_swap":
