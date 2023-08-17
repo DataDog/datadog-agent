@@ -8,7 +8,6 @@
 package clusterchecks
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -510,7 +509,7 @@ func TestExtraTags(t *testing.T) {
 		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
 		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			mockConfig := config.Mock(t)
 			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig)
 			mockConfig.Set("cluster_name", tc.clusterNameConfig)
