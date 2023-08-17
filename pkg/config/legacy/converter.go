@@ -259,11 +259,7 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
 		}
 		keys[idx] = config.SanitizeAPIKey(keys[idx])
-		if _, ok := additionalEndpoints[url]; ok {
-			additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
-		} else {
-			additionalEndpoints[url] = []string{keys[idx]}
-		}
+		additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
 	}
 	converter.Set("additional_endpoints", additionalEndpoints)
 	return nil
