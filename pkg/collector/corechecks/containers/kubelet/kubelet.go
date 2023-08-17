@@ -72,7 +72,7 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Pr
 		podProvider,
 		nodeProvider,
 		probeProvider,
-        healthProvider,
+		healthProvider,
 	}
 }
 
