@@ -37,11 +37,14 @@ type protocol struct {
 }
 
 const (
-	inFlightMap    = "http2_in_flight"
-	dynamicTable   = "http2_dynamic_table"
-	staticTable    = "http2_static_table"
-	filterTailCall = "socket__http2_filter"
-	eventStream    = "http2"
+	inFlightMap          = "http2_in_flight"
+	dynamicTable         = "http2_dynamic_table"
+	dynamicTableCounter  = "http2_dynamic_counter_table"
+	http2IterationsTable = "http2_iterations"
+	staticTable          = "http2_static_table"
+	filterTailCall       = "socket__http2_filter"
+	parserTailCall       = "socket__http2_frames_parser"
+	eventStream          = "http2"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -56,6 +59,12 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: staticTable,
 		},
+		{
+			Name: dynamicTableCounter,
+		},
+		{
+			Name: http2IterationsTable,
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -63,6 +72,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP2),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: parserTailCall,
 			},
 		},
 	},
@@ -96,10 +112,22 @@ func (p *protocol) Name() string {
 // We also configure the http2 event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
@@ -174,87 +202,54 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 // It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
 type staticTableEntry struct {
 	Index uint64
-	Value StaticTableValue
+	Value StaticTableEnumValue
 }
 
 var (
 	staticTableEntries = []staticTableEntry{
 		{
 			Index: 2,
-			Value: StaticTableValue{
-				Key:   MethodKey,
-				Value: GetValue,
-			},
+			Value: GetValue,
 		},
 		{
 			Index: 3,
-			Value: StaticTableValue{
-				Key:   MethodKey,
-				Value: PostValue,
-			},
+			Value: PostValue,
 		},
 		{
 			Index: 4,
-			Value: StaticTableValue{
-				Key:   PathKey,
-				Value: EmptyPathValue,
-			},
+			Value: EmptyPathValue,
 		},
 		{
 			Index: 5,
-			Value: StaticTableValue{
-				Key:   PathKey,
-				Value: IndexPathValue,
-			},
+			Value: IndexPathValue,
 		},
 		{
 			Index: 8,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K200Value,
-			},
+			Value: K200Value,
 		},
 		{
 			Index: 9,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K204Value,
-			},
+			Value: K204Value,
 		},
 		{
 			Index: 10,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K206Value,
-			},
+			Value: K206Value,
 		},
 		{
 			Index: 11,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K304Value,
-			},
+			Value: K304Value,
 		},
 		{
 			Index: 12,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K400Value,
-			},
+			Value: K400Value,
 		},
 		{
 			Index: 13,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K404Value,
-			},
+			Value: K404Value,
 		},
 		{
 			Index: 14,
-			Value: StaticTableValue{
-				Key:   StatusKey,
-				Value: K500Value,
-			},
+			Value: K500Value,
 		},
 	}
 )

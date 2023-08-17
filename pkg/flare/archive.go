@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	host "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -72,7 +72,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
 		fb.RegisterDirPerm(systemProbeConfigBPFDir)
 	}
@@ -102,7 +102,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	getRegistryJSON(fb)
 
 	getVersionHistory(fb)
-	fb.CopyFile(filepath.Join(configUtils.ConfFileDirectory(config.Datadog), "install_info"))
+	fb.CopyFile(installinfo.GetFilePath(config.Datadog))
 
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)

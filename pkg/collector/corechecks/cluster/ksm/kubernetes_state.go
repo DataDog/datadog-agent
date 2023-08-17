@@ -338,7 +338,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 }
 
 func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceList, error) {
-	resources, err := client.ServerResources()
+	_, resources, err := client.ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
@@ -431,11 +431,8 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 		"policy/v1": {
 			"PodDisruptionBudget": customresources.NewPodDisruptionBudgetV1Beta1Factory,
 		},
-
-		// support for newer k8s versions where the newer resources are
-		// not yet supported by KSM
-		"autoscaling/v2beta2": {
-			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Factory,
+		"autoscaling/v2": {
+			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Beta2Factory,
 		},
 	}
 

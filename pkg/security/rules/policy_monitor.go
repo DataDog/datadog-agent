@@ -15,7 +15,9 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -101,7 +102,7 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 						tags := []string{
 							"rule_id:" + id,
 							fmt.Sprintf("status:%v", status),
-							dogstatsdServer.CardinalityTagPrefix + collectors.LowCardinalityString,
+							constants.CardinalityTagPrefix + collectors.LowCardinalityString,
 						}
 
 						if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {
@@ -142,7 +143,7 @@ func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientIn
 	sender.SendEvent(rule, event, nil, "")
 }
 
-// RuleLoaded defines a loaded rule
+// RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
 	ID         string            `json:"id"`
@@ -169,6 +170,7 @@ type RulesetLoadedEvent struct {
 	Policies []*PolicyState `json:"policies"`
 }
 
+// PolicyStateFromRuleDefinition returns a policy state based on the rule definition
 func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
 	return &PolicyState{
 		Name:    def.Policy.Name,
@@ -177,6 +179,7 @@ func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
 	}
 }
 
+// RuleStateFromDefinition returns a rule state based on the rule definition
 func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message string) *RuleState {
 	return &RuleState{
 		ID:         def.ID,

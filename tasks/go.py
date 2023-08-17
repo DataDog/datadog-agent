@@ -205,6 +205,7 @@ def generate_protobuf(ctx):
         'trace': (False, True),
         'process': (False, False),
         'workloadmeta': (False, False),
+        'languagedetection': (False, False),
     }
 
     # maybe put this in a separate function
@@ -388,7 +389,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.20.6 linux/amd64"
+    # result is like "go version go1.20.7 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

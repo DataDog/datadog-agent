@@ -229,14 +229,14 @@ func enrichEnum(variable trapVariable, varMetadata VariableMetadata) interface{}
 	return variable.Value
 }
 
-// enrichBits checks to see if the variable has a mapping in bits and
-// returns the mapping if it exists, otherwise returns the value unchanged
-func enrichBits(variable trapVariable, varMetadata VariableMetadata) interface{} {
+// enrichBits checks to see if the variable has a mapping in bits, if so returns the mapping
+// and hex string of bits, if not returns the value unchanged and empty string
+func enrichBits(variable trapVariable, varMetadata VariableMetadata) (interface{}, string) {
 	// do bitwise search
 	bytes, ok := variable.Value.([]byte)
 	if !ok {
 		log.Warnf("unable to enrich variable %q %s with BITS mapping, received value was not []byte, was %T", varMetadata.Name, variable.OID, variable.Value)
-		return variable.Value
+		return variable.Value, ""
 	}
 	enabledValues := make([]interface{}, 0)
 	for i, b := range bytes {
@@ -258,7 +258,8 @@ func enrichBits(variable trapVariable, varMetadata VariableMetadata) interface{}
 		}
 	}
 
-	return enabledValues
+	hexString := fmt.Sprintf("0x%X", bytes)
+	return enabledValues, hexString
 }
 
 func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
@@ -321,7 +322,11 @@ func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU
 		} else if len(varMetadata.Enumeration) > 0 {
 			enrichedValues[varMetadata.Name] = enrichEnum(tv, varMetadata)
 		} else if len(varMetadata.Bits) > 0 {
-			enrichedValues[varMetadata.Name] = enrichBits(tv, varMetadata)
+			var hexString string
+			enrichedValues[varMetadata.Name], hexString = enrichBits(tv, varMetadata)
+			if hexString != "" {
+				tv.Value = hexString
+			}
 		} else {
 			// only format the value if it's not an enum type
 			tv.Value = formatValue(variable)

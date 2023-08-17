@@ -44,13 +44,13 @@ type jsonServerlessLambda struct {
 // Encode encodes a message into a JSON byte array.
 func (j *jsonServerlessEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 	ts := time.Now().UTC()
-	if !msg.Timestamp.IsZero() {
-		ts = msg.Timestamp
+	if !msg.ServerlessExtra.Timestamp.IsZero() {
+		ts = msg.ServerlessExtra.Timestamp
 	}
 
 	// add lambda metadata
 	var lambdaPart *jsonServerlessLambda
-	if l := msg.Lambda; l != nil {
+	if l := msg.ServerlessExtra.Lambda; l != nil {
 		lambdaPart = &jsonServerlessLambda{
 			ARN:       l.ARN,
 			RequestID: l.RequestID,

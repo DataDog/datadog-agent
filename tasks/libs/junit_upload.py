@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from invoke.exceptions import Exit
 
 from ..flavor import AgentFlavor
-from .pipeline_notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
+from .pipeline_notifications import DEFAULT_JIRA_PROJECT, DEFAULT_SLACK_CHANNEL, GITHUB_JIRA_MAP, GITHUB_SLACK_MAP
 
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
@@ -94,6 +94,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
     for owner in owners:
         codeowner = CODEOWNERS_ORG_PREFIX + owner
         slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
+        jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
         args = [
             "--service",
             "datadog-agent",
@@ -103,6 +104,8 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
             f"test.flavor:{flavor}",
             "--tags",
             f"slack_channel:{slack_channel}",
+            "--tags",
+            f"jira_project:{jira_project}",
         ]
         if additional_tags and "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
@@ -130,6 +133,10 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
+
+    # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+    if os.path.isdir(junit_tgz):
+        junit_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
 
     xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:

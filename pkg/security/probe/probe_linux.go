@@ -33,7 +33,6 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -175,7 +174,7 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
 		}
 
-		if mounted, _ := mountinfo.Mounted(util.HostProc()); !mounted {
+		if mounted, _ := mountinfo.Mounted(utilkernel.ProcFSRoot()); !mounted {
 			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
 		}
 
@@ -183,7 +182,7 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
 		}
 
-		securityFSPath := filepath.Join(util.GetSysRoot(), "kernel/security")
+		securityFSPath := filepath.Join(utilkernel.SysFSRoot(), "kernel/security")
 		if mounted, _ := mountinfo.Mounted(securityFSPath); !mounted {
 			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", securityFSPath))
 		}
@@ -509,7 +508,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// Delete new mount point from cache
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
-			seclog.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
+			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.ArgsEnvsEventType:
@@ -1202,6 +1201,11 @@ func (p *Probe) Snapshot() error {
 	return p.resolvers.Snapshot()
 }
 
+// Stop the probe
+func (p *Probe) Stop() {
+	_ = p.Manager.StopReaders(manager.CleanAll)
+}
+
 // Close the probe
 func (p *Probe) Close() error {
 	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
@@ -1243,10 +1247,7 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		}
 
 		eventCtor := func() eval.Event {
-			return &model.Event{
-				FieldHandlers:    p.fieldHandlers,
-				ContainerContext: &model.ContainerContext{},
-			}
+			return NewEvent(p.fieldHandlers)
 		}
 
 		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
@@ -1614,12 +1615,22 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
+	if p.useFentry {
+		afBasedExcluder, err := newAvailableFunctionsBasedExcluder()
+		if err != nil {
+			return nil, err
+		}
+
+		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
+	}
+
 	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
 
 	resolversOpts := resolvers.ResolversOpts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
+		UseRingBuffer:         useRingBuffers,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {

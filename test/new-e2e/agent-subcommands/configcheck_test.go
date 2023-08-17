@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type agentSuite struct {
+type agentConfigCheckSuite struct {
 	e2e.Suite[e2e.AgentEnv]
 }
 
 func TestAgentConfigCheckSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentConfigCheckSuite{}, e2e.AgentStackDef(nil))
 }
 
 type CheckConfigOutput struct {
@@ -57,7 +57,7 @@ func MatchCheckToTemplate(checkname, input string) (*CheckConfigOutput, error) {
 	}, nil
 }
 
-func (v *agentSuite) TestMatchToTemplateHelper() {
+func (v *agentConfigCheckSuite) TestMatchToTemplateHelper() {
 	sampleCheck := `=== uptime check ===
 Configuration provider: file
 Configuration source: file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default
@@ -103,7 +103,7 @@ Config for instance ID: cpu:e331d61ed1323219
 }
 
 // cpu, disk, file_handle, io, load, memory, network, ntp, uptime
-func (v *agentSuite) TestDefaultInstalledChecks() {
+func (v *agentConfigCheckSuite) TestDefaultInstalledChecks() {
 	v.UpdateEnv(e2e.AgentStackDef(nil))
 
 	testChecks := []CheckConfigOutput{
@@ -178,7 +178,7 @@ func (v *agentSuite) TestDefaultInstalledChecks() {
 	}
 }
 
-func (v *agentSuite) TestWithBadConfigCheck() {
+func (v *agentConfigCheckSuite) TestWithBadConfigCheck() {
 	// invalid config because of tabspace
 	config := `instances:
 	- name: bad yaml formatting via tab
@@ -191,7 +191,7 @@ func (v *agentSuite) TestWithBadConfigCheck() {
 	assert.Contains(v.T(), output, "http_check: yaml: line 2: found character that cannot start any token")
 }
 
-func (v *agentSuite) TestWithAddedIntegrationsCheck() {
+func (v *agentConfigCheckSuite) TestWithAddedIntegrationsCheck() {
 	config := `instances:
   - name: My First Service
     url: http://some.url.example.com

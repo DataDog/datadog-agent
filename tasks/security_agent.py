@@ -272,12 +272,14 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
+    debug=False,
 ):
     build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
+        debug=debug,
     )
 
     build_embed_syscall_tester(ctx)
@@ -548,12 +550,19 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
-    ctx.run(
-        "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
+
+    # skip generation of serializer for windows
+    if sys.platform == "win32":
+        return
+
+    shutil.copy(
+        "./pkg/security/serializers/serializers_easyjson.mock", "./pkg/security/serializers/serializers_easyjson.go"
     )
-    ctx.run(
-        "cp ./pkg/security/security_profile/dump/activity_dump_easyjson.mock ./pkg/security/security_profile/dump/activity_dump_easyjson.go"
+    shutil.copy(
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
     )
+
     ctx.run("go generate ./pkg/security/...")
 
 
@@ -687,6 +696,7 @@ def kitchen_prepare(ctx, skip_linters=False):
         ctx,
         bundle_ebpf=False,
         race=True,
+        debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
     )
@@ -744,6 +754,10 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
 
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:

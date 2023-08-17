@@ -49,44 +49,30 @@ const (
 	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
 	// and lowering it might cause constant cpu usage.
 	scanTerminatedProcessesInterval = 30 * time.Second
+
+	connReadProbe     = "uprobe__crypto_tls_Conn_Read"
+	connReadRetProbe  = "uprobe__crypto_tls_Conn_Read__return"
+	connWriteProbe    = "uprobe__crypto_tls_Conn_Write"
+	connWriteRetProbe = "uprobe__crypto_tls_Conn_Write__return"
+	connCloseProbe    = "uprobe__crypto_tls_Conn_Close"
 )
 
-type uprobeInfo struct {
-	ebpfFunctionName string
-	ebpfSection      string
-}
-
 type uprobesInfo struct {
-	functionInfo *uprobeInfo
-	returnInfo   *uprobeInfo
+	functionInfo string
+	returnInfo   string
 }
 
 var functionToProbes = map[string]uprobesInfo{
 	bininspect.ReadGoTLSFunc: {
-		functionInfo: &uprobeInfo{
-			ebpfFunctionName: "uprobe__crypto_tls_Conn_Read",
-			ebpfSection:      "uprobe/crypto/tls.(*Conn).Read",
-		},
-		returnInfo: &uprobeInfo{
-			ebpfFunctionName: "uprobe__crypto_tls_Conn_Read__return",
-			ebpfSection:      "uprobe/crypto/tls.(*Conn).Read/return",
-		},
+		functionInfo: connReadProbe,
+		returnInfo:   connReadRetProbe,
 	},
 	bininspect.WriteGoTLSFunc: {
-		functionInfo: &uprobeInfo{
-			ebpfFunctionName: "uprobe__crypto_tls_Conn_Write",
-			ebpfSection:      "uprobe/crypto/tls.(*Conn).Write",
-		},
-		returnInfo: &uprobeInfo{
-			ebpfFunctionName: "uprobe__crypto_tls_Conn_Write__return",
-			ebpfSection:      "uprobe/crypto/tls.(*Conn).Write/return",
-		},
+		functionInfo: connWriteProbe,
+		returnInfo:   connWriteRetProbe,
 	},
 	bininspect.CloseGoTLSFunc: {
-		functionInfo: &uprobeInfo{
-			ebpfFunctionName: "uprobe__crypto_tls_Conn_Close",
-			ebpfSection:      "uprobe/crypto/tls.(*Conn).Close",
-		},
+		functionInfo: connCloseProbe,
 	},
 }
 
@@ -237,12 +223,16 @@ func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	probeList := make([]manager.ProbeIdentificationPair, 0)
 	for _, probeInfo := range functionToProbes {
-		if probeInfo.functionInfo != nil {
-			probeList = append(probeList, probeInfo.functionInfo.getIdentificationPair())
+		if probeInfo.functionInfo != "" {
+			probeList = append(probeList, manager.ProbeIdentificationPair{
+				EBPFFuncName: probeInfo.functionInfo,
+			})
 		}
 
-		if probeInfo.returnInfo != nil {
-			probeList = append(probeList, probeInfo.returnInfo.getIdentificationPair())
+		if probeInfo.returnInfo != "" {
+			probeList = append(probeList, manager.ProbeIdentificationPair{
+				EBPFFuncName: probeInfo.returnInfo,
+			})
 		}
 	}
 
@@ -538,14 +528,14 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 	}()
 
 	for function, uprobes := range functionToProbes {
-		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo == nil {
-			err = fmt.Errorf("function %q configured to include return locations but no return uprobes found in config", function)
-			return
-		}
-		if functionsConfig[function].IncludeReturnLocations && uprobes.returnInfo != nil {
+		if functionsConfig[function].IncludeReturnLocations {
+			if uprobes.returnInfo == "" {
+				err = fmt.Errorf("function %q configured to include return locations but no return uprobes found in config", function)
+				return
+			}
 			for i, offset := range result.Functions[function].ReturnLocations {
 				returnProbeID := manager.ProbeIdentificationPair{
-					EBPFFuncName: uprobes.returnInfo.ebpfFunctionName,
+					EBPFFuncName: uprobes.returnInfo,
 					UID:          makeReturnUID(uid, i),
 				}
 				newProbe := &manager.Probe{
@@ -561,13 +551,13 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 					return
 				}
 				probeIDs = append(probeIDs, returnProbeID)
-				ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, returnProbeID.UID), "usm_gotls")
+				ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 			}
 		}
 
-		if uprobes.functionInfo != nil {
+		if uprobes.functionInfo != "" {
 			probeID := manager.ProbeIdentificationPair{
-				EBPFFuncName: uprobes.functionInfo.ebpfFunctionName,
+				EBPFFuncName: uprobes.functionInfo,
 				UID:          uid,
 			}
 
@@ -578,11 +568,11 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 			}
 			err = p.manager.AddHook("", newProbe)
 			if err != nil {
-				err = fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo.ebpfFunctionName, result.Functions[function].EntryLocation, err)
+				err = fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo, result.Functions[function].EntryLocation, err)
 				return
 			}
 			probeIDs = append(probeIDs, probeID)
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, probeID.UID), "usm_gotls")
+			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 		}
 	}
 
@@ -606,11 +596,5 @@ func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 		if err != nil {
 			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
-	}
-}
-
-func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
-	return manager.ProbeIdentificationPair{
-		EBPFFuncName: i.ebpfFunctionName,
 	}
 }

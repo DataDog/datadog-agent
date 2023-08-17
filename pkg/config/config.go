@@ -173,25 +173,25 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 
 // MappingProfile represent a group of mappings
 type MappingProfile struct {
-	Name     string          `mapstructure:"name" json:"name"`
-	Prefix   string          `mapstructure:"prefix" json:"prefix"`
-	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings"`
+	Name     string          `mapstructure:"name" json:"name" yaml:"name"`
+	Prefix   string          `mapstructure:"prefix" json:"prefix" yaml:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings" yaml:"mappings"`
 }
 
 // MetricMapping represent one mapping rule
 type MetricMapping struct {
-	Match     string            `mapstructure:"match" json:"match"`
-	MatchType string            `mapstructure:"match_type" json:"match_type"`
-	Name      string            `mapstructure:"name" json:"name"`
-	Tags      map[string]string `mapstructure:"tags" json:"tags"`
+	Match     string            `mapstructure:"match" json:"match" yaml:"match"`
+	MatchType string            `mapstructure:"match_type" json:"match_type" yaml:"match_type"`
+	Name      string            `mapstructure:"name" json:"name" yaml:"name"`
+	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 }
 
 // Endpoint represent a datadog endpoint
 type Endpoint struct {
-	Site   string `mapstructure:"site" json:"site"`
-	URL    string `mapstructure:"url" json:"url"`
-	APIKey string `mapstructure:"api_key" json:"api_key"`
-	APPKey string `mapstructure:"app_key" json:"app_key" `
+	Site   string `mapstructure:"site" json:"site" yaml:"site"`
+	URL    string `mapstructure:"url" json:"url" yaml:"url"`
+	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
 }
 
 // Warnings represent the warnings in the config
@@ -847,12 +847,14 @@ func InitConfig(config Config) {
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
 	config.BindEnv("internal_profiling.profile_dd_url")
+	config.BindEnvAndSetDefault("internal_profiling.unix_socket", "") // file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
+	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
 
@@ -1111,7 +1113,6 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector
-	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
 	// SBOM configuration
@@ -1251,6 +1252,9 @@ func InitConfig(config Config) {
 
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
+
+	// Language Detection
+	config.BindEnvAndSetDefault("language_detection.enabled", false)
 
 	setupAPM(config)
 	SetupOTLP(config)
@@ -1547,6 +1551,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	}
 
 	SanitizeAPIKeyConfig(config, "api_key")
+	SanitizeAPIKeyConfig(config, "logs_config.api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)

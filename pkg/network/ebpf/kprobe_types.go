@@ -58,4 +58,5 @@ type ClassificationProgram = uint32
 const (
 	ClassificationQueues ClassificationProgram = C.CLASSIFICATION_QUEUES_PROG
 	ClassificationDBs    ClassificationProgram = C.CLASSIFICATION_DBS_PROG
+	ClassificationGRPC   ClassificationProgram = C.CLASSIFICATION_GRPC_PROG
 )
