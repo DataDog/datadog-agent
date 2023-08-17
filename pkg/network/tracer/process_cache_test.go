@@ -342,7 +342,7 @@ func TestProcessCacheGet(t *testing.T) {
 }
 
 func BenchmarkProcessCacheMem(b *testing.B) {
-	pc, _ := newProcessCache(b.N, nil)
+	pc, _ := newProcessCache(50000, nil)
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -359,5 +359,5 @@ func BenchmarkProcessCacheMem(b *testing.B) {
 		}
 		pc.handleProcessEvent(entry)
 	}
-	
+
 }
