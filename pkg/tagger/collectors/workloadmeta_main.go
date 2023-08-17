@@ -85,7 +85,6 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 		tags := utils.NewTagList()
 
 		for tag, value := range c.staticTags {
-			log.Infof("tag seen: key: %v; val: %v", tag, value)
 			tags.AddLow(tag, value)
 		}
 

@@ -32,16 +32,12 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	// add static tags to each container manually
 
 	if !fargate.IsFargateInstance() {
-		log.Infof("not a fargate instance")
 		if cluster == "" {
-			log.Infof("no cluster name found")
 			return nil
 		} else {
-			log.Infof("cluster name found: %v", cluster)
 			return []string{clusterTagNamePrefix + cluster}
 		}
 	}
-	log.Infof("is a fargate instance")
 
 	tags := []string{}
 
@@ -50,7 +46,6 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 
 	// EKS Fargate specific tags
 	if config.IsFeaturePresent(config.EKSFargate) {
-		log.Infof("is an eks fargate instance")
 		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {

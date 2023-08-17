@@ -9,7 +9,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -796,8 +795,6 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
-
-	log.Infof("Found global tags: %v", strings.Join(tags, ";"))
 
 	if agg.tlmContainerTagsEnabled {
 		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
