@@ -138,7 +138,7 @@ func (c *ConnectionsCheck) handleBatch(batch *model.Connections, start time.Time
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	return processBatchGRPC(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID,
+	return processConnectionsBatch(c.hostInfo, c.maxConnsPerMessage, groupID, batch.Conns, batch.Dns, c.networkID,
 		batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult,
 		batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags,
 		batch.AgentConfiguration, c.serviceExtractor, isFirst)
@@ -232,7 +232,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	log.Debugf("collected connections in %s", time.Since(start))
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := processConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
@@ -359,7 +359,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
-func batchConnections(
+func processConnections(
 	hostInfo *HostInfo,
 	maxConnsPerMessage int,
 	groupID int32,
@@ -550,7 +550,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 }
 
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
-func processBatchGRPC(
+func processConnectionsBatch(
 	hostInfo *HostInfo,
 	maxConnsPerMessage int,
 	groupID int32,

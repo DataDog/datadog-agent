@@ -63,7 +63,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	go func() {
 		err = http.Serve(conn.GetListener(), mux)
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("error creating HTTP grpcServer: %s", err)
+			log.Errorf("error creating HTTP server: %s", err)
 		}
 	}()
 
@@ -71,7 +71,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 		go func() {
 			err = grpcServer.Serve(grpcConn.GetListener())
 			if err != nil {
-				log.Errorf("error creating grpc grpcServer: %s", err)
+				log.Errorf("error creating grpc server: %s", err)
 			}
 		}()
 	}
