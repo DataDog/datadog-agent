@@ -15,9 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/node"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/pod"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -59,10 +61,15 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Pr
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
+	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	if err != nil {
+		log.Warnf("Can't get probe provider: %v", err)
+	}
 
 	return []Provider{
 		podProvider,
 		nodeProvider,
+		probeProvider,
 	}
 }
 
