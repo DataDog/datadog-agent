@@ -130,7 +130,3 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	}
 	return c.inner.GetDiagnoses()
 }
-
-func (c *CheckWrapper) Clenaup() ([]diagnosis.Diagnosis, error) {
-	return nil, nil
-}
