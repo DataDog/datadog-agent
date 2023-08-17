@@ -1,5 +1,6 @@
 import json
 import os
+import getpass
 
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
 from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
@@ -33,6 +34,7 @@ def create_stack(ctx, stack=None):
         raise Exit(f"Stack {stack} already exists")
 
     ctx.run(f"mkdir {stack_dir}")
+
 
 def find_ssh_key(ssh_key):
     user = getpass.getuser()

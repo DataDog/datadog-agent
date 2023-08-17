@@ -26,7 +26,7 @@ except ImportError:
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
-GOVERSION=1.19
+GOVERSION = 1.19
 
 
 @task
@@ -57,6 +57,7 @@ def launch_stack(ctx, stack=None, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_am
 def destroy_stack(ctx, stack=None, force=False, ssh_key=""):
     clean(ctx, stack)
     stacks.destroy_stack(ctx, stack, force, ssh_key)
+
 
 @task
 def pause_stack(stack=None):
@@ -159,6 +160,7 @@ def ssh_key_to_path(ssh_key):
 
     return ssh_key_path
 
+
 def sync_source(ctx, vm_ls, source, target, ssh_key):
     ssh_key_path = ssh_key_to_path(ssh_key)
 
@@ -245,8 +247,10 @@ def compiler_running(ctx):
     return False
 
 
-TOOLS_PATH='/datadog-agent/internal/tools'
-GOTESTSUM="gotest.tools/gotestsum"
+TOOLS_PATH = '/datadog-agent/internal/tools'
+GOTESTSUM = "gotest.tools/gotestsum"
+
+
 def download_gotestsum(ctx):
     fgotestsum = "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/gotestsum"
     if os.path.isfile(fgotestsum):
@@ -255,7 +259,11 @@ def download_gotestsum(ctx):
     if not os.path.exists("kmt-deps/tools"):
         ctx.run("mkdir -p kmt-deps/tools")
 
-    docker_exec(ctx, f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum /datadog-agent/kmt-deps/tools/", user="compiler")
+    docker_exec(
+        ctx,
+        f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum /datadog-agent/kmt-deps/tools/",
+        user="compiler",
+    )
 
     ctx.run(f"cp kmt-deps/tools/gotestsum {fgotestsum}")
 
@@ -273,11 +281,17 @@ def run_cmd_vms(ctx, stack, cmd, vms, ssh_key, allow_fail=False):
 
 
 def run_cmd_local(ctx, cmd, ip, allow_fail):
-    ctx.run(f"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'", warn=allow_fail)
+    ctx.run(
+        f"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'", warn=allow_fail
+    )
+
 
 def run_cmd_remote(ctx, stack, cmd, arch, ip, ssh_key):
     _, remote_ip = get_instance_ip(stack, arch)
-    ctx.run(f"ssh -o StrictHostKeyChecking=no -i {ssh_key} ubuntu@{remote_ip} \"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'\"")
+    ctx.run(
+        f"ssh -o StrictHostKeyChecking=no -i {ssh_key} ubuntu@{remote_ip} \"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'\""
+    )
+
 
 def copy_dependencies(ctx, stack, vms, ssh_key):
     local_cp = False
@@ -291,10 +305,13 @@ def copy_dependencies(ctx, stack, vms, ssh_key):
             raise Exit("`ssh_key` is required when syncing VMs on remote instance")
 
         _, remote_ip = get_instance_ip(stack, arch)
-        ctx.run(f"scp -o StrictHostKeyChecking=no -i {ssh_key_path} kmt-deps/{stack}/dependencies-{arch}.tar.gz ubuntu@{remote_ip}:/opt/kernel-version-testing/")
+        ctx.run(
+            f"scp -o StrictHostKeyChecking=no -i {ssh_key_path} kmt-deps/{stack}/dependencies-{arch}.tar.gz ubuntu@{remote_ip}:/opt/kernel-version-testing/"
+        )
 
     if local_cp:
         ctx.run(f"cp kmt-deps/{stack}/dependencies-{platform.machine()}.tar.gz /opt/kernel-version-testing")
+
 
 @task
 def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, packages=""):
@@ -327,7 +344,9 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, 
             user="compiler",
         )
         copy_dependencies(ctx, stack, target_vms, ssh_key)
-        run_cmd_vms(ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True)
+        run_cmd_vms(
+            ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True
+        )
 
     sync_source(
         ctx,
@@ -339,19 +358,28 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, 
 
 
 @task
-def test(ctx, stack=None, packages=None, run=None, retry=2, rebuild_deps=False, vms="", ssh_key="", go_version=GOVERSION):
-   stack = check_and_get_stack(stack)
-   if not stacks.stack_exists(stack):
-       raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+def test(
+    ctx, stack=None, packages=None, run=None, retry=2, rebuild_deps=False, vms="", ssh_key="", go_version=GOVERSION
+):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-   prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps)
+    prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps)
 
-   target_vms = build_target_set(stack, vms, ssh_key)
-   args = [
-           f"-include-packages {packages}" if packages else "",
-           f"-run-tests {run}" if run else "",
-           ]
-   run_cmd_vms(ctx, stack, f"bash /micro-vm-init.sh {go_version} {retry} {platform.machine()} {' '.join(args)}", target_vms, "", allow_fail=True)
+    target_vms = build_target_set(stack, vms, ssh_key)
+    args = [
+        f"-include-packages {packages}" if packages else "",
+        f"-run-tests {run}" if run else "",
+    ]
+    run_cmd_vms(
+        ctx,
+        stack,
+        f"bash /micro-vm-init.sh {go_version} {retry} {platform.machine()} {' '.join(args)}",
+        target_vms,
+        "",
+        allow_fail=True,
+    )
 
 
 @task

@@ -20,7 +20,6 @@ from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
-from .kernel_matrix_testing.init_kmt import get_active_branch_name
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -690,7 +689,10 @@ def go_package_dirs(packages, build_tags):
 
     return target_packages
 
+
 BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
+
+
 def clean_build(ctx, target_packages):
     if not os.path.exists(KITCHEN_ARTIFACT_DIR):
         return True
@@ -707,8 +709,10 @@ def clean_build(ctx, target_packages):
 
     return False
 
+
 def full_pkg_path(name):
-    return os.path.join(os.getcwd(), name[name.index("pkg"):])
+    return os.path.join(os.getcwd(), name[name.index("pkg") :])
+
 
 @task
 def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages=""):
@@ -725,7 +729,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
     if packages == "" or clean_build(ctx, target_packages):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
     elif packages != "":
-        packages = [ full_pkg_path(name) for name in packages.split(",") ]
+        packages = [full_pkg_path(name) for name in packages.split(",")]
         # make sure valid packages were provided.
         for pkg in packages:
             if pkg not in target_packages:
