@@ -32,7 +32,7 @@ func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[in
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
-	if time.Now().Sub(l.updated) < defaultTTL {
+	if time.Since(l.updated) < defaultTTL {
 		return
 	}
 

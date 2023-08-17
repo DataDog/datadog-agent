@@ -569,7 +569,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	t.state.RemoveConnections(toRemove)
 
 	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
+		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Since(now))
 	}
 }
 
