@@ -580,7 +580,10 @@ func (s *USMSuite) TestProtocolClassification() {
 		t.Skip("Classification is not supported")
 	}
 
-	cfg.EnableGoTLSSupport = true
+	if !isPrebuilt(cfg) {
+		cfg.EnableGoTLSSupport = true
+	}
+
 	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	tr, err := NewTracer(cfg)
