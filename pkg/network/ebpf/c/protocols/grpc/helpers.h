@@ -21,18 +21,12 @@
 #define GRPC_ENCODED_CONTENT_TYPE "\x1d\x75\xd0\x62\x0d\x26\x3d\x4c\x4d\x65\x64"
 #define GRPC_CONTENT_TYPE_LEN (sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1)
 
-typedef struct {
-    __u32 offset;
-    __u32 length;
-} header_info_t;
-
 static __always_inline void check_and_skip_magic(const struct __sk_buff *skb, skb_info_t *info) {
-    char buf[HTTP2_MARKER_SIZE];
-
     if (info->data_off + HTTP2_MARKER_SIZE >= skb->len) {
         return;
     }
 
+    char buf[HTTP2_MARKER_SIZE];
     bpf_skb_load_bytes(skb, info->data_off, buf, sizeof(buf));
     if (is_http2_preface(buf, sizeof(buf))) {
         info->data_off += HTTP2_MARKER_SIZE;
@@ -81,7 +75,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
     // Check that frame_end does not go beyond the skb
     frame_end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
 
-#pragma unroll (GRPC_MAX_HEADERS_TO_PROCESS)
+#pragma unroll(GRPC_MAX_HEADERS_TO_PROCESS)
     for (__u8 i = 0; i < GRPC_MAX_HEADERS_TO_PROCESS; ++i) {
         if (skb_info->data_off >= frame_end) {
             break;
@@ -92,7 +86,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
 
         if (is_literal(idx.raw)) {
             // Having a literal, with an index pointing to a ":method" key means a
-            // request method that is not POST or GET. gRPC only uses POST, so 
+            // request method that is not POST or GET. gRPC only uses POST, so
             // finding a :method here is an indicator of non-GRPC content.
             if (idx.literal.index == kGET || idx.literal.index == kPOST) {
                 status = PAYLOAD_NOT_GRPC;
@@ -114,10 +108,9 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
             status = PAYLOAD_NOT_GRPC;
             break;
         }
-
     }
 
-   return status;
+    return status;
 }
 
 // is_grpc tries to determine if the packet in `skb` holds GRPC traffic. To do
