@@ -106,6 +106,7 @@
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
+/.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -293,6 +294,7 @@
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
+/pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/secrets/                           @DataDog/agent-shared-components
@@ -437,6 +439,7 @@
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm
 /test/regression/                       @DataDog/single-machine-performance
+/test/workload-checks/                  @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform

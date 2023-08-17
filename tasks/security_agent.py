@@ -550,12 +550,19 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
-    ctx.run(
-        "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
+
+    # skip generation of serializer for windows
+    if sys.platform == "win32":
+        return
+
+    shutil.copy(
+        "./pkg/security/serializers/serializers_easyjson.mock", "./pkg/security/serializers/serializers_easyjson.go"
     )
-    ctx.run(
-        "cp ./pkg/security/security_profile/dump/activity_dump_easyjson.mock ./pkg/security/security_profile/dump/activity_dump_easyjson.go"
+    shutil.copy(
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
     )
+
     ctx.run("go generate ./pkg/security/...")
 
 

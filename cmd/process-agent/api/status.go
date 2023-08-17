@@ -11,7 +11,7 @@ import (
 	"net/http"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 )
 
 func statusHandler(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
@@ -32,7 +32,7 @@ func statusHandler(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
 	}
 	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 
-	agentStatus, err := util.GetStatus(deps.Config, expvarEndpoint)
+	agentStatus, err := status.GetStatus(deps.Config, expvarEndpoint)
 	if err != nil {
 		_ = deps.Log.Warn("failed to get status from agent:", err)
 		writeError(err, http.StatusInternalServerError, w)

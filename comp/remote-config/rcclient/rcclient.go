@@ -55,46 +55,48 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
+	// We have to create the client in the constructor and set its name later
+	c, err := remote.NewUnverifiedGRPCClient(
+		"unknown", version.AgentVersion, []data.Product{}, 5*time.Second,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	rc := rcClient{
 		listeners: deps.Listeners,
 		m:         &sync.Mutex{},
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
-		client: nil,
+		client: c,
 	}
 
 	return rc, nil
 }
 
-// Listen start the remote config client to listen to AGENT_TASK configurations
-func (rc rcClient) Listen(clientName string, products []data.Product) error {
-	c, err := remote.NewUnverifiedGRPCClient(
-		clientName, version.AgentVersion, products, 5*time.Second,
-	)
-	if err != nil {
-		return err
-	}
+// Listen subscribes to AGENT_CONFIG configurations and start the remote config client
+func (rc rcClient) Start(agentName string) error {
+	rc.client.SetAgentName(agentName)
 
-	rc.client = c
-	rc.taskProcessed = map[string]bool{}
-
-	for _, product := range products {
-		switch product {
-		case state.ProductAgentTask:
-			rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
-			break
-		case state.ProductAgentConfig:
-			rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
-			break
-		default:
-			pkglog.Infof("remote config client %s started unsupported product: %s", clientName, product)
-		}
-	}
+	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	rc.client.Start()
 
 	return nil
+}
+
+func (rc rcClient) SubscribeAgentTask() {
+	rc.taskProcessed = map[string]bool{}
+	if rc.client == nil {
+		pkglog.Errorf("No remote-config client")
+		return
+	}
+	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+}
+
+func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig)) {
+	rc.client.Subscribe(string(product), fn)
 }
 
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {

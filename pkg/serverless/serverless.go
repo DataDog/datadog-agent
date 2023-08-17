@@ -129,11 +129,13 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
 	} else if payload.EventType == Shutdown {
+		// Log collection can be safely called multiple times, so ensure we start log collection during a SHUTDOWN event too in case an INVOKE event is never received
+		daemon.StartLogCollection()
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			ecs := daemon.ExecutionContext.GetCurrentState()
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
+			coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(daemon.ExecutionContext.LastRequestID())
+			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
@@ -172,17 +174,17 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
 	daemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 	daemon.StartLogCollection()
-	ecs := daemon.ExecutionContext.GetCurrentState()
+	coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(requestID)
 
 	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, ecs.Coldstart, ecs.ProactiveInit)
+		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 		metricTags = tags.AddInitTypeTag(metricTags)
 		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
 	}
 
-	if ecs.Coldstart {
+	if coldStartTags.IsColdStart {
 		daemon.UpdateStrategy()
 	}
 

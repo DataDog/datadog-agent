@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -34,7 +34,7 @@ func TestBuildMessageNoLambda(t *testing.T) {
 	origin := &message.Origin{}
 	builtMessage := buildMessage(logline, origin)
 	assert.Equal(t, "bababang", string(builtMessage.Content))
-	assert.Nil(t, builtMessage.Lambda)
+	assert.Nil(t, builtMessage.ServerlessExtra.Lambda)
 	assert.Equal(t, message.StatusInfo, builtMessage.GetStatus())
 }
 
@@ -51,8 +51,8 @@ func TestBuildMessageLambda(t *testing.T) {
 	origin := &message.Origin{}
 	builtMessage := buildMessage(logline, origin)
 	assert.Equal(t, "bababang", string(builtMessage.Content))
-	assert.Equal(t, "myTestARN", builtMessage.Lambda.ARN)
-	assert.Equal(t, "myTestRequestId", builtMessage.Lambda.RequestID)
+	assert.Equal(t, "myTestARN", builtMessage.ServerlessExtra.Lambda.ARN)
+	assert.Equal(t, "myTestRequestId", builtMessage.ServerlessExtra.Lambda.RequestID)
 	assert.Equal(t, message.StatusInfo, builtMessage.GetStatus())
 }
 

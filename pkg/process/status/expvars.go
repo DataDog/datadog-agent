@@ -22,8 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -154,7 +154,7 @@ func publishEnabledChecks() interface{} {
 
 func publishContainerID() interface{} {
 	cgroupFile := "/proc/self/cgroup"
-	if !util.PathExists(cgroupFile) {
+	if !filesystem.FileExists(cgroupFile) {
 		return nil
 	}
 	f, err := os.Open(cgroupFile)

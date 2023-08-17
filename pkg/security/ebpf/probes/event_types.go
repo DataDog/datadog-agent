@@ -112,6 +112,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("_do_fork", fentry, withSkipIfFentry(true)),
 				kprobeOrFentry("do_fork", fentry, withSkipIfFentry(true)),
 				kprobeOrFentry("kernel_clone", fentry),
+				kprobeOrFentry("kernel_thread", fentry),
+				kprobeOrFentry("user_mode_thread", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("cgroup_tasks_write", fentry, withSkipIfFentry(true)),
@@ -136,10 +138,6 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresgid", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresgid16", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "capset", fentry, EntryAndExit|SupportFentry|SupportFexit)},
-			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fork", fentry, Entry)},
-			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "vfork", fentry, Entry)},
-			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "clone", fentry, Entry|SupportFentry)},
-			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "clone3", fentry, Entry|SupportFentry)},
 
 			// File Attributes
 			kprobeOrFentry("security_inode_setattr", fentry),

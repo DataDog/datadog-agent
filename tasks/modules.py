@@ -147,7 +147,7 @@ DEFAULT_MODULES = {
         targets=["./runner", "./utils/e2e/client"],
         lint_targets=["."],
     ),
-    "test/fakeintake": GoModule("test/fakeintake", independent=True, should_tag=False),
+    "test/fakeintake": GoModule("test/fakeintake", independent=True),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True),
