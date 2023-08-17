@@ -199,7 +199,13 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
+	err = fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
+	if err != nil {
+		response := buildPostResponse(err)
+		writeHttpResponse(w, response)
+		return
+	}
+
 	response := buildPostResponse(nil)
 	writeHttpResponse(w, response)
 }
@@ -264,8 +270,15 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if fi.payloadParser.IsRouteHandled(route) {
-		payloads, _ := fi.safeGetJsonPayloads(route)
-		// If no payload for a valid route exist yet, payloads will be null
+		payloads, payloadErr := fi.safeGetJsonPayloads(route)
+		if payloadErr != nil {
+			writeHttpResponse(w, httpResponse{
+				contentType: "text/plain",
+				statusCode:  http.StatusBadRequest,
+				body:        []byte(payloadErr.Error()),
+			})
+			return
+		}
 		// build response
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
@@ -302,7 +315,7 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) {
+func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) error {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
 	if _, found := fi.payloadStore[route]; !found {
@@ -314,7 +327,7 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 		Encoding:  encoding,
 	}
 	fi.payloadStore[route] = append(fi.payloadStore[route], rawPayload)
-	fi.payloadParser.parse(rawPayload, route)
+	return fi.payloadParser.parse(rawPayload, route)
 }
 
 func (fi *Server) safeGetRawPayloads(route string) []api.Payload {

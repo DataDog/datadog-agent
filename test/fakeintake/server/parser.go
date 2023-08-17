@@ -24,6 +24,9 @@ func NewPayloadParser() PayloadParser {
 	parser.parserMap["/api/v2/logs"] = parser.getLogPayLoadJson
 	parser.parserMap["/api/v2/series"] = parser.getMetricPayLoadJson
 	parser.parserMap["/api/v1/check_run"] = parser.getCheckRunPayLoadJson
+	parser.payloadJsonStore["/api/v2/logs"] = []api.ParsedPayload{}
+	parser.payloadJsonStore["/api/v2/series"] = []api.ParsedPayload{}
+	parser.payloadJsonStore["/api/v1/check_run"] = []api.ParsedPayload{}
 	return parser
 }
 
@@ -52,17 +55,20 @@ func (fi *PayloadParser) getCheckRunPayLoadJson(payload api.Payload) (interface{
 	return aggregator.ParseCheckRunPayload(payload)
 }
 
-func (fi *PayloadParser) parse(payload api.Payload, route string) {
+func (fi *PayloadParser) parse(payload api.Payload, route string) error {
 
 	parsedPayload := api.ParsedPayload{
 		Timestamp: payload.Timestamp,
 		Data:      "",
 		Encoding:  payload.Encoding,
 	}
-
+	var err error
 	if payloadFunc, ok := fi.parserMap[route]; ok {
-		parsedPayload.Data, _ = payloadFunc(payload)
+		parsedPayload.Data, err = payloadFunc(payload)
+		if err != nil {
+			return err
+		}
 		fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], parsedPayload)
 	}
-
+	return nil
 }
