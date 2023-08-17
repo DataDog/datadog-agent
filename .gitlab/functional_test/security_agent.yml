@@ -130,7 +130,7 @@ kitchen_test_security_agent_amazonlinux_x64_fentry:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-5-10"
-        KITCHEN_CWS_PLATFORM: [fentry]
+        KITCHEN_CWS_PLATFORM: [host-fentry, docker-fentry]
 
 kitchen_stress_security_agent:
   extends:
