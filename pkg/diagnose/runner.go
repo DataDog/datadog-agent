@@ -248,12 +248,12 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	c := util.GetClient(false)
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
-		return nil, fmt.Errorf("error getting IPC address for the agent: %s", err)
+		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
 	}
 
 	// Make sure we have a session token (for privileged information)
 	if err = util.SetAuthToken(); err != nil {
-		return nil, fmt.Errorf("auth error: %s", err)
+		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
@@ -272,14 +272,14 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 		if r != nil && string(r) != "" {
 			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(r))
 		}
-		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent (is it running)")
+		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
 	}
 
 	// Deserialize results
 	var diagnoses []diagnosis.Diagnoses
 	err = json.Unmarshal(r, &diagnoses)
 	if err != nil {
-		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %s", err)
+		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
 	}
 
 	return diagnoses, nil

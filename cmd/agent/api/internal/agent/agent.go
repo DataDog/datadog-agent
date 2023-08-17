@@ -480,7 +480,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
+	// Reset the `server_timeout` deadline for this connection as running diagnose code in Agent process can take some time
 	conn := GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
