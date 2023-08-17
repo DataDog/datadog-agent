@@ -29,5 +29,5 @@ type Transaction interface {
 }
 
 func isEncrypted(tx Transaction) bool {
-	return (tx.StaticTags() & (GnuTLS | OpenSSL | TLS)) > 0
+	return (tx.StaticTags() & (GnuTLS | OpenSSL | TLS | Java | Go)) > 0
 }
