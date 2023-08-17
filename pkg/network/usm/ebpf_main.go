@@ -51,16 +51,8 @@ type ebpfProgram struct {
 	enabledProtocols  []protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
 
-	buildMode buildMode
+	buildMode protocols.BuildMode
 }
-
-type buildMode string
-
-const (
-	Prebuilt        buildMode = "prebuilt"
-	RuntimeCompiled buildMode = "runtime-compilation"
-	CORE            buildMode = "CO-RE"
-)
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
@@ -120,7 +112,7 @@ func (e *ebpfProgram) Init() error {
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
 		if err == nil {
-			e.buildMode = CORE
+			e.buildMode = protocols.CORE
 			return nil
 		}
 
@@ -133,7 +125,7 @@ func (e *ebpfProgram) Init() error {
 	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
 		err = e.initRuntimeCompiler()
 		if err == nil {
-			e.buildMode = RuntimeCompiled
+			e.buildMode = protocols.RuntimeCompiled
 			return nil
 		}
 
@@ -145,7 +137,7 @@ func (e *ebpfProgram) Init() error {
 
 	err = e.initPrebuilt()
 	if err == nil {
-		e.buildMode = Prebuilt
+		e.buildMode = protocols.Prebuilt
 	}
 	return err
 }

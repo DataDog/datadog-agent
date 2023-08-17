@@ -182,7 +182,7 @@ var goTLSSpec = &protocols.ProtocolSpec{
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: connWriteRetProbe
+				EBPFFuncName: connWriteRetProbe,
 			},
 		},
 		{
@@ -239,8 +239,13 @@ func (p *goTLSProgram) ConfigureOptions(m *manager.Manager, options *manager.Opt
 	}
 }
 
-func (p *goTLSProgram) PreStart(m *manager.Manager) error {
+func (p *goTLSProgram) PreStart(m *manager.Manager, mode protocols.BuildMode) error {
 	var err error
+
+	if !p.isBuildModeSupported(mode) {
+		return fmt.Errorf("GoTLS does not support %s build mode", mode)
+	}
+
 	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
 	if err != nil {
 		return fmt.Errorf("could not get offsets_data map: %s", err)
@@ -608,4 +613,8 @@ func (p *goTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
 	}
+}
+
+func (p *goTLSProgram) isBuildModeSupported(mode protocols.BuildMode) bool {
+	return mode == protocols.CORE || mode == protocols.RuntimeCompiled
 }
