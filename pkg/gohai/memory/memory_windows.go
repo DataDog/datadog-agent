@@ -14,10 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
-// MEMORYSTATUSEX is the type of the struct expected by GlobalMemoryStatusEx
-//
-//nolint:revive
-type MEMORYSTATUSEX struct {
+// memoryStatusEX is the type of the struct expected by GlobalMemoryStatusEx
+type memoryStatusEX struct {
 	dwLength               uint32 // size of this structure
 	dwMemoryLoad           uint32 // number 0-100 estimating %age of memory in use
 	ulTotalPhys            uint64 // amount of physical memory
@@ -33,7 +31,7 @@ func (info *Info) fillMemoryInfo() {
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getMem = mod.NewProc("GlobalMemoryStatusEx")
 
-	var memStruct MEMORYSTATUSEX
+	var memStruct memoryStatusEX
 	memStruct.dwLength = uint32(unsafe.Sizeof(memStruct))
 
 	status, _, err := getMem.Call(uintptr(unsafe.Pointer(&memStruct)))
