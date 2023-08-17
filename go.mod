@@ -50,9 +50,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/log v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.3.0
 	github.com/DataDog/datadog-operator v1.0.3
 	github.com/DataDog/ebpf-manager v0.2.15
@@ -106,7 +106,7 @@ require (
 	github.com/fatih/color v1.15.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/fsnotify/fsnotify v1.6.0
-	github.com/go-delve/delve v1.21.0
+	github.com/go-delve/delve v1.20.1
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.2.6
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
@@ -562,6 +562,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-beta.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
@@ -571,6 +572,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.75.0
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
+	go4.org/intern v0.0.0-20211027215823-ae77deb06f29
 )
 
 require (
@@ -599,8 +601,7 @@ require (
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
-	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
