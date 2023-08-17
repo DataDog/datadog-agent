@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add kubelet healthz check (check_run.kubernetes_core.kubelet.check) to agent corecheck to replace old check kubenetes.kubelet.check which is generated from python.
+    Add kubelet healthz check (check_run.kubernetes_core.kubelet.check) to the Agent's core checks to replace the old kubernetes.kubelet.check generated from Python.
