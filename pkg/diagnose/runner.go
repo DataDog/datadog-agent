@@ -127,7 +127,7 @@ func outputNewLineIfNeeded(w io.Writer, lastDot *bool) {
 }
 
 func outputSuiteIfNeeded(w io.Writer, suiteName string, suiteAlreadyReported *bool) {
-	if *suiteAlreadyReported == false {
+	if !(*suiteAlreadyReported) {
 		fmt.Fprintf(w, "==============\nSuite: %s\n", suiteName)
 		*suiteAlreadyReported = true
 	}
@@ -175,6 +175,19 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Su
 	}
 
 	return sortedFilteredSuites
+}
+
+// Dagnose sites are already sorted, sort only by category and then
+// by name. It may change in future versions, e.g. configured to not to sort
+// or confgured to sort by other attributes or order (which would need config)
+func sortDiagnoses(siteDiagnoses []diagnosis.Diagnoses) {
+	for _, sd := range siteDiagnoses {
+		ds := sd.SuiteDiagnoses
+		sort.Slice(ds, func(i, j int) bool {
+			return (ds[i].Category < ds[j].Category) ||
+				(ds[i].Category == ds[j].Category && ds[i].Name < ds[j].Name)
+		})
+	}
 }
 
 func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis.Diagnosis {
@@ -228,19 +241,19 @@ func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 	suites := getSortedAndFilteredDiagnoseSuites(diagCfg)
 
-	var suiteDiagnoses []diagnosis.Diagnoses
+	var suitesDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
 		// Run particular diagnose
 		diagnoses := getSuiteDiagnoses(ds, diagCfg)
 		if len(diagnoses) > 0 {
-			suiteDiagnoses = append(suiteDiagnoses, diagnosis.Diagnoses{
+			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
 				SuiteDiagnoses: diagnoses,
 			})
 		}
 	}
 
-	return suiteDiagnoses, nil
+	return suitesDiagnoses, nil
 }
 
 func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
@@ -286,11 +299,22 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-	if diagCfg.RunLocal {
-		return getDiagnosesFromCurrentProcess(diagCfg)
+
+	// Make remote call to get diagnoses
+	if !diagCfg.RunLocal {
+		return requestDiagnosesFromAgentProcess(diagCfg)
 	}
 
-	return requestDiagnosesFromAgentProcess(diagCfg)
+	// Collect local diagnoses
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Please note that if streaming will be implemented sorting strategy may need to be chaned
+	sortDiagnoses(diagnoses)
+
+	return diagnoses, nil
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses

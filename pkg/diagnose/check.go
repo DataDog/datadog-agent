@@ -7,7 +7,6 @@ package diagnose
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -64,15 +63,12 @@ func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 }
 
 func diagnoseInAgentProcess() []diagnosis.Diagnosis {
+	var diagnoses []diagnosis.Diagnosis
+
 	// get list of checks
 	checks := common.Coll.GetChecks()
 
-	// sort them by category (check name but not instance name)
-	sort.Slice(checks, func(i, j int) bool {
-		return checks[i].String() < checks[j].String()
-	})
-
-	var diagnoses []diagnosis.Diagnosis
+	// get diagnoses from each
 	for _, ch := range checks {
 		instanceDiagnoses := getInstanceDiagnoses(ch)
 		diagnoses = append(diagnoses, instanceDiagnoses...)
