@@ -57,8 +57,8 @@ func FormatConnection(
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(c.Laddr, conn.Source, conn.SPort, conn.ContainerID.Source, ipc)
-	c.Raddr = formatAddr(c.Raddr, conn.Dest, conn.DPort, conn.ContainerID.Dest, ipc)
+	c.Laddr = formatAddr(conn.Source, conn.SPort, conn.ContainerID.Source, ipc)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort, conn.ContainerID.Dest, ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
@@ -155,18 +155,12 @@ func returnToPool(c *model.Connections) {
 	}
 }
 
-func formatAddr(maddr *model.Addr, addr util.Address, port uint16, containerID *string, ipc ipCache) *model.Addr {
+func formatAddr(addr util.Address, port uint16, containerID *string, ipc ipCache) *model.Addr {
 	if addr.IsZero() {
 		return nil
 	}
 
-	if maddr == nil {
-		maddr = &model.Addr{}
-	}
-
-	maddr.Ip = ipc.Get(addr)
-	maddr.Port = int32(port)
-	maddr.ContainerId = ""
+	maddr := &model.Addr{Ip: ipc.Get(addr), Port: int32(port)}
 	if containerID != nil {
 		maddr.ContainerId = *containerID
 	}
