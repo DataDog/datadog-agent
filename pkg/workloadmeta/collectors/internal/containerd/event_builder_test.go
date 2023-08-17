@@ -17,11 +17,11 @@ import (
 	"github.com/containerd/containerd/containers"
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/oci"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
