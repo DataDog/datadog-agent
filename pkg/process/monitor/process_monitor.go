@@ -17,8 +17,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -172,7 +172,7 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	pm.netlinkErrorsChannel = make(chan error, 10)
 	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
-	if err := util.WithRootNS(util.GetProcRoot(), func() error {
+	if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
 		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 	}); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
@@ -299,7 +299,7 @@ func (pm *ProcessMonitor) Initialize() error {
 
 			go pm.mainEventLoop()
 
-			if err := util.WithRootNS(util.GetProcRoot(), func() error {
+			if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
 				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 			}); err != nil {
 				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
@@ -317,7 +317,7 @@ func (pm *ProcessMonitor) Initialize() error {
 					return nil
 				}
 				// Scanning already running processes
-				if err := util.WithAllProcs(util.GetProcRoot(), handleProcessExecWrapper); err != nil {
+				if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
 					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
 					pm.tel.processScanFailed.Add(1)
 					return
@@ -404,7 +404,7 @@ func FindDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
 		return nil
 	}
 	// Scanning already running processes
-	if err := util.WithAllProcs(util.GetProcRoot(), procIter); err != nil {
+	if err := kernel.WithAllProcs(kernel.ProcFSRoot(), procIter); err != nil {
 		return nil
 	}
 

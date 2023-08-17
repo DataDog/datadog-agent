@@ -563,7 +563,7 @@ func (p *goTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 					return
 				}
 				probeIDs = append(probeIDs, returnProbeID)
-				ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, returnProbeID.UID), "usm_gotls")
+				ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 			}
 		}
 
@@ -584,7 +584,7 @@ func (p *goTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 				return
 			}
 			probeIDs = append(probeIDs, probeID)
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, probeID.UID), "usm_gotls")
+			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 		}
 	}
 

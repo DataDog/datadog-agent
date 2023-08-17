@@ -5,31 +5,14 @@
 
 //go:build linux
 
-package util
+package kernel
 
 import (
 	"os"
 	"runtime"
 	"strconv"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
-
-func TestGetRootNSPID(t *testing.T) {
-	t.Run("HOST_PROC not set", func(t *testing.T) {
-		pid, err := GetRootNSPID()
-		assert.Nil(t, err)
-		assert.Equal(t, os.Getpid(), pid)
-	})
-
-	t.Run("HOST_PROC set but not available", func(t *testing.T) {
-		t.Setenv("HOST_PROC", "/foo/bar")
-		pid, err := GetRootNSPID()
-		assert.NotNil(t, err)
-		assert.Equal(t, 0, pid)
-	})
-}
 
 func oldWithAllProcs(procRoot string, fn func(int) error) error {
 	files, err := os.ReadDir(procRoot)

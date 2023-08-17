@@ -22,7 +22,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -239,14 +238,14 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 	var nss []netns.NsHandle
 	var err error
 	if c.listenAllNamespaces {
-		nss, err = util.GetNetNamespaces(c.procRoot)
+		nss, err = kernel.GetNetNamespaces(c.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
 		}
 	}
 
 	var conn *netlink.Conn
-	err = util.WithNS(c.rootNetNs, func() error {
+	err = kernel.WithNS(c.rootNetNs, func() error {
 		conn, err = netlink.Dial(unix.AF_UNSPEC, &netlink.Config{})
 		return err
 	})
@@ -294,7 +293,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 }
 
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
-	return util.WithNS(ns, func() error {
+	return kernel.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
@@ -327,7 +326,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 			return fmt.Errorf("netlink dump message validation error: %w", err)
 		}
 
-		nsIno, err := util.GetInoForNs(ns)
+		nsIno, err := kernel.GetInoForNs(ns)
 		if err != nil {
 			return fmt.Errorf("netns ino: %w", err)
 		}
@@ -348,7 +347,7 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 	var nss []netns.NsHandle
 	var err error
 	if c.listenAllNamespaces {
-		nss, err = util.GetNetNamespaces(c.procRoot)
+		nss, err = kernel.GetNetNamespaces(c.procRoot)
 		if err != nil {
 			return nil, fmt.Errorf("error dumping conntrack table, could not get network namespaces: %w", err)
 		}
@@ -396,7 +395,7 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 }
 
 func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
-	return util.WithNS(ns, func() error {
+	return kernel.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
