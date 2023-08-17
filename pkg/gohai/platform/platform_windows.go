@@ -18,17 +18,15 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// OSVERSIONINFOEXW contains operating system version information.
+// osVersionInfoEXW contains operating system version information.
 // From winnt.h (see https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoexw)
 // This is used by https://docs.microsoft.com/en-us/windows/win32/devnotes/rtlgetversion
-//
-//nolint:revive
-type OSVERSIONINFOEXW struct {
+type osVersionInfoEXW struct {
 	dwOSVersionInfoSize uint32
 	dwMajorVersion      uint32
 	dwMinorVersion      uint32
 	dwBuildNumber       uint32
-	dwPlatformId        uint32
+	dwPlatformID        uint32
 	szCSDVersion        [128]uint16
 	wServicePackMajor   uint16
 	wServicePackMinor   uint16
@@ -40,12 +38,14 @@ type OSVERSIONINFOEXW struct {
 // serverInfo101 contains server-specific information
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/ns-lmserver-server_info_101
 type serverInfo101 struct {
-	sv101_platform_id   uint32
-	sv101_name          string
-	sv101_version_major uint32
-	sv101_version_minor uint32
-	sv101_type          uint32
-	sv101_comment       string
+	sv101PlatformID uint32
+	//nolint:unused
+	sv101Name         string
+	sv101VersionMajor uint32
+	sv101VersionMinor uint32
+	sv101Type         uint32
+	//nolint:unused
+	sv101Comment string
 }
 
 var (
@@ -257,7 +257,7 @@ func fetchOsDescription() (string, error) {
 }
 
 func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error) {
-	var osversion OSVERSIONINFOEXW
+	var osversion osVersionInfoEXW
 	status, _, _ := procRtlGetVersion.Call(uintptr(unsafe.Pointer(&osversion)))
 	if status == 0 {
 		major = uint64(osversion.dwMajorVersion)
@@ -348,21 +348,21 @@ func (platformInfo *Info) fillPlatformInfo() {
 	family := "Unknown"
 	si, sierr := netServerGetInfo()
 	if sierr == nil {
-		if (si.sv101_type&svTypeWorkstation) == svTypeWorkstation ||
-			(si.sv101_type&svTypeServer) == svTypeServer {
-			if (si.sv101_type & svTypeWorkstation) == svTypeWorkstation {
+		if (si.sv101Type&svTypeWorkstation) == svTypeWorkstation ||
+			(si.sv101Type&svTypeServer) == svTypeServer {
+			if (si.sv101Type & svTypeWorkstation) == svTypeWorkstation {
 				family = "Workstation"
-			} else if (si.sv101_type & svTypeServer) == svTypeServer {
+			} else if (si.sv101Type & svTypeServer) == svTypeServer {
 				family = "Server"
 			}
-			if (si.sv101_type & svTypeDomainMember) == svTypeDomainMember {
+			if (si.sv101Type & svTypeDomainMember) == svTypeDomainMember {
 				family = "Domain Joined " + family
 			} else {
 				family = "Standalone " + family
 			}
-		} else if (si.sv101_type & svTypeDomainCtrl) == svTypeDomainCtrl {
+		} else if (si.sv101Type & svTypeDomainCtrl) == svTypeDomainCtrl {
 			family = "Domain Controller"
-		} else if (si.sv101_type & svTypeDomainBakctrl) == svTypeDomainBakctrl {
+		} else if (si.sv101Type & svTypeDomainBakctrl) == svTypeDomainBakctrl {
 			family = "Backup Domain Controller"
 		}
 	}
