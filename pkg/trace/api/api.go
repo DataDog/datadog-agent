@@ -693,6 +693,10 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 			return false, err
 		}
 		_, err = dest.UnmarshalMsg(buf.Bytes())
+		if err != nil {
+			log.Errorf("Problematic buffer: %+v", buf)
+			log.Errorf("Problematic traces: %+v", dest)
+		}
 		return true, err
 	case "application/json":
 		fallthrough
