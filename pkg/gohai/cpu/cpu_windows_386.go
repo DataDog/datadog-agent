@@ -51,8 +51,8 @@ func byteArrayToProcessorStruct(data []byte) (info systemLogicalProcessorInforma
 func computeCoresAndProcessors() (cpuInfo cpuInfo, err error) {
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformation")
-	var buflen uint32 = 0
-	err = windows.Errno(0)
+	var buflen uint32
+
 	// first, figure out how much we need
 	status, _, err := getProcInfo.Call(uintptr(0),
 		uintptr(unsafe.Pointer(&buflen)))
