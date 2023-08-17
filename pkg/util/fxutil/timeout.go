@@ -21,8 +21,8 @@ const (
 
 // TemporaryAppTimeouts returns new fx Start/Stop timeout options, defaulting to 5 minutes.
 //
-// The start timeout can be overriden with the DD_FX_START_TIMEOUT_SECONDS environment variable.
-// The stop timeout can be overriden with the DD_FX_STOP_TIMEOUT_SECONDS environment variable.
+// The start timeout can be overridden with the DD_FX_START_TIMEOUT_SECONDS environment variable.
+// The stop timeout can be overridden with the DD_FX_STOP_TIMEOUT_SECONDS environment variable.
 //
 // Before fx the Agent did not have any start/stop timeouts, it would hang indefinitely. As we have
 // have been adding more fx.Hooks we began hitting flaky tests with expired fx timeouts.
