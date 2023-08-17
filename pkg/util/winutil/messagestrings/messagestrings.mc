@@ -1,5 +1,4 @@
 ;// Header
-MessageIdTypedef=DWORD
 
 LanguageNames=(
     English=0x409:MSG00409
@@ -50,7 +49,7 @@ Received stop command, shutting down
 .
 
 MessageId=7
-SymbolicName=MSG_SERVICE_STARTED
+SymbolicName=MSG_SERVICE_STARTING
 Severity=Informational
 Language=English
 starting the %1 service.
@@ -64,52 +63,52 @@ The Service failed: %1
 .
 
 MessageId=9
-SymbolicName=MSG_SERVICE_FAILED
-Severity=Warning
-Language=English
-The Service failed.  %1
-.
-
-MessageId=10
 SymbolicName=MSG_UNEXPECTED_CONTROL_REQUEST
 Severity=Error
 Language=English
-The Service failed: %1
+Unexpected message from the service control manager: %1
 .
 
-MessageId=11
+MessageId=10
 SymbolicName=MSG_RECEIVED_STOP_COMMAND
 Severity=Informational
 Language=English
-The service %1 received the stop command, shutting down.
+The service %1 received the stop signal, shutting down.
 .
 
-MessageId=12
-SymbolicName=MSG_RECEIVED_STOP_SHUTDOWN
-Severity=Informational
-Language=English
-The service %1 received the shutdown command from the service control manager, shutting down.
-.
-
-MessageId=13
-SymbolicName=MSG_AGENT_SHUTDOWN_STARTING
-Severity=Informational
-Language=English
-The service %1 service is initiating shutdown.
-.
-
-MessageId=14
+MessageId=11
 SymbolicName=MSG_AGENT_START_FAILURE
 Severity=Error
 Language=English
 The service failed to start. Error %1
 .
 
+MessageId=12
+SymbolicName=MSG_RECEIVED_STOP_SVC_COMMAND
+Severity=Informational
+Language=English
+The service %1 received the stop command from the service control manager, shutting down.
+.
+
+MessageId=13
+SymbolicName=MSG_RECEIVED_STOP_SHUTDOWN
+Severity=Informational
+Language=English
+The service %1 received the shutdown command from the service control manager, shutting down.
+.
+
+MessageId=14
+SymbolicName=MSG_AGENT_SHUTDOWN_STARTING
+Severity=Informational
+Language=English
+The service %1 service is initiating shutdown.
+.
+
 MessageId=15
-SymbolicName=MSG_SYSPROBE_RESTART_INACTIVITY
+SymbolicName=MSG_WARNING_PROGRAMDATA_ERROR
 Severity=Warning
 Language=English
-System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
+Unable to determine the location of Program Data using the default value %1.
 .
 
 MessageId=16
@@ -117,4 +116,11 @@ SymbolicName=MSG_AGENT_PRE_SHUTDOWN_STARTING
 Severity=Informational
 Language=English
 The service %1 service is initiating pre-shutdown.
+.
+
+MessageId=17
+SymbolicName=MSG_SYSPROBE_RESTART_INACTIVITY
+Severity=Warning
+Language=English
+System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
 .
