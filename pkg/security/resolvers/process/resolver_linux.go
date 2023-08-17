@@ -339,7 +339,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	pid := uint32(proc.Pid)
 
 	// Get process filename and pre-fill the cache
-	procExecPath := utils.ProcExePath(proc.Pid)
+	procExecPath := utils.ProcExePath(pid)
 	pathnameStr, err := os.Readlink(procExecPath)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't readlink binary: %w", proc.Pid, err)
@@ -379,7 +379,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	entry.ForkTime = entry.ExecTime
 	entry.Comm = filledProc.Name
 	entry.PPid = uint32(filledProc.Ppid)
-	entry.TTYName = utils.PidTTY(filledProc.Pid)
+	entry.TTYName = utils.PidTTY(uint32(filledProc.Pid))
 	entry.ProcessContext.Pid = pid
 	entry.ProcessContext.Tid = pid
 	if len(filledProc.Uids) >= 4 {
@@ -392,7 +392,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
 	}
-	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(proc.Pid)
+	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse kernel capabilities: %w", proc.Pid, err)
 	}
@@ -405,7 +405,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	}
 
 	entry.EnvsEntry = &model.EnvsEntry{}
-	if envs, truncated, err := p.envVarsResolver.ResolveEnvVars(proc.Pid); err == nil {
+	if envs, truncated, err := p.envVarsResolver.ResolveEnvVars(uint32(proc.Pid)); err == nil {
 		entry.EnvsEntry.Values = envs
 		entry.EnvsEntry.Truncated = truncated
 	}
@@ -978,7 +978,7 @@ func (p *Resolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 // SetProcessTTY resolves TTY and cache the result
 func (p *Resolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 	if pce.TTYName == "" {
-		tty := utils.PidTTY(int32(pce.Pid))
+		tty := utils.PidTTY(pce.Pid)
 		pce.TTYName = tty
 	}
 	return pce.TTYName

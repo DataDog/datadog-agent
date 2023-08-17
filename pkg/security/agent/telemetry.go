@@ -12,15 +12,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	sectelemetry "github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // telemetry reports environment information (e.g containers running) when the runtime security component is running
 type telemetry struct {
-	containers            *common.ContainersTelemetry
+	containers            *sectelemetry.ContainersTelemetry
 	runtimeSecurityClient *RuntimeSecurityClient
 	profiledContainers    map[profiledContainer]struct{}
 	logProfiledWorkloads  bool
@@ -32,7 +32,7 @@ func newTelemetry(senderManager sender.SenderManager, logProfiledWorkloads, igno
 		return nil, err
 	}
 
-	containersTelemetry, err := common.NewContainersTelemetry(senderManager)
+	containersTelemetry, err := sectelemetry.NewContainersTelemetry(senderManager)
 	if err != nil {
 		return nil, err
 	}

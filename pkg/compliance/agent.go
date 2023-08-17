@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,7 +65,7 @@ type Agent struct {
 	senderManager sender.SenderManager
 	opts          AgentOptions
 
-	telemetry  *common.ContainersTelemetry
+	telemetry  *telemetry.ContainersTelemetry
 	statuses   map[string]*CheckStatus
 	statusesMu sync.RWMutex
 
@@ -141,7 +141,7 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 }
 
 func (a *Agent) Start() error {
-	telemetry, err := common.NewContainersTelemetry(a.senderManager)
+	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err

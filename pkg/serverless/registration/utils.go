@@ -14,6 +14,9 @@ import (
 // ID is the extension ID within the AWS Lambda environment.
 type ID string
 
+// FunctionARN is the ARN of the Lambda function
+type FunctionARN string
+
 // String returns the string value for this ID.
 func (i ID) String() string {
 	return string(i)
