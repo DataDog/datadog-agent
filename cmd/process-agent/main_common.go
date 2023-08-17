@@ -10,6 +10,7 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 	"os"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -111,6 +112,9 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		Config config.Component
 	}
 	app := fx.New(
+		// Increase default fx start/stop timeout to account for delays caused by system load.
+		fx.StartTimeout(5*time.Minute),
+		fx.StopTimeout(5*time.Minute),
 		fx.Supply(
 			core.BundleParams{
 				SysprobeConfigParams: sysprobeconfig.NewParams(

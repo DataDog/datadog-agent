@@ -7,6 +7,7 @@ package fxutil
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/fx"
 )
@@ -37,6 +38,16 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 	opts = append(opts,
 		delayedCall.option(),
 		FxLoggingOption(),
+	)
+	// Increase default fx start/stop timeout to account for delays caused by system load.
+	// Temporarily apply to all fxutil.OneShot calls until we can better characterize our
+	// start time requirements.
+	opts = append(
+		[]fx.Option{
+			fx.StartTimeout(5 * time.Minute),
+			fx.StopTimeout(5 * time.Minute),
+		},
+		opts...,
 	)
 	app := fx.New(opts...)
 
