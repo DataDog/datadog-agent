@@ -156,7 +156,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
         syscall->resolver.discarder_type = 0;
-        syscall->resolver.callback = dr_type == DR_KPROBE ? DR_LINK_DST_CALLBACK_KPROBE_KEY : DR_LINK_DST_CALLBACK_TRACEPOINT_KEY;
+        syscall->resolver.callback = select_dr_key(dr_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
         syscall->resolver.sysretval = retval;
