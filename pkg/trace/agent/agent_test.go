@@ -992,11 +992,12 @@ func TestSampling(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
+	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
 	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
 		root := &pb.Span{
 			Service:  "serv1",
-			Start:    time.Now().UnixNano(),
+			Start:    now.UnixNano(),
 			Duration: (100 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{"_top_level": 1},
 			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
@@ -1068,15 +1069,14 @@ func TestSample(t *testing.T) {
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			// before := traceutil.CopyTraceChunk(tt.trace.TraceChunk)
 			before := tt.trace.TraceChunk.ShallowCopy()
-			_, keep, sampled := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			_, keep, sampled := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			_, keep, sampled = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			_, keep, sampled = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
