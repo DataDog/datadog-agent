@@ -111,14 +111,14 @@ func requestHealth(log log.Component, config config.Component, cliParams *cliPar
 	if len(s.Unhealthy) > 0 {
 		statusString = color.RedString("FAIL")
 	}
-	fmt.Fprintln(color.Output, fmt.Sprintf("Agent health: %s", statusString))
+	fmt.Fprintf(color.Output, "Agent health: %s\n", statusString)
 
 	if len(s.Healthy) > 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s healthy components ===", color.GreenString(strconv.Itoa(len(s.Healthy)))))
+		fmt.Fprintf(color.Output, "=== %s healthy components ===\n", color.GreenString(strconv.Itoa(len(s.Healthy))))
 		fmt.Fprintln(color.Output, strings.Join(s.Healthy, ", "))
 	}
 	if len(s.Unhealthy) > 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s unhealthy components ===", color.RedString(strconv.Itoa(len(s.Unhealthy)))))
+		fmt.Fprintf(color.Output, "=== %s unhealthy components ===\n", color.RedString(strconv.Itoa(len(s.Unhealthy))))
 		fmt.Fprintln(color.Output, strings.Join(s.Unhealthy, ", "))
 		return fmt.Errorf("found %d unhealthy components", len(s.Unhealthy))
 	}
