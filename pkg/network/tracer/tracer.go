@@ -314,7 +314,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID.Source = nil
+	c.ContainerID = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, int64(ts))
@@ -342,7 +342,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("service", p.Envs["DD_SERVICE"])
 
 	if p.ContainerID != "" {
-		c.ContainerID.Source = &p.ContainerID
+		c.ContainerID = &p.ContainerID
 	}
 }
 

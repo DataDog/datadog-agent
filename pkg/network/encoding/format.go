@@ -57,8 +57,8 @@ func FormatConnection(
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort, conn.ContainerID.Source, ipc)
-	c.Raddr = formatAddr(conn.Dest, conn.DPort, conn.ContainerID.Dest, ipc)
+	c.Laddr = formatAddr(conn.Source, conn.SPort, conn.ContainerID, ipc)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort, nil, ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
