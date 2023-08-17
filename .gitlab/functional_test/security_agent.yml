@@ -129,7 +129,7 @@ kitchen_test_security_agent_amazonlinux_x64_fentry:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
-        KITCHEN_OSVERS: "amazonlinux2-5-10"
+        KITCHEN_OSVERS: "amazonlinux2023"
         KITCHEN_CWS_PLATFORM: [host-fentry, docker-fentry]
 
 kitchen_stress_security_agent:
