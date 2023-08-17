@@ -309,7 +309,7 @@ func logUserAndGroupID(log log.Component) {
 	log.Infof("current user id/name: %s/%s", uid, currentUser.Name)
 	currentGroup, err := user.LookupGroupId(gid)
 	if err == nil {
-		log.Infof("current group id/name: %s/%s, ", gid, currentGroup.Name)
+		log.Infof("current group id/name: %s/%s", gid, currentGroup.Name)
 	} else {
 		log.Warnf("unable to resolve group: %s", err)
 	}
