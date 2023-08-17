@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -53,9 +53,9 @@ type LambdaLogsCollector struct {
 	process_once           *sync.Once
 	executionContext       *executioncontext.ExecutionContext
 	lambdaInitMetricChan   chan<- *LambdaInitMetric
+	orphanLogsChan         chan []LambdaLogAPIMessage
 
-	arn         string
-	errorStatus string
+	arn string
 
 	// handleRuntimeDone is the function to be called when a platform.runtimeDone log message is received
 	handleRuntimeDone func()
@@ -64,7 +64,7 @@ type LambdaLogsCollector struct {
 func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
-		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs), // Buffered, so we can hold start-up logs before first invocation without blocking
+		In:                     make(chan []LambdaLogAPIMessage),
 		out:                    out,
 		demux:                  demux,
 		extraTags:              extraTags,
@@ -74,6 +74,7 @@ func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregato
 		handleRuntimeDone:      handleRuntimeDone,
 		process_once:           &sync.Once{},
 		lambdaInitMetricChan:   lambdaInitMetricChan,
+		orphanLogsChan:         make(chan []LambdaLogAPIMessage, maxBufferedLogs),
 	}
 }
 
@@ -100,6 +101,13 @@ func (lc *LambdaLogsCollector) Start() {
 		go func() {
 			for messages := range lc.In {
 				lc.processLogMessages(messages)
+			}
+
+			// Process logs without a request ID when it becomes available
+			if len(lc.lastRequestID) > 0 && len(lc.orphanLogsChan) > 0 {
+				for msgs := range lc.orphanLogsChan {
+					lc.processLogMessages(msgs)
+				}
 			}
 		}()
 	})
@@ -162,6 +170,7 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 	sort.Slice(messages, func(i, j int) bool {
 		return messages[i].time.Before(messages[j].time)
 	})
+	orphanMessages := []LambdaLogAPIMessage{}
 	for _, message := range messages {
 		lc.processMessage(&message)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
@@ -169,6 +178,12 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 		if lc.logsEnabled {
 			// Do not send platform log messages without a stringRecord to the intake
 			if message.stringRecord == "" && message.logType != logTypeFunction {
+				continue
+			}
+
+			// If logs cannot be assigned a request ID, delay sending until a request ID is available
+			if message.objectRecord.requestID == "" && lc.lastRequestID == "" {
+				orphanMessages = append(orphanMessages, message)
 				continue
 			}
 
@@ -180,12 +195,13 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			}
 
 			// Create the timeout log from the REPORT log if a timeout status is detected
-			isTimeoutLog := message.logType == logTypePlatformReport && lc.errorStatus == timeoutStatus
+			isTimeoutLog := message.logType == logTypePlatformReport && message.objectRecord.status == timeoutStatus
 			if isTimeoutLog {
 				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(createStringRecordForTimeoutLog(&message)), message.time, lc.arn, message.objectRecord.requestID, isTimeoutLog)
 			}
 		}
 	}
+	lc.orphanLogsChan <- orphanMessages
 }
 
 // processMessage performs logic about metrics and tags on the message
@@ -225,9 +241,9 @@ func (lc *LambdaLogsCollector) processMessage(
 		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
-			state := lc.executionContext.GetCurrentState()
-			proactiveInit = state.ProactiveInit
-			coldStart = state.Coldstart
+			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+			proactiveInit = coldStartTags.IsProactiveInit
+			coldStart = coldStartTags.IsColdStart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		outOfMemoryRequestId := ""
@@ -241,9 +257,6 @@ func (lc *LambdaLogsCollector) processMessage(
 			memorySize := message.objectRecord.reportLogItem.memorySizeMB
 			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
 			status := message.objectRecord.status
-			if status != successStatus {
-				lc.errorStatus = status
-			}
 			reportOutOfMemory := memoryUsed > 0 && memoryUsed >= memorySize
 
 			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{

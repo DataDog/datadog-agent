@@ -18,13 +18,16 @@ import (
 	"sync"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/grpc"
 
-	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
-	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
+	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -161,32 +164,6 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
-// GetConnectionsGRPC returns a set of active network connections, retrieved from the system probe grpc server
-func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*model.Connections, error) {
-	// Create a context with a timeout of 10 seconds
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	conn, err := grpc.Dial("unix://"+unixPath, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	client := connectionserver.NewSystemProbeClient(conn)
-
-	response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: clientID})
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := response.Recv()
-	if err != nil {
-		return nil, err
-	}
-
-	return netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf).Unmarshal(res.Data)
-}
-
 // GetStats returns the expvar stats of the system probe
 func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	req, err := http.NewRequest("GET", statsURL, nil)
@@ -254,6 +231,48 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 	}
 }
 
+func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
+	procs := make([]*languagepb.Process, len(pids))
+	for i, pid := range pids {
+		procs[i] = &languagepb.Process{Pid: pid}
+	}
+	reqBytes, err := proto.Marshal(&languagepb.DetectLanguageRequest{Processes: procs})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, languageDetectionURL, bytes.NewBuffer(reqBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var resProto languagepb.DetectLanguageResponse
+	err = proto.Unmarshal(resBody, &resProto)
+	if err != nil {
+		return nil, err
+	}
+
+	langs := make([]languagemodels.Language, len(pids))
+	for i, lang := range resProto.Languages {
+		langs[i] = languagemodels.Language{
+			Name:    languagemodels.LanguageName(lang.Name),
+			Version: lang.Version,
+		}
+	}
+	return langs, nil
+}
+
 func (r *RemoteSysProbeUtil) init() error {
 	resp, err := r.httpClient.Get(statsURL)
 	if err != nil {
@@ -264,4 +283,30 @@ func (r *RemoteSysProbeUtil) init() error {
 		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 	return nil
+}
+
+// GetConnectionsGRPC returns a set of active network connections, retrieved from the system probe grpc server
+func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*model.Connections, error) {
+	// Create a context with a timeout of 10 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, err := grpc.Dial("unix://"+unixPath, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	client := connectionserver.NewSystemProbeClient(conn)
+
+	response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: clientID})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := response.Recv()
+	if err != nil {
+		return nil, err
+	}
+
+	return netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf).Unmarshal(res.Data)
 }
