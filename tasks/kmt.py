@@ -245,23 +245,19 @@ def compiler_running(ctx):
     return False
 
 
+TOOLS_PATH='/datadog-agent/internal/tools'
+GOTESTSUM="gotest.tools/gotestsum"
 def download_gotestsum(ctx):
-    if platform.machine() == "x86_64":
-        url = (
-            "https://github.com/gotestyourself/gotestsum/releases/download/v1.10.0/gotestsum_1.10.0_linux_amd64.tar.gz"
-        )
-    else:
-        url = (
-            "https://github.com/gotestyourself/gotestsum/releases/download/v1.10.0/gotestsum_1.10.0_linux_arm64.tar.gz"
-        )
-
     fgotestsum = "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/gotestsum"
     if os.path.isfile(fgotestsum):
         return
 
-    ctx.run(f"wget {url} -O /tmp/gotestsum.tar.gz")
-    ctx.run("tar xzvf /tmp/gotestsum.tar.gz -C /tmp")
-    ctx.run(f"cp /tmp/gotestsum {fgotestsum}")
+    if not os.path.exists("kmt-deps/tools"):
+        ctx.run("mkdir -p kmt-deps/tools")
+
+    docker_exec(ctx, f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum /datadog-agent/kmt-deps/tools/", user="compiler")
+
+    ctx.run(f"cp kmt-deps/tools/gotestsum {fgotestsum}")
 
 
 def run_cmd_vms(ctx, stack, cmd, vms, ssh_key, allow_fail=False):
@@ -332,9 +328,9 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, 
         )
         copy_dependencies(ctx, stack, target_vms, ssh_key)
         run_cmd_vms(ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True)
-
 #    run_cmd_vms(ctx, stack, f"apt install rsync", target_vms, ssh_key)
 #    run_cmd_vms(ctx, stack, "update-alternatives --set iptables /usr/sbin/iptables-legacy", target_vms, ssh_key)
+
 
     sync_source(
         ctx,
