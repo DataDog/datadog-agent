@@ -74,8 +74,8 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints() (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig.Datadog, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	return config.BuildEndpointsWithVectorOverride(coreConfig.Datadog, httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverride(coreConfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }

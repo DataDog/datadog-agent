@@ -10,7 +10,6 @@ import (
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +22,7 @@ const (
 // NewLogContextCompliance returns the context fields to send compliance events to the intake
 func NewLogContextCompliance() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := logsconfig.NewLogsConfigKeys("compliance_config.endpoints.", pkgconfig.Datadog)
-	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
+	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logsconfig.AgentJSONIntakeProtocol)
 }
 
 // NewLogContextRuntime returns the context fields to send runtime (CWS) events to the intake

@@ -159,7 +159,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
 	}
 
-	rootNS, err := util.GetNetNsInoFromPid(cfg.ProcRoot, 1)
+	rootNS, err := kernel.GetNetNsInoFromPid(cfg.ProcRoot, 1)
 	if err != nil {
 		return nil, fmt.Errorf("could not find network root namespace: %w", err)
 	}
@@ -449,7 +449,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
-	pid, err := util.GetRootNSPID()
+	pid, err := kernel.RootNSPID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system-probe pid in root pid namespace")
 	}

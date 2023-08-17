@@ -424,7 +424,6 @@ func (o *sslProgram) Name() string {
 
 func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -533,7 +532,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.Fi
 					HookFuncName:            symbol,
 				}
 				if err := m.AddHook("", newProbe); err == nil {
-					ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, identifier.UID), "usm_tls")
+					ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
 				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {
@@ -585,20 +584,4 @@ func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils
 // functionName is variable but with a minimum guarantee of 10 chars
 func getUID(lib utils.PathIdentifier) string {
 	return lib.Key()[:5]
-}
-
-func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	var probeList []manager.ProbeIdentificationPair
-
-	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
-		for _, singleProbe := range sslProbeList {
-			for _, identifier := range singleProbe.GetProbesIdentificationPairList() {
-				probeList = append(probeList, manager.ProbeIdentificationPair{
-					EBPFFuncName: identifier.EBPFFuncName,
-				})
-			}
-		}
-	}
-
-	return probeList
 }

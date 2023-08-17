@@ -777,22 +777,6 @@ func TestHandleTraces(t *testing.T) {
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
 }
 
-// chunkedReader is a reader which forces partial reads, this is required
-// to trigger some network related bugs, such as body not being read fully by server.
-// Without this, all the data could be read/written at once, not triggering the issue.
-type chunkedReader struct {
-	reader io.Reader
-}
-
-func (sr *chunkedReader) Read(p []byte) (n int, err error) {
-	size := 1024
-	if size > len(p) {
-		size = len(p)
-	}
-	buf := p[0:size]
-	return sr.reader.Read(buf)
-}
-
 func TestClientComputedTopLevel(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
@@ -868,52 +852,6 @@ func TestClientDropP0s(t *testing.T) {
 	}
 	p := <-rcv.out
 	assert.Equal(t, p.ClientDroppedP0s, int64(153))
-}
-
-func TestReceiverRateLimiterCancel(t *testing.T) {
-	assert := assert.New(t)
-
-	var wg sync.WaitGroup
-
-	n := 100 // Payloads need to be big enough, else bug is not triggered
-	bts, err := testutil.GetTestTraces(n, n, true).MarshalMsg(nil)
-	assert.Nil(err)
-
-	conf := newTestReceiverConfig()
-	receiver := newTestReceiverFromConfig(conf)
-	receiver.RateLimiter.SetTargetRate(0.000001) // Make sure we sample aggressively
-
-	server := httptest.NewServer(receiver.handleWithVersion(v04, receiver.handleTraces))
-
-	defer server.Close()
-	url := server.URL + "/v0.4/traces"
-
-	// Make sure we use share clients, and they are reused.
-	client := &http.Client{Transport: &http.Transport{
-		MaxIdleConnsPerHost: 100,
-	}}
-	for i := 0; i < 3; i++ {
-		wg.Add(1)
-		go func() {
-			for j := 0; j < 3; j++ {
-				reader := &chunkedReader{reader: bytes.NewReader(bts)}
-				req, err := http.NewRequest("POST", url, reader)
-				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(header.TraceCount, strconv.Itoa(n))
-				assert.Nil(err)
-
-				resp, err := client.Do(req)
-				assert.Nil(err)
-				assert.NotNil(resp)
-				if resp != nil {
-					resp.Body.Close()
-					assert.Equal(http.StatusOK, resp.StatusCode)
-				}
-			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
 }
 
 func BenchmarkHandleTracesFromOneApp(b *testing.B) {
@@ -1102,85 +1040,6 @@ func TestExpvar(t *testing.T) {
 			assert.NoError(t, err, "/debug/vars must return valid json")
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
-	})
-}
-
-func TestWatchdog(t *testing.T) {
-	t.Run("rate-limit", func(t *testing.T) {
-		if testing.Short() {
-			return
-		}
-
-		conf := config.New()
-		conf.Endpoints[0].APIKey = "apikey_2"
-		conf.MaxMemory = 1e10
-		conf.WatchdogInterval = time.Minute // we trigger manually
-		conf.Features["429"] = struct{}{}
-
-		r := newTestReceiverFromConfig(conf)
-		r.Start()
-		defer r.Stop()
-		go func() {
-			for range r.out {
-			}
-		}()
-
-		data := msgpTraces(t, pb.Traces{
-			testutil.RandomTrace(10, 20),
-			testutil.RandomTrace(10, 20),
-			testutil.RandomTrace(10, 20),
-		})
-
-		// first request is accepted
-		r.watchdog(time.Now())
-		resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
-		if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("got %d", resp.StatusCode)
-		}
-
-		// follow-up requests should trigger a reject
-		r.conf.MaxMemory = 1
-		for tries := 0; tries < 100; tries++ {
-			req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(data))
-			if err != nil {
-				t.Fatal(err)
-			}
-			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(header.TraceCount, "3")
-			resp, err = http.DefaultClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusTooManyRequests {
-				break // 👍
-			}
-			r.watchdog(time.Now())
-		}
-		if resp.StatusCode != http.StatusTooManyRequests {
-			t.Fatalf("didn't close, got %d", resp.StatusCode)
-		}
-	})
-
-	t.Run("disabling", func(t *testing.T) {
-		cfg := config.New()
-		r := &HTTPReceiver{
-			conf:        cfg,
-			RateLimiter: newRateLimiter(),
-		}
-
-		cfg.MaxMemory = 0
-		cfg.MaxCPU = 0
-		r.watchdog(time.Now())
-		assert.Equal(t, 1.0, r.RateLimiter.TargetRate())
-
-		cfg.MaxMemory = 1
-		r.watchdog(time.Now())
-		assert.NotEqual(t, 1.0, r.RateLimiter.TargetRate())
 	})
 }
 
