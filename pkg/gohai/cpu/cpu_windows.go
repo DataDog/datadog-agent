@@ -18,16 +18,14 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// ERROR_INSUFFICIENT_BUFFER is the error number associated with the
+// errorInsufficientBuffer is the error number associated with the
 // "insufficient buffer size" error
-const ERROR_INSUFFICIENT_BUFFER windows.Errno = 122
+const errorInsufficientBuffer windows.Errno = 122
 
 const registryHive = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"
 
 // cacheDescriptor contains cache related information
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-cache_descriptor
-//
-//nolint:unused
 type cacheDescriptor struct {
 	Level         uint8
 	Associativity uint8
@@ -39,8 +37,6 @@ type cacheDescriptor struct {
 // systemLogicalProcessorInformation describes the relationship
 // between the specified processor set.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information
-//
-//nolint:unused
 type systemLogicalProcessorInformation struct {
 	ProcessorMask uintptr
 	Relationship  int // enum (int)
@@ -49,7 +45,7 @@ type systemLogicalProcessorInformation struct {
 	dataunion [16]byte
 }
 
-//.const systemLogicalProcessorInformation_SIZE = 32
+//.const systemLogicalProcessorInformationSize = 32
 
 // groupaffinity represents a processor group-specific affinity,
 // such as the affinity of a thread.
@@ -103,8 +99,6 @@ type groupRelationship struct {
 // processorRelationship represents information about affinity
 // within a processor group.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_relationship
-//
-//nolint:unused,revive
 type processorRelationship struct {
 	Flags           uint8
 	EfficiencyClass uint8

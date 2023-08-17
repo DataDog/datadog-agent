@@ -12,18 +12,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// systemLogicalProcessorInformation_SIZE is the size of
+// systemLogicalProcessorInformationSize is the size of
 // systemLogicalProcessorInformation struct
-//
-//nolint:revive
-const systemLogicalProcessorInformation_SIZE = 32
+const systemLogicalProcessorInformationSize = 32
 
-//nolint:unused
 func getSystemLogicalProcessorInformationSize() int {
-	return systemLogicalProcessorInformation_SIZE
+	return systemLogicalProcessorInformationSize
 }
 
-//nolint:unused
 func byteArrayToProcessorStruct(data []byte) (info systemLogicalProcessorInformation) {
 	info.ProcessorMask = uintptr(binary.LittleEndian.Uint64(data))
 	info.Relationship = int(binary.LittleEndian.Uint64(data[8:]))
@@ -128,7 +124,7 @@ func computeCoresAndProcessors() (cpuInfo, error) {
 		uintptr(0),
 		uintptr(unsafe.Pointer(&buflen)))
 	if status == 0 {
-		if callErr != ERROR_INSUFFICIENT_BUFFER {
+		if callErr != errorInsufficientBuffer {
 			// only error we're expecing here is insufficient buffer
 			// anything else is a failure
 			return cpuInfo, callErr
