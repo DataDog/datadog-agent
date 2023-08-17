@@ -302,6 +302,7 @@ func logUserAndGroupID(log log.Component) {
 	currentUser, err := user.Current()
 	if err != nil {
 		log.Warn("error fetching current user")
+		return
 	}
 	uid := currentUser.Uid
 	gid := currentUser.Gid
@@ -310,6 +311,6 @@ func logUserAndGroupID(log log.Component) {
 	if err == nil {
 		log.Infof("current group id/name: %s/%s, ", gid, currentGroup.Name)
 	} else {
-		log.Warn("unable to resolve group")
+		log.Warnf("unable to resolve group: %s", err)
 	}
 }
