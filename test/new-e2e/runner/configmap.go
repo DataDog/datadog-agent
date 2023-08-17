@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	AgentAPIKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
-	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
+	AgentAPIKey     = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
+	AgentAPPKey     = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
+	AgentPipelineID = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentPipelineID
 
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
 	InfraExtraResourcesTags   = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
@@ -90,6 +91,10 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		return nil, err
 	}
 	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.ExtraResourcesTags, InfraExtraResourcesTags)
+	if err != nil {
+		return nil, err
+	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PipelineID, AgentPipelineID)
 	if err != nil {
 		return nil, err
 	}

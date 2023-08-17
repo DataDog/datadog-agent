@@ -19,4 +19,5 @@ const (
 	PulumiPassword      StoreKey = "pulumi_password"
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
 	StackParameters     StoreKey = "stack_params"
+	PipelineID          StoreKey = "pipeline_id"
 )
