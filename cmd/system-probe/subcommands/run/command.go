@@ -301,7 +301,7 @@ func isValidPort(port int) bool {
 func logUserAndGroupID(log log.Component) {
 	currentUser, err := user.Current()
 	if err != nil {
-		log.Warn("error fetching current user")
+		log.Warnf("error fetching current user: %s", err)
 		return
 	}
 	uid := currentUser.Uid
