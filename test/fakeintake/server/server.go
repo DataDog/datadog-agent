@@ -24,16 +24,19 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
 )
 
 type Server struct {
-	mu            sync.RWMutex
-	server        http.Server
-	ready         chan bool
-	clock         clock.Clock
+	mu        sync.RWMutex
+	server    http.Server
+	ready     chan bool
+	clock     clock.Clock
+	retention time.Duration
+	shutdown  chan struct{}
 	payloadParser PayloadParser
 
 	url string
@@ -51,6 +54,7 @@ func NewServer(options ...func(*Server)) *Server {
 		payloadStore:  map[string][]api.Payload{},
 		clock:         clock.New(),
 		payloadParser: NewPayloadParser(),
+		retention:    15 * time.Minute,
 	}
 
 	mux := http.NewServeMux()
@@ -76,7 +80,7 @@ func NewServer(options ...func(*Server)) *Server {
 // If the port is 0, a port number is automatically chosen
 func WithPort(port int) func(*Server) {
 	return func(fi *Server) {
-		if fi.URL() != "" {
+		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
@@ -87,7 +91,7 @@ func WithPort(port int) func(*Server) {
 // WithReadyChannel assign a boolean channel to get notified when the server is ready.
 func WithReadyChannel(ready chan bool) func(*Server) {
 	return func(fi *Server) {
-		if fi.URL() != "" {
+		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
 			return
 		}
@@ -97,7 +101,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 
 func WithClock(clock clock.Clock) func(*Server) {
 	return func(fi *Server) {
-		if fi.URL() != "" {
+		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the clock.")
 			return
 		}
@@ -105,16 +109,27 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
+func WithRetention(retention time.Duration) func(*Server) {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
+			return
+		}
+		fi.retention = retention
+	}
+}
+
 // Start Starts a fake intake server in a separate go-routine
 // Notifies when ready to the ready channel
 func (fi *Server) Start() {
-	if fi.URL() != "" {
-		log.Printf("Fake intake alredy running at %s", fi.URL())
+	if fi.IsRunning() {
+		log.Printf("Fake intake already running at %s", fi.URL())
 		if fi.ready != nil {
 			fi.ready <- true
 		}
 		return
 	}
+	fi.shutdown = make(chan struct{})
 	go func() {
 		// explicitly creating a listener to get the actual port
 		// as http.Server.ListenAndServe hides this information
@@ -140,22 +155,31 @@ func (fi *Server) Start() {
 			log.Printf("Error creating fake intake server at %s: %v", listener.Addr().String(), err)
 			return
 		}
+
 	}()
+	go fi.cleanUpPayloadsRoutine()
 }
 
 func (fi *Server) URL() string {
 	return fi.url
 }
 
+func (fi *Server) IsRunning() bool {
+	return fi.URL() != ""
+}
+
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
-	if fi.URL() == "" {
+	defer close(fi.shutdown)
+
+	if !fi.IsRunning() {
 		return fmt.Errorf("server not running")
 	}
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
 	}
+
 	fi.url = ""
 	return nil
 }
@@ -164,6 +188,35 @@ type postPayloadResponse struct {
 	Errors []string `json:"errors"`
 }
 
+func (fi *Server) cleanUpPayloadsRoutine() {
+	ticker := fi.clock.Ticker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-fi.shutdown:
+			return
+		case <-ticker.C:
+			fi.cleanUpPayloads()
+		}
+	}
+}
+
+func (fi *Server) cleanUpPayloads() {
+	now := fi.clock.Now()
+	fi.mu.Lock()
+	defer fi.mu.Unlock()
+	for route, payloads := range fi.payloadStore {
+		n := 0
+		for _, payload := range payloads {
+			if now.Before(payload.Timestamp.Add(fi.retention)) {
+				fi.payloadStore[route][n] = payload
+				n++
+			}
+		}
+		fi.payloadStore[route] = fi.payloadStore[route][:n]
+	}
+
+}
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
 		response := buildPostResponse(errors.New("invalid request, nil request"))

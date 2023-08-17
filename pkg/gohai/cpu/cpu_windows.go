@@ -10,19 +10,19 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/windows/registry"
 )
-
-var getCPUInfo = GetCpuInfo
 
 // ERROR_INSUFFICIENT_BUFFER is the error number associated with the
 // "insufficient buffer size" error
 //
 //nolint:revive
-const ERROR_INSUFFICIENT_BUFFER syscall.Errno = 122
+const ERROR_INSUFFICIENT_BUFFER windows.Errno = 122
 
 const registryHive = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"
 
@@ -208,7 +208,7 @@ func countBits(num uint64) (count int) {
 }
 
 func getSystemInfo() (si SYSTEM_INFO) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var gsi = mod.NewProc("GetSystemInfo")
 
 	// syscall does not fail
@@ -217,25 +217,9 @@ func getSystemInfo() (si SYSTEM_INFO) {
 	return
 }
 
-// GetCpuInfo returns map of interesting bits of information about the CPU
-func GetCpuInfo() (map[string]string, error) {
-	// Initialize cpuInfo with all fields to avoid missing a field which
-	// could be expected by the backend or by users
-	// TODO: make sure that the backend actually works with any subset of fields
-	cpuInfo := map[string]string{
-		"mhz":                    "0",
-		"model_name":             "",
-		"vendor_id":              "",
-		"family":                 "",
-		"cpu_pkgs":               "0",
-		"cpu_numa_nodes":         "0",
-		"cpu_cores":              "0",
-		"cpu_logical_processors": "0",
-		"cache_size_l1":          "0",
-		"cache_size_l2":          "0",
-		"cache_size_l3":          "0",
-		"model":                  "0",
-		"stepping":               "0",
+func getCPUInfo() *Info {
+	cpuInfo := &Info{
+		CacheSizeKB: utils.NewErrorValue[uint64](utils.ErrNotCollectable),
 	}
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
@@ -247,43 +231,41 @@ func GetCpuInfo() (map[string]string, error) {
 		defer k.Close()
 
 		dw, _, err := k.GetIntegerValue("~MHz")
-		if err == nil {
-			cpuInfo["mhz"] = strconv.Itoa(int(dw))
-		}
+		cpuInfo.Mhz = utils.NewValueFrom(float64(dw), err)
 
 		s, _, err := k.GetStringValue("ProcessorNameString")
-		if err == nil {
-			cpuInfo["model_name"] = s
-		}
+		cpuInfo.ModelName = utils.NewValueFrom(s, err)
 
 		s, _, err = k.GetStringValue("VendorIdentifier")
-		if err == nil {
-			cpuInfo["vendor_id"] = s
-		}
+		cpuInfo.VendorID = utils.NewValueFrom(s, err)
 
 		s, _, err = k.GetStringValue("Identifier")
 		if err == nil {
-			cpuInfo["family"] = extract(s, "Family")
+			cpuInfo.Family = utils.NewValue(extract(s, "Family"))
+		} else {
+			cpuInfo.Family = utils.NewErrorValue[string](err)
 		}
+	} else {
+		cpuInfo.Mhz = utils.NewErrorValue[float64](err)
+		cpuInfo.ModelName = utils.NewErrorValue[string](err)
+		cpuInfo.VendorID = utils.NewErrorValue[string](err)
+		cpuInfo.Family = utils.NewErrorValue[string](err)
 	}
 
-	cpus, err := computeCoresAndProcessors()
-	if err == nil {
-		cpuInfo["cpu_pkgs"] = strconv.Itoa(cpus.pkgcount)
-		cpuInfo["cpu_numa_nodes"] = strconv.Itoa(cpus.numaNodeCount)
-		cpuInfo["cpu_cores"] = strconv.Itoa(cpus.corecount)
-		cpuInfo["cpu_logical_processors"] = strconv.Itoa(cpus.logicalcount)
-
-		cpuInfo["cache_size_l1"] = strconv.Itoa(int(cpus.l1CacheSize))
-		cpuInfo["cache_size_l2"] = strconv.Itoa(int(cpus.l2CacheSize))
-		cpuInfo["cache_size_l3"] = strconv.Itoa(int(cpus.l3CacheSize))
-	}
+	cpus, cpuerr := computeCoresAndProcessors()
+	cpuInfo.CPUPkgs = utils.NewValueFrom(uint64(cpus.pkgcount), cpuerr)
+	cpuInfo.CPUNumaNodes = utils.NewValueFrom(uint64(cpus.numaNodeCount), cpuerr)
+	cpuInfo.CPUCores = utils.NewValueFrom(uint64(cpus.corecount), cpuerr)
+	cpuInfo.CPULogicalProcessors = utils.NewValueFrom(uint64(cpus.logicalcount), cpuerr)
+	cpuInfo.CacheSizeL1Bytes = utils.NewValueFrom(uint64(cpus.l1CacheSize), cpuerr)
+	cpuInfo.CacheSizeL2Bytes = utils.NewValueFrom(uint64(cpus.l2CacheSize), cpuerr)
+	cpuInfo.CacheSizeL3Bytes = utils.NewValueFrom(uint64(cpus.l3CacheSize), cpuerr)
 
 	si := getSystemInfo()
-	cpuInfo["model"] = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
-	cpuInfo["stepping"] = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
+	cpuInfo.Model = utils.NewValue(strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF)))
+	cpuInfo.Stepping = utils.NewValue(strconv.Itoa(int(si.wProcessorRevision & 0xFF)))
 
-	return cpuInfo, nil
+	return cpuInfo
 }
 
 func extract(caption, field string) string {

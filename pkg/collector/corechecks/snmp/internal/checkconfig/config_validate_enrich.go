@@ -160,10 +160,10 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 		}
 	}
 	if symbolContext != ColumnSymbol && symbol.ConstantValueOne {
-		errors = append(errors, fmt.Sprintf("`constant_value_one` cannot be used outside of tables"))
+		errors = append(errors, "`constant_value_one` cannot be used outside of tables")
 	}
 	if (symbolContext != ColumnSymbol && symbolContext != ScalarSymbol) && symbol.MetricType != "" {
-		errors = append(errors, fmt.Sprintf("`metric_type` cannot be used outside scalar/table metric symbols and metrics root"))
+		errors = append(errors, "`metric_type` cannot be used outside scalar/table metric symbols and metrics root")
 	}
 	return errors
 }

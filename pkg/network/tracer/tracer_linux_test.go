@@ -15,6 +15,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +34,8 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -40,14 +43,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -787,7 +791,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	// run tcp server in test1 net namespace
 	var server *TCPServer
-	err = util.WithNS(test1Ns, func() error {
+	err = kernel.WithNS(test1Ns, func() error {
 		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
 		return server.Run()
 	})
@@ -820,7 +824,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		err = util.WithNS(test2Ns, func() error {
+		err = kernel.WithNS(test2Ns, func() error {
 			var err error
 			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
 			return err
@@ -844,7 +848,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 		// try connecting to something outside
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
-		util.WithNS(test2Ns, func() error {
+		kernel.WithNS(test2Ns, func() error {
 			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
 			return nil
 		})
@@ -1782,6 +1786,142 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.True(t, conn.IntraHost)
 }
 
+func (s *TracerSuite) TestUDPIncomingDirectionFix() {
+	t := s.T()
+
+	server := &UDPServer{
+		network: "udp",
+		address: "localhost:8125",
+		onMessage: func(b []byte, n int) []byte {
+			return b
+		},
+	}
+
+	cfg := testConfig()
+	cfg.ProtocolClassificationEnabled = false
+	tr := setupTracer(t, cfg)
+
+	err := server.Run(64)
+	require.NoError(t, err)
+	t.Cleanup(server.Shutdown)
+
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	err = syscall.Bind(sfd, &syscall.SockaddrInet4{Addr: netip.MustParseAddr("127.0.0.1").As4()})
+	require.NoError(t, err)
+
+	err = syscall.Sendto(sfd, []byte("foo"), 0, &syscall.SockaddrInet4{Port: 8125, Addr: netip.MustParseAddr("127.0.0.1").As4()})
+	require.NoError(t, err)
+
+	_sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	sa := _sa.(*syscall.SockaddrInet4)
+	ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
+	raddr, err := net.ResolveUDPAddr("udp", server.address)
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		conn, _ = findConnection(net.UDPAddrFromAddrPort(ap), raddr, conns)
+		return conn != nil
+	}, 3*time.Second, 500*time.Millisecond)
+
+	assert.Equal(t, network.OUTGOING, conn.Direction)
+}
+
+func (s *TracerSuite) TestGetMapsTelemetry() {
+	t := s.T()
+	if !httpsSupported() {
+		t.Skip("HTTPS feature not available/supported for this setup")
+	}
+
+	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
+	err := exec.Command(cmd[0], cmd[1:]...).Run()
+	require.NoError(t, err)
+
+	stats, err := tr.GetStats()
+	require.NoError(t, err)
+
+	mapsTelemetry, ok := stats[telemetry.EBPFMapTelemetryNS].(map[string]interface{})
+	require.True(t, ok)
+	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
+
+	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
+	require.True(t, ok)
+	assert.NotZero(t, tcpStatsErrors["file exists"])
+}
+
+func sysOpenAt2Supported() bool {
+	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
+	if err == nil && len(missing) == 0 {
+		return true
+	}
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Error("could not determine the current kernel version. fallback to do_sys_open")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(5, 6, 0)
+}
+
+func (s *TracerSuite) TestGetHelpersTelemetry() {
+	t := s.T()
+
+	// We need the tracepoints on open syscall in order
+	// to test.
+	if !httpsSupported() {
+		t.Skip("HTTPS feature not available/supported for this setup")
+	}
+
+	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
+	cfg := testConfig()
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+	tr := setupTracer(t, cfg)
+
+	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
+	syscallNumber := syscall.SYS_OPENAT
+	if sysOpenAt2Supported() {
+		expectedErrorTP = "tracepoint__syscalls__sys_enter_openat2"
+		// In linux kernel source dir run:
+		// printf SYS_openat2 | gcc -include sys/syscall.h -E -
+		syscallNumber = 437
+	}
+
+	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
+	addr, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
+	require.Zero(t, sysErr)
+	syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(addr), uintptr(0))
+	t.Cleanup(func() {
+		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
+	})
+
+	stats, err := tr.GetStats()
+	require.NoError(t, err)
+
+	helperTelemetry, ok := stats[telemetry.EBPFHelperTelemetryNS].(map[string]interface{})
+	require.True(t, ok)
+	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
+
+	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
+	require.True(t, ok)
+
+	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
+	require.True(t, ok)
+
+	badAddressCnt, ok := probeReadUserError["bad address"]
+	require.True(t, ok)
+	assert.NotZero(t, badAddressCnt)
+}
+
 func TestEbpfConntrackerFallback(t *testing.T) {
 	type testCase struct {
 		enableRuntimeCompiler    bool
@@ -1890,4 +2030,21 @@ func testConfig() *config.Config {
 		cfg.CollectUDPv6Conns = false
 	}
 	return cfg
+}
+
+func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
+	t := s.T()
+	cfg := testConfig()
+	// disable IPv6 via config to trigger logic in GuessSocketSK
+	cfg.CollectTCPv6Conns = false
+	cfg.CollectUDPv6Conns = false
+	kv, err := kernel.HostVersion()
+	kv470 := kernel.VersionCode(4, 7, 0)
+	require.NoError(t, err)
+	if kv >= kv470 {
+		// will only be run on kernels < 4.7.0 matching the GuessSocketSK check
+		t.Skip("This test should only be run on kernels < 4.7.0")
+	}
+	// fail if tracer cannot start
+	_ = setupTracer(t, cfg)
 }

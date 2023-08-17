@@ -12,13 +12,11 @@ import (
 	"fmt"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -218,14 +216,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	// Replace LRU map type by Hash map if kernel doesn't support it
-	if err := features.HaveMapType(ebpf.LRUHash); err != nil {
-		me := mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap]
-		me.Type = ebpf.Hash
-		me.EditorFlag |= manager.EditType
-		mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap] = me
-	}
-
 	if err := errtelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {
 		return nil, fmt.Errorf("could not activate ebpf telemetry: %w", err)
 	}
@@ -327,11 +317,15 @@ func isCORETracerSupported() error {
 		return nil
 	}
 
-	hostInfo := host.GetStatusInformation()
+	platform, err := kernel.Platform()
+	if err != nil {
+		return err
+	}
+
 	// centos/redhat distributions we support
 	// can have kernel versions < 4, and
 	// CO-RE is supported there
-	if hostInfo.Platform == "centos" || hostInfo.Platform == "redhat" {
+	if platform == "centos" || platform == "redhat" {
 		return nil
 	}
 

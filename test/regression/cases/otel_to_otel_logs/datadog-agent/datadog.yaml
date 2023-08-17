@@ -10,11 +10,15 @@ cloud_provider_metadata: []
 apm_config:
   enabled: true
   apm_dd_url: http://127.0.0.1:9091
+  # set an arbitrarily high sample set
+  max_traces_per_second: 1000000
+  errors_per_second: 1000000
+  max_events_per_second: 1000000
 
-  # disable ingest sampling
-  max_traces_per_second: 0
-  errors_per_second: 0
-  max_events_per_second: 0
+logs_enabled: true
+logs_config:
+  logs_dd_url: 127.0.0.1:9091
+  logs_no_ssl: true
 
 otlp_config:
   receiver:

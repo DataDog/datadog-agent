@@ -15,8 +15,9 @@ import (
 	"syscall"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
@@ -120,7 +121,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	if !hasApiKey() {
 		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
 		// we still need to register the extension but let's return after (no-op)
-		id, registrationError := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
+		id, _, registrationError := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
 		if registrationError != nil {
 			log.Errorf("Can't register as a serverless agent: %s", registrationError)
 		}
@@ -139,20 +140,23 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
 	} else {
-		serverlessDaemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
+		serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
 		serverlessDaemon.StartLogCollection()
 	}
 	// serverless parts
 	// ----------------
 
 	// extension registration
-	serverlessID, err := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
+	serverlessID, functionArn, err := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
 	if err != nil {
 		// at this point, we were not even able to register, thus, we don't have
 		// any ID assigned, thus, we can't report an error to the init error route
 		// which needs an Id.
 		log.Errorf("Can't register as a serverless agent: %s", err)
 		return
+	}
+	if len(functionArn) > 0 {
+		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
 	}
 
 	// api key reading
@@ -276,21 +280,14 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
-	var (
-		appsecSubProcessor   invocationlifecycle.InvocationSubProcessor
-		appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
-	)
+	var appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		subProcessor, proxySubProcessor, err := appsec.New()
+		var err error
+		appsecProxyProcessor, err = appsec.New()
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
-		}
-		if subProcessor != nil {
-			appsecSubProcessor = subProcessor
-		} else if proxySubProcessor != nil {
-			appsecProxyProcessor = proxySubProcessor
 		}
 	}()
 
@@ -322,11 +319,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		ProcessTrace:         ta.Process,
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
-		SubProcessor:         appsecSubProcessor, // Universal Instrumentation API mode - nil in the runtime api proxy mode
 	}
 
 	if appsecProxyProcessor != nil {
-		// Runtime API proxy mode
+		// AppSec runs as a Runtime API proxy. The reverse proxy was already
+		// started by appsec.New(). A span modifier needs to be added in order
+		// to detect the finished request spans and run the complete AppSec
+		// monitoring logic, and ultimately adding the AppSec events to them.
 		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled

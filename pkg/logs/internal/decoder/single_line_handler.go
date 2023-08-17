@@ -8,18 +8,20 @@ package decoder
 import (
 	"bytes"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // SingleLineHandler takes care of tracking the line length
 // and truncating them when they are too long.
 type SingleLineHandler struct {
-	outputFn       func(*Message)
+	outputFn       func(*message.Message)
 	shouldTruncate bool
 	lineLimit      int
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler.
-func NewSingleLineHandler(outputFn func(*Message), lineLimit int) *SingleLineHandler {
+func NewSingleLineHandler(outputFn func(*message.Message), lineLimit int) *SingleLineHandler {
 	return &SingleLineHandler{
 		outputFn:  outputFn,
 		lineLimit: lineLimit,
@@ -38,7 +40,7 @@ func (h *SingleLineHandler) flush() {
 // it guarantees that the content of the line won't exceed
 // the limit and that the length of the line is properly tracked
 // so that the agent restarts tailing from the right place.
-func (h *SingleLineHandler) process(message *Message) {
+func (h *SingleLineHandler) process(message *message.Message) {
 	isTruncated := h.shouldTruncate
 	h.shouldTruncate = false
 

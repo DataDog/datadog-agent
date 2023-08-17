@@ -15,16 +15,22 @@ import (
 
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 
+type ColdStartTags struct {
+	IsColdStart     bool
+	IsProactiveInit bool
+}
+
 // ExecutionContext represents the execution context
 type ExecutionContext struct {
 	m                  sync.Mutex
 	arn                string
 	lastRequestID      string
 	coldstartRequestID string
+	wasColdStart       bool
+	wasProactiveInit   bool
 	lastLogRequestID   string
 	lastOOMRequestID   string
-	coldstart          bool
-	proactiveInit      bool
+	runtime            string
 	initTime           time.Time
 	startTime          time.Time
 	endTime            time.Time
@@ -37,10 +43,11 @@ type State struct {
 	ARN                string
 	LastRequestID      string
 	ColdstartRequestID string
+	WasColdStart       bool
+	WasProactiveInit   bool
 	LastLogRequestID   string
 	LastOOMRequestID   string
-	Coldstart          bool
-	ProactiveInit      bool
+	Runtime            string
 	InitTime           time.Time
 	StartTime          time.Time
 	EndTime            time.Time
@@ -54,14 +61,32 @@ func (ec *ExecutionContext) GetCurrentState() State {
 		ARN:                ec.arn,
 		LastRequestID:      ec.lastRequestID,
 		ColdstartRequestID: ec.coldstartRequestID,
+		WasColdStart:       ec.wasColdStart,
+		WasProactiveInit:   ec.wasProactiveInit,
 		LastLogRequestID:   ec.lastLogRequestID,
 		LastOOMRequestID:   ec.lastOOMRequestID,
-		Coldstart:          ec.coldstart,
-		ProactiveInit:      ec.proactiveInit,
+		Runtime:            ec.runtime,
 		InitTime:           ec.initTime,
 		StartTime:          ec.startTime,
 		EndTime:            ec.endTime,
 	}
+}
+
+// Returns whether or not the given request ID is a cold start or is a proactive init
+func (ec *ExecutionContext) GetColdStartTagsForRequestID(requestID string) ColdStartTags {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	coldStartTags := ColdStartTags{
+		IsColdStart:     false,
+		IsProactiveInit: false,
+	}
+	if requestID != ec.coldstartRequestID {
+		return coldStartTags
+	}
+
+	coldStartTags.IsColdStart = ec.wasColdStart
+	coldStartTags.IsProactiveInit = ec.wasProactiveInit
+	return coldStartTags
 }
 
 // LastRequestID return the last seen request identifier through the extension API.
@@ -88,16 +113,20 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 		// TODO Astuyve - refactor this to use initTime
 		// from TelemetryAPI
 		if time.Now().Sub(ec.initTime) > 10*time.Second {
-			ec.proactiveInit = true
-			ec.coldstart = false
+			ec.wasProactiveInit = true
+			ec.wasColdStart = false
 		} else {
-			ec.coldstart = true
+			ec.wasColdStart = true
 		}
 		ec.coldstartRequestID = requestID
-	} else {
-		ec.proactiveInit = false
-		ec.coldstart = false
 	}
+}
+
+// SetArnFromExtensionResponse sets the execution context from the Extension API response
+func (ec *ExecutionContext) SetArnFromExtensionResponse(arn string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.arn = strings.ToLower(arn)
 }
 
 // SetInitTime sets the agent initialization time
@@ -128,6 +157,13 @@ func (ec *ExecutionContext) UpdateOutOfMemoryRequestID(requestId string) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	ec.lastOOMRequestID = requestId
+}
+
+// UpdateRuntime updates the execution context with the runtime information
+func (ec *ExecutionContext) UpdateRuntime(runtime string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.runtime = runtime
 }
 
 // getPersistedStateFilePath returns the full path and filename of the
