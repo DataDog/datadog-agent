@@ -27,6 +27,8 @@ replace (
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
+
+	github.com/DataDog/datadog-agent/pkg/conf => ./pkg/conf/
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/metrics/event => ./pkg/metrics/event
 	github.com/DataDog/datadog-agent/pkg/metrics/model => ./pkg/metrics/model/
@@ -581,6 +583,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/conf v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/event v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/model v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics/servicecheck v0.0.0-00010101000000-000000000000

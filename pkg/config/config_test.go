@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -302,7 +302,8 @@ func TestProxy(t *testing.T) {
 	expectedProxy := &Proxy{
 		HTTP:    "http_url",
 		HTTPS:   "https_url",
-		NoProxy: []string{"a", "b", "c"}}
+		NoProxy: []string{"a", "b", "c"},
+	}
 
 	cases := []testCase{
 		{
@@ -374,7 +375,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "dd_http_url",
 						HTTPS:   "dd_https_url",
-						NoProxy: []string{"a", "b", "c"}},
+						NoProxy: []string{"a", "b", "c"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -391,7 +393,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "http_env",
 						HTTPS:   "",
-						NoProxy: []string{"d", "e", "f"}},
+						NoProxy: []string{"d", "e", "f"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -408,7 +411,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "http_env",
 						HTTPS:   "",
-						NoProxy: []string{"d", "e", "f"}},
+						NoProxy: []string{"d", "e", "f"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -428,7 +432,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "",
 						HTTPS:   "",
-						NoProxy: []string{"a", "b", "c"}},
+						NoProxy: []string{"a", "b", "c"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -486,7 +491,6 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-
 			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 
@@ -946,7 +950,6 @@ apm_config:
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
-
 }
 
 func TestComputeStatsBySpanKindEnv(t *testing.T) {
