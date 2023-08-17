@@ -43,6 +43,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
+	a := NewAgent(ctx, conf, telemetryCollector)
+	a.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
+	a.Concentrator.In = make(chan stats.Input, 1000)
+	return a
+}
+
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
 func TestFormatTrace(t *testing.T) {
@@ -84,7 +91,7 @@ func TestProcess(t *testing.T) {
 			Repl: "...",
 		}}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -112,7 +119,7 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -160,7 +167,7 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -210,7 +217,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -261,7 +268,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
@@ -293,7 +300,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
@@ -355,7 +362,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		testDiscardFunction := func(span *pb.Span) bool {
@@ -398,7 +405,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		chunk1 := testutil.TraceChunkWithSpan(testutil.RandomSpan())
@@ -639,7 +646,7 @@ func TestConcentratorInput(t *testing.T) {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
 			cfg.RareSamplerEnabled = true
-			agent := NewAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
 
@@ -663,7 +670,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	t.Run("onNotTop", func(t *testing.T) {
@@ -813,7 +820,7 @@ func TestClientComputedStats(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 	tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
 		Service:  "something &&<@# that should be a metric!",
@@ -1341,7 +1348,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	defer wg.Wait()
 	defer cancelFunc()
 
-	ta := NewAgent(ctx, c, telemetry.NewNoopCollector())
+	ta := NewTestAgent(ctx, c, telemetry.NewNoopCollector())
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1399,7 +1406,7 @@ func benchThroughput(file string) func(*testing.B) {
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		http.DefaultServeMux = &http.ServeMux{}
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancelFunc()
 
 		// start the agent without the trace and stats writers; we will be draining
@@ -1691,7 +1698,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	span := testutil.RandomSpan()
@@ -1993,7 +2000,7 @@ func TestSpanSampling(t *testing.T) {
 			cfg.RareSamplerEnabled = false
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			traceAgent := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+			traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 			traceAgent.Process(&api.Payload{
 				// The payload might get modified in-place, so first deep copy it so
 				// that we have the original for comparison later.
