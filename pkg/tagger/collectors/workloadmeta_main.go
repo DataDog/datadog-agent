@@ -89,6 +89,9 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
 		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
 		if cluster := clustername.GetClusterNameTagValue(ctx, ""); cluster != "" {
+			if c.staticTags == nil {
+				c.staticTags = make(map[string]string, 1)
+			}
 			c.staticTags[clusterTagNamePrefix] = cluster
 		}
 	}
