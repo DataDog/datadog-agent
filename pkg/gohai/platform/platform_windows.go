@@ -37,6 +37,17 @@ type OSVERSIONINFOEXW struct {
 	wReserved           uint8
 }
 
+// serverInfo101 contains server-specific information
+// see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/ns-lmserver-server_info_101
+type serverInfo101 struct {
+	sv101_platform_id   uint32
+	sv101_name          string
+	sv101_version_major uint32
+	sv101_version_minor uint32
+	sv101_type          uint32
+	sv101_comment       string
+}
+
 var (
 	modNetapi32          = windows.NewLazyDLL("Netapi32.dll")
 	procNetServerGetInfo = modNetapi32.NewProc("NetServerGetInfo")
@@ -189,7 +200,7 @@ const buildNumberKey = "CurrentBuildNumber"
 const majorKey = "CurrentMajorVersionNumber"
 const minorKey = "CurrentMinorVersionNumber"
 
-func netServerGetInfo() (si SERVER_INFO_101, err error) {
+func netServerGetInfo() (si serverInfo101, err error) {
 	var outdata *byte
 	// do additional work so that we don't panic() when the library's
 	// not there (like in a container)
