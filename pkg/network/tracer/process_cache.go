@@ -12,9 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/philpearl/intern"
-
 	"github.com/cihub/seelog"
+	"github.com/go4org/intern"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
 

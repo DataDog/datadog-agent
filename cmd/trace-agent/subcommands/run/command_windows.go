@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/runtime"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
@@ -63,9 +62,6 @@ func Start(cliParams *RunParams, config config.Component) error {
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	// prepare go runtime
-	runtime.SetMaxProcs()
 
 	// Handle stops properly
 	go func() {

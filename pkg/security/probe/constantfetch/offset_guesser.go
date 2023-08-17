@@ -73,7 +73,7 @@ func (og *OffsetGuesser) String() string {
 }
 
 func (og *OffsetGuesser) guessPidNumbersOfsset() (uint64, error) {
-	if _, err := os.ReadFile(utils.StatusPath(int32(utils.Getpid()))); err != nil {
+	if _, err := os.ReadFile(utils.StatusPath(utils.Getpid())); err != nil {
 		return ErrorSentinel, err
 	}
 	offsetMap, found, err := og.manager.GetMap("guessed_offsets")
