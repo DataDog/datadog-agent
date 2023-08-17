@@ -27,3 +27,7 @@ type Transaction interface {
 	SetResponseLastSeen(ls uint64)
 	RequestStarted() uint64
 }
+
+func isEncrypted(tx Transaction) bool {
+	return (tx.StaticTags() & (GnuTLS | OpenSSL | TLS)) > 0
+}
