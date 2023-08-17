@@ -12,6 +12,79 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// groupaffinity represents a processor group-specific affinity,
+// such as the affinity of a thread.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_affinity
+type groupaffinity struct {
+	Mask     uintptr
+	Group    uint16
+	Reserved [3]uint16
+}
+
+// numaNodeRelationship represents information about a NUMA node
+// in a processor group.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-numa_node_relationship
+type numaNodeRelationship struct {
+	NodeNumber uint32
+	Reserved   [20]uint8
+	GroupMask  groupaffinity
+}
+
+// cacheRelationship describes cache attributes.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-cache_relationship
+type cacheRelationship struct {
+	Level         uint8
+	Associativity uint8
+	LineSize      uint16
+	CacheSize     uint32
+	CacheType     int // enum in C
+	Reserved      [20]uint8
+	GroupMask     groupaffinity
+}
+
+// processorGroupInfo represents the number and affinity of processors
+// in a processor group.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_group_info
+type processorGroupInfo struct {
+	MaximumProcessorCount uint8
+	ActiveProcessorCount  uint8
+	Reserved              [38]uint8
+	ActiveProcessorMask   uintptr
+}
+
+// groupRelationship represents information about processor groups.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_relationship
+type groupRelationship struct {
+	MaximumGroupCount uint16
+	ActiveGroupCount  uint16
+	Reserved          [20]uint8
+	// variable size array of processorGroupInfo
+}
+
+// processorRelationship represents information about affinity
+// within a processor group.
+// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_relationship
+type processorRelationship struct {
+	Flags           uint8
+	EfficiencyClass uint8
+	wReserved       [20]uint8
+	GroupCount      uint16
+	// what follows is an array of zero or more groupaffinity structures
+}
+
+// systemLogicalProcessorInformationEX contains information about
+// the relationships of logical processors and related hardware.
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex
+type systemLogicalProcessorInformationEX struct {
+	Relationship int
+	Size         uint32
+	// what follows is a C union of
+	// processorRelationship,
+	// numaNodeRelationship,
+	// cacheRelationship,
+	// groupRelationship
+}
+
 // systemLogicalProcessorInformationSize is the size of
 // systemLogicalProcessorInformation struct
 // const systemLogicalProcessorInformationSize = 32
