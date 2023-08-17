@@ -35,5 +35,6 @@ func Test_BuildStackParameters(t *testing.T) {
 		"ddinfra:extraResourcesTags":        auto.ConfigValue{Value: "extra_resources_tags", Secret: false},
 		"ddinfra:aws/defaultPublicKeyPath":  auto.ConfigValue{Value: "public_key_path", Secret: false},
 		"ddinfra:aws/defaultPrivateKeyPath": auto.ConfigValue{Value: "private_key_path", Secret: false},
+		"ddagent:pipelineId":                auto.ConfigValue{Value: "pipeline_id", Secret: false},
 	}, configMap)
 }
