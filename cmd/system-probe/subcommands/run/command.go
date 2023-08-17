@@ -173,26 +173,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
-	resolver, err := usergroup.NewResolver()
-	if err != nil {
-		log.Warn("cannot create user/group resolver")
-	} else {
-		uid := os.Getuid()
-		gid := os.Getgid()
-		userName, err := resolver.ResolveUser(uid)
-		if err == nil {
-			log.Infof("current user id/name: %s/%s", strconv.Itoa(uid), userName)
-		} else {
-			log.Warn("unable to resolve user")
-		}
-		groupName, err := resolver.ResolveGroup(gid)
-		if err == nil {
-			log.Infof("current group id/name: %s/%s, ", strconv.Itoa(gid), groupName)
-		} else {
-			log.Warn("unable to resolve group")
-		}
-	}
-
+	logUserAndGroupID(log)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		log.Info("system probe not enabled. exiting")
@@ -316,4 +297,26 @@ func setupInternalProfiling(cfg ddconfig.ConfigReader, configPrefix string, log 
 
 func isValidPort(port int) bool {
 	return port > 0 && port < 65536
+}
+
+func logUserAndGroupID(log log.Component) {
+	resolver, err := usergroup.NewResolver()
+	if err != nil {
+		log.Warn("cannot create user/group resolver")
+	} else {
+		uid := os.Getuid()
+		gid := os.Getgid()
+		userName, err := resolver.ResolveUser(uid)
+		if err == nil {
+			log.Infof("current user id/name: %s/%s", strconv.Itoa(uid), userName)
+		} else {
+			log.Warn("unable to resolve user")
+		}
+		groupName, err := resolver.ResolveGroup(gid)
+		if err == nil {
+			log.Infof("current group id/name: %s/%s, ", strconv.Itoa(gid), groupName)
+		} else {
+			log.Warn("unable to resolve group")
+		}
+	}
 }
