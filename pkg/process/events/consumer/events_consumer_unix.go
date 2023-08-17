@@ -12,7 +12,7 @@ import (
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func (p *ProcessConsumer) newProcessEvent(event *smodel.Event) *model.ProcessEvent {
+func (p *ProcessConsumer) Copy(event *smodel.Event) interface{} {
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
 	event.ResolveEventTime()
