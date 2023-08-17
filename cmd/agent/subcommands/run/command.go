@@ -339,7 +339,7 @@ func getSharedFxOption() fx.Option {
 					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 					// create and setup the Autoconfig instance
-					common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(common.MainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -563,7 +563,7 @@ func startAgent(
 	installinfo.LogVersionHistory()
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
 	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
