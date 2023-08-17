@@ -462,9 +462,7 @@ func TestPayloadsSeries(t *testing.T) {
 
 	unrolledSeries := Series{}
 	for _, series := range splitSeries {
-		for _, s := range series {
-			unrolledSeries = append(unrolledSeries, s)
-		}
+		unrolledSeries = append(unrolledSeries, series...)
 	}
 
 	newLength := len(unrolledSeries)
