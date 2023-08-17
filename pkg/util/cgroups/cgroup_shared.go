@@ -22,9 +22,7 @@ const (
 // So "0,1,5-8" represents processors 0, 1, 5, 6, 7, 8.
 // The function returns the count of CPUs, in this case 6.
 func ParseCPUSetFormat(line string) uint64 {
-
 	lineRaw := []byte(line)
-
 	var numCPUs uint64
 
 	var currentSegment []byte

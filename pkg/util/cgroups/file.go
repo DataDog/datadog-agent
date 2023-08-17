@@ -75,7 +75,6 @@ func readFile(file io.Reader, p parser) error {
 
 		// less efficient path, only if the line length exceeds the readers buffer
 		if isPrefix {
-			// TODO: test
 			var accum []byte
 			accum = append(accum, line...)
 			for isPrefix {
@@ -113,15 +112,16 @@ func parseSingleSignedStat(fr fileReader, path string, val **int64) error {
 }
 
 func parseSingleUnsignedStat(fr fileReader, path string, val **uint64) error {
-	return parseFile(fr, path, func(line []byte) error {
+	return parseFile(fr, path, func(lineRaw []byte) error {
+		line := string(lineRaw)
 		// handle cgroupv2 max value, we usually consider max == no value (limit)
-		if bytes.Equal(line, []byte("max")) {
+		if line == "max" {
 			return &stopParsingError{}
 		}
 
-		value, err := strconv.ParseUint(string(line), 10, 64)
+		value, err := strconv.ParseUint(line, 10, 64)
 		if err != nil {
-			return newValueError(string(line), err)
+			return newValueError(line, err)
 		}
 		*val = &value
 		return &stopParsingError{}
@@ -129,8 +129,8 @@ func parseSingleUnsignedStat(fr fileReader, path string, val **uint64) error {
 }
 
 func parseColumnStats(fr fileReader, path string, valueParser func([]string) error) error {
-	err := parseFile(fr, path, func(line []byte) error {
-		splits := strings.Fields(string(line))
+	err := parseFile(fr, path, func(lineRaw []byte) error {
+		splits := strings.Fields(string(lineRaw))
 		return valueParser(splits)
 	})
 
@@ -139,7 +139,7 @@ func parseColumnStats(fr fileReader, path string, valueParser func([]string) err
 
 // columns are 0-indexed, we skip malformed lines
 func parse2ColumnStats(fr fileReader, path string, keyColumn, valueColumn int, valueParser func([]byte, []byte) error) error {
-	err := parseFile(fr, path, func(line []byte) error {
+	err := parseFile(fr, path, func(lineRaw []byte) error {
 
 		var (
 			i     int
@@ -147,8 +147,8 @@ func parse2ColumnStats(fr fileReader, path string, keyColumn, valueColumn int, v
 			value []byte
 			token []byte
 		)
-		for len(line) != 0 {
-			token, line = munchWhitespace(line)
+		for len(lineRaw) != 0 {
+			token, lineRaw = munchWhitespace(lineRaw)
 			if i == keyColumn {
 				key = token
 			}
