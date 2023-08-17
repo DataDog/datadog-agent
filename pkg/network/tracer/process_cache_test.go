@@ -9,12 +9,10 @@ package tracer
 
 import (
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -342,25 +340,4 @@ func TestProcessCacheGet(t *testing.T) {
 		})
 	}
 
-}
-
-func BenchmarkProcessCacheMem(b *testing.B) {
-	pc, _ := newProcessCache(b.N, nil)
-
-	envs := map[string]string{
-		"DD_SERVICE": "service",
-		"DD_VERSION": "version",
-		"DD_ENV":     "env",
-	}
-
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		id := intern.GetByString("container1")
-		pc.add(&process{
-			Pid:            uint32(rand.Int()),
-			StartTime:      5,
-			Envs:           envs,
-			ContainerIndex: id,
-		})
-	}
 }
