@@ -211,5 +211,4 @@ func RemoveCounterInstance(clss, inst string) {
 func AddCounterInstance(clss, inst string) {
 	activeAvailableCounters.instancesByClass[clss] =
 		append(activeAvailableCounters.instancesByClass[clss], inst)
-	return
 }

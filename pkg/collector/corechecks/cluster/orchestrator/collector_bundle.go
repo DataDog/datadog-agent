@@ -97,8 +97,6 @@ func (cb *CollectorBundle) prepareCollectors() {
 	}
 
 	cb.importCollectorsFromInventory()
-
-	return
 }
 
 // skipImportingDefaultCollectors skips importing the default collectors if the collector list is explicitly set to an

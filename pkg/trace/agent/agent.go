@@ -207,7 +207,6 @@ func (a *Agent) loop() {
 	} {
 		stopper.Stop()
 	}
-	return
 }
 
 // setRootSpanTags sets up any necessary tags on the root span.
