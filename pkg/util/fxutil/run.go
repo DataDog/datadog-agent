@@ -26,7 +26,7 @@ func Run(opts ...fx.Option) error {
 		return UnwrapIfErrArgumentsFailed(err)
 	}
 
-	_ = <-app.Done()
+	<-app.Done()
 
 	stopCtx, cancel := context.WithTimeout(context.Background(), app.StopTimeout())
 	defer cancel()
