@@ -16,9 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/node"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/pod"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -61,10 +63,16 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Pr
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
+	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	if err != nil {
+		log.Warnf("Can't get probe provider: %v", err)
+	}
+
 	return []Provider{
 		podProvider,
 		nodeProvider,
-		healthProvider,
+		probeProvider,
+    healthProvider,
 	}
 }
 

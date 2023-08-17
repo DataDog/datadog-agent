@@ -7,8 +7,9 @@ package memory
 
 import (
 	"fmt"
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
@@ -29,7 +30,7 @@ type MEMORYSTATUSEX struct {
 }
 
 func (info *Info) fillMemoryInfo() {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getMem = mod.NewProc("GlobalMemoryStatusEx")
 
 	var memStruct MEMORYSTATUSEX

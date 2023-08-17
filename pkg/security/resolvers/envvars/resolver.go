@@ -31,6 +31,6 @@ func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 	}
 }
 
-func (r *Resolver) ResolveEnvVars(pid int32) ([]string, bool, error) {
+func (r *Resolver) ResolveEnvVars(pid uint32) ([]string, bool, error) {
 	return utils.EnvVars(r.priorityEnvs, pid)
 }

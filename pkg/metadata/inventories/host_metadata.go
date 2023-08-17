@@ -19,7 +19,7 @@ import (
 var (
 	cpuGet      = cpu.CollectInfo
 	memoryGet   = memory.CollectInfo
-	networkGet  = network.Get
+	networkGet  = network.CollectInfo
 	platformGet = platform.CollectInfo
 )
 
@@ -135,14 +135,17 @@ func getHostMetadata() *HostMetadata {
 		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
-	networkInfo, warnings, err := networkGet()
+	networkInfo, err := networkGet()
+	if err == nil {
+		_, warnings, err = networkInfo.AsJSON()
+	}
 	if err != nil {
 		logErrorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.IPAddress = networkInfo.IpAddress
-		metadata.IPv6Address = networkInfo.IpAddressv6
+		metadata.IPAddress = networkInfo.IPAddress
+		metadata.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
 		metadata.MacAddress = networkInfo.MacAddress
 	}
 

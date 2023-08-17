@@ -9,15 +9,15 @@ package utils
 
 import (
 	"fmt"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"sync"
 
+	"github.com/cihub/seelog"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 )
 
 // FileRegistry is responsible for tracking open files and executing callbacks
@@ -87,7 +87,7 @@ func NewFileRegistry() *FileRegistry {
 		blocklistByID = nil
 	}
 	return &FileRegistry{
-		procRoot:      util.GetProcRoot(),
+		procRoot:      kernel.ProcFSRoot(),
 		byID:          make(map[PathIdentifier]*registration),
 		byPID:         make(map[uint32]pathIdentifierSet),
 		blocklistByID: blocklistByID,
