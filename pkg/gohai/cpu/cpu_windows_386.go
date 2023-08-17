@@ -12,24 +12,24 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE is the size of
-// SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct
+// systemLogicalProcessorInformation_SIZE is the size of
+// systemLogicalProcessorInformation struct
 //
 //nolint:revive
-const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE = 24
+const systemLogicalProcessorInformation_SIZE = 24
 
 func getSystemLogicalProcessorInformationSize() int {
-	return SYSTEM_LOGICAL_PROCESSOR_INFORMATION_SIZE
+	return systemLogicalProcessorInformation_SIZE
 }
 
-func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION) {
+func byteArrayToProcessorStruct(data []byte) (info systemLogicalProcessorInformation) {
 	info.ProcessorMask = uintptr(binary.LittleEndian.Uint32(data))
 	info.Relationship = int(binary.LittleEndian.Uint32(data[4:]))
 	copy(info.dataunion[0:16], data[8:24])
 	return
 }
 
-func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
+func computeCoresAndProcessors() (cpuInfo cpuInfo, err error) {
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformation")
 	var buflen uint32 = 0
