@@ -82,7 +82,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
 		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-
 		return nil
 	}
 

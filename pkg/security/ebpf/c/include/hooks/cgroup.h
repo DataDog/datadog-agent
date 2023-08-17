@@ -121,7 +121,6 @@ int hook_cgroup1_procs_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
 
-#ifndef USE_FENTRY
 HOOK_ENTRY("cgroup_tasks_write")
 int hook_cgroup_tasks_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
@@ -131,6 +130,5 @@ HOOK_ENTRY("cgroup1_tasks_write")
 int hook_cgroup1_tasks_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
 }
-#endif
 
 #endif

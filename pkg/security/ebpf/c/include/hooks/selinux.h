@@ -126,9 +126,7 @@ int fentry_dr_selinux_callback(ctx_t *ctx) {
         return handle_selinux_event(ctx, file, buf, count, (source_event)); \
     }
 
-#ifndef USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_DISABLE_CHANGE_SOURCE_EVENT)
-#endif // USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_ENFORCE_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_SOURCE_EVENT)

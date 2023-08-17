@@ -60,6 +60,14 @@ var (
 			},
 		},
 		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationGRPC,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
 			ProgArrayName: probes.TCPCloseProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

@@ -11,7 +11,7 @@ import manager "github.com/DataDog/ebpf-manager"
 
 // getSharedProbes returns the list of probes that are shared across multiple events
 func getSharedProbes(fentry bool) []*manager.Probe {
-	probes := []*manager.Probe{
+	return []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -30,16 +30,11 @@ func getSharedProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_mnt_want_write_file",
 			},
 		},
-	}
-
-	if !fentry {
-		probes = append(probes, &manager.Probe{
+		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_mnt_want_write_file_path",
 			},
-		})
+		},
 	}
-
-	return probes
 }
