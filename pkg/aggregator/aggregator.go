@@ -356,10 +356,7 @@ func AddRecurrentSeries(newSerie *metrics.Serie) {
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
-	if len(agg.checkItems)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.eventPlatformIn) == 0 {
-		return true
-	}
-	return false
+	return len(agg.checkItems)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.eventPlatformIn) == 0
 }
 
 // GetBufferedChannels returns a channel which can be subsequently used to send Event or ServiceCheck.
