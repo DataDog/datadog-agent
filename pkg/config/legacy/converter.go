@@ -71,12 +71,12 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 	// TODO: exclude_process_args
 
 	histogramAggregates := buildHistogramAggregates(agentConfig)
-	if histogramAggregates != nil && len(histogramAggregates) != 0 {
+	if len(histogramAggregates) != 0 {
 		converter.Set("histogram_aggregates", histogramAggregates)
 	}
 
 	histogramPercentiles := buildHistogramPercentiles(agentConfig)
-	if histogramPercentiles != nil && len(histogramPercentiles) != 0 {
+	if len(histogramPercentiles) != 0 {
 		converter.Set("histogram_percentiles", histogramPercentiles)
 	}
 

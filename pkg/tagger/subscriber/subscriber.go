@@ -45,7 +45,7 @@ func (s *Subscriber) Subscribe(cardinality collectors.TagCardinality, events []t
 	telemetry.Subscribers.Inc()
 	s.Unlock()
 
-	if events != nil && len(events) > 0 {
+	if len(events) > 0 {
 		notify(ch, events, cardinality)
 	}
 

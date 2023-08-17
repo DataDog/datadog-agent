@@ -370,7 +370,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
 	}
 
-	if diagnosesWrap == nil || len(diagnosesWrap) == 0 {
+	if len(diagnosesWrap) == 0 {
 		return nil, nil
 	}
 
