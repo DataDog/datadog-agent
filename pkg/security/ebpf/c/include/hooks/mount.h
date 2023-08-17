@@ -107,13 +107,11 @@ int hook_mnt_want_write_file(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
-#ifndef USE_FENTRY
 // mnt_want_write_file_path was used on old kernels (RHEL 7)
 HOOK_ENTRY("mnt_want_write_file_path")
 int hook_mnt_want_write_file_path(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
-#endif
 
 HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
