@@ -84,10 +84,9 @@ func TestTrimSingleLine(t *testing.T) {
 	h := NewSingleLineHandler(outputFn, 100)
 
 	var output *message.Message
-	var line string
 
 	// All leading and trailing whitespace characters should be trimmed
-	line = whitespace + "foo" + whitespace + "bar" + whitespace
+	line := whitespace + "foo" + whitespace + "bar" + whitespace
 	h.process(getDummyMessageWithLF(line))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))

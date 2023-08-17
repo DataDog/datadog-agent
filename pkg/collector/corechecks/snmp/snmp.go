@@ -46,8 +46,7 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.IsDiscovery() {
-		var discoveredDevices []*devicecheck.DeviceCheck
-		discoveredDevices = c.discovery.GetDiscoveredDeviceConfigs()
+		discoveredDevices := c.discovery.GetDiscoveredDeviceConfigs()
 
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
 
