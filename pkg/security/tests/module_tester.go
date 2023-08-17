@@ -43,7 +43,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -63,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -1471,7 +1471,7 @@ type tracePipeLogger struct {
 func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	// for some reason, the event task is resolved to "<...>"
 	// so we check that event.PID is the ID of a task of the running process
-	taskPath := filepath.Join(util.HostProc(), strconv.Itoa(int(utils.Getpid())), "task", event.PID)
+	taskPath := utilkernel.HostProc(strconv.Itoa(int(utils.Getpid())), "task", event.PID)
 	_, err := os.Stat(taskPath)
 
 	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
@@ -1755,7 +1755,7 @@ func init() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	testSuitePid = uint32(utils.Getpid())
+	testSuitePid = utils.Getpid()
 }
 
 //nolint:deadcode,unused

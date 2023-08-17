@@ -33,7 +33,6 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -175,7 +174,7 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
 		}
 
-		if mounted, _ := mountinfo.Mounted(util.HostProc()); !mounted {
+		if mounted, _ := mountinfo.Mounted(utilkernel.ProcFSRoot()); !mounted {
 			err = multierror.Append(err, errors.New("/etc/group doesn't seem to be a mountpoint"))
 		}
 
@@ -183,7 +182,7 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
 		}
 
-		securityFSPath := filepath.Join(util.GetSysRoot(), "kernel/security")
+		securityFSPath := filepath.Join(utilkernel.SysFSRoot(), "kernel/security")
 		if mounted, _ := mountinfo.Mounted(securityFSPath); !mounted {
 			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", securityFSPath))
 		}
