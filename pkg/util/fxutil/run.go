@@ -7,7 +7,6 @@ package fxutil
 
 import (
 	"context"
-	"time"
 
 	"go.uber.org/fx"
 )
@@ -18,14 +17,10 @@ import (
 // the process.
 func Run(opts ...fx.Option) error {
 	opts = append(opts, FxLoggingOption())
-	// Increase default fx start/stop timeout to account for delays caused by system load.
-	// Temporarily apply to all fxutil.Run calls until we can better characterize our
-	// start time requirements.
+	// Temporarily increase timeout for all fxutil.Run calls until we can better characterize our
+	// start time requirements. Prepend to opts so individual calls can override the timeout.
 	opts = append(
-		[]fx.Option{
-			fx.StartTimeout(5 * time.Minute),
-			fx.StopTimeout(5 * time.Minute),
-		},
+		[]fx.Option{TemporaryAppTimeouts()},
 		opts...,
 	)
 	app := fx.New(opts...)
