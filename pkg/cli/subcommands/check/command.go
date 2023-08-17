@@ -558,7 +558,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 }
 
 func singleCheckRun(cliParams *cliParams) bool {
-	return cliParams.checkRate == false && cliParams.checkTimes < 2
+	return !cliParams.checkRate && cliParams.checkTimes < 2
 }
 
 func createHiddenStringFlag(cmd *cobra.Command, p *string, name string, value string, usage string) {

@@ -123,7 +123,7 @@ func outputNewLineIfNeeded(w io.Writer, lastDot *bool) {
 }
 
 func outputSuiteIfNeeded(w io.Writer, suiteName string, suiteAlreadyReported *bool) {
-	if *suiteAlreadyReported == false {
+	if !*suiteAlreadyReported {
 		fmt.Fprintf(w, "==============\nSuite: %s\n", suiteName)
 		*suiteAlreadyReported = true
 	}
