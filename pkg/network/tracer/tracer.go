@@ -343,7 +343,11 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Envs["DD_VERSION"])
 	addTag("service", p.Envs["DD_SERVICE"])
 
-	containerID := t.processCache.GetContainerID(p.ContainerIndex)
+	containerID, ok := p.ContainerIndex.Get().(string)
+	if !ok {
+		log.Error("Could not retrieve containerID")
+		return
+	}
 
 	if containerID != "" {
 		c.ContainerID = &containerID

@@ -51,7 +51,7 @@ var processCacheTelemetry = struct {
 type process struct {
 	Pid            uint32
 	Envs           map[string]string
-	ContainerIndex int
+	ContainerIndex *intern.Value
 	StartTime      int64
 	Expiry         int64
 }
@@ -73,8 +73,6 @@ type processCache struct {
 	// means no filter, and any process can be inserted the cache
 	filteredEnvs map[string]struct{}
 
-	containerIDs *intern.Intern
-
 	in      chan *process
 	stopped chan struct{}
 	stop    sync.Once
@@ -91,7 +89,6 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
-		containerIDs: intern.New(maxProcs),
 	}
 
 	for _, e := range filteredEnvs {
@@ -177,7 +174,7 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 		return nil
 	}
 
-	container := pc.containerIDs.Save(entry.ContainerID)
+	container := intern.GetByString(entry.ContainerID)
 	return &process{
 		Pid:            entry.Pid,
 		Envs:           envs,
@@ -278,10 +275,6 @@ func (pc *processCache) Describe(ch chan<- *prometheus.Desc) {
 // Collect returns the current state of all metrics of the collector.
 func (pc *processCache) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(processCacheTelemetry.cacheLength, prometheus.GaugeValue, float64(pc.cache.Len()))
-}
-
-func (pc *processCache) GetContainerID(index int) string {
-	return pc.containerIDs.Get(index)
 }
 
 func (pl processList) update(p *process) processList {
