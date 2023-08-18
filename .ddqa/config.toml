@@ -114,7 +114,7 @@ exclude_members = [
 ]
 
 [teams."Platform Integrations"]
-jira_project = "PINT"
+jira_project = "PLINT"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
