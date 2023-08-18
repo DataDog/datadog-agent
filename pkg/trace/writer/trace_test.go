@@ -8,16 +8,16 @@ package writer
 import (
 	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"runtime"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -318,7 +318,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	}
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
 	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool) {
-		assert.Len(t, srv.payloads, 1)
+		require.Len(t, srv.payloads, 1)
 		ap, err := deserializePayload(*srv.payloads[0])
 		assert.Nil(t, err)
 		assert.Equal(t, priorityTps, ap.TargetTPS)
@@ -363,7 +363,7 @@ func deserializePayload(p payload) (*pb.AgentPayload, error) {
 		return nil, err
 	}
 	defer gzipr.Close()
-	uncompressedBytes, err := ioutil.ReadAll(gzipr)
+	uncompressedBytes, err := io.ReadAll(gzipr)
 	if err != nil {
 		return nil, err
 	}

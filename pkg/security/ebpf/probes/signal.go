@@ -9,23 +9,22 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// signalProbes holds the list of probes used to track signal events
-var signalProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_check_kill_permission",
+func getSignalProbes(fentry bool) []*manager.Probe {
+	var signalProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_check_kill_permission",
+			},
 		},
-	},
-}
+	}
 
-func getSignalProbes() []*manager.Probe {
 	signalProbes = append(signalProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "kill",
-	}, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	signalProbes = append(signalProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,

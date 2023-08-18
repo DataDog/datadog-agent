@@ -74,7 +74,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient),
+		policyMonitor:             NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
@@ -282,7 +282,6 @@ func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
 	// add remote config as config provider if enabled.
-	// rules from RC override local rules if they share the same ID, so the RC policy provider is added first
 	if e.config.RemoteConfigurationEnabled {
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
 		if err != nil {
@@ -445,6 +444,10 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
+}
+
+func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
+	return e.GetRuleSet().StopEventCollector()
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {

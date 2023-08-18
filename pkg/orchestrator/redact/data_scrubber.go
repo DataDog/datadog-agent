@@ -7,7 +7,6 @@ package redact
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -183,7 +182,7 @@ func compileStringsToRegex(words []string) []*regexp.Regexp {
 					valid = false
 					break
 				} else {
-					enhancedWord.WriteString(fmt.Sprintf("[^\\s=:$/]*"))
+					enhancedWord.WriteString("[^\\s=:$/]*")
 				}
 			} else {
 				enhancedWord.WriteString(string(rune))

@@ -32,12 +32,22 @@ import (
 )
 
 const (
-	PrimaryAZ   = "subnet-03061a1647c63c3c3"
-	SecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
-	BackupAZ    = "subnet-071213aedb0e1ae54"
+	AgentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
+	AgentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
+	AgentQABackupAZ    = "subnet-071213aedb0e1ae54"
+
+	SandboxPrimaryAz   = "subnet-b89e00e2"
+	SandboxSecondaryAz = "subnet-8ee8b1c6"
+	SandboxBackupAz    = "subnet-3f5db45b"
+
+	DatadogAgentQAEnv = "aws/agent-qa"
+	SandboxEnv        = "aws/sandbox"
 )
 
-var availabilityZones = []string{PrimaryAZ, SecondaryAZ, BackupAZ}
+var availabilityZones = map[string][]string{
+	DatadogAgentQAEnv: {AgentQAPrimaryAZ, AgentQASecondaryAZ, AgentQABackupAZ},
+	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
+}
 
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
@@ -117,8 +127,12 @@ func credentials() (string, error) {
 	return password, nil
 }
 
-func getAvailabilityZone(azIndx int) string {
-	return availabilityZones[azIndx%len(availabilityZones)]
+func getAvailabilityZone(env string, azIndx int) string {
+	if zones, ok := availabilityZones[env]; ok {
+		return zones[azIndx%len(zones)]
+	}
+
+	return ""
 }
 
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
@@ -180,8 +194,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
-		// Set AZ in retry block so we can change if needed.
-		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: getAvailabilityZone(currentAZ)}
+		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
+			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
+		}
 
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
@@ -201,7 +216,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				// Retry if we have capacity issues in our current AZ.
 				// We switch to a different AZ and attempt to launch the instance again.
 			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
-				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(currentAZ), getAvailabilityZone(currentAZ+1))
+				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(opts.InfraEnv, currentAZ), getAvailabilityZone(opts.InfraEnv, currentAZ+1))
 				currentAZ += 1
 				return retry.RetryableError(err)
 			} else {
@@ -226,4 +241,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 func Destroy(name string) error {
 	return infra.GetStackManager().DeleteStack(context.Background(), name)
+}
+
+func (env *TestEnv) RemoveStack() error {
+	return infra.GetStackManager().ForceRemoveStackConfiguration(env.context, env.name)
 }

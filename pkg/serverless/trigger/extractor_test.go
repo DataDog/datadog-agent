@@ -16,9 +16,9 @@ import (
 )
 
 func TestGetAWSPartitionByRegion(t *testing.T) {
-	assert.Equal(t, "aws", getAWSPartitionByRegion("us-east-1"))
-	assert.Equal(t, "aws-cn", getAWSPartitionByRegion("cn-east-1"))
-	assert.Equal(t, "aws-us-gov", getAWSPartitionByRegion("us-gov-west-1"))
+	assert.Equal(t, "aws", GetAWSPartitionByRegion("us-east-1"))
+	assert.Equal(t, "aws-cn", GetAWSPartitionByRegion("cn-east-1"))
+	assert.Equal(t, "aws-us-gov", GetAWSPartitionByRegion("us-gov-west-1"))
 }
 
 func TestExtractAPIGatewayEventARN(t *testing.T) {

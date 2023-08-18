@@ -16,7 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -51,7 +52,7 @@ func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (wor
 			},
 			NsPid:        protoEvent.GetNspid(),
 			ContainerId:  protoEvent.GetContainerId(),
-			CreationTime: time.Unix(protoEvent.GetCreationTime(), 0), // TODO: confirm what we receive as creation time here
+			CreationTime: time.UnixMilli(protoEvent.GetCreationTime()), // TODO: confirm what we receive as creation time here
 			Language:     toLanguage(protoEvent.GetLanguage()),
 		},
 	}, nil
@@ -102,14 +103,18 @@ func (s *stream) Recv() (interface{}, error) {
 
 type streamHandler struct {
 	port int
+	config.Config
 }
 
 func init() {
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
+	// The collector can not be registered in the init function because it needs to be registered only in the core agent.
+	// Thus it is registered in LoadComponents.
+	log.Debug("Registering remote process collector")
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
 			CollectorID:   collectorID,
-			StreamHandler: &streamHandler{},
+			StreamHandler: &streamHandler{Config: config.Datadog},
 			Insecure:      true, // wlm extractor currently does not support TLS
 		}
 	})
@@ -117,14 +122,17 @@ func init() {
 
 func (s *streamHandler) Port() int {
 	if s.port == 0 {
-		return config.Datadog.GetInt("process_config.language_detection.grpc_port")
+		return s.Config.GetInt("process_config.language_detection.grpc_port")
 	}
 	// for test purposes
 	return s.port
 }
 
 func (s *streamHandler) IsEnabled() bool {
-	return config.Datadog.GetBool("workloadmeta.remote_process_collector.enabled")
+	if flavor.GetFlavor() != flavor.DefaultAgent {
+		return false
+	}
+	return s.Config.GetBool("language_detection.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {

@@ -86,7 +86,7 @@ func (f *flare) collectConfigFiles(fb flarehelpers.FlareBuilder) error {
 		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml"))
 
 		// use best effort to include security-agent.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "system-probe.yaml"))
+		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml"))
 	}
 	return nil
 }

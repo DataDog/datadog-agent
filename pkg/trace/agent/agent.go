@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -86,8 +86,9 @@ type Agent struct {
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	dynConf := sampler.NewDynamicConfig()
-	in := make(chan *api.Payload, 1000)
-	statsChan := make(chan pb.StatsPayload, 100)
+	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
+	in := make(chan *api.Payload, conf.TraceBuffer)
+	statsChan := make(chan *pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = metrics.Client
@@ -137,7 +138,16 @@ func (a *Agent) Run() {
 	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
 
-	for i := 0; i < runtime.NumCPU(); i++ {
+	// Having GOMAXPROCS/2 processor threads is
+	// enough to keep the downstream writer busy.
+	// Having more processor threads would not speed
+	// up processing, but just expand memory.
+	workers := runtime.GOMAXPROCS(0) / 2
+	if workers < 1 {
+		workers = 1
+	}
+
+	for i := 0; i < workers; i++ {
 		go a.work()
 	}
 
@@ -210,10 +220,10 @@ func (a *Agent) loop() {
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
-
-	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-		rate := ratelimiter.RealRate()
-		sampler.SetPreSampleRate(root, rate)
+	if a.conf.InAzureAppServices {
+		for k, v := range traceutil.GetAppServicesTags() {
+			traceutil.SetMeta(root, k, v)
+		}
 	}
 }
 
@@ -272,6 +282,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
+		appServicesTags := traceutil.GetAppServicesTags()
 		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
@@ -279,6 +290,10 @@ func (a *Agent) Process(p *api.Payload) {
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
+			}
+			if a.conf.InAzureAppServices {
+				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
+				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(chunk, span)
@@ -407,7 +422,7 @@ func (a *Agent) discardSpans(p *api.Payload) {
 	}
 }
 
-func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
+func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion string) *pb.ClientStatsPayload {
 	enableContainers := a.conf.HasFeature("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)
 	if !enableContainers || a.conf.HasFeature("disable_cid_stats") {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
@@ -428,12 +443,12 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
-			a.normalizeStatsGroup(&b, lang)
-			if !a.Blacklister.AllowsStat(&b) {
+			a.normalizeStatsGroup(b, lang)
+			if !a.Blacklister.AllowsStat(b) {
 				continue
 			}
-			a.obfuscateStatsGroup(&b)
-			a.Replacer.ReplaceStatsGroup(&b)
+			a.obfuscateStatsGroup(b)
+			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++
 		}
@@ -443,7 +458,7 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	return in
 }
 
-func mergeDuplicates(s pb.ClientStatsBucket) {
+func mergeDuplicates(s *pb.ClientStatsBucket) {
 	indexes := make(map[stats.Aggregation]int, len(s.Stats))
 	for i, g := range s.Stats {
 		a := stats.NewAggregationFromGroup(g)
@@ -461,7 +476,7 @@ func mergeDuplicates(s pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion string) {
+func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion string) {
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 

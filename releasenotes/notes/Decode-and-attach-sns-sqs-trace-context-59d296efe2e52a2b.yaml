@@ -1,0 +1,3 @@
+features:
+  - |
+    Grab, base64 decode, and attach trace context from message attributes passed through SNS->SQS->Lambda

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -60,14 +61,15 @@ var (
 	timeSince = time.Since
 )
 
-// AgentMetadataName is an enum type containing all defined keys for
-// SetAgentMetadata.
-type AgentMetadataName string
-
 // Constants for the metadata names; these are defined in
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
+	// internal
+	agentInstallMethodTool             AgentMetadataName = "install_method_tool"
+	agentInstallMethodToolVersion      AgentMetadataName = "install_method_tool_version"
+	agentInstallMethodInstallerVersion AgentMetadataName = "install_method_installer_version"
+
 	AgentHostnameSource                  AgentMetadataName = "hostname_source"
 	AgentVersion                         AgentMetadataName = "agent_version"
 	AgentFlavor                          AgentMetadataName = "flavor"
@@ -80,9 +82,6 @@ const (
 	AgentConfigProcessDDURL              AgentMetadataName = "config_process_dd_url"
 	AgentConfigProxyHTTP                 AgentMetadataName = "config_proxy_http"
 	AgentConfigProxyHTTPS                AgentMetadataName = "config_proxy_https"
-	AgentInstallMethodInstallerVersion   AgentMetadataName = "install_method_installer_version"
-	AgentInstallMethodTool               AgentMetadataName = "install_method_tool"
-	AgentInstallMethodToolVersion        AgentMetadataName = "install_method_tool_version"
 	AgentLogsTransport                   AgentMetadataName = "logs_transport"
 	AgentFIPSEnabled                     AgentMetadataName = "feature_fips_enabled"
 	AgentCWSEnabled                      AgentMetadataName = "feature_cws_enabled"
@@ -158,8 +157,8 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
-	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
-		agentMetadata[string(name)] = value
+	if !reflect.DeepEqual(agentMetadata[name], value) {
+		agentMetadata[name] = value
 
 		Refresh()
 	}
@@ -175,8 +174,8 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
-	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
-		hostMetadata[string(name)] = value
+	if !reflect.DeepEqual(hostMetadata[name], value) {
+		hostMetadata[name] = value
 
 		Refresh()
 	}
@@ -312,12 +311,24 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		payloadAgentMeta[k] = v
 	}
 
+	// Adding install info
+	install, err := installinfo.Get(config.Datadog)
+	if err != nil {
+		payloadAgentMeta[agentInstallMethodTool] = "undefined"
+		payloadAgentMeta[agentInstallMethodToolVersion] = ""
+		payloadAgentMeta[agentInstallMethodInstallerVersion] = ""
+	} else {
+		payloadAgentMeta[agentInstallMethodTool] = install.Tool
+		payloadAgentMeta[agentInstallMethodToolVersion] = install.ToolVersion
+		payloadAgentMeta[agentInstallMethodInstallerVersion] = install.InstallerVersion
+	}
+
 	if withConfigs {
 		if fullConf, err := getFullAgentConfiguration(); err == nil {
-			payloadAgentMeta[string(agentFullConf)] = fullConf
+			payloadAgentMeta[agentFullConf] = fullConf
 		}
 		if providedConf, err := getProvidedAgentConfiguration(); err == nil {
-			payloadAgentMeta[string(agentProvidedConf)] = providedConf
+			payloadAgentMeta[agentProvidedConf] = providedConf
 		}
 	}
 

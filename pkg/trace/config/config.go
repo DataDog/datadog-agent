@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"time"
 
@@ -18,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
+
+// ServiceName specifies the service name used in the operating system.
+const ServiceName = "datadog-trace-agent"
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
@@ -34,6 +38,10 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+
+// App Services env vars
+const RunZip = "APPSVC_RUN_ZIP"
+const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -351,6 +359,10 @@ type AgentConfig struct {
 	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
+	Decoders        int   // specifies the number of traces that can be concurrently decoded.
+	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -363,6 +375,12 @@ type AgentConfig struct {
 	StatsWriter             *WriterConfig
 	TraceWriter             *WriterConfig
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
+	// MaxSenderRetries is the maximum number of retries that a sender will perform
+	// before giving up. Note that the sender may not perform all MaxSenderRetries if
+	// the agent is under load and the outgoing payload queue is full. In that
+	// case, the sender will drop failed payloads when it is unable to enqueue
+	// them for another retry.
+	MaxSenderRetries int
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -448,6 +466,9 @@ type AgentConfig struct {
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
+	// Azure App Services
+	InAzureAppServices bool
+
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 }
@@ -529,6 +550,8 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
+		InAzureAppServices: InAzureAppServices(),
+
 		Features: make(map[string]struct{}),
 	}
 }
@@ -587,4 +610,10 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+func InAzureAppServices() bool {
+	_, existsLinux := os.LookupEnv(RunZip)
+	_, existsWin := os.LookupEnv(AppLogsTrace)
+	return existsLinux || existsWin
 }

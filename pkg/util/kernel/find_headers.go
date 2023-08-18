@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -347,19 +346,17 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 }
 
 func getDefaultHeaderDirs() []string {
-	// KernelVersion == uname -r
-	hi := host.GetStatusInformation()
-	if hi.KernelVersion == "" {
+	hi, err := Release()
+	if err != nil {
 		return []string{}
 	}
 
-	dirs := []string{
-		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(centosKernelModulesPath, hi.KernelVersion),
+	return []string{
+		fmt.Sprintf(kernelModulesPath, hi),
+		fmt.Sprintf(debKernelModulesPath, hi),
+		fmt.Sprintf(cosKernelModulesPath, hi),
+		fmt.Sprintf(centosKernelModulesPath, hi),
 	}
-	return dirs
 }
 
 func getDownloadedHeaderDirs(headerDownloadDir string) []string {
@@ -444,7 +441,11 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 		platform = strings.ToLower(target.Distro.Display)
 	} else {
 		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
-		platform = host.GetStatusInformation().Platform
+		platform, err = Platform()
+		if err != nil {
+			log.Warnf("failed to retrieve host platform information: %s", err)
+			return
+		}
 	}
 
 	tags := []string{

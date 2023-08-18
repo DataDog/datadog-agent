@@ -20,18 +20,56 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
+	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
+	}
+	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
-	case "":
-		_ = ev.FieldHandlers.ResolveEventTimestamp(ev)
+	case "exec":
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
+	case "exit":
+		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
 	}
 }
 
 type FieldHandlers interface {
-	ResolveEventTimestamp(ev *Event) int
+	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
+	ResolveContainerID(ev *Event, e *ContainerContext) string
+	ResolveContainerTags(ev *Event, e *ContainerContext) []string
+	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
+	ResolveProcessArgsFlags(ev *Event, e *Process) []string
+	ResolveProcessArgsOptions(ev *Event, e *Process) []string
+	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
 type DefaultFieldHandlers struct{}
 
-func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) int { return int(ev.TimestampRaw) }
+func (dfh *DefaultFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
+	return int(e.CreatedAt)
+}
+func (dfh *DefaultFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
+	return e.ID
+}
+func (dfh *DefaultFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
+	return e.Tags
+}
+func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int {
+	return int(e.TimestampRaw)
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessArgsFlags(ev *Event, e *Process) []string {
+	return e.Argv
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessArgsOptions(ev *Event, e *Process) []string {
+	return e.Argv
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
+	return int(e.CreatedAt)
+}

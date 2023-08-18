@@ -7,6 +7,7 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -18,6 +19,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto/optremove"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/workspace"
@@ -113,6 +115,13 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 		FlowToPlugins: true,
 		LogLevel:      &loglevel,
 	}))
+
+	if err != nil {
+		errDestroy := sm.deleteStack(ctx, name, stack)
+		if errDestroy != nil {
+			return stack, upResult, errors.Join(err, errDestroy)
+		}
+	}
 	return stack, upResult, err
 }
 
@@ -139,6 +148,22 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 	}
 
 	return sm.deleteStack(ctx, name, stack)
+}
+
+// ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
+// It DOES NOT perform any cleanup of the resources created by the stack. Call `DeleteStack` for correct cleanup.
+func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) error {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	stack, ok := sm.stacks[name]
+	if !ok {
+		return fmt.Errorf("unable to remove stack %s: stack not present", name)
+	}
+
+	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
+	defer cancel()
+	return stack.Workspace().RemoveStack(deleteContext, stack.Name(), optremove.Force())
 }
 
 func (sm *StackManager) Cleanup(ctx context.Context) []error {

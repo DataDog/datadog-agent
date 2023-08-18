@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	host "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -71,7 +72,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
 		fb.RegisterDirPerm(systemProbeConfigBPFDir)
 	}
@@ -87,7 +88,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return functionOutputToBytes(diagnose.RunAll), nil })
+	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return functionOutputToBytes(diagnose.RunMetadataAvail), nil })
 	fb.AddFileFromFunc("connectivity.log", getDatadogConnectivity)
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
@@ -101,7 +102,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	getRegistryJSON(fb)
 
 	getVersionHistory(fb)
-	fb.CopyFile(filepath.Join(config.FileUsedDir(), "install_info"))
+	fb.CopyFile(installinfo.GetFilePath(config.Datadog))
 
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)

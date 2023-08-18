@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -196,11 +197,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
-	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -337,7 +338,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 }
 
 func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceList, error) {
-	resources, err := client.ServerResources()
+	_, resources, err := client.ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
@@ -430,11 +431,8 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 		"policy/v1": {
 			"PodDisruptionBudget": customresources.NewPodDisruptionBudgetV1Beta1Factory,
 		},
-
-		// support for newer k8s versions where the newer resources are
-		// not yet supported by KSM
-		"autoscaling/v2beta2": {
-			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Factory,
+		"autoscaling/v2": {
+			"HorizontalPodAutoscaler": customresources.NewHorizontalPodAutoscalerV2Beta2Factory,
 		},
 	}
 
@@ -787,7 +785,7 @@ func (k *KSMCheck) initTags() {
 	}
 
 	if !k.instance.DisableGlobalTags {
-		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(k.agentConfig, false)...)
+		k.instance.Tags = append(k.instance.Tags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
 	}
 }
 

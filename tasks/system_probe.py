@@ -20,6 +20,7 @@ from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
+from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -58,13 +59,13 @@ CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 
-def ninja_define_windows_resources(ctx, nw, major_version):
+def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
-    nw.variable("windrestarget", "pe-x86-64")
-    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir $in")
+    nw.variable("windrestarget", arch_to_windres_target(arch))
+    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
     nw.rule(
         name="windres",
         command="windres --define MAJ_VER=$maj_ver --define MIN_VER=$min_ver --define PATCH_VER=$patch_ver "
@@ -236,9 +237,10 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         "tracer",
         "prebuilt/usm",
         "prebuilt/usm_events_test",
+        "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
-    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm"]
+    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm", "runtime/shared-libraries"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
@@ -258,7 +260,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length"]
+    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -294,6 +296,7 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
         "pkg/network/usm/compile.go": "usm",
+        "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
@@ -357,7 +360,6 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/http/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
-                "pkg/network/ebpf/c/protocols/tls/sowatcher-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
@@ -365,7 +367,7 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
-            "pkg/network/protocols/kafka/kafka_types.go": [
+            "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
@@ -380,6 +382,12 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
+            ],
+            "pkg/network/usm/sharedlibraries/types.go": [
+                "pkg/network/ebpf/c/shared-libraries/types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
         }
         nw.rule(
@@ -432,12 +440,25 @@ def ninja_generate(
             if arch == "x86":
                 raise Exit(message="system probe not supported on x86")
 
-            ninja_define_windows_resources(ctx, nw, major_version)
-            rcout = "cmd/system-probe/windows_resources/system-probe.rc"
-            in_path = "cmd/system-probe/windows_resources/system-probe-msg.mc"
-            in_dir, _ = os.path.split(in_path)
-            nw.build(inputs=[in_path], outputs=[rcout], rule="windmc", variables={"rcdir": in_dir})
-            nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
+            ninja_define_windows_resources(ctx, nw, major_version, arch=arch)
+            # messagestrings
+            in_path = MESSAGESTRINGS_MC_PATH
+            in_name = os.path.splitext(os.path.basename(in_path))[0]
+            in_dir = os.path.dirname(in_path)
+            rcout = os.path.join(in_dir, f"{in_name}.rc")
+            hout = os.path.join(in_dir, f'{in_name}.h')
+            msgout = os.path.join(in_dir, 'MSG00409.bin')
+            nw.build(
+                inputs=[in_path],
+                outputs=[rcout],
+                implicit_outputs=[hout, msgout],
+                rule="windmc",
+                variables={"rcdir": in_dir},
+            )
+            nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
+            # system-probe
+            rcin = "cmd/system-probe/windows_resources/system-probe.rc"
+            nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
@@ -730,7 +751,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
+        for gobin in ["gotls_client", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
@@ -1491,6 +1512,11 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+        test_results = {}
+
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
 
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
@@ -1505,9 +1531,23 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            if action == "fail":
-                                print(f"FAIL: [{test_platform}] {package} {name}")
-                                fail_count += 1
+                            if action == "pass" or action == "fail" or action == "skip":
+                                test_key = f"{package}.{name}"
+                                res = test_results.get(test_key)
+                                if res is None:
+                                    test_results[test_key] = action
+                                    continue
+
+                                if res == "fail":
+                                    print(f"re-ran [{test_platform}] {package} {name}: {action}")
+                                if (action == "pass" or action == "skip") and res == "fail":
+                                    test_results[test_key] = action
+
+        for key, res in test_results.items():
+            if res == "fail":
+                package, name = key.split(".")
+                print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
+                fail_count += 1
 
     if fail_count > 0:
         raise Exit(code=1)
@@ -1520,7 +1560,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
     if windows:
         return
 
-    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -1537,6 +1577,8 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
     )
 
+    # Special use-case in javatls
+    images.remove("${IMAGE_VERSION}")
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
