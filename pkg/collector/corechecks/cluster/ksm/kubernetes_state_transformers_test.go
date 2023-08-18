@@ -1729,6 +1729,27 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "nvidia container mig",
+			args: args{
+				name: "kube_pod_container_resource_limits",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_mig_2g_4gb",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.container.mig_limit",
+				val:      4,
+				tags:     []string{"foo:bar", "mig_profile:2g_4gb"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "amd container gpu",
 			args: args{
 				name: "kube_pod_container_resource_limits",
@@ -1935,6 +1956,27 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "nvidia node mig",
+			args: args{
+				name: "kube_node_status_allocatable",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_mig_2c_4g_20gb",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.mig_allocatable",
+				val:      4,
+				tags:     []string{"foo:bar", "mig_profile:2c_4g_20gb"},
+				hostname: "foo",
+			},
+		},
+		{
 			name: "pods",
 			args: args{
 				name: "kube_node_status_allocatable",
@@ -2137,6 +2179,27 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name:     "kubernetes_state.node.gpu_capacity",
 				val:      4,
 				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+		},
+		{
+			name: "nvidia node mig",
+			args: args{
+				name: "kube_node_status_capacity",
+				metric: ksmstore.DDMetric{
+					Val: 4,
+					Labels: map[string]string{
+						"resource": "nvidia_com_mig_2c_4g_20gb",
+						"unit":     "integer",
+					},
+				},
+				tags:     []string{"foo:bar"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.node.mig_capacity",
+				val:      4,
+				tags:     []string{"foo:bar", "mig_profile:2c_4g_20gb"},
 				hostname: "foo",
 			},
 		},

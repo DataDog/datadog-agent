@@ -9,6 +9,7 @@ package ksm
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -34,6 +35,8 @@ var renamedResource = map[string]string{
 	"amd_com_gpu":        "gpu",
 	"gpu_intel_com_i915": "gpu",
 }
+
+const MIG_RESOURCE = "mig"
 
 type counterAggregator struct {
 	ddMetricName  string
@@ -178,9 +181,15 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 	a.accumulator[labelValues]++
 }
 
-func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
-	resource := metric.Labels["resource"]
+func renameMig(resource string) string {
+	if strings.HasPrefix(resource, "nvidia_com_mig") {
+		return MIG_RESOURCE
+	}
+	return resource
+}
 
+func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
+	resource := renameMig(metric.Labels["resource"])
 	if newName, ok := renamedResource[resource]; ok {
 		resource = newName
 	}
@@ -415,14 +424,14 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"allocatable.total",
 			"kube_node_status_allocatable",
 			[]string{},
-			[]string{"cpu", "memory", "gpu"},
+			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 		"kube_node_status_capacity": newResourceValuesAggregator(
 			"node",
 			"capacity.total",
 			"kube_node_status_capacity",
 			[]string{},
-			[]string{"cpu", "memory", "gpu"},
+			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 		"kube_pod_container_resource_with_owner_tag_requests": newResourceValuesAggregator(
 			"container",
@@ -436,7 +445,7 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"limit.total",
 			"kube_pod_container_resource_with_owner_tag_limits",
 			[]string{"namespace", "container", "owner_name", "owner_kind"},
-			[]string{"cpu", "memory", "gpu"},
+			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 	}
 }
