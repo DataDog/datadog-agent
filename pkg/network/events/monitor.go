@@ -8,6 +8,7 @@
 package events
 
 import (
+	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -30,6 +31,17 @@ type Process struct {
 	ContainerID string
 	StartTime   int64
 	Expiry      int64
+}
+
+func (p *Process) Env(key string) string {
+	for _, e := range p.Envs {
+		k, v, _ := strings.Cut(e, "=")
+		if k == key {
+			return v
+		}
+	}
+
+	return ""
 }
 
 // Init initializes the events package

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 )
 
 func TestProcessCacheProcessEvent(t *testing.T) {
@@ -55,7 +55,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		{envs: []string{ddService, ddVersion, ddEnv}},
 	}
 
-	testFunc := func(t *testing.T, entry *smodel.ProcessContext) {
+	testFunc := func(t *testing.T, entry *events.Process) {
 		for i, te := range tests {
 			t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 				pc, err := newProcessCache(10, te.filter)
@@ -67,7 +67,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 					values = append(values, e+"="+envs[e])
 				}
 
-				entry.EnvsEntry.Values = values
+				entry.Envs = values
 
 				p := pc.processEvent(entry)
 				if entry.ContainerID == "" && len(te.filter) > 0 && len(te.filtered) == 0 {
@@ -84,8 +84,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 					}
 					assert.Len(t, p.Envs, len(l))
 					for _, e := range l {
-						assert.Contains(t, p.Envs, e)
-						assert.Equal(t, envs[e], p.Envs[e])
+						assert.Equal(t, envs[e], p.Env(e))
 					}
 				}
 			})
@@ -93,27 +92,15 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	}
 
 	t.Run("without container id", func(t *testing.T) {
-		entry := smodel.ProcessContext{
-			Process: smodel.Process{
-				PIDContext: smodel.PIDContext{
-					Pid: 1234,
-				},
-				EnvsEntry: &smodel.EnvsEntry{},
-			},
-		}
+		entry := events.Process{Pid: 1234}
 
 		testFunc(t, &entry)
 	})
 
 	t.Run("with container id", func(t *testing.T) {
-		entry := smodel.ProcessContext{
-			Process: smodel.Process{
-				PIDContext: smodel.PIDContext{
-					Pid: 1234,
-				},
-				ContainerID: "container",
-				EnvsEntry:   &smodel.EnvsEntry{},
-			},
+		entry := events.Process{
+			Pid:         1234,
+			ContainerID: "container",
 		}
 
 		testFunc(t, &entry)
@@ -127,7 +114,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
 		})
@@ -146,7 +133,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		t.Cleanup(pc.Stop)
 
 		for i := 0; i < maxProcessListSize+1; i++ {
-			pc.add(&process{
+			pc.add(&events.Process{
 				Pid:       1234,
 				StartTime: int64(i),
 			})
@@ -171,17 +158,17 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
 		})
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 2,
 		})
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 3,
 		})
@@ -199,12 +186,12 @@ func TestProcessCacheAdd(t *testing.T) {
 		}
 
 		// replace pid 1234 with 4567
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       4567,
 			StartTime: 2,
 		})
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       4567,
 			StartTime: 3,
 		})
@@ -222,12 +209,12 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
 		})
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1235,
 			StartTime: 2,
 		})
@@ -249,12 +236,10 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Envs: map[string]string{
-				"foo": "bar",
-			},
+			Envs:      []string{"foo=bar"},
 		})
 
 		p, ok := pc.Get(1234, 1)
@@ -262,12 +247,12 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Equal(t, p.Envs["foo"], "bar")
+		assert.Equal(t, p.Env("foo"), "bar")
 
-		pc.add(&process{
+		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Envs:      map[string]string{"bar": "foo"},
+			Envs:      []string{"bar=foo"},
 		})
 
 		p, ok = pc.Get(1234, 1)
@@ -275,7 +260,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Equal(t, p.Envs["bar"], "foo")
+		assert.Equal(t, p.Env("bar"), "foo")
 		assert.NotContains(t, p.Envs, "foo")
 	})
 }
@@ -286,17 +271,17 @@ func TestProcessCacheGet(t *testing.T) {
 	require.NotNil(t, pc)
 	t.Cleanup(pc.Stop)
 
-	pc.add(&process{
+	pc.add(&events.Process{
 		Pid:       1234,
 		StartTime: 5,
 	})
 
-	pc.add(&process{
+	pc.add(&events.Process{
 		Pid:       1234,
 		StartTime: 14,
 	})
 
-	pc.add(&process{
+	pc.add(&events.Process{
 		Pid:       1234,
 		StartTime: 10,
 	})

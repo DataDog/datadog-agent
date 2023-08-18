@@ -18,8 +18,6 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
-
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -41,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -334,9 +333,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	addTag("env", p.Envs["DD_ENV"])
-	addTag("version", p.Envs["DD_VERSION"])
-	addTag("service", p.Envs["DD_SERVICE"])
+	addTag("env", p.Env("DD_ENV"))
+	addTag("version", p.Env("DD_VERSION"))
+	addTag("service", p.Env("DD_SERVICE"))
 
 	if p.ContainerID != "" {
 		c.ContainerID = &p.ContainerID
