@@ -502,7 +502,7 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fun
 func logFormatContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), message string, params []interface{}, depth int, context ...interface{}) {
 	if Logger != nil && Logger.inner != nil && Logger.shouldLog(logLevel) {
 		var msg string
-		if params == nil || len(params) == 0 {
+		if len(params) == 0 {
 			msg = Logger.scrub(message)
 		} else {
 			msg = Logger.scrub(fmt.Sprintf(message, params...))
@@ -522,7 +522,7 @@ func logFormatContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(
 func logFormatContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, message string, params []interface{}, fallbackStderr bool, depth int, context ...interface{}) error {
 	if Logger != nil && Logger.inner != nil && Logger.shouldLog(logLevel) {
 		var msg string
-		if params == nil || len(params) == 0 {
+		if len(params) == 0 {
 			msg = Logger.scrub(message)
 		} else {
 			msg = Logger.scrub(fmt.Sprintf(message, params...))
@@ -578,13 +578,13 @@ func Tracec(message string, context ...interface{}) {
 }
 
 // TracefcStackDepth logs at the trace level with context and the current stack depth plus the additional given one
-func TracefcStackDepth(message string, params []interface{}, depth int, context ...interface{}) {
+func TracefcStackDepth(depth int, context []interface{}, message string, params ...interface{}) {
 	logFormatContext(seelog.TraceLvl, func() { Tracefc(context, message, params...) }, Logger.trace, message, params, depth, context...)
 }
 
 // Tracefc logs at the trace level with context
 func Tracefc(context []interface{}, message string, params ...interface{}) {
-	TracefcStackDepth(message, params, 1, context...)
+	TracefcStackDepth(1, context, message, params...)
 }
 
 // TraceFunc calls and logs the result of 'logFunc' if and only if Trace (or more verbose) logs are enabled
@@ -628,13 +628,13 @@ func Debugc(message string, context ...interface{}) {
 }
 
 // DebugfcStackDepth logs at the debug level with context and the current stack depth plus the additional given one
-func DebugfcStackDepth(message string, params []interface{}, depth int, context ...interface{}) {
+func DebugfcStackDepth(depth int, context []interface{}, message string, params ...interface{}) {
 	logFormatContext(seelog.DebugLvl, func() { Debugfc(context, message, params...) }, Logger.debug, message, params, depth, context...)
 }
 
 // Debugfc logs at the debug level with context
 func Debugfc(context []interface{}, message string, params ...interface{}) {
-	DebugfcStackDepth(message, params, 1, context...)
+	DebugfcStackDepth(1, context, message, params...)
 }
 
 // DebugFunc calls and logs the result of 'logFunc' if and only if Debug (or more verbose) logs are enabled
@@ -678,13 +678,13 @@ func Infoc(message string, context ...interface{}) {
 }
 
 // InfofcStackDepth logs at the info level with context and the current stack depth plus the additional given one
-func InfofcStackDepth(message string, params []interface{}, depth int, context ...interface{}) {
+func InfofcStackDepth(depth int, context []interface{}, message string, params ...interface{}) {
 	logFormatContext(seelog.InfoLvl, func() { Infofc(context, message, params...) }, Logger.info, message, params, depth, context...)
 }
 
 // Infofc logs at the info level with context
 func Infofc(context []interface{}, message string, params ...interface{}) {
-	InfofcStackDepth(message, params, 1, context...)
+	InfofcStackDepth(1, context, message, params)
 }
 
 // InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
@@ -724,13 +724,13 @@ func Warnc(message string, context ...interface{}) error {
 }
 
 // WarnfcStackDepth logs at the warn level with context and the current stack depth plus the additional given one and returns an error containing the formatted log message
-func WarnfcStackDepth(message string, params []interface{}, depth int, context ...interface{}) error {
+func WarnfcStackDepth(depth int, context []interface{}, message string, params ...interface{}) error {
 	return logFormatContextWithError(seelog.WarnLvl, func() { Warnfc(context, message, params...) }, Logger.warn, message, params, false, depth, context...)
 }
 
 // Warnfc logs at the warn level with context and returns an error containing the formatted log message
 func Warnfc(context []interface{}, message string, params ...interface{}) error {
-	return WarnfcStackDepth(message, params, 1, context...)
+	return WarnfcStackDepth(1, context, message, params...)
 }
 
 // WarnFunc calls and logs the result of 'logFunc' if and only if Warn (or more verbose) logs are enabled
@@ -770,13 +770,13 @@ func Errorc(message string, context ...interface{}) error {
 }
 
 // ErrorfcStackDepth logs at the error level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
-func ErrorfcStackDepth(message string, params []interface{}, depth int, context ...interface{}) error {
+func ErrorfcStackDepth(depth int, context []interface{}, message string, params ...interface{}) error {
 	return logFormatContextWithError(seelog.ErrorLvl, func() { Errorfc(context, message, params...) }, Logger.error, message, params, true, depth, context...)
 }
 
 // Errorfc logs at the error level with context and returns an error containing the formatted log message
 func Errorfc(context []interface{}, message string, params ...interface{}) error {
-	return ErrorfcStackDepth(message, params, 1, context...)
+	return ErrorfcStackDepth(1, context, message, params...)
 }
 
 // ErrorFunc calls and logs the result of 'logFunc' if and only if Error (or more verbose) logs are enabled
@@ -816,13 +816,13 @@ func Criticalc(message string, context ...interface{}) error {
 }
 
 // CriticalfcStackDepth logs at the critical level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
-func CriticalfcStackDepth(message string, params []interface{}, depth int, context ...interface{}) error {
+func CriticalfcStackDepth(depth int, context []interface{}, message string, params ...interface{}) error {
 	return logFormatContextWithError(seelog.CriticalLvl, func() { Criticalfc(context, message, params...) }, Logger.critical, message, params, true, depth, context...)
 }
 
 // Criticalfc logs at the critical level with context and returns an error containing the formatted log message
 func Criticalfc(context []interface{}, message string, params ...interface{}) error {
-	return CriticalfcStackDepth(message, params, 1, context...)
+	return CriticalfcStackDepth(1, context, message, params...)
 }
 
 // CriticalFunc calls and logs the result of 'logFunc' if and only if Critical (or more verbose) logs are enabled
