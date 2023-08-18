@@ -93,6 +93,41 @@ func TestDollarQuotedFunc(t *testing.T) {
 	})
 }
 
+func TestSingleDollarIdentifier(t *testing.T) {
+	q := `
+	MERGE [md].InventoryLotLocationView as target
+	using (select *
+	from #InventoryLotLocationView_Loader) as source
+		on (target.[LotId] = source.[LotId]
+		and target.[ItemKey] = source.[ItemKey]
+		and target.[LocationCode] = source.[LocationCode])
+	when matched 
+	and  (target.[LotNumber] <> source.[LotNumber]
+		or target.[ExpirationDate] <> source.[ExpirationDate]
+	)
+	then update
+	set target.[LotNumber] = source.[LotNumber] 
+	when not matched by source then delete
+	when not matched by target then
+	insert([LotId] 
+	,[ItemKey] 
+	)
+	values (
+	source.[LotId] 
+	,source.[ItemKey] 
+	)
+	OUTPUT $action, deleted.*, $action, inserted.*;
+	`
+
+	t.Run("", func(t *testing.T) {
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{
+			DBMS: DBMSSQLServer,
+		}}).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "MERGE md . InventoryLotLocationView using ( select * from #InventoryLotLocationView_Loader ) on ( target. LotId = source. LotId and target. ItemKey = source. ItemKey and target. LocationCode = source. LocationCode ) when matched and ( target. LotNumber <> source. LotNumber or target. ExpirationDate <> source. ExpirationDate ) then update set target. LotNumber = source. LotNumber when not matched by source then delete when not matched by target then insert ( LotId, ItemKey ) values ( source. LotId, source. ItemKey ) OUTPUT $action, deleted.*, $action, inserted.*", oq.Query)
+	})
+}
+
 func TestScanDollarQuotedString(t *testing.T) {
 	for _, tt := range []struct {
 		in  string
