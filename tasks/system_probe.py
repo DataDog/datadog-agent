@@ -726,7 +726,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
 
     # Clean up previous build
-    if packages == "" or clean_build(ctx):
+    if os.path.exists(KITCHEN_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
     elif packages != "":
         packages = [full_pkg_path(name) for name in packages.split(",")]
