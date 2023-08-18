@@ -26,7 +26,7 @@ except ImportError:
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
-GOVERSION = 1.19
+GOVERSION = 1.20
 
 
 @task
