@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -105,10 +106,10 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 }
 
 // Configure configures the orchestrator check
-func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := o.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := o.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

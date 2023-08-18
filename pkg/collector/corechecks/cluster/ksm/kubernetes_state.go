@@ -197,11 +197,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
-	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

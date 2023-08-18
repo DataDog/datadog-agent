@@ -1570,6 +1570,10 @@ func (tm *testModule) Close() {
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
 	}
+
+	if withProfile {
+		pprof.StopCPUProfile()
+	}
 }
 
 var logInitilialized bool

@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package stats
+package stub
 
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
@@ -32,7 +34,9 @@ func (c *StubCheck) Stop() {}
 func (c *StubCheck) Cancel() {}
 
 // Configure is a noop
-func (c *StubCheck) Configure(uint64, integration.Data, integration.Data, string) error { return nil }
+func (c *StubCheck) Configure(sender.SenderManager, uint64, integration.Data, integration.Data, string) error {
+	return nil
+}
 
 // Interval returns a duration of one second
 func (c *StubCheck) Interval() time.Duration { return 1 * time.Second }
@@ -47,7 +51,7 @@ func (c *StubCheck) ID() checkid.ID { return checkid.ID(c.String()) }
 func (c *StubCheck) GetWarnings() []error { return []error{} }
 
 // GetSenderStats returns an empty map
-func (c *StubCheck) GetSenderStats() (SenderStats, error) { return NewSenderStats(), nil }
+func (c *StubCheck) GetSenderStats() (stats.SenderStats, error) { return stats.NewSenderStats(), nil }
 
 // IsTelemetryEnabled returns false
 func (c *StubCheck) IsTelemetryEnabled() bool { return false }
