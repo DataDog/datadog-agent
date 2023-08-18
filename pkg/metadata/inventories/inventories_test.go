@@ -405,6 +405,13 @@ func testGeneric[T any](cfgName, invName string, input, output T) func(*testing.
 
 // Test the `initializeConfig` function and especially its scrubbing of secret values.
 func TestInitializeConfig(t *testing.T) {
+	t.Run("language detection enabled", testGeneric[bool](
+		"language_detection.enabled",
+		"feature_process_language_detection_enabled",
+		true,
+		true,
+	))
+
 	t.Run("config_apm_dd_url", testGeneric[string](
 		"apm_config.apm_dd_url",
 		"config_apm_dd_url",
