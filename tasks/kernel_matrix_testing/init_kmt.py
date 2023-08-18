@@ -2,8 +2,8 @@ import getpass
 import os
 from pathlib import Path
 
-from .tool import info
 from .download import download_kernel_packages, download_rootfs
+from .tool import info
 
 KMT_DIR = os.path.join("/", "home", "kernel-version-testing")
 KMT_ROOTFS_DIR = os.path.join(KMT_DIR, "rootfs")

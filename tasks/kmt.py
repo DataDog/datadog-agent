@@ -1,6 +1,6 @@
+import platform
 import re
 import os
-import platform
 from glob import glob
 
 from invoke import task
@@ -297,7 +297,7 @@ def copy_dependencies(ctx, stack, vms, ssh_key):
     local_cp = False
     ssh_key_path = ssh_key_to_path(ssh_key)
 
-    for arch, _, ip in vms:
+    for arch, _, _ in vms:
         if arch == "local":
             local_cp = True
             continue
