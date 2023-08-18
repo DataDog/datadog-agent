@@ -177,7 +177,7 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Su
 	return sortedFilteredSuites
 }
 
-// Dagnose sites are already sorted, sort only by category and then
+// Diagnose sites are already sorted, sort only by category and then
 // by name. It may change in future versions, e.g. configured to not to sort
 // or confgured to sort by other attributes or order (which would need config)
 func sortDiagnoses(siteDiagnoses []diagnosis.Diagnoses) {
@@ -311,7 +311,7 @@ func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 		return nil, err
 	}
 
-	// Please note that if streaming will be implemented sorting strategy may need to be chaned
+	// Please note that if streaming will be implemented sorting strategy may need to be changed
 	sortDiagnoses(diagnoses)
 
 	return diagnoses, nil

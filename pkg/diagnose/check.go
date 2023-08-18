@@ -27,10 +27,10 @@ func init() {
 
 func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	if diagCfg.RunningInAgentProcess {
-		return diagnoseInAgentProcess()
+		return diagnoseChecksInAgentProcess()
 	}
 
-	return diagnoseInCLIProcess(diagCfg)
+	return diagnoseChecksInCLIProcess(diagCfg)
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
@@ -62,7 +62,7 @@ func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func diagnoseInAgentProcess() []diagnosis.Diagnosis {
+func diagnoseChecksInAgentProcess() []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 
 	// get list of checks
@@ -77,10 +77,7 @@ func diagnoseInAgentProcess() []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-// Currently diagnose is implemented to run in the CLI process,
-// in the next version will connect to the running agent service to get diagnoses
-// for scheduled checks without running them
-func diagnoseInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
