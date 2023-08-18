@@ -6,3 +6,4 @@
 #   jobs still use
 cryptography==39.0.1
 PyJWT==2.4.0
+PyGithub==1.59.1

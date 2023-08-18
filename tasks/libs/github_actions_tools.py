@@ -2,31 +2,18 @@ import os
 import sys
 import tempfile
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime
 from time import sleep
 
 from invoke.exceptions import Exit
 
 from ..utils import DEFAULT_BRANCH
 from .common.color import color_message
-from .common.github_workflows import GithubException, GithubWorkflows, get_github_app_token
-
-
-def create_or_refresh_macos_build_github_workflows(github_workflows=None):
-    # If no token or token is going to expire, refresh token
-    if (
-        github_workflows is None
-        or datetime.utcnow() + timedelta(minutes=5) > github_workflows.api_token_expiration_date
-    ):
-        token, expiration_date = get_github_app_token()
-        return GithubWorkflows(
-            repository="DataDog/datadog-agent-macos-build", api_token=token, api_token_expiration_date=expiration_date
-        )
-    return github_workflows
+from .common.github_api import GithubAPI
 
 
 def trigger_macos_workflow(
-    workflow="macos.yaml",
+    workflow_name="macos.yaml",
     github_action_ref="master",
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version=None,
@@ -67,13 +54,13 @@ def trigger_macos_workflow(
             github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
         )
     )
-
     # Hack: get current time to only fetch workflows that started after now.
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.utcnow()
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    create_or_refresh_macos_build_github_workflows().trigger_workflow(workflow, github_action_ref, inputs)
+    gh = GithubAPI('DataDog/datadog-agent-macos-build')
+    gh.trigger_workflow(workflow_name, github_action_ref, inputs)
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
     # that started after we triggered the workflow.
@@ -82,9 +69,9 @@ def trigger_macos_workflow(
     MAX_RETRIES = 10  # Retry up to 10 times
     for i in range(MAX_RETRIES):
         print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
-        run = get_macos_workflow_run_for_ref(workflow, github_action_ref)
-        if run is not None and run.get("created_at", datetime.fromtimestamp(0).strftime("%Y-%m-%dT%H:%M:%SZ")) >= now:
-            return run.get("id")
+        run = gh.latest_workflow_run_for_ref(workflow_name, github_action_ref)
+        if run is not None and run.created_at is not None and run.created_at >= now:
+            return run
 
         sleep(5)
 
@@ -93,29 +80,14 @@ def trigger_macos_workflow(
     raise Exit(code=1)
 
 
-def get_macos_workflow_run_for_ref(workflow="macos.yaml", github_action_ref="master"):
-    """
-    Get the latest workflow for the given ref.
-    """
-    return create_or_refresh_macos_build_github_workflows().latest_workflow_run_for_ref(workflow, github_action_ref)
-
-
-def follow_workflow_run(run_id):
+def follow_workflow_run(run):
     """
     Follow the workflow run until completion and return its conclusion.
     """
+    # Imported from here since only x86_64 images ship this module
+    from github import GithubException
 
-    try:
-        github_workflows = create_or_refresh_macos_build_github_workflows()
-        run = github_workflows.workflow_run(run_id)
-    except GithubException:
-        raise Exit(code=1)
-
-    if run is None:
-        print("Workflow run not found.")
-        raise Exit(code=1)
-
-    print(color_message("Workflow run link: " + color_message(run["html_url"], "green"), "blue"))
+    print(color_message("Workflow run link: " + color_message(run.html_url, "green"), "blue"))
 
     minutes = 0
     failures = 0
@@ -123,8 +95,8 @@ def follow_workflow_run(run_id):
     while True:
         # Do not fail outright for temporary failures
         try:
-            github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
-            run = github_workflows.workflow_run(run_id)
+            github = GithubAPI('DataDog/datadog-agent-macos-build')
+            run = github.workflow_run(run.id)
         except GithubException:
             failures += 1
             print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
@@ -133,8 +105,8 @@ def follow_workflow_run(run_id):
             sleep(15)
             continue
 
-        status = run["status"]
-        conclusion = run["conclusion"]
+        status = run.status
+        conclusion = run.conclusion
 
         if status == "completed":
             return conclusion
@@ -158,45 +130,40 @@ def print_workflow_conclusion(conclusion):
         print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
 
 
-def download_artifacts(run_id, destination="."):
+def download_artifacts(run, destination="."):
     """
     Download all artifacts for a given job in the specified location.
     """
-    print(color_message(f"Downloading artifacts for run {run_id} to {destination}", "blue"))
-    github_workflows = create_or_refresh_macos_build_github_workflows()
-    run_artifacts = github_workflows.workflow_run_artifacts(run_id)
-    if len(run_artifacts["artifacts"]) == 0:
-        raise ConnectionError
-
-    print("Found the following artifacts: ", run_artifacts)
-
+    print(color_message(f"Downloading artifacts for run {run.id} to {destination}", "blue"))
+    run_artifacts = run.get_artifacts()
     if run_artifacts is None:
         print("Workflow run not found.")
         raise Exit(code=1)
+    if run_artifacts.totalCount == 0:
+        raise ConnectionError
 
     # Create temp directory to store the artifact zips
     with tempfile.TemporaryDirectory() as tmpdir:
-        for artifact in run_artifacts["artifacts"]:
+        workflow = GithubAPI('DataDog/datadog-agent-macos-build')
+        for artifact in run_artifacts:
             # Download artifact
-            github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
-            zip_path = github_workflows.download_artifact(artifact["id"], tmpdir)
             print("Downloading artifact: ", artifact)
+            zip_path = workflow.download_artifact(artifact, tmpdir)
 
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(destination)
 
 
-def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_interval=10):
-
+def download_artifacts_with_retry(run, destination=".", retry_count=3, retry_interval=10):
     import requests
 
     retry = retry_count
 
     while retry > 0:
         try:
-            download_artifacts(run_id, destination)
-            print(color_message(f"Successfully downloaded artifacts for run {run_id} to {destination}", "blue"))
+            download_artifacts(run, destination)
+            print(color_message(f"Successfully downloaded artifacts for run {run,id} to {destination}", "blue"))
             return
         except (requests.exceptions.RequestException, ConnectionError):
             retry -= 1
