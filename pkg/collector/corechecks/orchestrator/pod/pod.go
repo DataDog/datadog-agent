@@ -23,7 +23,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +45,7 @@ func init() {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	hostInfo  *checks.HostInfo
+	hostName  string
 	clusterID string
 	sender    sender.Sender
 	processor *processors.Processor
@@ -76,6 +76,9 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 
 	if !c.config.OrchestrationCollectionEnabled {
 		return errors.New("orchestrator check is configured but the feature is disabled")
+	}
+	if !c.config.CoreCheck {
+		return errors.New("the corecheck version for pods is currently disabled")
 	}
 	if c.config.KubeClusterName == "" {
 		return errors.New("orchestrator check is configured but the cluster name is empty")
@@ -109,6 +112,11 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 		c.sender = sender
 	}
 
+	if c.hostName == "" {
+		hname, _ := hostname.Get(context.TODO())
+		c.hostName = hname
+	}
+
 	return nil
 }
 
@@ -128,13 +136,10 @@ func (c *Check) Run() error {
 	ctx := &processors.ProcessorContext{
 		ClusterID:          c.clusterID,
 		Cfg:                c.config,
+		HostName:           c.hostName,
 		MsgGroupID:         groupID,
 		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
-	}
-
-	if c.hostInfo != nil {
-		ctx.HostName = c.hostInfo.HostName
 	}
 
 	processResult, processed := c.processor.Process(ctx, podList)

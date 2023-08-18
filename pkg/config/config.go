@@ -1110,6 +1110,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
+	config.BindEnvAndSetDefault("orchestrator_explorer.pod_corecheck", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)

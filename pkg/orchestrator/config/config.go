@@ -39,6 +39,7 @@ const (
 type OrchestratorConfig struct {
 	CollectorDiscoveryEnabled      bool
 	OrchestrationCollectionEnabled bool
+	CoreCheck                      bool
 	KubeClusterName                string
 	IsScrubbingEnabled             bool
 	Scrubber                       *redact.DataScrubber
@@ -108,7 +109,7 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// Orchestrator Explorer
-	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
+	oc.OrchestrationCollectionEnabled, oc.CoreCheck, oc.KubeClusterName = IsOrchestratorEnabled()
 
 	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
@@ -200,7 +201,7 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 }
 
 // IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
-func IsOrchestratorEnabled() (bool, string) {
+func IsOrchestratorEnabled() (bool, bool, string) {
 	enabled := config.Datadog.GetBool(key(orchestratorNS, "enabled"))
 	var clusterName string
 	if enabled {
@@ -208,5 +209,6 @@ func IsOrchestratorEnabled() (bool, string) {
 		hname, _ := hostname.Get(context.TODO())
 		clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	}
-	return enabled, clusterName
+	coreCheck := config.Datadog.GetBool(key(orchestratorNS, "pod_corecheck"))
+	return enabled, coreCheck, clusterName
 }
