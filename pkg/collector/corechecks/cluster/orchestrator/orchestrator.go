@@ -181,7 +181,7 @@ func (o *OrchestratorCheck) Run() error {
 				return nil
 			}
 
-			_ = o.Warnc(nil, "Leader Election error. Not running the Orchestrator check.")
+			_ = o.Warn("Leader Election error. Not running the Orchestrator check.")
 			return err
 		}
 

@@ -162,7 +162,7 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 
 // Warn sends an integration warning to logs + agent status.
 func (c *CheckBase) Warn(v ...interface{}) error {
-	w := log.Warn(v...)
+	w := log.Warnc(log.BuildLogEntry(v...), []interface{}{"check", c.checkName})
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -170,16 +170,7 @@ func (c *CheckBase) Warn(v ...interface{}) error {
 
 // Warnf sends an integration warning to logs + agent status.
 func (c *CheckBase) Warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params...)
-	c.latestWarnings = append(c.latestWarnings, w)
-
-	return w
-}
-
-// Warnc sends an integration warning to logs + agent status.
-func (c *CheckBase) Warnc(context []interface{}, message string, params ...interface{}) error {
-	context = append(context, "check", c.checkName)
-	w := log.Warnc(fmt.Sprintf(message, params...), context...)
+	w := log.Warnfc([]interface{}{"check", c.checkName}, format, params...)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w

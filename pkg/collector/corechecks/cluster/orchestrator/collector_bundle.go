@@ -133,13 +133,13 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 	if isCRD {
 		idx := strings.LastIndex(collectorName, "/")
 		if idx == -1 {
-			_ = cb.check.Warnc(nil, "Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName)
+			_ = cb.check.Warnf("Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName)
 			return
 		}
 		groupVersion := collectorName[:idx]
 		resource := collectorName[idx+1:]
 		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
-			_ = cb.check.Warnc(nil, "Ignoring CRD collector %s: use builtin collection instead", collectorName)
+			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
 
 			return
 		}
@@ -153,19 +153,19 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 	}
 
 	if err != nil {
-		_ = cb.check.Warnc(nil, "Unsupported collector: %s", collectorName)
+		_ = cb.check.Warnf("Unsupported collector: %s", collectorName)
 		return
 	}
 
 	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
 	// I am using the fullName for now on purpose in case we have the same resource across 2 different groups setup
 	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
-		_ = cb.check.Warnc(nil, "collector %s has already been added", collectorName) // Before using unstable info
+		_ = cb.check.Warnf("collector %s has already been added", collectorName) // Before using unstable info
 		return
 	}
 
 	if !collector.Metadata().IsStable && !isCRD {
-		_ = cb.check.Warnc(nil, "Using unstable collector: %s", collector.Metadata().FullName())
+		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
 	}
 
 	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
@@ -208,11 +208,11 @@ func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
 
 	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory)
 	if err != nil {
-		_ = cb.check.Warnc(nil, "Collector discovery failed: %s", err)
+		_ = cb.check.Warnf("Collector discovery failed: %s", err)
 		return false
 	}
 	if len(collectors) == 0 {
-		_ = cb.check.Warnc(nil, "Collector discovery returned no collector")
+		_ = cb.check.Warn("Collector discovery returned no collector")
 		return false
 	}
 
@@ -281,7 +281,7 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 		result, err := collector.Run(cb.runCfg)
 		if err != nil {
-			_ = cb.check.Warnc(nil, "Collector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
+			_ = cb.check.Warnf("Collector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
 			continue
 		}
 
