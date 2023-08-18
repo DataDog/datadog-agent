@@ -1545,7 +1545,7 @@ def print_failed_tests(_, output_dir):
 
         for key, res in test_results.items():
             if res == "fail":
-                package, name = key.split(".")
+                package, name = key.split(".", maxsplit=1)
                 print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
                 fail_count += 1
 
