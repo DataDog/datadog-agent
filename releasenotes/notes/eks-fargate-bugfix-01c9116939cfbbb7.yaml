@@ -1,3 +1,3 @@
 ---
 fixes:
-  - Fix bug where system metrics collector does not properly start on eks fargate
+  - Fix bug where system metrics collector does not properly start on EKS Fargate
