@@ -34,9 +34,7 @@ mkdir -p $EMBEDDED_INC
 mkdir -p $GO_BIN
 cp $GOTESTSUM $GO_BIN
 cp $TEST2JSON $GO_BIN
-mkdir junit
-mkdir testjson
-mkdir pkgjson
+mkdir junit testjson pkgjson
 cp $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh ./
 
 GOOS=linux go build -o ./test-runner $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test-runner/main.go
