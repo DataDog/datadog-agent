@@ -1,9 +1,9 @@
 import platform
 import re
-import os
 from glob import glob
 
 from invoke import task
+
 from .kernel_matrix_testing import stacks, vmconfig
 from .kernel_matrix_testing.download import revert_kernel_packages, revert_rootfs, update_kernel_packages, update_rootfs
 from .kernel_matrix_testing.init_kmt import (
@@ -12,8 +12,8 @@ from .kernel_matrix_testing.init_kmt import (
     KMT_KHEADERS_DIR,
     KMT_PACKAGES_DIR,
     KMT_ROOTFS_DIR,
-    KMT_STACKS_DIR,
     KMT_SHARED_DIR,
+    KMT_STACKS_DIR,
     check_and_get_stack,
     init_kernel_matrix_testing_system,
 )
