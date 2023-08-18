@@ -22,10 +22,10 @@ import (
 func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, filter ReaderFilter) (string, error) {
 	var identifier string
 
-	err := parseFile(defaultFileReader, filepath.Join(procPath, pid, procCgroupFile), func(s []byte) error {
+	err := parseFile(defaultFileReader, filepath.Join(procPath, pid, procCgroupFile), func(s string) error {
 		var err error
 
-		parts := strings.SplitN(string(s), ":", 3)
+		parts := strings.SplitN(s, ":", 3)
 		// Skip potentially malformed lines
 		if len(parts) != 3 {
 			return nil
@@ -62,8 +62,8 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	// In cgroupv2, the file contains 0 values, filtering for that
 	cgroupProcsTestFilePath := filepath.Join(cgroupRoot, cgroupProcsFile)
 	cgroupProcsUsable := false
-	err := parseFile(defaultFileReader, cgroupProcsTestFilePath, func(s []byte) error {
-		if string(s) != "" && string(s) != "0" {
+	err := parseFile(defaultFileReader, cgroupProcsTestFilePath, func(s string) error {
+		if s != "" && s != "0" {
 			cgroupProcsUsable = true
 		}
 
@@ -114,10 +114,10 @@ type cgroupProcsPidMapper struct {
 func (pm *cgroupProcsPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
 	var pids []int
 
-	if err := parseFile(pm.fr, pm.cgroupProcsFilePathBuilder(relativeCgroupPath), func(s []byte) error {
-		pid, err := strconv.Atoi(string(s))
+	if err := parseFile(pm.fr, pm.cgroupProcsFilePathBuilder(relativeCgroupPath), func(s string) error {
+		pid, err := strconv.Atoi(s)
 		if err != nil {
-			reportError(newValueError(string(s), err))
+			reportError(newValueError(s, err))
 			return nil
 		}
 

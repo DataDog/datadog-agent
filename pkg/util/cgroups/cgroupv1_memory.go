@@ -26,11 +26,7 @@ func (c *cgroupV1) GetMemoryStats(stats *MemoryStats) error {
 		return &ControllerNotFoundError{Controller: "memory"}
 	}
 
-	if err := parse2ColumnStats(c.fr, c.pathFor("memory", "memory.stat"), 0, 1, func(keyRaw, valueRaw []byte) error {
-		// the go compiler is smart enough to not turn this into a copy
-		key := string(keyRaw)
-		value := string(valueRaw)
-
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory", "memory.stat"), 0, 1, func(key, value string) error {
 		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			reportError(newValueError(value, err))
