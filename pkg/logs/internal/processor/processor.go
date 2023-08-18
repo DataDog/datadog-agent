@@ -7,30 +7,15 @@ package processor
 
 import (
 	"context"
-	"math/rand"
 	"sync"
-	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const (
-	charset          = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	randStringLength = 5
-)
-
-func randString(r *rand.Rand) string {
-	b := make([]byte, randStringLength)
-	for i := range b {
-		b[i] = charset[r.Intn(len(charset))]
-	}
-	return string(b)
-}
 
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
@@ -42,10 +27,12 @@ type Processor struct {
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
+	processorId               string
 }
 
 // New returns an initialized Processor.
 func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver) *Processor {
+
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan,
@@ -53,6 +40,7 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
+		processorId:               util.GenGlobalId(),
 	}
 }
 
@@ -92,9 +80,8 @@ func (p *Processor) run() {
 		p.done <- struct{}{}
 	}()
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for msg := range p.inputChan {
-		msg.AgentRndId = randString(r)
+		msg.AgentProcessorId = p.processorId
 		p.processMessage(msg)
 		p.mu.Lock() // block here if we're trying to flush synchronously
 		//nolint:staticcheck

@@ -17,6 +17,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -194,6 +195,7 @@ func (t *Tailer) tail() {
 		t.journal.Close()
 		t.done <- struct{}{}
 	}()
+	r := util.NewRand()
 	for {
 		select {
 		case <-t.stop:
@@ -223,7 +225,7 @@ func (t *Tailer) tail() {
 			select {
 			case <-t.stop:
 				return
-			case t.outputChan <- t.toMessage(entry):
+			case t.outputChan <- t.toMessage(entry, util.GenID(r)):
 			}
 		}
 	}
@@ -266,8 +268,8 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 // toMessage transforms a journal entry into a message.
 // A journal entry has different fields that may vary depending on its nature,
 // for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
-func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) *message.Message {
-	return message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry), time.Now().UnixNano())
+func (t *Tailer) toMessage(entry *sdjournal.JournalEntry, msgId string) *message.Message {
+	return message.NewMessage(t.getContent(entry), t.getOrigin(entry), t.getStatus(entry), time.Now().UnixNano(), msgId)
 }
 
 // getContent returns all the fields of the entry as a json-string,

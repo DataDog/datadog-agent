@@ -8,6 +8,7 @@ package file
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"io"
 	"os"
 	"path/filepath"
@@ -291,6 +292,7 @@ func (t *Tailer) forwardMessages() {
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
+	r := util.NewRand()
 	for output := range t.decoder.OutputChan {
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
@@ -312,7 +314,7 @@ func (t *Tailer) forwardMessages() {
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp, util.GenID(r)):
 		case <-t.forwardContext.Done():
 		}
 	}

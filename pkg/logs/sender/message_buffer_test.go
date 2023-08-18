@@ -21,21 +21,21 @@ func TestMessageBufferSize(t *testing.T) {
 	assert.False(t, buffer.IsFull())
 
 	// expect add to success
-	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("a"), nil, "", 0)))
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("a"), nil, "", 0, "msg_id")))
 	assert.Len(t, buffer.GetMessages(), 1)
 	assert.False(t, buffer.IsEmpty())
 	assert.False(t, buffer.IsFull())
 	assert.Equal(t, buffer.GetMessages()[0].Content, []byte("a"))
 
 	// expect add to success and buffer to be full
-	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("b"), nil, "", 0)))
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("b"), nil, "", 0, "msg_id")))
 	assert.Len(t, buffer.GetMessages(), 2)
 	assert.False(t, buffer.IsEmpty())
 	assert.True(t, buffer.IsFull())
 	assert.Equal(t, buffer.GetMessages()[1].Content, []byte("b"))
 
 	// expect add to success to fail because of buffer full
-	assert.False(t, buffer.AddMessage(message.NewMessage([]byte("c"), nil, "", 0)))
+	assert.False(t, buffer.AddMessage(message.NewMessage([]byte("c"), nil, "", 0, "msg_id")))
 	assert.Len(t, buffer.GetMessages(), 2)
 	assert.False(t, buffer.IsEmpty())
 	assert.True(t, buffer.IsFull())
@@ -56,21 +56,21 @@ func TestMessageBufferContentSize(t *testing.T) {
 	assert.False(t, buffer.IsFull())
 
 	// expect add to success
-	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("a"), nil, "", 0)))
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("a"), nil, "", 0, "msg_id")))
 	assert.Len(t, buffer.GetMessages(), 1)
 	assert.False(t, buffer.IsEmpty())
 	assert.False(t, buffer.IsFull())
 	assert.Equal(t, buffer.GetMessages()[0].Content, []byte("a"))
 
 	// expect add to success and buffer to be full
-	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("b"), nil, "", 0)))
+	assert.True(t, buffer.AddMessage(message.NewMessage([]byte("b"), nil, "", 0, "msg_id")))
 	assert.Len(t, buffer.GetMessages(), 2)
 	assert.False(t, buffer.IsEmpty())
 	assert.True(t, buffer.IsFull())
 	assert.Equal(t, buffer.GetMessages()[1].Content, []byte("b"))
 
 	// expect add to success to fail because of buffer full
-	assert.False(t, buffer.AddMessage(message.NewMessage([]byte("c"), nil, "", 0)))
+	assert.False(t, buffer.AddMessage(message.NewMessage([]byte("c"), nil, "", 0, "msg_id")))
 	assert.Len(t, buffer.GetMessages(), 2)
 	assert.False(t, buffer.IsEmpty())
 	assert.True(t, buffer.IsFull())

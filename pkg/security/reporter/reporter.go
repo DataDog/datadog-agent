@@ -30,7 +30,7 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(tags)
 	origin.SetService(service)
-	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
+	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano(), "")
 	r.logChan <- msg
 }
 

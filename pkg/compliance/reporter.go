@@ -76,6 +76,6 @@ func (r *LogReporter) ReportEvent(event interface{}) {
 	}
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(r.tags)
-	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
+	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano(), "")
 	r.logChan <- msg
 }

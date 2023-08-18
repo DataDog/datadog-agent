@@ -38,7 +38,8 @@ type Message struct {
 	// Used in the Serverless Agent
 	Lambda *Lambda
 	// Tmp value to give each message a unique ID
-	AgentRndId string
+	AgentRndId       string
+	AgentProcessorId string
 }
 
 // Lambda is a struct storing information about the Lambda function and function execution.
@@ -47,18 +48,24 @@ type Lambda struct {
 	RequestID string
 }
 
-// NewMessageWithSource constructs message with content, status and log source.
-func NewMessageWithSource(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64) *Message {
-	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
+// NewMessageWithSource constructs message with content, status, log source and msg ID.
+func NewMessageWithSource(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64, msgId string) *Message {
+	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp, msgId)
+}
+
+// NewMessageWithSourceAndNoId constructs message with content, status and log source.
+func NewMessageWithSourceAndNoId(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64) *Message {
+	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp, "")
 }
 
 // NewMessage constructs message with content, status, origin and the ingestion timestamp.
-func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
+func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64, msgId string) *Message {
 	return &Message{
 		Content:            content,
 		Origin:             origin,
 		status:             status,
 		IngestionTimestamp: ingestionTimestamp,
+		AgentRndId:         msgId,
 	}
 }
 

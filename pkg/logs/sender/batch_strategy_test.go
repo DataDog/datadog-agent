@@ -23,10 +23,10 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	s := NewBatchStrategy(input, output, flushChan, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
 	s.Start()
 
-	message1 := message.NewMessage([]byte("a"), nil, "", 0)
+	message1 := message.NewMessage([]byte("a"), nil, "", 0, "msg_id")
 	input <- message1
 
-	message2 := message.NewMessage([]byte("b"), nil, "", 0)
+	message2 := message.NewMessage([]byte("b"), nil, "", 0, "msg_id")
 	input <- message2
 
 	expectedPayload := &message.Payload{
@@ -56,7 +56,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	s.Start()
 
 	for round := 0; round < 3; round++ {
-		m := message.NewMessage([]byte("a"), nil, "", 0)
+		m := message.NewMessage([]byte("a"), nil, "", 0, "msg_id")
 		input <- m
 
 		// it should have flushed in this time
@@ -84,7 +84,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	s := newBatchStrategyWithClock(input, output, flushChan, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
 	s.Start()
 
-	message := message.NewMessage([]byte("a"), nil, "", 0)
+	message := message.NewMessage([]byte("a"), nil, "", 0, "msg_id")
 	input <- message
 
 	go func() {
@@ -108,7 +108,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 
 	s := NewBatchStrategy(input, output, flushChan, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
 	s.Start()
-	message := message.NewMessage([]byte{}, nil, "", 0)
+	message := message.NewMessage([]byte{}, nil, "", 0, "msg_id")
 
 	input <- message
 
@@ -135,9 +135,9 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 
 	// all of these messages will get buffered
 	messages := []*message.Message{
-		message.NewMessage([]byte("a"), nil, "", 0),
-		message.NewMessage([]byte("b"), nil, "", 0),
-		message.NewMessage([]byte("c"), nil, "", 0),
+		message.NewMessage([]byte("a"), nil, "", 0, "msg_id"),
+		message.NewMessage([]byte("b"), nil, "", 0, "msg_id"),
+		message.NewMessage([]byte("c"), nil, "", 0, "msg_id"),
 	}
 	for _, m := range messages {
 		input <- m
@@ -180,9 +180,9 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 
 	// all of these messages will get buffered
 	messages := []*message.Message{
-		message.NewMessage([]byte("a"), nil, "", 0),
-		message.NewMessage([]byte("b"), nil, "", 0),
-		message.NewMessage([]byte("c"), nil, "", 0),
+		message.NewMessage([]byte("a"), nil, "", 0, "msg_id"),
+		message.NewMessage([]byte("b"), nil, "", 0, "msg_id"),
+		message.NewMessage([]byte("c"), nil, "", 0, "msg_id"),
 	}
 	for _, m := range messages {
 		input <- m
