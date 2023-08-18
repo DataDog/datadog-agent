@@ -37,6 +37,10 @@ driver:
   <% else %>
   security_group_ids: [ "sg-7fedd80a","sg-46506837" ]
   <% end %>
+  metadata_options:
+    http_tokens: 'required'
+    http_put_response_hop_limit: 1
+    instance_metadata_tags: 'enabled'
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
@@ -52,6 +56,7 @@ driver:
     PipelineId: <%= ENV['DD_PIPELINE_ID'] %>
     CreatedBy: datadog-agent-kitchen-tests
     Creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "datadog-agent-kitchen-user" %>
+  
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
