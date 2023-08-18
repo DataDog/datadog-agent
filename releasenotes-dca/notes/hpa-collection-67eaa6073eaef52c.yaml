@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add ``VerticalPodAutoscalers`` collection in the orchestrator check.
+    Add ``HorizontalPodAutoscaler`` collection in the orchestrator check.
