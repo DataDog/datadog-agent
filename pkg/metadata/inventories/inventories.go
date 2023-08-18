@@ -91,6 +91,7 @@ const (
 	AgentOTLPEnabled                     AgentMetadataName = "feature_otlp_enabled"
 	AgentProcessEnabled                  AgentMetadataName = "feature_process_enabled"
 	AgentProcessesContainerEnabled       AgentMetadataName = "feature_processes_container_enabled"
+	AgentProcessLanguageDetectionEnabled AgentMetadataName = "feature_process_language_detection_enabled"
 	AgentNetworksEnabled                 AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled             AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled            AgentMetadataName = "feature_networks_https_enabled"
@@ -460,7 +461,8 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentCWSNetworkEnabled, config.SystemProbe.GetBool("event_monitoring_config.network.enabled"))
 	SetAgentMetadata(AgentCWSSecurityProfilesEnabled, config.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"))
 	SetAgentMetadata(AgentCWSRemoteConfigEnabled, config.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"))
-	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
+	SetAgentMetadata(AgentProcessEnabled, cfg.GetBool("process_config.process_collection.enabled"))
+	SetAgentMetadata(AgentProcessLanguageDetectionEnabled, config.Datadog.GetBool("language_detection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
