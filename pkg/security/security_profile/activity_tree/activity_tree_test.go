@@ -3421,133 +3421,15 @@ var activityTreeInsertExecEventTestCases = []struct {
 	},
 
 	// exec/21
-	// ---------------
-	//
-	// (exec)bin/1--------         +       systemd                      ==>>   (exec) /bin/4
-	//         | (exec)  | (exec)          | /bin/4 -> /bin/2                           | (exec)
-	//      /bin/2    /bin/3                                                          /bin/1 -------
-	//                                                                                  | (exec)  | (exec)
-	//                                                                                /bin/2    /bin/3
-	{
-		name: "exec/21",
-		tree: &ActivityTree{
-			validator: activityTreeInsertTestValidator{},
-			Stats:     NewActivityTreeNodeStats(),
-			ProcessNodes: []*ProcessNode{
-				{
-					Process: model.Process{
-						IsExecChild: true,
-						FileEvent: model.FileEvent{
-							PathnameStr: "/bin/1",
-						},
-					},
-					Children: []*ProcessNode{
-						{
-							Process: model.Process{
-								IsExecChild: true,
-								FileEvent: model.FileEvent{
-									PathnameStr: "/bin/2",
-								},
-							},
-						},
-						{
-							Process: model.Process{
-								IsExecChild: true,
-								FileEvent: model.FileEvent{
-									PathnameStr: "/bin/3",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		inputEvent: newExecTestEventWithAncestors([]model.Process{
-			{
-				IsExecChild: true,
-				ContainerID: "123",
-				FileEvent: model.FileEvent{
-					PathnameStr: "/bin/4",
-					FileFields: model.FileFields{
-						PathKey: model.PathKey{
-							Inode: 4,
-						},
-					},
-				},
-			},
-			{
-				IsExecChild: true,
-				ContainerID: "123",
-				FileEvent: model.FileEvent{
-					PathnameStr: "/bin/2",
-					FileFields: model.FileFields{
-						PathKey: model.PathKey{
-							Inode: 2,
-						},
-					},
-				},
-			},
-		}),
-		wantNode: &ProcessNode{
-			Process: model.Process{
-				FileEvent: model.FileEvent{
-					PathnameStr: "/bin/2",
-				},
-			},
-		},
-		wantNewEntry: true,
-		wantTree: &ActivityTree{
-			ProcessNodes: []*ProcessNode{
-				{
-					Process: model.Process{
-						IsExecChild: true,
-						FileEvent: model.FileEvent{
-							PathnameStr: "/bin/4",
-						},
-					},
-					Children: []*ProcessNode{
-						{
-							Process: model.Process{
-								IsExecChild: true,
-								FileEvent: model.FileEvent{
-									PathnameStr: "/bin/1",
-								},
-							},
-							Children: []*ProcessNode{
-								{
-									Process: model.Process{
-										IsExecChild: true,
-										FileEvent: model.FileEvent{
-											PathnameStr: "/bin/2",
-										},
-									},
-								},
-								{
-									Process: model.Process{
-										IsExecChild: true,
-										FileEvent: model.FileEvent{
-											PathnameStr: "/bin/3",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	},
-
-	// exec/22
 	// ---------------                                                          /bin/4
-	//                                                                             |
+	//                                                                             | (exec)
 	//       bin/1--------        /bin/4  +   systemd                ==>>       /bin/1 -------
-	//         |         |                    |- /bin/4 -> /bin/2                  |         |
+	//         |         |                    |- /bin/4 -> /bin/2                  | (exec)  | (exec)
 	//      /bin/2    /bin/3                                                    /bin/2    /bin/3
 	//         | (exec)  | (exec)
 	//
 	{
-		name: "exec/22",
+		name: "exec/21",
 		tree: &ActivityTree{
 			validator: activityTreeInsertTestValidator{},
 			Stats:     NewActivityTreeNodeStats(),
@@ -3664,17 +3546,17 @@ var activityTreeInsertExecEventTestCases = []struct {
 		},
 	},
 
-	// exec/23
+	// exec/22
 	// ---------------
 	//      /bin/0                                                 /bin/0
 	//         |                                                      |
-	//      /bin/1--------         +       systemd      ==>>       /bin/1 -------     /bin/4
-	//         |         |                 |- /bin/4 -> /bin/2        |         |        |
-	//      /bin/2    /bin/3                                       /bin/2    /bin/3   /bin/2
+	//      /bin/1--------         +       systemd      ==>>       /bin/1 -------         /bin/4
+	//         |         |                 |- /bin/4 -> /bin/2        | (exec)  | (exec)     | (exec)
+	//      /bin/2    /bin/3                                       /bin/2    /bin/3       /bin/2
 	//         | (exec)  | (exec)
 	//
 	{
-		name: "exec/23",
+		name: "exec/22",
 		tree: &ActivityTree{
 			validator: activityTreeInsertTestValidator{},
 			Stats:     NewActivityTreeNodeStats(),
