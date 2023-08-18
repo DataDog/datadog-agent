@@ -9,10 +9,15 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	tassert "github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+	"gotest.tools/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -22,7 +27,13 @@ const (
 )
 
 func TestHandleEvents(t *testing.T) {
-	s := newTestStore()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+	))
+
+	s := newWorkloadMeta(deps).(*workloadmeta)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -577,7 +588,12 @@ func TestSubscribe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := newTestStore()
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+			))
+
+			s := newWorkloadMeta(deps).(*workloadmeta)
 
 			s.handleEvents(tt.preEvents)
 
@@ -650,7 +666,12 @@ func TestGetKubernetesDeployment(t *testing.T) {
 }
 
 func TestGetProcess(t *testing.T) {
-	s := newTestStore()
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+	))
+
+	s := newWorkloadMeta(deps).(*workloadmeta)
 
 	process := &Process{
 		EntityID: EntityID{
@@ -723,10 +744,16 @@ func TestListContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testStore := newTestStore()
-			testStore.handleEvents(test.preEvents)
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+			))
 
-			containers := testStore.ListContainers()
+			s := newWorkloadMeta(deps).(*workloadmeta)
+
+			s.handleEvents(test.preEvents)
+
+			containers := s.ListContainers()
 
 			assert.Equal(t, test.expectedContainers, containers)
 		})
@@ -754,9 +781,14 @@ func TestListContainersWithFilter(t *testing.T) {
 		},
 	}
 
-	testStore := newTestStore()
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+	))
 
-	testStore.handleEvents([]CollectorEvent{
+	s := newWorkloadMeta(deps).(*workloadmeta)
+
+	s.handleEvents([]CollectorEvent{
 		{
 			Type:   EventTypeSet,
 			Source: fooSource,
@@ -769,7 +801,7 @@ func TestListContainersWithFilter(t *testing.T) {
 		},
 	})
 
-	runningContainers := testStore.ListContainersWithFilter(GetRunningContainers)
+	runningContainers := s.ListContainersWithFilter(GetRunningContainers)
 
 	assert.Equal(t, []*Container{runningContainer}, runningContainers)
 }
@@ -807,10 +839,16 @@ func TestListProcesses(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testStore := newTestStore()
-			testStore.handleEvents(test.preEvents)
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+			))
 
-			processes := testStore.ListProcesses()
+			s := newWorkloadMeta(deps).(*workloadmeta)
+
+			s.handleEvents(test.preEvents)
+
+			processes := s.ListProcesses()
 
 			assert.Equal(t, test.expectedProcesses, processes)
 		})
@@ -838,9 +876,14 @@ func TestListProcessesWithFilter(t *testing.T) {
 		},
 	}
 
-	testStore := newTestStore()
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+	))
 
-	testStore.handleEvents([]CollectorEvent{
+	s := newWorkloadMeta(deps).(*workloadmeta)
+
+	s.handleEvents([]CollectorEvent{
 		{
 			Type:   EventTypeSet,
 			Source: fooSource,
@@ -853,7 +896,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		},
 	})
 
-	retrievedProcesses := testStore.ListProcessesWithFilter(func(p *Process) bool {
+	retrievedProcesses := s.ListProcessesWithFilter(func(p *Process) bool {
 		return p.Language.Name == languagemodels.Java
 	})
 
@@ -1003,10 +1046,16 @@ func TestListImages(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testStore := newTestStore()
-			testStore.handleEvents(test.preEvents)
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+			))
 
-			assert.Equal(t, test.expectedImages, testStore.ListImages())
+			s := newWorkloadMeta(deps).(*workloadmeta)
+
+			s.handleEvents(test.preEvents)
+
+			assert.DeepEqual(t, test.expectedImages, s.ListImages())
 		})
 	}
 }
@@ -1048,10 +1097,15 @@ func TestGetImage(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testStore := newTestStore()
-			testStore.handleEvents(test.preEvents)
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+			))
 
-			actualImage, err := testStore.GetImage(test.imageID)
+			s := newWorkloadMeta(deps).(*workloadmeta)
+			s.handleEvents(test.preEvents)
+
+			actualImage, err := s.GetImage(test.imageID)
 
 			if test.expectsError {
 				assert.Error(t, err, errors.NewNotFound(string(KindContainerImageMetadata)).Error())
@@ -1137,10 +1191,15 @@ func TestResetProcesses(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testStore := newTestStore()
-			testStore.handleEvents(test.preEvents)
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+			))
 
-			ch := testStore.Subscribe(dummySubscriber, NormalPriority, nil)
+			s := newWorkloadMeta(deps).(*workloadmeta)
+			s.handleEvents(test.preEvents)
+
+			ch := s.Subscribe(dummySubscriber, NormalPriority, nil)
 			doneCh := make(chan struct{})
 
 			go func() {
@@ -1159,18 +1218,18 @@ func TestResetProcesses(t *testing.T) {
 			for i := range test.newProcesses {
 				entities[i] = test.newProcesses[i]
 			}
-			testStore.ResetProcesses(entities, SourceRemoteProcessCollector)
+			s.ResetProcesses(entities, SourceRemoteProcessCollector)
 			// Force handling of events generated by the reset
-			if len(testStore.eventCh) > 0 {
-				testStore.handleEvents(<-testStore.eventCh)
+			if len(s.eventCh) > 0 {
+				s.handleEvents(<-s.eventCh)
 			}
 
-			testStore.Unsubscribe(ch)
+			s.Unsubscribe(ch)
 
 			<-doneCh
 
-			processes := testStore.ListProcesses()
-			assert.ElementsMatch(t, processes, test.newProcesses)
+			processes := s.ListProcesses()
+			tassert.ElementsMatch(t, processes, test.newProcesses)
 		})
 	}
 
@@ -1329,7 +1388,12 @@ func TestReset(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			s := newTestStore()
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+			))
+
+			s := newWorkloadMeta(deps).(*workloadmeta)
 
 			s.handleEvents(test.preEvents)
 
@@ -1370,7 +1434,12 @@ func TestReset(t *testing.T) {
 func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
-	s := newTestStore()
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+	))
+
+	s := newWorkloadMeta(deps).(*workloadmeta)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -1390,11 +1459,4 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 			Entity: container,
 		},
 	})
-}
-
-func newTestStore() *store {
-	return &store{
-		store:   make(map[Kind]map[string]*cachedEntity),
-		eventCh: make(chan []CollectorEvent, eventChBufferSize),
-	}
 }

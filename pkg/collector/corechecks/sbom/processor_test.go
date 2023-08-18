@@ -24,7 +24,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/comp/workloadmeta"
-	fakeworkloadmeta "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -597,7 +596,11 @@ func TestProcessEvents(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
 
 			// FIXME(components): use actual workloadmeta mock component here instead.
-			fakeworkloadmeta := fakeworkloadmeta.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+				workloadmeta.MockModule,
+			))
 
 			sender := mocksender.NewMockSender("")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
@@ -606,7 +609,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond, false, time.Second)
+			p, err := newProcessor(workloadmetaStore, sender, 1, 50*time.Millisecond, false, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -614,9 +617,9 @@ func TestProcessEvents(t *testing.T) {
 			for _, ev := range test.inputEvents {
 				switch ev.Type {
 				case workloadmeta.EventTypeSet:
-					fakeworkloadmeta.Set(ev.Entity)
+					workloadmetaStore.Set(ev.Entity)
 				case workloadmeta.EventTypeUnset:
-					fakeworkloadmeta.Unset(ev.Entity)
+					workloadmetaStore.Unset(ev.Entity)
 				}
 			}
 

@@ -23,7 +23,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/DataDog/datadog-agent/comp/workloadmeta"
-	workloadmetaTesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -279,7 +278,12 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+				workloadmeta.MockModule,
+			))
+
 			workloadmetaStore.Set(&workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -375,7 +379,12 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Component](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+				workloadmeta.MockModule,
+			))
+
 			workloadmetaStore.Set(&workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,

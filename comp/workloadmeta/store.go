@@ -451,6 +451,14 @@ func (w *workloadmeta) Reset(newEntities []Entity, source Source) {
 	w.Notify(events)
 }
 
+// Set allows setting an entity in the workloadmeta store
+// This is a NOP in the real implementation
+func (w *workloadmeta) Set(entity Entity) {}
+
+// Unset removes an entity from the workloadmeta store
+// This is a NOP in the real implementation
+func (w *workloadmeta) Unset(entity Entity) {}
+
 func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = retryCollectorInitialInterval
@@ -763,17 +771,4 @@ func classifyByKindAndID(entities []Entity) map[Kind]map[string]Entity {
 	}
 
 	return res
-}
-
-// CreateGlobalStore creates a workloadmeta store, sets it as the default
-// global one, and returns it. Start() needs to be called before any data
-// collection happens.
-func CreateGlobalStore(catalog CollectorList) Store {
-	return NewStore(catalog)
-}
-
-// ResetGlobalStore resets the global store back to nil. This is useful in lifecycle
-// tests that start and stop parts of the agent multiple times.
-func ResetGlobalStore() {
-	globalStore = nil
 }

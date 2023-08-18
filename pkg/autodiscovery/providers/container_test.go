@@ -11,17 +11,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestProcessEvents(t *testing.T) {
 	// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
 	//                    and testing infra.
-	store := workloadmetatesting.NewStore()
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		workloadmeta.MockModule,
+	))
 
 	cp := &ContainerConfigProvider{
 		workloadmetaStore: store,
@@ -404,7 +410,11 @@ func TestGenerateConfig(t *testing.T) {
 
 			// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
 			//                    and testing infra.
-			store := workloadmetatesting.NewStore()
+			store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+				workloadmeta.MockModule,
+			))
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {
 				for _, c := range pod.GetAllContainers() {

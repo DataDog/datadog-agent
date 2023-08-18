@@ -11,10 +11,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/comp/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type wlmListenerSvc struct {
@@ -27,7 +30,7 @@ type testWorkloadmetaListener struct {
 	filters *containerFilters
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	store    *workloadmetatesting.Store
+	store    workloadmeta.Component
 	services map[string]wlmListenerSvc
 }
 
@@ -81,12 +84,18 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		t.Fatalf("cannot initialize container filters: %s", err)
 	}
 
+	w := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		workloadmeta.MockModule,
+	))
+
 	return &testWorkloadmetaListener{
 		t:       t,
 		filters: filters,
 		// FIXME(components): these tests will likely remain broken until we actually
 		//                    adopt the workloadmeta component mocks.
-		store:    workloadmetatesting.NewStore(),
+		store:    w,
 		services: make(map[string]wlmListenerSvc),
 	}
 }

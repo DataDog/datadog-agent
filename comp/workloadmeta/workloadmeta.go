@@ -42,12 +42,15 @@ type workloadmeta struct {
 type dependencies struct {
 	fx.In
 
+	Lc  fx.Lifecycle
+	Ctx context.Context // TODO: maybe this should be removed
+
 	Log     log.Component
 	Config  config.Component
 	Catalog CollectorList
 }
 
-func newWorkloadMeta(lc fx.Lifecycle, ctx context.Context, deps dependencies) Component {
+func newWorkloadMeta(deps dependencies) Component {
 
 	candidates := make(map[string]Collector)
 	for _, c := range deps.Catalog {
@@ -63,13 +66,13 @@ func newWorkloadMeta(lc fx.Lifecycle, ctx context.Context, deps dependencies) Co
 	}
 
 	// TODO: we probably need something here
-	lc.Append(fx.Hook{OnStart: func(context.Context) error {
-		wm.Start(ctx)
-		return nil
-	}})
-	lc.Append(fx.Hook{OnStop: func(context.Context) error {
-		return nil
-	}})
+	// deps.Lc.Append(fx.Hook{OnStart: func(context.Context) error {
+	// 	wm.Start(deps.Ctx)
+	// 	return nil
+	// }})
+	// deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
+	// 	return nil
+	// }})
 
 	return wm
 }

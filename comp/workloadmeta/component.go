@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: /* TODO: add team name */
+// team: container-integrations
 
 // Component is the component type.
 type Component interface {
@@ -123,11 +123,14 @@ type Component interface {
 	// - EventTypeUnset: one for each entity that exists in the store but is not
 	// present in newEntities.
 	Reset(newEntities []Entity, source Source)
-}
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+	// The following are for testing purposes and should maybe be revisited
+
+	// Set allows setting an entity in the workloadmeta store
+	Set(entity Entity)
+
+	// Unset removes an entity from the workloadmeta store
+	Unset(entity Entity)
 }
 
 // Module defines the fx options for this component.
@@ -135,9 +138,4 @@ var Module = fxutil.Component(
 	fx.Provide(
 		newWorkloadMeta,
 	),
-)
-
-// MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
 )

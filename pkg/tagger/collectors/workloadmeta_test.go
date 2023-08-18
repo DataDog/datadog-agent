@@ -10,10 +10,13 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/comp/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/comp/workloadmeta/testing"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"go.uber.org/fx"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +60,12 @@ func TestHandleKubePod(t *testing.T) {
 
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	store := workloadmetatesting.NewStore()
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		workloadmeta.MockModule,
+	))
+
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -461,7 +469,12 @@ func TestHandleECSTask(t *testing.T) {
 
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	store := workloadmetatesting.NewStore()
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		workloadmeta.MockModule,
+	))
+
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -1154,7 +1167,12 @@ func TestHandleDelete(t *testing.T) {
 
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	store := workloadmetatesting.NewStore()
+	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		workloadmeta.MockModule,
+	))
+
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -1230,7 +1248,11 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collector := &WorkloadMetaCollector{
 		// FIXME(components): these tests will likely remain broken until we actually
 		//                    adopt the workloadmeta component mocks.
-		store: workloadmetatesting.NewStore(),
+		store: fxutil.Test[workloadmeta.Component](t, fx.Options(
+			log.MockModule,
+			config.MockModule,
+			workloadmeta.MockModule,
+		)),
 		children: map[string]map[string]struct{}{
 			// Notice that here we set the container that belonged to the pod
 			// but that no longer exists
