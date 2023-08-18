@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
@@ -22,7 +23,7 @@ func (lo LoaderOne) Name() string {
 	return "loader_one"
 }
 
-func (lo LoaderOne) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (lo LoaderOne) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -33,7 +34,7 @@ func (lt LoaderTwo) Name() string {
 	return "loader_two"
 }
 
-func (lt LoaderTwo) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (lt LoaderTwo) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -44,7 +45,7 @@ func (lt *LoaderThree) Name() string {
 	return "loader_three"
 }
 
-func (lt *LoaderThree) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }

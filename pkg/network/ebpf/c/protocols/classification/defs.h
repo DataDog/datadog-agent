@@ -48,6 +48,7 @@ typedef enum {
 
     __LAYER_API_MIN = LAYER_API_BIT,
     // Add API protocols here (eg. gRPC)
+    PROTOCOL_GRPC,
     __LAYER_API_MAX = LAYER_API_MAX,
 
     __LAYER_APPLICATION_MIN = LAYER_APPLICATION_BIT,
@@ -97,6 +98,7 @@ typedef enum {
     CLASSIFICATION_DBS_PROG,
     __PROG_API,
     // API classification programs go here
+    CLASSIFICATION_GRPC_PROG,
     __PROG_ENCRYPTION,
     // Encryption classification programs go here
     CLASSIFICATION_PROG_MAX,
@@ -114,6 +116,7 @@ typedef enum {
     PROG_HTTP2,
     PROG_HTTP2_FRAME_PARSER,
     PROG_KAFKA,
+    PROG_GRPC,
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;

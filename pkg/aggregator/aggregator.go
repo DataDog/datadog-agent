@@ -789,13 +789,13 @@ func (agg *BufferedAggregator) run() {
 // Container agent tags may be missing in the first seconds after agent startup
 func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
-	if agg.hostname == "" {
-		var err error
-		tags, err = agg.globalTags(tagger.ChecksCardinality)
-		if err != nil {
-			log.Debugf("Couldn't get Global tags: %v", err)
-		}
+
+	var err error
+	tags, err = agg.globalTags(tagger.ChecksCardinality)
+	if err != nil {
+		log.Debugf("Couldn't get Global tags: %v", err)
 	}
+
 	if agg.tlmContainerTagsEnabled {
 		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
 		if err == nil {

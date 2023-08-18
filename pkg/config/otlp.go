@@ -29,7 +29,7 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
-	config.BindEnvAndSetDefault(OTLPLogsEnabled, true)
+	config.BindEnvAndSetDefault(OTLPLogsEnabled, false)
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go

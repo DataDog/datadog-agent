@@ -171,7 +171,7 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Su
 	return sortedFilteredSuites
 }
 
-// Dagnose sites are already sorted, sort only by category and then
+// Diagnose sites are already sorted, sort only by category and then
 // by name. It may change in future versions, e.g. configured to not to sort
 // or confgured to sort by other attributes or order (which would need config)
 func sortDiagnoses(siteDiagnoses []diagnosis.Diagnoses) {
@@ -305,6 +305,61 @@ func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 		return nil, err
 	}
 
+	// Please note that if streaming will be implemented sorting strategy may need to be changed
+	sortDiagnoses(diagnoses)
+
+	return diagnoses, nil
+}
+
+	}
+
+	// Make sure we have a session token (for privileged information)
+	if err = util.SetAuthToken(); err != nil {
+		return nil, fmt.Errorf("auth error: %w", err)
+	}
+
+	// Form call end-point
+	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+
+	// Serialized diag config to pass it to Agent execution context
+	var cfgSer []byte
+	if cfgSer, err = json.Marshal(diagCfg); err != nil {
+		return nil, fmt.Errorf("error while encoding diagnose configuration: %s", err)
+	}
+
+	// Run diagnose code inside Agent process
+	var r []byte
+	r, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
+	if err != nil {
+		if r != nil && string(r) != "" {
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(r))
+		}
+		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
+	}
+
+	// Deserialize results
+	var diagnoses []diagnosis.Diagnoses
+	err = json.Unmarshal(r, &diagnoses)
+	if err != nil {
+		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
+	}
+
+	return diagnoses, nil
+}
+
+func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+
+	// Make remote call to get diagnoses
+	if !diagCfg.RunLocal {
+		return requestDiagnosesFromAgentProcess(diagCfg)
+	}
+
+	// Collect local diagnoses
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Please note that if streaming will be implemented sorting strategy may need to be chaned
 	sortDiagnoses(diagnoses)
 
@@ -324,6 +379,27 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config) error {
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+		// attempt to do so locally
+		diagCfg.RunLocal = true
+		diagnoses, err = Run(diagCfg)
+	}
+
+	if err != nil {
+		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+		return
+	}
+	for _, ds := range diagnoses {
+		suiteAlreadyReported := false
+		for _, d := range ds.SuiteDiagnoses {
+			c.increment(d.Result)
+
+			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
+				outputDot(w, &lastDot)
+				continue
+			}
+
+			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 		// attempt to do so locally
 		diagCfg.RunLocal = true

@@ -48,6 +48,7 @@ var (
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
+		goTLSSpec,
 		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
@@ -150,13 +151,12 @@ func (m *Monitor) Start() error {
 		if err != nil {
 			if errors.Is(err, syscall.ENOMEM) {
 				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+			} else {
+				err = fmt.Errorf("could not enable USM: %s", err)
 			}
 
 			m.Stop()
 
-			if err != nil {
-				err = fmt.Errorf("could not enable USM: %s", err)
-			}
 			startupError = err
 		}
 	}()
@@ -166,7 +166,7 @@ func (m *Monitor) Start() error {
 	// enabledProtocolsTmp to m.enabledProtocols, we'll use the enabledProtocolsTmp.
 	enabledProtocolsTmp := m.enabledProtocols[:0]
 	for _, protocol := range m.enabledProtocols {
-		startErr := protocol.PreStart(m.ebpfProgram.Manager.Manager)
+		startErr := protocol.PreStart(m.ebpfProgram.Manager.Manager, m.ebpfProgram.buildMode)
 		if startErr != nil {
 			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocol.Name(), startErr)
 			continue
