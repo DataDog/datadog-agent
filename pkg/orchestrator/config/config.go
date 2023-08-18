@@ -209,6 +209,6 @@ func IsOrchestratorEnabled() (bool, bool, string) {
 		hname, _ := hostname.Get(context.TODO())
 		clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	}
-	coreCheck := config.Datadog.GetBool(key(orchestratorNS, "pod_corecheck"))
+	coreCheck := config.Datadog.GetBool(key(orchestratorNS, "run_on_node_agent"))
 	return enabled, coreCheck, clusterName
 }

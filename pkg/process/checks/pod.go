@@ -56,6 +56,8 @@ func (c *PodCheck) IsEnabled() bool {
 	// Do not run this check if we enabled the corecheck for pods
 	if coreCheck {
 		return false
+	} else {
+		log.Warn("Running the pod check on the processor agent will soon be deprecated")
 	}
 
 	if kubeClusterName == "" {
