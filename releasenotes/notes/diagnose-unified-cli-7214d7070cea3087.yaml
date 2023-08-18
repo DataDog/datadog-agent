@@ -24,4 +24,4 @@ upgrade:
     ``connectivity-datadog-core-endpoints``suite. Correspondingly,
     diagnostics previously reported via ``metadata-availability``
     subcommand will be reported now as part of
-    ``connectivity-datadog-autodiscovery``suite.
+    ``connectivity-datadog-autodiscovery`` suite.
