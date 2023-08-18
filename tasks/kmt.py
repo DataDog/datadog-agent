@@ -1,5 +1,5 @@
-import platform
 import os
+import platform
 import re
 from glob import glob
 
