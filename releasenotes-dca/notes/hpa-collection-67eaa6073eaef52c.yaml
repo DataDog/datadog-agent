@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add ``VerticalPodAutoscalers`` collection in the orchestrator check.
