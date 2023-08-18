@@ -390,25 +390,31 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 			return nil, nil
 		}
 
-		watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
-			sharedlibraries.Rule{
-				Re:           regexp.MustCompile(`libssl.so`),
-				RegisterCB:   addHooks(m, openSSLProbes),
-				UnregisterCB: removeHooks(m, openSSLProbes),
-			},
-			sharedlibraries.Rule{
-				Re:           regexp.MustCompile(`libcrypto.so`),
-				RegisterCB:   addHooks(m, cryptoProbes),
-				UnregisterCB: removeHooks(m, cryptoProbes),
-			},
-			sharedlibraries.Rule{
-				Re:           regexp.MustCompile(`libgnutls.so`),
-				RegisterCB:   addHooks(m, gnuTLSProbes),
-				UnregisterCB: removeHooks(m, gnuTLSProbes),
-			},
+		var (
+			watcher *sharedlibraries.Watcher
+			err     error
 		)
-		if err != nil {
-			return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+		if c.EnableHTTPSMonitoring && http.HTTPSSupported(c) {
+			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
+				sharedlibraries.Rule{
+					Re:           regexp.MustCompile(`libssl.so`),
+					RegisterCB:   addHooks(m, openSSLProbes),
+					UnregisterCB: removeHooks(m, openSSLProbes),
+				},
+				sharedlibraries.Rule{
+					Re:           regexp.MustCompile(`libcrypto.so`),
+					RegisterCB:   addHooks(m, cryptoProbes),
+					UnregisterCB: removeHooks(m, cryptoProbes),
+				},
+				sharedlibraries.Rule{
+					Re:           regexp.MustCompile(`libgnutls.so`),
+					RegisterCB:   addHooks(m, gnuTLSProbes),
+					UnregisterCB: removeHooks(m, gnuTLSProbes),
+				},
+			)
+			if err != nil {
+				return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+			}
 		}
 
 		return &sslProgram{
