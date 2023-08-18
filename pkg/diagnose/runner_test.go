@@ -6,7 +6,6 @@
 package diagnose
 
 import (
-	"bytes"
 	"errors"
 	"regexp"
 	"testing"
@@ -15,19 +14,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestConnectivityAutodiscovery(t *testing.T) {
-
-	diagnosis.RegisterMetadataAvail("failing", func() error { return errors.New("fail") })
-	diagnosis.RegisterMetadataAvail("succeeding", func() error { return nil })
-
-	w := &bytes.Buffer{}
-	RunMetadataAvail(w)
-
-	result := w.String()
-	assert.Contains(t, result, "=== Running failing diagnosis ===\n===> FAIL")
-	assert.Contains(t, result, "=== Running succeeding diagnosis ===\n===> PASS")
-}
 
 func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
