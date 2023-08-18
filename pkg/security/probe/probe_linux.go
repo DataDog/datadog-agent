@@ -360,7 +360,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
-	// send events
+	// send specific event to consumers that need all the SECL model fields
 	for _, handler := range p.seclModelEventHandlers[event.GetEventType()] {
 		handler.HandleEvent(event)
 	}
