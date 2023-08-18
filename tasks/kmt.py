@@ -60,12 +60,12 @@ def destroy_stack(ctx, stack=None, force=False, ssh_key=""):
 
 
 @task
-def pause_stack(stack=None):
+def pause_stack(_, stack=None):
     stacks.pause_stack(stack)
 
 
 @task
-def resume_stack(stack=None):
+def resume_stack(_, stack=None):
     stacks.resume_stack(stack)
 
 

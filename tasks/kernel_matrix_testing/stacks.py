@@ -293,7 +293,7 @@ def pause_stack(stack=None):
     conn.close()
 
 
-def resume_stack(_, stack=None):
+def resume_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")

@@ -88,7 +88,7 @@ def pause_domains(conn, stack):
         info(f"[+] VM {name} is paused")
 
 
-def resume_stack(conn, stack):
+def resume_network(conn, stack):
     networks = get_resources_in_stack(stack, conn.listAllNetworks)
     info(f"[*] {len(networks)} networks running in stack {stack}")
 
@@ -96,14 +96,14 @@ def resume_stack(conn, stack):
         name = network.name()
         if not network.isActive():
             network.create()
-        info(f"[+] Network {name} created")
+        info(f"[+] Network {name} resumed")
 
 
 def resume_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
     info(f"[*] {len(domains)} VMs running in stack {stack}")
 
-    resume_stack(conn, stack)
+    resume_network(conn, stack)
 
     for domain in domains:
         name = domain.name()
