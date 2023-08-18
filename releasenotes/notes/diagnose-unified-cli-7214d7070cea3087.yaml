@@ -19,7 +19,7 @@ upgrade:
     do not exist anymore and their diagnoses are reported in a more
     general and structured way.
 
-    Diagnostics previously reported via``datadog-connectivity``
+    Diagnostics previously reported via ``datadog-connectivity``
     subcommand will be reported now as part of
     ``connectivity-datadog-core-endpoints``suite. Correspondingly,
     diagnostics previously reported via``metadata-availability``
