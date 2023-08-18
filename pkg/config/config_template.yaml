@@ -2256,9 +2256,9 @@ api_key:
 ## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25.0
 ## When running in a container with jmx_use_container_support enabled, the JVM can
 ## automatically declare the maximum heap size based off of a percentage of
-## total container allocated memory. This option is overwritten if 
+## total container allocated memory. This option is overwritten if
 ## you use -Xmx to manually define the size of the heap. This option applies
-## to containers with a total memory limit greater than ~250mb. If 
+## to containers with a total memory limit greater than ~250mb. If
 ## jmx_use_container_support is disabled this option has no effect.
 #
 # jmx_max_ram_percentage: 25.0
@@ -3837,7 +3837,7 @@ api_key:
         ## - `drop` always drops the initial value.
         ## - `keep` always reports the initial value.
         #
-        # initial_cumulative_monotonic_value: auto   
+        # initial_cumulative_monotonic_value: auto
 
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
@@ -3904,9 +3904,9 @@ api_key:
   #
   # logs:
 
-    ## @param enabled - boolean - optional - default: true
-    ## @env DD_OTLP_CONFIG_LOGS_ENABLED - boolean - optional - default: true
-    ## Set to false to disable logs support in the OTLP ingest endpoint.
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_LOGS_ENABLED - boolean - optional - default: false
+    ## Set to true to enable logs support in the OTLP ingest endpoint.
     ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true
