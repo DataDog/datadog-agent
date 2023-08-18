@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        architecture: [amd64, arm64]
+        architecture: [amd64, amd64, amd64, amd64, amd64, amd64, arm64, arm64, arm64, arm64, arm64, arm64]
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
