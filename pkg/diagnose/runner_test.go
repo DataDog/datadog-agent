@@ -37,9 +37,11 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
 	re, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunNoDiagnoses")
 	diagCfg := diagnosis.Config{
-		Include: []*regexp.Regexp{re},
+		Include:  []*regexp.Regexp{re},
+		RunLocal: true,
 	}
-	diagnoses := RunAll(diagCfg)
+	diagnoses, err := Run(diagCfg)
+	assert.NoError(t, err)
 	assert.Len(t, diagnoses, 0)
 }
 
@@ -75,9 +77,11 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 	// Include and run
 	reInclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis")
 	diagCfgInclude := diagnosis.Config{
-		Include: []*regexp.Regexp{reInclude},
+		Include:  []*regexp.Regexp{reInclude},
+		RunLocal: true,
 	}
-	outSuitesDiagnosesInclude := RunAll(diagCfgInclude)
+	outSuitesDiagnosesInclude, err := Run(diagCfgInclude)
+	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)
 	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesInclude[1].SuiteDiagnoses, inDiagnoses)
@@ -85,11 +89,122 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 	// Include and Exclude and run
 	reExclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a")
 	diagCfgIncludeExclude := diagnosis.Config{
-		Include: []*regexp.Regexp{reInclude},
-		Exclude: []*regexp.Regexp{reExclude},
+		Include:  []*regexp.Regexp{reInclude},
+		Exclude:  []*regexp.Regexp{reExclude},
+		RunLocal: true,
 	}
-	outSuitesDiagnosesIncludeExclude := RunAll(diagCfgIncludeExclude)
+	outSuitesDiagnosesIncludeExclude, err := Run(diagCfgIncludeExclude)
+	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteName, "TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b")
+}
+
+func TestDiagnoseSortingOrder(t *testing.T) {
+	suitesDiagnoses := []diagnosis.Diagnoses{
+		{
+			SuiteName: "SN-single category",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N3", Category: "C1"},
+				{Name: "N1", Category: "C1"},
+				{Name: "N2", Category: "C1"},
+				{Name: "N4", Category: "C1"},
+			},
+		},
+		{
+			SuiteName: "SN-multiple categories",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N3", Category: "C2"},
+				{Name: "N1", Category: "C1"},
+				{Name: "N2", Category: "C2"},
+				{Name: "N4", Category: "C1"},
+			},
+		},
+		{
+			SuiteName: "SN-empty categories",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N3"},
+				{Name: "N1"},
+				{Name: "N2"},
+				{Name: "N4"},
+			},
+		},
+		{
+			SuiteName: "SN-helf-empty categories",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N3"},
+				{Name: "N1"},
+				{Name: "N2", Category: "C2"},
+				{Name: "N4", Category: "C1"},
+			},
+		},
+		{
+			SuiteName: "SN-half-empty names",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N3", Category: "C1"},
+				{Category: "C1"},
+				{Name: "N2", Category: "C1"},
+				{Category: "C1"},
+			},
+		},
+	}
+
+	expectedSuitesDiagnoses := []diagnosis.Diagnoses{
+		{
+			SuiteName: "SN-single category",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N1", Category: "C1"},
+				{Name: "N2", Category: "C1"},
+				{Name: "N3", Category: "C1"},
+				{Name: "N4", Category: "C1"},
+			},
+		},
+		{
+			SuiteName: "SN-multiple categories",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N1", Category: "C1"},
+				{Name: "N4", Category: "C1"},
+				{Name: "N2", Category: "C2"},
+				{Name: "N3", Category: "C2"},
+			},
+		},
+		{
+			SuiteName: "SN-empty categories",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N1"},
+				{Name: "N2"},
+				{Name: "N3"},
+				{Name: "N4"},
+			},
+		},
+		{
+			SuiteName: "SN-helf-empty categories",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Name: "N1"},
+				{Name: "N3"},
+				{Name: "N4", Category: "C1"},
+				{Name: "N2", Category: "C2"},
+			},
+		},
+		{
+			SuiteName: "SN-half-empty names",
+			SuiteDiagnoses: []diagnosis.Diagnosis{
+				{Category: "C1"},
+				{Category: "C1"},
+				{Name: "N2", Category: "C1"},
+				{Name: "N3", Category: "C1"},
+			},
+		},
+	}
+
+	sortDiagnoses(suitesDiagnoses)
+
+	// Enumberate suites
+	for i, sd := range suitesDiagnoses {
+		// Enumberate diagnoses
+		for j, d := range sd.SuiteDiagnoses {
+			assert.Equal(t, d.Category, expectedSuitesDiagnoses[i].SuiteDiagnoses[j].Category)
+			assert.Equal(t, d.Name, expectedSuitesDiagnoses[i].SuiteDiagnoses[j].Name)
+		}
+	}
 }

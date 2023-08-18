@@ -43,7 +43,7 @@ type cliParams struct {
 	verbose bool
 
 	// run diagnose in the context of CLI process instead of running in the context of agent service irunni, value of the --local flag
-	forceLocal bool
+	runLocal bool
 
 	// run diagnose on other processes, value of --list flag
 	listSuites bool
@@ -98,7 +98,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// Normally internal diagnose functions will run in the context of agent and other services. It can be
 	// overridden via --local options and if specified diagnose functions will be executed in context
 	// of the agent diagnose CLI process if possible.
-	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.forceLocal, "local", "l", false, "force diagnose execution by the command line instead of the agent process (useful when troubleshooting privilege related problems)")
+	diagnoseAllCommand.PersistentFlags().BoolVarP(&cliParams.runLocal, "local", "o", false, "run diagnose by the CLI process instead of the agent process (useful to troubleshooting privilege related problems)")
 
 	// List of regular expressions to include and or exclude names of diagnose suites
 	diagnoseAllCommand.PersistentFlags().StringSliceVarP(&cliParams.include, "include", "i", []string{}, "diagnose suites to run as a list of regular expressions")
@@ -211,8 +211,8 @@ func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
 
 func cmdAll(log log.Component, config config.Component, cliParams *cliParams) error {
 	diagCfg := diagnosis.Config{
-		Verbose:    cliParams.verbose,
-		ForceLocal: cliParams.forceLocal,
+		Verbose:  cliParams.verbose,
+		RunLocal: cliParams.runLocal,
 	}
 
 	// prepare include/exclude
@@ -224,13 +224,13 @@ func cmdAll(log log.Component, config config.Component, cliParams *cliParams) er
 		return err
 	}
 
-	// List
+	// List command
 	if cliParams.listSuites {
 		pkgdiagnose.ListAllStdOut(color.Output, diagCfg)
 		return nil
 	}
 
-	// Run
+	// Run command
 	pkgdiagnose.RunAllStdOut(color.Output, diagCfg)
 	return nil
 }

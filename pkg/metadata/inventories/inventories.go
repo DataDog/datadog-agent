@@ -30,6 +30,7 @@ type schedulerInterface interface {
 // CollectorInterface is an interface for the MapOverChecks method of the collector
 type CollectorInterface interface {
 	MapOverChecks(func([]check.Info))
+	GetChecks() []check.Check
 }
 
 type checkMetadataCacheEntry struct {
