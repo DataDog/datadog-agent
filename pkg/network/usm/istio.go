@@ -22,6 +22,68 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+var istioProbes = []manager.ProbesSelector{
+	&manager.AllOf{
+		Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: ssDoHandshakeProbe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: ssDoHandshakeRetprobe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslConnectProbe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslConnectRetprobe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslSetBioProbe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslSetFDProbe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslReadProbe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslReadRetprobe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslWriteProbe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslWriteRetprobe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslShutdownProbe,
+				},
+			},
+		},
+	},
+}
+
 // envoyCmd represents the search term used for determining
 // whether or not a given PID represents an Envoy process.
 // The search is done over the /proc/<pid>/cmdline file.
@@ -67,8 +129,8 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 		done:     make(chan struct{}),
 
 		// Callbacks
-		registerCB:   addHooks(mgr, openSSLProbes),
-		unregisterCB: removeHooks(mgr, openSSLProbes),
+		registerCB:   addHooks(mgr, istioProbes),
+		unregisterCB: removeHooks(mgr, istioProbes),
 	}
 }
 
