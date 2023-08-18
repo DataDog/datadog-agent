@@ -185,7 +185,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	}
 
-	t.activeBuffer = network.NewConnectionBufferFromSlice(delta.Conns)
+	t.activeBuffer.Assign(delta.Conns)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {

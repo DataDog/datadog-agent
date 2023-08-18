@@ -20,12 +20,10 @@ func NewConnectionBuffer(initSize, minSize int) *ConnectionBuffer {
 	}
 }
 
-func NewConnectionBufferFromSlice(conns []ConnectionStats) *ConnectionBuffer {
-	return &ConnectionBuffer{
-		buf:           conns,
-		off:           len(conns),
-		minBufferSize: 256,
-	}
+// Assign resets the buffer to the passed in slice
+func (b *ConnectionBuffer) Assign(slice []ConnectionStats) {
+	b.buf = slice
+	b.off = len(slice)
 }
 
 // Next returns the next `ConnectionStats` object available for writing.

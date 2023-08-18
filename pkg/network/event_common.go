@@ -29,6 +29,8 @@ const (
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
+
+	defaultConnectionBufferSize = 1024
 )
 
 // ConnectionType will be either TCP or UDP
@@ -125,6 +127,7 @@ func (e EphemeralPortType) String() string {
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	Conns                       []ConnectionStats
+	Buffer                      *ConnectionBuffer
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
@@ -135,23 +138,30 @@ type Connections struct {
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
-
-	buffer *PooledConnectionBuffer
 }
 
-type PooledConnectionBuffer struct {
-	*ConnectionBuffer
-	Pool *sync.Pool
+var connectionBufferPool = sync.Pool{
+	New: func() any {
+		return NewConnectionBuffer(defaultConnectionBufferSize, 256)
+	},
 }
 
-func NewConnections(p *PooledConnectionBuffer) *Connections {
-	return &Connections{buffer: p, Conns: p.Connections()}
+func NewConnections() *Connections {
+	c := &Connections{Buffer: connectionBufferPool.Get().(*ConnectionBuffer)}
+	c.Conns = c.Buffer.Connections()
+	return c
+}
+
+func (c *Connections) Assign(conns []ConnectionStats) {
+	c.Buffer.Assign(conns)
+	c.Conns = c.Buffer.Connections()
 }
 
 func (c *Connections) Reclaim() {
 	c.Conns = nil
-	c.buffer.Reset()
-	c.buffer.Pool.Put(c.buffer.ConnectionBuffer)
+	c.Buffer.Reset()
+	connectionBufferPool.Put(c.Buffer)
+	c.Buffer = nil
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe
