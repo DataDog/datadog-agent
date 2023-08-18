@@ -56,7 +56,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 	// insert tagger tags
 	taggerTags, err := tagger.Tag(kubelet.PodUIDToTaggerEntityName(string(r.UID)), collectors.HighCardinality)
 	if err != nil {
-		log.Debugfc(orchestrator.ExtraLogContext, "Could not retrieve tags for pod: %s", err.Error())
+		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true
 		return
 	}
@@ -79,7 +79,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 
 	// Custom resource version to work around kubelet issues.
 	if err := k8sTransformers.FillK8sPodResourceVersion(m); err != nil {
-		log.Warnfc(orchestrator.ExtraLogContext, "Failed to compute pod resource version: %s", err.Error())
+		log.Warnc(fmt.Sprintf("Failed to compute pod resource version: %s", err.Error()), orchestrator.ExtraLogContext)
 		skip = true
 		return
 	}

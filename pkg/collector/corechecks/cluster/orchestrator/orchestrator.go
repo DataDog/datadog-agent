@@ -10,6 +10,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -178,7 +179,7 @@ func (o *OrchestratorCheck) Run() error {
 		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
 			if errLeader == apiserver.ErrNotLeader {
-				log.Debugfc(orchestrator.ExtraLogContext, "Not leader (leader is %q). Skipping the Orchestrator check", leader)
+				log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)
 				return nil
 			}
 
@@ -197,7 +198,7 @@ func (o *OrchestratorCheck) Run() error {
 
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	log.Infofc(orchestrator.ExtraLogContext, "Shutting down informers used by the check '%s'", o.ID())
+	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
 }
 
