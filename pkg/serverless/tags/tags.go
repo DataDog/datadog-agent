@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -230,9 +231,20 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 }
 
 func getRuntime(procPath string, osReleasePath string, varName string) string {
-	foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
-	runtime := cleanRuntimes(foundRuntimes)
+	runtime := ""
+	counter := 0
+	start := time.Now()
+	for len(runtime) == 0 && counter < 5 {
+		if counter > 0 {
+			time.Sleep(5 * time.Millisecond)
+		}
+		foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
+		runtime = cleanRuntimes(foundRuntimes)
+		runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
+		counter++
+	}
 	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
+	log.Debugf("finding the lambda runtime took %v. found runtime: %s", time.Since(start), runtime)
 	if len(runtime) == 0 {
 		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
 	}
