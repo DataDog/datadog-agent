@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
@@ -27,7 +27,7 @@ var (
 )
 
 func NewTestConcentrator(now time.Time) *Concentrator {
-	statsChan := make(chan pb.StatsPayload)
+	statsChan := make(chan *pb.StatsPayload)
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
 		AgentVersion:   "0.99.0",
@@ -44,9 +44,8 @@ func getTsInBucket(alignedNow int64, bsize int64, offset int64) int64 {
 
 // testSpan avoids typo and inconsistency in test spans (typical pitfall: duration, start time,
 // and end time are aligned, and end time is the one that needs to be aligned
-func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, resource string, err int32) *pb.Span {
-	now := time.Now().UnixNano()
-	alignedNow := now - now%testBucketInterval
+func testSpan(now time.Time, spanID uint64, parentID uint64, duration, offset int64, service, resource string, err int32, meta map[string]string) *pb.Span {
+	alignedNow := now.UnixNano() - now.UnixNano()%testBucketInterval
 
 	return &pb.Span{
 		SpanID:   spanID,
@@ -58,6 +57,7 @@ func testSpan(spanID uint64, parentID uint64, duration, offset int64, service, r
 		Resource: resource,
 		Error:    err,
 		Type:     "db",
+		Meta:     meta,
 	}
 }
 
@@ -79,18 +79,18 @@ func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
 }
 
 // assertCountsEqual is a test utility function to assert expected == actual for count aggregations.
-func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []pb.ClientGroupedStats) {
-	expectedM := make(map[string]pb.ClientGroupedStats)
-	actualM := make(map[string]pb.ClientGroupedStats)
+func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual []*pb.ClientGroupedStats) {
+	expectedM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
+	actualM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
-		expectedM[e.Service+e.Resource] = e
+		expectedM[NewAggregationFromGroup(e).BucketsAggregationKey] = e
 	}
 	for _, a := range actual {
 		a.ErrorSummary = nil
 		a.OkSummary = nil
-		actualM[a.Service+a.Resource] = a
+		actualM[NewAggregationFromGroup(a).BucketsAggregationKey] = a
 	}
 	assert.Equal(t, expectedM, actualM)
 }
@@ -101,14 +101,14 @@ func TestTracerHostname(t *testing.T) {
 	now := time.Now()
 
 	spans := []*pb.Span{
-		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
 	}
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "tracer-hostname")
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
 
-	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 	assert.Equal("tracer-hostname", stats.Stats[0].Hostname)
 }
 
@@ -120,12 +120,12 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 	// Build that simply have spans spread over time windows.
 	spans := []*pb.Span{
-		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
-		testSpan(1, 0, 40, 4, "A1", "resource1", 0),
-		testSpan(1, 0, 30, 3, "A1", "resource1", 0),
-		testSpan(1, 0, 20, 2, "A1", "resource1", 0),
-		testSpan(1, 0, 10, 1, "A1", "resource1", 0),
-		testSpan(1, 0, 1, 0, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 40, 4, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 30, 3, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 20, 2, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 10, 1, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 1, 0, "A1", "resource1", 0, nil),
 	}
 
 	traceutil.ComputeTopLevel(spans)
@@ -138,14 +138,14 @@ func TestConcentratorOldestTs(t *testing.T) {
 		c.addNow(testTrace, "")
 
 		for i := 0; i < c.bufferLen; i++ {
-			stats := c.flushNow(flushTime)
+			stats := c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
 			}
 			flushTime += testBucketInterval
 		}
 
-		stats := c.flushNow(flushTime)
+		stats := c.flushNow(flushTime, false)
 
 		if !assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
@@ -153,7 +153,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates old past time buckets, so each count
 		// should be an aggregated total across the spans.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -175,14 +175,14 @@ func TestConcentratorOldestTs(t *testing.T) {
 		c.addNow(testTrace, "")
 
 		for i := 0; i < c.bufferLen-1; i++ {
-			stats := c.flushNow(flushTime)
+			stats := c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
 			}
 			flushTime += testBucketInterval
 		}
 
-		stats := c.flushNow(flushTime)
+		stats := c.flushNow(flushTime, false)
 		if !assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
 		}
@@ -190,7 +190,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates, it should have it all except the
 		// last four spans that have offset of 0.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -204,13 +204,13 @@ func TestConcentratorOldestTs(t *testing.T) {
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
 
-		stats = c.flushNow(flushTime)
+		stats = c.flushNow(flushTime, false)
 		if !assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
 		}
 
 		// Stats of the last four spans.
-		expected = []pb.ClientGroupedStats{
+		expected = []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -240,12 +240,12 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 	// Build that simply have spans spread over time windows.
 	spans := []*pb.Span{
-		testSpan(1, 0, 50, 5, "A1", "resource1", 0),
-		testSpan(1, 0, 40, 4, "A1", "resource1", 0),
-		testSpan(1, 0, 30, 3, "A1", "resource1", 0),
-		testSpan(1, 0, 20, 2, "A1", "resource1", 0),
-		testSpan(1, 0, 10, 1, "A1", "resource1", 0),
-		testSpan(1, 0, 1, 0, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 40, 4, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 30, 3, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 20, 2, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 10, 1, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 1, 0, "A1", "resource1", 0, nil),
 	}
 
 	traceutil.ComputeTopLevel(spans)
@@ -261,7 +261,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 		flushTime := now.UnixNano()
 		for i := 0; i <= c.bufferLen; i++ {
-			stats := c.flushNow(flushTime)
+			stats := c.flushNow(flushTime, false)
 
 			if len(stats.Stats) == 0 {
 				continue
@@ -285,7 +285,6 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 // TestConcentratorStatsCounts tests exhaustively each stats bucket, over multiple time buckets.
 func TestConcentratorStatsCounts(t *testing.T) {
-	assert := assert.New(t)
 	now := time.Now()
 	c := NewTestConcentrator(now)
 
@@ -298,27 +297,29 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	// Build a trace with stats which should cover 3 time buckets.
 	spans := []*pb.Span{
 		// more than 2 buckets old, should be added to the 2 bucket-old, first flush.
-		testSpan(1, 0, 111, 10, "A1", "resource1", 0),
-		testSpan(1, 0, 222, 3, "A1", "resource1", 0),
+		testSpan(now, 1, 0, 111, 10, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 222, 3, "A1", "resource1", 0, nil),
+		testSpan(now, 11, 0, 333, 3, "A1", "resource3", 0, map[string]string{"span.kind": "client"}),
+		testSpan(now, 12, 0, 444, 3, "A1", "resource3", 0, map[string]string{"span.kind": "server"}),
 		// 2 buckets old, part of the first flush
-		testSpan(1, 0, 24, 2, "A1", "resource1", 0),
-		testSpan(2, 0, 12, 2, "A1", "resource1", 2),
-		testSpan(3, 0, 40, 2, "A2", "resource2", 2),
-		testSpan(4, 0, 300000000000, 2, "A2", "resource2", 2), // 5 minutes trace
-		testSpan(5, 0, 30, 2, "A2", "resourcefoo", 0),
+		testSpan(now, 1, 0, 24, 2, "A1", "resource1", 0, nil),
+		testSpan(now, 2, 0, 12, 2, "A1", "resource1", 2, nil),
+		testSpan(now, 3, 0, 40, 2, "A2", "resource2", 2, nil),
+		testSpan(now, 4, 0, 300000000000, 2, "A2", "resource2", 2, nil), // 5 minutes trace
+		testSpan(now, 5, 0, 30, 2, "A2", "resourcefoo", 0, nil),
 		// 1 bucket old, part of the second flush
-		testSpan(6, 0, 24, 1, "A1", "resource2", 0),
-		testSpan(7, 0, 12, 1, "A1", "resource1", 2),
-		testSpan(8, 0, 40, 1, "A2", "resource1", 2),
-		testSpan(9, 0, 30, 1, "A2", "resource2", 2),
-		testSpan(10, 0, 3600000000000, 1, "A2", "resourcefoo", 0), // 1 hour trace
+		testSpan(now, 6, 0, 24, 1, "A1", "resource2", 0, nil),
+		testSpan(now, 7, 0, 12, 1, "A1", "resource1", 2, nil),
+		testSpan(now, 8, 0, 40, 1, "A2", "resource1", 2, nil),
+		testSpan(now, 9, 0, 30, 1, "A2", "resource2", 2, nil),
+		testSpan(now, 10, 0, 3600000000000, 1, "A2", "resourcefoo", 0, nil), // 1 hour trace
 		// present data, part of the third flush
-		testSpan(6, 0, 24, 0, "A1", "resource2", 0),
+		testSpan(now, 6, 0, 24, 0, "A1", "resource2", 0, nil),
 	}
 
-	expectedCountValByKeyByTime := make(map[int64][]pb.ClientGroupedStats)
+	expectedCountValByKeyByTime := make(map[int64][]*pb.ClientGroupedStats)
 	// 2-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -349,9 +350,31 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			TopLevelHits: 1,
 			Errors:       0,
 		},
+		{
+			Service:      "A1",
+			Resource:     "resource3",
+			Type:         "db",
+			Name:         "query",
+			SpanKind:     "client",
+			Duration:     333,
+			Hits:         1,
+			TopLevelHits: 1,
+			Errors:       0,
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource3",
+			Type:         "db",
+			Name:         "query",
+			SpanKind:     "server",
+			Duration:     444,
+			Hits:         1,
+			TopLevelHits: 1,
+			Errors:       0,
+		},
 	}
 	// 1-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -404,7 +427,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// last bucket to be flushed
-	expectedCountValByKeyByTime[alignedNow] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource2",
@@ -416,7 +439,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Errors:       0,
 		},
 	}
-	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
+	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "")
@@ -427,7 +450,8 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	flushTime := now.UnixNano()
 	for i := 0; i <= c.bufferLen+2; i++ {
 		t.Run(fmt.Sprintf("flush-%d", i), func(t *testing.T) {
-			stats := c.flushNow(flushTime)
+			assert := assert.New(t)
+			stats := c.flushNow(flushTime, false)
 
 			expectedFlushedTs := alignTs(flushTime, c.bsize) - int64(c.bufferLen)*testBucketInterval
 			if len(expectedCountValByKeyByTime[expectedFlushedTs]) == 0 {
@@ -446,7 +470,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			assert.Equal(false, stats.ClientComputed)
 
 			// Flushing again at the same time should return nothing
-			stats = c.flushNow(flushTime)
+			stats = c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "Second flush of the same time should be empty") {
 				t.FailNow()
 			}
@@ -456,9 +480,8 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	}
 }
 
-func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.DDSketch {
+func generateDistribution(t *testing.T, now time.Time, generator func(i int) int64) *ddsketch.DDSketch {
 	assert := assert.New(t)
-	now := time.Now()
 	c := NewTestConcentrator(now)
 	alignedNow := alignTs(now.UnixNano(), c.bsize)
 	// update oldestTs as it running for quite some time, to avoid the fact that at startup
@@ -467,11 +490,11 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 	// Build a trace with stats representing the distribution given by the generator
 	spans := []*pb.Span{}
 	for i := 0; i < 100; i++ {
-		spans = append(spans, testSpan(uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0))
+		spans = append(spans, testSpan(now, uint64(i)+1, 0, generator(i), 0, "A1", "resource1", 0, nil))
 	}
 	traceutil.ComputeTopLevel(spans)
 	c.addNow(toProcessedTrace(spans, "none", ""), "")
-	stats := c.flushNow(now.UnixNano() + c.bsize*int64(c.bufferLen))
+	stats := c.flushNow(now.UnixNano()+c.bsize*int64(c.bufferLen), false)
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)
 	assert.Len(stats.Stats[0].Stats, 1)
@@ -488,9 +511,10 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 
 func TestDistributions(t *testing.T) {
 	assert := assert.New(t)
+	now := time.Now()
 	testQuantiles := []float64{0.1, 0.5, 0.95, 0.99, 1}
 	t.Run("constant", func(t *testing.T) {
-		constantDistribution := generateDistribution(t, func(i int) int64 { return 42 })
+		constantDistribution := generateDistribution(t, now, func(i int) int64 { return 42 })
 		expectedConstant := []float64{42, 42, 42, 42, 42}
 		for i, q := range testQuantiles {
 			actual, err := constantDistribution.GetValueAtQuantile(q)
@@ -499,7 +523,7 @@ func TestDistributions(t *testing.T) {
 		}
 	})
 	t.Run("uniform", func(t *testing.T) {
-		uniformDistribution := generateDistribution(t, func(i int) int64 { return int64(i) + 1 })
+		uniformDistribution := generateDistribution(t, now, func(i int) int64 { return int64(i) + 1 })
 		expectedUniform := []float64{10, 50, 95, 99, 100}
 		for i, q := range testQuantiles {
 			actual, err := uniformDistribution.GetValueAtQuantile(q)
@@ -512,7 +536,7 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
 
-	span := testSpan(1, 0, 50, 5, "A1", "resource1", 0)
+	span := testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)
 	span.Metrics = map[string]float64{"_dd.partial_version": 830604}
 	spans := []*pb.Span{span}
 	traceutil.ComputeTopLevel(spans)
@@ -523,6 +547,252 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
 
-	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 	assert.Empty(stats.GetStats())
+}
+
+func TestForceFlush(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	spans := []*pb.Span{testSpan(now, 1, 0, 50, 5, "A1", "resource1", 0, nil)}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "")
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+
+	assert.Len(c.buckets, 1)
+
+	// ts=0 so that flushNow always considers buckets not old enough to be flushed
+	ts := int64(0)
+
+	// Without force flush, flushNow should skip the bucket
+	stats := c.flushNow(ts, false)
+	assert.Len(c.buckets, 1)
+	assert.Len(stats.GetStats(), 0)
+
+	// With force flush, flushNow should flush buckets regardless of the age
+	stats = c.flushNow(ts, true)
+	assert.Len(c.buckets, 0)
+	assert.Len(stats.GetStats(), 1)
+}
+
+// TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
+func TestPeerServiceStats(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 100,
+	}
+	peerSvcSp := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+		Meta:     map[string]string{"peer.service": "users-db"},
+	}
+	t.Run("enabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, peerSvcSp}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.peerSvcAggregation = true
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
+			if st.Name == "postgres.query" {
+				assert.Equal("users-db", st.PeerService)
+			} else {
+				assert.Equal("", st.PeerService)
+			}
+		}
+	})
+	t.Run("disabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, peerSvcSp}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.peerSvcAggregation = false
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
+			assert.Equal("", st.PeerService)
+		}
+	})
+}
+
+// TestComputeStatsThroughSpanKindCheck ensures that we generate stats for spans that have an eligible span.kind.
+func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 500,
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the top_level flag.
+	// This is a case that should rarely (if ever) come up in practice though.
+	topLevelInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "internal.op1",
+		Resource: "compute_1",
+		Duration: 25,
+		Metrics:  map[string]float64{"_top_level": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the measured flag.
+	measuredInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   3,
+		Service:  "myservice",
+		Name:     "internal.op2",
+		Resource: "compute_2",
+		Duration: 25,
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// client is an eligible span.kind for stats computation.
+	clientSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   4,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client"},
+	}
+	t.Run("disabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 3)
+		opNames := make(map[string]struct{}, 3)
+		for _, s := range stats.Stats {
+			for _, b := range s.Stats {
+				for _, g := range b.Stats {
+					opNames[g.Name] = struct{}{}
+				}
+			}
+		}
+		assert.Equal(map[string]struct{}{"http.server.request": {}, "internal.op1": {}, "internal.op2": {}}, opNames)
+	})
+	t.Run("enabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+		c.computeStatsBySpanKind = true
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 4)
+		opNames := make(map[string]struct{}, 4)
+		for _, s := range stats.Stats {
+			for _, b := range s.Stats {
+				for _, g := range b.Stats {
+					opNames[g.Name] = struct{}{}
+				}
+			}
+		}
+		assert.Equal(map[string]struct{}{"http.server.request": {}, "internal.op1": {}, "internal.op2": {}, "postgres.query": {}}, opNames)
+	})
+}
+
+func TestComputeStatsForSpanKind(t *testing.T) {
+	assert := assert.New(t)
+
+	type testCase struct {
+		s   *pb.Span
+		res bool
+	}
+
+	for _, tc := range []testCase{
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "server"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "consumer"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "client"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "producer"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "internal"}},
+			false,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "SERVER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "CONSUMER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "CLIENT"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "PRODUCER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "INTERNAL"}},
+			false,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "SErVER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "COnSUMER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "CLiENT"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "PRoDUCER"}},
+			true,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": "INtERNAL"}},
+			false,
+		},
+		{
+			&pb.Span{Meta: map[string]string{"span.kind": ""}},
+			false,
+		},
+		{
+			&pb.Span{Meta: map[string]string{}},
+			false,
+		},
+	} {
+		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
+	}
 }

@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // TestNoTagNoTouch verifies that if none of the spans passed to
@@ -41,19 +42,19 @@ func TestNoTagNoTouch(t *testing.T) {
 		},
 	}
 
-	copy := proto.Clone(original).(*pb.TraceChunk)
-	applied := ApplySpanSampling(copy)
+	pt := &traceutil.ProcessedTrace{TraceChunk: original}
+	applied, sampled := ApplySpanSampling(pt)
 	assert.False(t, applied)
-	assert.True(t, proto.Equal(copy, original))
+	assert.True(t, proto.Equal(sampled.TraceChunk, original))
 }
 
 // TestTagCausesInPlaceFilterAndKeep verifies that the presence of a span
 // sampling tag in any of the spans passed to ApplySpanSampling causes the
 // argument of ApplySpanSampling to be modified in the following ways:
-//  - The chunk is filtered to contain only those spans that have the span
-//    sampling tag.
-//  - The chunk's sampling priority is PriorityUserKeep.
-//  - The chunk is not marked as dropped.
+//   - The chunk is filtered to contain only those spans that have the span
+//     sampling tag.
+//   - The chunk's sampling priority is PriorityUserKeep.
+//   - The chunk is not marked as dropped.
 func TestTagCausesInPlaceFilterAndKeep(t *testing.T) {
 	// spanSamplingMetrics returns a map of numeric tags that contains the span
 	// sampling metric (numeric tag) that tracers use to indicate that the span
@@ -110,14 +111,14 @@ func TestTagCausesInPlaceFilterAndKeep(t *testing.T) {
 		},
 	}
 
-	copy := proto.Clone(original).(*pb.TraceChunk)
-	applied := ApplySpanSampling(copy)
+	pt := &traceutil.ProcessedTrace{TraceChunk: original}
+	applied, sampled := ApplySpanSampling(pt)
 	assert.True(t, applied)
-	assert.False(t, copy.DroppedTrace)
-	assert.Equal(t, int32(PriorityUserKeep), copy.Priority)
-	assert.Len(t, copy.Spans, 2)
+	assert.False(t, sampled.TraceChunk.DroppedTrace)
+	assert.Equal(t, int32(PriorityUserKeep), sampled.TraceChunk.Priority)
+	assert.Len(t, sampled.TraceChunk.Spans, 2)
 	// child
-	assert.Equal(t, original.Spans[1], copy.Spans[0])
+	assert.Equal(t, original.Spans[1], sampled.TraceChunk.Spans[0])
 	// great-grandchild
-	assert.Equal(t, original.Spans[3], copy.Spans[1])
+	assert.Equal(t, original.Spans[3], sampled.TraceChunk.Spans[1])
 }

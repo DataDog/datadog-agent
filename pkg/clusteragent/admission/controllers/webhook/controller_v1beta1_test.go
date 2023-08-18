@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package webhook
 
@@ -39,9 +38,10 @@ func TestSecretNotFoundV1beta1(t *testing.T) {
 		t.Fatal("Webhook shouldn't be created")
 	}
 
-	if c.queue.Len() != 0 {
-		t.Fatal("Work queue isn't empty")
-	}
+	// The queue might not be closed yet because it's done asynchronously
+	assert.Eventually(t, func() bool {
+		return c.queue.Len() == 0
+	}, 1*time.Second, 5*time.Millisecond, "Work queue isn't empty")
 }
 
 func TestCreateWebhookV1beta1(t *testing.T) {
@@ -184,7 +184,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			Name: name,
 			ClientConfig: admiv1beta1.WebhookClientConfig{
 				Service: &admiv1beta1.ServiceReference{
-					Namespace: "default",
+					Namespace: "nsfoo",
 					Name:      "datadog-admission-controller",
 					Port:      &port,
 					Path:      &path,
@@ -485,6 +485,9 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			},
 		},
 	}
+
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
@@ -500,6 +503,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1beta1(t *testing.T) {
+	mockConfig := config.Mock(t)
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
@@ -515,7 +519,7 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 			Name: "datadog.webhook.foo",
 			ClientConfig: admiv1beta1.WebhookClientConfig{
 				Service: &admiv1beta1.ServiceReference{
-					Namespace: "default",
+					Namespace: "nsfoo",
 					Name:      "datadog-admission-controller",
 					Port:      &port,
 					Path:      &path,
@@ -583,11 +587,14 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 			want:              webhook(&customTimeout, objectSelector, nil),
 		},
 	}
+
+	mockConfig.Set("kube_resources_namespace", "nsfoo")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.timeout != nil {
-				config.Datadog.Set("admission_controller.timeout_seconds", *tt.timeout)
-				defer config.Datadog.SetDefault("admission_controller.timeout_seconds", defaultTimeout)
+				mockConfig.Set("admission_controller.timeout_seconds", *tt.timeout)
+				defer mockConfig.SetDefault("admission_controller.timeout_seconds", defaultTimeout)
 			}
 
 			c := &ControllerV1beta1{}

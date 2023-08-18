@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build zlib && test
-// +build zlib,test
 
 package metrics
 
@@ -20,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -31,7 +30,7 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 		CheckName: "my_service.can_connect",
 		Host:      "my-hostname",
 		Ts:        int64(12345),
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Message:   "my_service is up",
 		Tags:      []string{"tag1", "tag2:yes"},
 	}}
@@ -45,11 +44,11 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 func TestSplitServiceChecks(t *testing.T) {
 	var serviceChecks = ServiceChecks{}
 	for i := 0; i < 2; i++ {
-		sc := metrics.ServiceCheck{
+		sc := servicecheck.ServiceCheck{
 			CheckName: "test.check",
 			Host:      "test.localhost",
 			Ts:        1000,
-			Status:    metrics.ServiceCheckOK,
+			Status:    servicecheck.ServiceCheckOK,
 			Message:   "this is fine",
 			Tags:      []string{"tag1", "tag2:yes"},
 		}
@@ -66,12 +65,12 @@ func TestSplitServiceChecks(t *testing.T) {
 	require.Len(t, newSC, 2)
 }
 
-func createServiceCheck(checkName string) *metrics.ServiceCheck {
-	return &metrics.ServiceCheck{
+func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
+	return &servicecheck.ServiceCheck{
 		CheckName: checkName,
 		Host:      "2",
 		Ts:        3,
-		Status:    metrics.ServiceCheckUnknown,
+		Status:    servicecheck.ServiceCheckUnknown,
 		Message:   "4",
 		Tags:      []string{"5", "6"}}
 }
@@ -115,7 +114,7 @@ func TestPayloadsSingleServiceCheck(t *testing.T) {
 }
 
 func TestPayloadsEmptyServiceCheck(t *testing.T) {
-	serviceChecks := ServiceChecks{&metrics.ServiceCheck{}}
+	serviceChecks := ServiceChecks{&servicecheck.ServiceCheck{}}
 	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
 }
 
@@ -146,7 +145,7 @@ func TestPayloadsServiceChecks(t *testing.T) {
 }
 
 func createServiceChecks(numberOfItem int) ServiceChecks {
-	var serviceCheckCollections []*metrics.ServiceCheck
+	var serviceCheckCollections []*servicecheck.ServiceCheck
 
 	for i := 0; i < numberOfItem; i++ {
 		serviceCheckCollections = append(serviceCheckCollections, createServiceCheck(fmt.Sprint(i)))

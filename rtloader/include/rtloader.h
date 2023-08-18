@@ -6,7 +6,6 @@
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
-#include "rtloader_mem.h"
 #include "rtloader_types.h"
 
 #include <map>
@@ -33,12 +32,7 @@ class RtLoader
 {
 public:
     //! Constructor.
-    RtLoader(cb_memory_tracker_t memtrack_cb)
-        : _error()
-        , _errorFlag(false)
-    {
-        _set_memory_tracker_cb(memtrack_cb);
-    };
+    RtLoader(cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     virtual ~RtLoader(){};
@@ -127,6 +121,13 @@ public:
       \return An array of C-strings containing all warnings presently set for the check instance.
     */
     virtual char **getCheckWarnings(RtLoaderPyObject *check) = 0;
+
+    //! Pure virtual getCheckDiagnoses member.
+    /*!
+      \param check The python object pointer to the check we wish to collect diagnoses for.
+      \return serialized diagnoses for the check as a C-string or NULL if none exists or an error occurred.
+    */
+    virtual char *getCheckDiagnoses(RtLoaderPyObject *check) = 0;
 
     //! clearError member.
     /*!
@@ -449,6 +450,33 @@ public:
       specific check instances.
     */
     virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
+
+    //! initPymemStats member.
+    /*!
+      Install python allocator hooks.
+    */
+    virtual void initPymemStats()
+    {
+    }
+
+    //! getPymemStats member.
+    /*!
+      \param stats Stats snapshot output.
+
+      Retrieve a snapshot python allocator statistics.
+    */
+    virtual void getPymemStats(pymem_stats_t &stats)
+    {
+    }
+
+protected:
+    //! _allocateInternalErrorDiagnoses member.
+    /*!
+      \param A C-string representation of the error message
+
+      This creates diagnoses indicating problem with get_diagnoses call in the same format as its regular output.
+    */
+    static char *_createInternalErrorDiagnoses(const char *errorMsg);
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

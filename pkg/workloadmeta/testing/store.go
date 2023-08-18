@@ -64,6 +64,42 @@ func (s *Store) ListContainersWithFilter(filter workloadmeta.ContainerFilterFunc
 	return res
 }
 
+// GetProcess implements Store#GetProcess.
+func (s *Store) GetProcess(pid int32) (*workloadmeta.Process, error) {
+	id := string(pid)
+	entity, err := s.getEntityByKind(workloadmeta.KindProcess, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.Process), nil
+}
+
+// ListProcesses implements Store#ListProcesses.
+func (s *Store) ListProcesses() []*workloadmeta.Process {
+	entities := s.listEntitiesByKind(workloadmeta.KindProcess)
+
+	processes := make([]*workloadmeta.Process, 0, len(entities))
+	for i := range entities {
+		processes = append(processes, entities[i].(*workloadmeta.Process))
+	}
+
+	return processes
+}
+
+// ListProcessesWithFilter implements Store#ListProcessesWithFilter.
+func (s *Store) ListProcessesWithFilter(filter workloadmeta.ProcessFilterFunc) []*workloadmeta.Process {
+	var res []*workloadmeta.Process
+
+	for _, process := range s.ListProcesses() {
+		if filter(process) {
+			res = append(res, process)
+		}
+	}
+
+	return res
+}
+
 // GetKubernetesPod returns metadata about a Kubernetes pod.
 func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error) {
 	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesPod, id)
@@ -77,21 +113,45 @@ func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error)
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
 func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
-	entities, ok := s.store[workloadmeta.KindKubernetesPod]
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	containerEntities, ok := s.store[workloadmeta.KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	for _, e := range entities {
-		pod := e.(*workloadmeta.KubernetesPod)
-		for _, podContainer := range pod.Containers {
-			if podContainer.ID == containerID {
-				return pod, nil
-			}
-		}
+	containerEntity, ok := containerEntities[containerID]
+	if !ok {
+		return nil, errors.NewNotFound(containerID)
 	}
 
-	return nil, errors.NewNotFound(containerID)
+	container := containerEntity.(*workloadmeta.Container)
+	if container.Owner == nil || container.Owner.Kind != workloadmeta.KindKubernetesPod {
+		return nil, errors.NewNotFound(containerID)
+	}
+
+	podEntities, ok := s.store[workloadmeta.KindKubernetesPod]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	pod, ok := podEntities[container.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	return pod.(*workloadmeta.KubernetesPod), nil
+}
+
+// GetKubernetesNode returns metadata about a Kubernetes node.
+func (s *Store) GetKubernetesNode(id string) (*workloadmeta.KubernetesNode, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesPod, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.KubernetesNode), nil
 }
 
 // GetECSTask returns metadata about an ECS task.
@@ -102,6 +162,29 @@ func (s *Store) GetECSTask(id string) (*workloadmeta.ECSTask, error) {
 	}
 
 	return entity.(*workloadmeta.ECSTask), nil
+}
+
+// ListImages implements Store#ListImages
+func (s *Store) ListImages() []*workloadmeta.ContainerImageMetadata {
+	entities := s.listEntitiesByKind(workloadmeta.KindContainerImageMetadata)
+
+	images := make([]*workloadmeta.ContainerImageMetadata, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*workloadmeta.ContainerImageMetadata)
+		images = append(images, image)
+	}
+
+	return images
+}
+
+// GetImage implements Store#GetImage
+func (s *Store) GetImage(id string) (*workloadmeta.ContainerImageMetadata, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindContainerImageMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.ContainerImageMetadata), nil
 }
 
 // Set sets an entity in the store.
@@ -156,14 +239,23 @@ func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
 	panic("not implemented")
 }
 
+// Reset is not implemented in the testing store.
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
+	panic("not implemented")
+}
+
+func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
+	panic("not implemented")
+}
+
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(id)
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {

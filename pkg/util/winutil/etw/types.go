@@ -5,7 +5,6 @@
 
 //gobuild ignore
 //go:build ignore
-// +build ignore
 
 package etw
 

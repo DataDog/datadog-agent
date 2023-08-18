@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build zlib && test
-// +build zlib,test
 
 package metrics
 
@@ -20,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -58,6 +57,73 @@ func TestPopulateDeviceField(t *testing.T) {
 				s.PopulateDeviceField()
 				assert.Equal(t, strings.Join(tc.ExpectedTags, ","), s.Tags.Join(","))
 				assert.Equal(t, tc.ExpectedDevice, s.Device)
+			}
+
+		})
+	}
+}
+
+func TestPopulateResources(t *testing.T) {
+	for _, tc := range []struct {
+		Tags              []string
+		ExpectedTags      []string
+		ExpectedResources []metrics.Resource
+	}{
+		{
+			[]string{"some:tag", "dd.internal.resource:aws_rds_instance:some_instance_endpoint"},
+			[]string{"some:tag"},
+			[]metrics.Resource{{
+				Type: "aws_rds_instance",
+				Name: "some_instance_endpoint",
+			}},
+		},
+		{
+			[]string{"some:tag", "dd.internal.resource:database_instance:some_db_host", "dd.internal.resource:aws_rds_instance:some_instance_endpoint", "some_other:tag"},
+			[]string{"some:tag", "some_other:tag"},
+			[]metrics.Resource{
+				{
+					Type: "database_instance",
+					Name: "some_db_host",
+				},
+				{
+					Type: "aws_rds_instance",
+					Name: "some_instance_endpoint",
+				}},
+		},
+		{
+			[]string{"some:tag", "dd.internal.resource:database_instance:some_db_host", "resource:some_resource_value", "some_other:tag"},
+			[]string{"some:tag", "resource:some_resource_value", "some_other:tag"},
+			[]metrics.Resource{
+				{
+					Type: "database_instance",
+					Name: "some_db_host",
+				},
+			},
+		},
+		{
+			[]string{"some:tag", "dd.internal.resource:wrong_resource_format", "some_other:tag"},
+			[]string{"some:tag", "some_other:tag"},
+			nil,
+		},
+		{
+			[]string{"some:tag", "dd.internal.resource:type_without_value:", "some_other:tag"},
+			[]string{"some:tag", "some_other:tag"},
+			nil,
+		},
+		{
+			[]string{"yet_another:value", "one_last:tag_value", "long:array", "very_long:array", "many:tags", "such:wow"},
+			[]string{"yet_another:value", "one_last:tag_value", "long:array", "very_long:array", "many:tags", "such:wow"},
+			nil,
+		},
+	} {
+		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			s := &metrics.Serie{Tags: tagset.CompositeTagsFromSlice(tc.Tags)}
+
+			// Run a few times to ensure stability
+			for i := 0; i < 4; i++ {
+				s.PopulateResources()
+				assert.Equal(t, strings.Join(tc.ExpectedTags, ","), s.Tags.Join(","))
+				assert.Equal(t, tc.ExpectedResources, s.Resources)
 			}
 
 		})
@@ -111,7 +177,7 @@ func TestSplitSerieasOneMetric(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestSplitSerieasByName(t *testing.T) {
+func TestSplitSeriesByName(t *testing.T) {
 	var series = Series{}
 	for _, name := range []string{"name1", "name2", "name3"} {
 		s1 := metrics.Serie{
@@ -298,8 +364,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 			Name:     "test.metrics",
 			Interval: 15,
 			Host:     "localHost",
-			Device:   "SomeDevice",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes", "device:SomeDevice", "dd.internal.resource:device:some_other_device", "dd.internal.resource:database_instance:some_instance", "dd.internal.resource:aws_rds_instance:some_endpoint"}),
 		})
 	}
 	return CreateIterableSeries(CreateSerieSource(series))
@@ -308,7 +373,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 func TestMarshalSplitCompress(t *testing.T) {
 	series := makeSeries(10000, 50)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 	// check that we got multiple payloads, so splitting occurred
 	require.Greater(t, len(payloads), 1)
@@ -318,6 +383,10 @@ func TestMarshalSplitCompress(t *testing.T) {
 
 		pl := new(gogen.MetricPayload)
 		err = pl.Unmarshal(payload)
+		for _, s := range pl.Series {
+			assert.Equal(t, []*gogen.MetricPayload_Resource{{Type: "host", Name: "localHost"}, {Type: "device", Name: "SomeDevice"}, {Type: "device", Name: "some_other_device"}, {Type: "database_instance", Name: "some_instance"}, {Type: "aws_rds_instance", Name: "some_endpoint"}}, s.Resources)
+			assert.Equal(t, []string{"tag1", "tag2:yes"}, s.Tags)
+		}
 		require.NoError(t, err)
 	}
 }
@@ -331,7 +400,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	// ten series, each with 50 points, so two should fit in each payload
 	series := makeSeries(10, 50)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 	require.Equal(t, 5, len(payloads))
 }
@@ -343,7 +412,7 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	mockConfig.Set("serializer_max_series_points_per_payload", 1)
 
 	series := makeSeries(1, 2)
-	payloads, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
 	require.NoError(t, err)
 	require.Len(t, payloads, 0)
 }

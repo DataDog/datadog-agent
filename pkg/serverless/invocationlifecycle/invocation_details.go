@@ -15,7 +15,7 @@ import (
 // This structure is passed to the onInvokeStart method of the invocationProcessor interface
 type InvocationStartDetails struct {
 	StartTime             time.Time
-	InvokeEventRawPayload string
+	InvokeEventRawPayload []byte
 	InvokeEventHeaders    LambdaInvokeEventHeaders
 	InvokedFunctionARN    string
 	InferredSpan          inferredspan.InferredSpan
@@ -36,6 +36,8 @@ type InvocationEndDetails struct {
 	EndTime            time.Time
 	IsError            bool
 	RequestID          string
-	ResponseRawPayload string
-	ColdStartDuration  float64
+	ResponseRawPayload []byte
+	ColdStart          bool
+	ProactiveInit      bool
+	Runtime            string
 }

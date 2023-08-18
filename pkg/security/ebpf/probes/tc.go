@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -13,33 +12,28 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// tcProbes holds the list of probes used to track network flows
-var tcProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/ingress",
-			EBPFFuncName: "classifier_ingress",
-		},
-		NetworkDirection: manager.Ingress,
-		TCFilterProtocol: unix.ETH_P_ALL,
-		KeepProgramSpec:  true,
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "classifier/egress",
-			EBPFFuncName: "classifier_egress",
-		},
-		NetworkDirection: manager.Egress,
-		TCFilterProtocol: unix.ETH_P_ALL,
-		KeepProgramSpec:  true,
-	},
-}
-
 // GetTCProbes returns the list of TCProbes
 func GetTCProbes() []*manager.Probe {
-	return tcProbes
+	return []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_ingress",
+			},
+			NetworkDirection: manager.Ingress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_egress",
+			},
+			NetworkDirection: manager.Egress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		},
+	}
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
@@ -70,7 +64,6 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "classifier/dns_request",
 				EBPFFuncName: "classifier_dns_request",
 			},
 		},
@@ -78,7 +71,6 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "classifier/dns_request_parser",
 				EBPFFuncName: "classifier_dns_request_parser",
 			},
 		},

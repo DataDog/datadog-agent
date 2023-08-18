@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package system
 
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -170,9 +171,12 @@ func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Durat
 }
 
 func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
-	var stats cgroups.Stats
-	if err := cg.GetStats(&stats); err != nil {
-		return nil, fmt.Errorf("cgroup parsing failed, incomplete data for containerID: %s, err: %w", cg.Identifier(), err)
+	stats := &cgroups.Stats{}
+	allFailed, errs := cgroups.GetStats(cg, stats)
+	if allFailed {
+		return nil, fmt.Errorf("cgroup parsing failed, no data for containerID: %s, err: %w", cg.Identifier(), multierror.Append(nil, errs...))
+	} else if len(errs) > 0 {
+		log.Debugf("Incomplete data when getting cgroup stats for cgroup id: %s, errs: %v", cg.Identifier(), errs)
 	}
 
 	parentCPUStatRetriever := func(parentCPUStats *cgroups.CPUStats) error {
@@ -195,14 +199,16 @@ func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity
 		PID:       buildPIDStats(stats.PID),
 	}
 
-	if cs.PID == nil {
-		cs.PID = &provider.ContainerPIDStats{}
-	}
-
 	// Get PIDs
 	var err error
-	cs.PID.PIDs, err = cg.GetPIDs(cacheValidity)
-	if err != nil {
+	pids, err := cg.GetPIDs(cacheValidity)
+	if err == nil {
+		if cs.PID == nil {
+			cs.PID = &provider.ContainerPIDStats{}
+		}
+
+		cs.PID.PIDs = pids
+	} else {
 		log.Debugf("Unable to get PIDs for cgroup id: %s. Metrics will be missing", cg.Identifier())
 	}
 
@@ -224,6 +230,13 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.Swap, &cs.Swap)
 	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
+	convertField(cgs.Peak, &cs.Peak)
+	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
+
+	// Compute complex fields
+	if cgs.UsageTotal != nil && cgs.InactiveFile != nil {
+		cs.WorkingSet = pointer.Ptr(float64(*cgs.UsageTotal - *cgs.InactiveFile))
+	}
 
 	return cs
 }
@@ -242,15 +255,17 @@ func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPU
 	convertField(cgs.ElapsedPeriods, &cs.ElapsedPeriods)
 	convertField(cgs.ThrottledPeriods, &cs.ThrottledPeriods)
 	convertField(cgs.ThrottledTime, &cs.ThrottledTime)
+	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
-	cs.Limit = computeCPULimitPct(cgs, parentCPUStatsRetriever)
+	cs.Limit, cs.DefaultedLimit = computeCPULimitPct(cgs, parentCPUStatsRetriever)
 
 	return cs
 }
 
-func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) *float64 {
+func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) (*float64, bool) {
 	limitPct := computeCgroupCPULimitPct(cgs)
+	defaulted := false
 
 	// Check parent cgroup as it's used on ECS
 	if limitPct == nil {
@@ -263,10 +278,11 @@ func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(pare
 	// If no limit is available, setting the limit to number of CPUs.
 	// Always reporting a limit allows to compute CPU % accurately.
 	if limitPct == nil {
-		limitPct = pointer.Float64Ptr(float64(systemutils.HostCPUCount() * 100))
+		limitPct = pointer.Ptr(float64(systemutils.HostCPUCount() * 100))
+		defaulted = true
 	}
 
-	return limitPct
+	return limitPct, defaulted
 }
 
 func computeCgroupCPULimitPct(cgs *cgroups.CPUStats) *float64 {
@@ -274,7 +290,7 @@ func computeCgroupCPULimitPct(cgs *cgroups.CPUStats) *float64 {
 	var limitPct *float64
 
 	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
-		limitPct = pointer.UIntToFloatPtr(*cgs.CPUCount * 100)
+		limitPct = pointer.Ptr(float64(*cgs.CPUCount) * 100.0)
 	}
 
 	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {

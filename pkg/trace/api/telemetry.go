@@ -13,12 +13,16 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
+
+const functionARNKey = "function_arn"
 
 // telemetryMultiTransport sends HTTP requests to multiple targets using an
 // underlying http.RoundTripper. API keys are set separately for each target.
@@ -82,13 +86,52 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
+
+		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+		if containerID == "" {
+			metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
+		}
+		containerTags := getContainerTags(r.conf.ContainerTags, containerID)
+
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
+		if containerID != "" {
+			req.Header.Set(header.ContainerID, containerID)
+		}
+		if containerTags != "" {
+			req.Header.Set("x-datadog-container-tags", containerTags)
+		}
+		if taskArn, ok := extractFargateTask(containerTags); ok {
+			req.Header.Set("dd-task-arn", taskArn)
+		}
+		if arn, ok := r.conf.GlobalTags[functionARNKey]; ok {
+			req.Header.Set("dd-function-arn", arn)
+		}
 	}
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  logger,
 		Transport: &transport,
+	}
+}
+
+func extractFargateTask(containerTags string) (string, bool) {
+	return extractTag(containerTags, "task_arn")
+}
+
+func extractTag(tags string, name string) (string, bool) {
+	leftoverTags := tags
+	for {
+		if leftoverTags == "" {
+			return "", false
+		}
+		var tag string
+		tag, leftoverTags, _ = strings.Cut(leftoverTags, ",")
+
+		tagName, value, hasValue := strings.Cut(tag, ":")
+		if hasValue && tagName == name {
+			return value, true
+		}
 	}
 }
 

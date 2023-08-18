@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -12,11 +11,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
-func getCheckHelperCallInputType(probe *Probe) uint64 {
+func getCheckHelperCallInputType(kernelVersion *kernel.Version) uint64 {
 	input := uint64(1)
 
 	switch {
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= kernel.Kernel5_13:
+	case kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_13:
 		input = uint64(2)
 	}
 

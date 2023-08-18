@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"testing"
@@ -22,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -30,20 +33,20 @@ type connTag = uint64
 
 // ConnTag constant must be the same for all platform
 const (
-	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
-	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
+	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
+	tagTLS     connTag = 0x10 // network.ConnTagTLS
 )
 
-var originalConfig = config.Datadog
-
-func restoreGlobalConfig() {
-	config.Datadog = originalConfig
+func newConfig(t *testing.T) {
+	originalConfig := config.SystemProbe
+	t.Cleanup(func() {
+		config.SystemProbe = originalConfig
+	})
+	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	config.InitSystemProbeConfig(config.SystemProbe)
 }
 
-func newConfig() {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(config.Datadog)
-}
 func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *model.Connections {
 	var dnsByDomain map[int32]*model.DNSStats
 	var dnsByDomainByQuerytype map[int32]*model.DNSStatsByQueryType
@@ -116,7 +119,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 
 				RouteIdx: -1,
 				Protocol: &model.ProtocolStack{
-					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP2},
+					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
 			},
 		},
@@ -133,33 +136,71 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(1),
+		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
 	}
+	// fixup Protocol stack as on windows or macos
+	// we don't have tags mechanism inserting TLS protocol on protocol stack
+	if runtime.GOOS != "linux" {
+		for _, c := range out.Conns {
+			stack := []model.ProtocolType{}
+			for _, p := range c.Protocol.Stack {
+				if p == model.ProtocolType_protocolTLS {
+					continue
+				}
+				stack = append(stack, p)
+			}
+			c.Protocol.Stack = stack
+		}
+	}
+	sort.Strings(out.Tags)
 	if runtime.GOOS == "linux" {
-		out.Conns[1].Tags = []uint32{0}
-		out.Conns[1].TagsChecksum = uint32(3241915907)
+		out.Conns[1].Tags = []uint32{0, 1}
+		out.Conns[1].TagsChecksum = uint32(3359960845)
+	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 *
+		 * Also on windows, we do not use the NAT translation.  There
+		 * is an artifact of the NAT translation that results in
+		 * being unable to match the connectoin at this time, due
+		 * to the above.  Remove the nat translation, so that we're
+		 * still testing the rest of the encoding functions.
+		 *
+		 * there is the corresponding change required in
+		 * testSerialization() below
+		 */
+		out.Conns[0].IpTranslation = nil
 	}
 	return out
 }
 
 func TestSerialization(t *testing.T) {
-	var httpReqStats http.RequestStats
+	t.Run("status code", func(t *testing.T) {
+		testSerialization(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testSerialization(t, false)
+	})
+}
+
+func testSerialization(t *testing.T, aggregateByStatusCode bool) {
+	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
-					Monotonic: network.StatCountersByCookie{
-						{
-							StatCounters: network.StatCounters{
-								SentBytes:   1,
-								RecvBytes:   100,
-								Retransmits: 201,
-							},
-						},
+					Monotonic: network.StatCounters{
+						SentBytes:   1,
+						RecvBytes:   100,
+						Retransmits: 201,
 					},
 					Last: network.StatCounters{
 						SentBytes:      2,
@@ -188,18 +229,18 @@ func TestSerialization(t *testing.T) {
 							Alias: "subnet-foo",
 						},
 					},
-					Protocol: network.ProtocolHTTP,
+					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
 				},
 				{
-					Source:    util.AddressFromString("10.1.1.1"),
-					Dest:      util.AddressFromString("8.8.8.8"),
-					SPort:     1000,
-					DPort:     53,
-					Type:      network.UDP,
-					Family:    network.AFINET6,
-					Direction: network.LOCAL,
-					Tags:      uint64(1),
-					Protocol:  network.ProtocolHTTP2,
+					Source:        util.AddressFromString("10.1.1.1"),
+					Dest:          util.AddressFromString("8.8.8.8"),
+					SPort:         1000,
+					DPort:         53,
+					Type:          network.UDP,
+					Family:        network.AFINET6,
+					Direction:     network.LOCAL,
+					StaticTags:    tagOpenSSL | tagTLS,
+					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
 				},
 			},
 		},
@@ -232,40 +273,46 @@ func TestSerialization(t *testing.T) {
 				"/testpath",
 				true,
 				http.MethodGet,
-			): &httpReqStats,
+			): httpReqStats,
 		},
 	}
-	// ignore "declared but not used"
-	_ = httpReqStats
 
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 *
+		 * Also on windows, we do not use the NAT translation.  There
+		 * is an artifact of the NAT translation that results in
+		 * being unable to match the connectoin at this time, due
+		 * to the above.  Remove the nat translation, so that we're
+		 * still testing the rest of the encoding functions.
+		 *
+		 * there is a corresponding change in the above helper function
+		 * getExpectedConnections()
+		 */
+		in.BufferedData.Conns[0].IPTranslation = nil
+		in.HTTP = map[http.Key]*http.RequestStats{
+			http.NewKey(
+				util.AddressFromString("10.1.1.1"),
+				util.AddressFromString("10.2.2.2"),
+				1000,
+				9000,
+				"/testpath",
+				true,
+				http.MethodGet,
+			): httpReqStats,
+		}
+	}
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:     "/testpath",
-				Method:   model.HTTPMethod_Get,
-				FullPath: true,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-					{
-						Count:     0,
-						Latencies: nil,
-					},
-				},
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Get,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
 			},
 		},
 	}
@@ -274,9 +321,8 @@ func TestSerialization(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("requesting application/json serialization (no query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
@@ -289,19 +335,21 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
+
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
-		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/json")
@@ -314,19 +362,20 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		marshaler := GetMarshaler("")
@@ -340,19 +389,20 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -368,12 +418,14 @@ func TestSerialization(t *testing.T) {
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
 
+		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
 		}
+		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
 
@@ -406,9 +458,8 @@ func TestSerialization(t *testing.T) {
 	})
 
 	t.Run("requesting application/protobuf serialization (no query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -421,14 +472,14 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+		sort.Strings(result.Tags)
 
 		assert.Equal(out, result)
 	})
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
-		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
+		newConfig(t)
+		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 
 		assert := assert.New(t)
@@ -441,19 +492,29 @@ func TestSerialization(t *testing.T) {
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blob)
 		require.NoError(t, err)
+		sort.Strings(result.Tags)
 
 		assert.Equal(out, result)
 	})
 }
 
 func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPSerializationWithLocalhostTraffic(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPSerializationWithLocalhostTraffic(t, false)
+	})
+}
+
+func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
 	var (
 		clientPort = uint16(52800)
 		serverPort = uint16(8080)
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	var httpReqStats http.RequestStats
+	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
@@ -480,25 +541,36 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				"/testpath",
 				true,
 				http.MethodGet,
-			): &httpReqStats,
+			): httpReqStats,
 		},
 	}
-	// ignore "declared but not used"
-	_ = httpReqStats
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKeyWin := http.NewKey(
+			localhost,
+			localhost,
+			serverPort,
+			clientPort,
+			"/testpath",
+			true,
+			http.MethodGet,
+		)
+
+		in.HTTP[httpKeyWin] = httpReqStats
+	}
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
-				Path:     "/testpath",
-				Method:   model.HTTPMethod_Get,
-				FullPath: true,
-				StatsByResponseStatus: []*model.HTTPStats_Data{
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-					{Count: 0, Latencies: nil},
-				},
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Get,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
 			},
 		},
 	}
@@ -513,17 +585,134 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
 			NpmEnabled: false,
-			TsmEnabled: false,
+			UsmEnabled: false,
+		},
+	}
+
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	assert.Equal(t, out, result)
+}
+
+func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTP2SerializationWithLocalhostTraffic(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTP2SerializationWithLocalhostTraffic(t, false)
+	})
+
+}
+
+func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
+	var (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		localhost  = util.AddressFromString("127.0.0.1")
+	)
+
+	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  clientPort,
+					DPort:  serverPort,
+				},
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  serverPort,
+					DPort:  clientPort,
+				},
+			},
+		},
+		HTTP2: map[http.Key]*http.RequestStats{
+			http.NewKey(
+				localhost,
+				localhost,
+				clientPort,
+				serverPort,
+				"/testpath",
+				true,
+				http.MethodPost,
+			): http2ReqStats,
+		},
+	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKeyWin := http.NewKey(
+			localhost,
+			localhost,
+			serverPort,
+			clientPort,
+			"/testpath",
+			true,
+			http.MethodPost,
+		)
+
+		in.HTTP2[httpKeyWin] = http2ReqStats
+	}
+
+	http2Out := &model.HTTP2Aggregations{
+		EndpointAggregations: []*model.HTTPStats{
+			{
+				Path:              "/testpath",
+				Method:            model.HTTPMethod_Post,
+				FullPath:          true,
+				StatsByStatusCode: make(map[int32]*model.HTTPStats_Data),
+			},
+		},
+	}
+
+	http2OutBlob, err := proto.Marshal(http2Out)
+	require.NoError(t, err)
+
+	out := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Http2Aggregations: http2OutBlob,
+				RouteIdx:          -1,
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
+			},
+			{
+				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Http2Aggregations: http2OutBlob,
+				RouteIdx:          -1,
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
+			},
+		},
+		AgentConfiguration: &model.AgentConfiguration{
+			NpmEnabled: false,
+			UsmEnabled: false,
 		},
 	}
 
@@ -604,4 +793,102 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
 	}
+}
+
+func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
+	// This test ensures that no garbage data is accidentally
+	// left on pooled Connection objects used during serialization
+	httpKey := http.NewKey(
+		util.AddressFromString("10.0.15.1"),
+		util.AddressFromString("172.217.10.45"),
+		60000,
+		8080,
+		"",
+		true,
+		http.MethodGet,
+	)
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: util.AddressFromString("10.0.15.1"),
+					SPort:  uint16(60000),
+					Dest:   util.AddressFromString("172.217.10.45"),
+					DPort:  uint16(8080),
+				},
+			},
+		},
+	}
+
+	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
+		marshaler := GetMarshaler("application/protobuf")
+		blob, err := marshaler.Marshal(c)
+		require.NoError(t, err)
+
+		unmarshaler := GetUnmarshaler("application/protobuf")
+		result, err := unmarshaler.Unmarshal(blob)
+		require.NoError(t, err)
+
+		http2Blob := result.Conns[0].Http2Aggregations
+		if http2Blob == nil {
+			return nil
+		}
+
+		http2Out := new(model.HTTP2Aggregations)
+		err = proto.Unmarshal(http2Blob, http2Out)
+		require.NoError(t, err)
+		return http2Out
+	}
+
+	// Let's alternate between payloads with and without HTTP2 data
+	for i := 0; i < 1000; i++ {
+		if (i % 2) == 0 {
+			httpKey.Path = http.Path{
+				Content:  fmt.Sprintf("/path-%d", i),
+				FullPath: true,
+			}
+			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
+			out := encodeAndDecodeHTTP2(in)
+
+			require.NotNil(t, out)
+			require.Len(t, out.EndpointAggregations, 1)
+			require.Equal(t, httpKey.Path.Content, out.EndpointAggregations[0].Path)
+		} else {
+			// No HTTP2 data in this payload, so we should never get HTTP2 data back after the serialization
+			in.HTTP2 = nil
+			out := encodeAndDecodeHTTP2(in)
+			require.Nil(t, out, "expected a nil object, but got garbage")
+		}
+	}
+}
+
+func TestUSMPayloadTelemetry(t *testing.T) {
+	telemetry.Clear()
+	t.Cleanup(telemetry.Clear)
+
+	// Set metric present in the payload telemetry list to an arbitrary value
+	m1 := telemetry.NewCounter("usm.http.total_hits", telemetry.OptPayloadTelemetry)
+	m1.Add(10)
+	require.Contains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m1.Name()))
+
+	// Add another metric that is not present in the allowed list
+	m2 := telemetry.NewCounter("foobar", telemetry.OptPayloadTelemetry)
+	m2.Add(50)
+	require.NotContains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m2.Name()))
+
+	// Perform a marshal/unmarshal cycle
+	in := new(network.Connections)
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	// Assert that the correct metric is present in the emitted payload
+	payloadTelemetry := result.ConnTelemetryMap
+	assert.Equal(t, int64(10), payloadTelemetry["usm.http.total_hits"])
+	assert.NotContains(t, payloadTelemetry, "foobar")
 }

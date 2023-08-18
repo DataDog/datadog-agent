@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 package winkmem
 
@@ -12,13 +11,14 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestWinKMem(t *testing.T) {
-
 	kcheck := new(KMemCheck)
-	kcheck.Configure(nil, nil, "test")
+	kcheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	m := mocksender.NewMockSender(kcheck.ID())
 

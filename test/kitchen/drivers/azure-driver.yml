@@ -7,6 +7,7 @@
   vm_tags = {
     'dd_agent_testing': 'dd_agent_testing'
   }
+  vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
   if ENV['DD_PIPELINE_ID']
     vm_tags['pipeline_id'] = ENV['DD_PIPELINE_ID']
   else
@@ -16,6 +17,9 @@
 
 provisioner:
   name: chef_solo
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  root_path: <%= ENV['KITCHEN_CI_ROOT_PATH'] %>/kitchen
+  <% end %>
   product_name: chef
   # There is no arm64 distribution of Chef 14 for Debian. Use the Ubuntu package instead
   <% if ENV['KITCHEN_PLATFORM'] == "debian" && ENV['KITCHEN_ARCH'] == "arm64" %>
@@ -43,12 +47,6 @@ driver_config:
   <% else %>
   azure_resource_group_suffix: plnone
   <% end %>
-  custom_data: |
-    #cloud-config
-    runcmd:
-      - mkdir /mnt/kitchen
-      - chmod a+rwx /mnt/kitchen
-      - ln -s /mnt/kitchen /tmp/kitchen
 
 platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
@@ -59,6 +57,7 @@ platforms:
     # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
     # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
     azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+    cws_supported_platforms = (ENV['KITCHEN_CWS_SUPPORTED_OSVERS'] || "").split(',')
 
     if ENV['TEST_IMAGE_SIZE'] != ""
       sizes = [
@@ -99,7 +98,7 @@ platforms:
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
-      windows2008 = windows && platform_name.include?("2008")
+      debian9 = platform_name.include?("debian-9")
 
       if windows
         windows_platforms << platform_name
@@ -114,13 +113,12 @@ platforms:
       # Check if we should use an ed25519 key, an rsa key or the default key
       # Some newer platforms don't support rsa, while some older platforms don't support ed25519
       # In Azure, ed25519 is not supported, but the default key created by the driver works
-      default_key_platforms = ["ubuntu-22-04"]
+      default_key_platforms = ["ubuntu-22-04", "rhel-91"]
       use_default_key = default_key_platforms.any? { |p| platform_name.include?(p) }
 
       ed25519_platforms = []
       use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
 
-      vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
 
 %>
@@ -128,9 +126,15 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    dd-agent-rspec:
+      enable_cws: <%= ENV['KITCHEN_CWS'] == "true" && cws_supported_platforms.include?(platform[0]) %>
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
     <% end %>
+  <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+  provisioner:
+    command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
+  <% end %>
   driver_config:
     machine_size: <%= size %>
     <% if platform[1] == "urn" %>
@@ -141,15 +145,6 @@ platforms:
     location: <%= location %>
     <% if windows %>
     vm_name: ddat<%= platform[0] %>
-    <% if windows2008 %>
-    winrm_powershell_script: |-
-      winrm quickconfig -q
-      winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="512"}'
-      winrm set winrm/config '@{MaxTimeoutms="1800000"}'
-      winrm set winrm/config/service '@{AllowUnencrypted="true"}'
-      winrm set winrm/config/service/auth '@{Basic="true"}'
-      netsh advfirewall firewall set rule name="Windows Remote Management (HTTP-In)" profile=public protocol=tcp localport=5985 remoteip=localsubnet new remoteip=any
-    <% end %>
     <% else %>
     vm_name: dd-agent-testing-<%= platform[0] %>-azure
     <% end %>
@@ -159,6 +154,25 @@ platforms:
       <% end %>
     username: <%= vm_username %>
     password: <%= vm_password %>
+  <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || debian9 %>
+  lifecycle:
+    post_create:
+    <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
+    - remote: |
+        sudo mkdir -p <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
+        sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
+    <% end %>
+    <% if debian9 %>
+    - local: echo 'Updating the sources.list file to use archive.debian.org for the stretch suites'
+    - remote: |
+        # Stretch has been moved to archive.debian.org
+        # See https://lists.debian.org/debian-devel-announce/2023/03/msg00006.html
+        sudo sed -i 's/debian-archive.trafficmanager.net/archive.debian.org/g' /etc/apt/sources.list
+        # The stretch-updates dist doesn't exist in archive.debian.org/debian
+        sudo sed -i '/stretch-updates/d' /etc/apt/sources.list
+    <% end %>
+  <% end %>
 
   transport:
     <% if windows %>
@@ -181,5 +195,6 @@ platforms:
     downloads:
       "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
       "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
+      "/tmp/kitchen/rspec.xml": kitchen-rspec-<%= platform_name %>.xml
 
 <% end %>

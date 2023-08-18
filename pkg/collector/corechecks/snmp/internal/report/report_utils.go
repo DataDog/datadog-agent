@@ -7,11 +7,20 @@ package report
 
 import (
 	"fmt"
+	"net"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	ifTablePrefix  = "1.3.6.1.2.1.2.2."
+	ifXTablePrefix = "1.3.6.1.2.1.31.1.1."
 )
 
 func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (valuestore.ResultValue, error) {
@@ -86,16 +95,10 @@ func getTagsFromMetricTagConfigList(mtcl checkconfig.MetricTagConfigList, fullIn
 				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
 				continue
 			}
-			var tagValue string
-			if len(metricTag.Mapping) > 0 {
-				mappedValue, ok := metricTag.Mapping[indexes[index]]
-				if !ok {
-					log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
-					continue
-				}
-				tagValue = mappedValue
-			} else {
-				tagValue = indexes[index]
+			tagValue, err := checkconfig.GetMappedValue(indexes[index], metricTag.Mapping)
+			if err != nil {
+				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
+				continue
 			}
 			rowTags = append(rowTags, metricTag.Tag+":"+tagValue)
 		}
@@ -146,4 +149,64 @@ func transformIndex(indexes []string, transformRules []checkconfig.MetricIndexTr
 		newIndex = append(newIndex, indexes[start:end]...)
 	}
 	return newIndex
+}
+
+func netmaskToPrefixlen(netmask string) int {
+	stringMask := net.IPMask(net.ParseIP(netmask).To4())
+	length, _ := stringMask.Size()
+	return length
+}
+
+// getInterfaceConfig retrieves snmpintegration.InterfaceConfig by index and tags
+func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, index string, tags []string) (snmpintegration.InterfaceConfig, error) {
+	var ifName string
+	for _, tag := range tags {
+		tagElems := strings.SplitN(tag, ":", 2)
+		if len(tagElems) == 2 && tagElems[0] == "interface" {
+			ifName = tagElems[1]
+			break
+		}
+	}
+	for _, ifConfig := range interfaceConfigs {
+		if (ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName) ||
+			(ifConfig.MatchField == "index" && ifConfig.MatchValue == index) {
+			return ifConfig, nil
+		}
+	}
+	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
+}
+
+// getConstantMetricValues retrieve all metric tags indexes and set their value as 1
+func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *valuestore.ResultValueStore) map[string]valuestore.ResultValue {
+	constantValues := make(map[string]valuestore.ResultValue)
+	for _, metricTag := range mtcl {
+		if len(metricTag.IndexTransform) > 0 {
+			// If index transform is set, indexes are from another table, we don't want to collect them
+			continue
+		}
+		if metricTag.Column.OID != "" {
+			columnValues, err := getColumnValueFromSymbol(values, metricTag.Column)
+			if err != nil {
+				log.Debugf("error getting column value: %v", err)
+				continue
+			}
+			for index := range columnValues {
+				if _, ok := constantValues[index]; ok {
+					continue
+				}
+				constantValues[index] = valuestore.ResultValue{
+					Value: float64(1),
+				}
+			}
+		}
+	}
+	return constantValues
+}
+
+// isInterfaceTableMetric takes in an OID and returns
+// true if the prefix matches ifTable or ifXTable from
+// the IF-MIB
+func isInterfaceTableMetric(oid string) bool {
+	oid = strings.TrimPrefix(oid, ".")
+	return strings.HasPrefix(oid, ifTablePrefix) || strings.HasPrefix(oid, ifXTablePrefix)
 }

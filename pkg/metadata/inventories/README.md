@@ -83,6 +83,7 @@ The payload is a JSON dict with the following fields
   - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
   - `logs_transport` - **string**:  The transport used to send logs to Datadog. Value is either `"HTTP"` or `"TCP"` when logs collection is
     enabled, otherwise the field is omitted.
+  - `feature_fips_enabled` - **bool**: True if the Datadog Agent is in FIPS mode (see: `fips.enabled` config option).
   - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
     config option).
   - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled
@@ -91,14 +92,37 @@ The payload is a JSON dict with the following fields
      (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
-  - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-proble.yaml`).
-  - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-proble.yaml`).
-  - `feature_networks_gotls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Network Performance Monitoring (see: `system_probe_config.enable_go_tls_support` config option in `system-proble.yaml`).
+  - `feature_oom_kill_enabled` - **bool**: True if the OOM Kill check is enabled for System Probe (see: `system_probe_config.enable_oom_kill` config option in `system-probe.yaml`).
+  - `feature_tcp_queue_length_enabled` - **bool**: True if TCP Queue Length check is enabled in System Probe (see: `system_probe_config.enable_tcp_queue_length` config option in `system-probe.yaml`).
+  - `system_probe_telemetry_enabled` - **bool**: True if Telemetry is enabled in the System Probe (see: `system_probe_config.telemetry_enabled` config option in `system-probe.yaml`).
+  - `system_probe_core_enabled` - **bool**: True if CO-RE is enabled in the System Probe (see: `system_probe_config.enable_co_re` config option in `system-probe.yaml`).
+  - `system_probe_runtime_compilation_enabled` - **bool**: True if Runtime Compilation is enabled in the System Probe (see: `system_probe_config.enable_runtime_compiler` config option in `system-probe.yaml`).
+  - `system_probe_kernel_headers_download_enabled` - **bool**: True if Kernel header downloading is enabled in the System Probe (see: `system_probe_config.enable_kernel_header_download` config option in `system-probe.yaml`).
+  - `system_probe_prebuilt_fallback_enabled` - **bool**: True if the System Probe will fallback to prebuilt when other options fail (see: `system_probe_config.allow_precompiled_fallback` config option in `system-probe.yaml`).
+  - `system_probe_max_connections_per_message` - **int**: The maximum number of connections per message (see: `system_probe_config.max_conns_per_message` config option in `system-probe.yaml`).
+  - `system_probe_track_tcp_4_connections` - **bool**: True if tracking TCPv4 connections is enabled in the System Probe (see: `network_config.collect_tcp_v4` config option in `system-probe.yaml`).
+  - `system_probe_track_tcp_6_connections` - **bool**: True if tracking TCPv6 connections is enabled in the System Probe (see: `network_config.collect_tcp_v6` config option in `system-probe.yaml`).
+  - `system_probe_track_udp_4_connections` - **bool**: True if tracking UDPv4 connections is enabled in the System Probe (see: `network_config.collect_udp_v4` config option in `system-probe.yaml`).
+  - `system_probe_track_udp_6_connections` - **bool**: True if tracking UDPv6 connections is enabled in the System Probe (see: `network_config.collect_udp_v6` config option in `system-probe.yaml`).
+  - `system_probe_protocol_classification_enabled` - **bool**: True if protocol classification is enabled in the System Probe (see: `network_config.enable_protocol_classification` config option in `system-probe.yaml`).
+  - `system_probe_gateway_lookup_enabled` - **bool**: True if gateway lookup is enable in the System Probe (see: `network_config.enable_gateway_lookup` config option in `system-probe.yaml`).
+  - `system_probe_root_namespace_enabled` - **bool**: True if the System Probe will run in the root namespace of the host (see: `network_config.enable_root_netns` config option in `system-probe.yaml`).
+  - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-probe.yaml`).
+  - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-probe.yaml`).
+  - `feature_remote_configuration_enabled` - **bool**: True if Remote Configuration is enabled (see: `remote_configuration.enabled` config option).
+  - `feature_usm_enabled` - **bool**: True if Universal Service Monitoring is enabled (see: `service_monitoring_config.enabled` config option in `system-probe.yaml`)
+  - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
+  - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `data_streams_config.enabled` config option in `system-probe.yaml`)
+  - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_java_tls_support` config option in `system-probe.yaml`).
+  - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_go_tls_support` config option in `system-probe.yaml`).
+  - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled.
+  - `feature_enable_http_stats_by_status_code` - **bool**: True if HTTP stats aggregation should be by status code rather than status code family (see: `service_monitoring_config.enable_http_stats_by_status_code` config option in `system-probe.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
+  - `feature_imdsv2_enabled` - **bool**: True if the IMDSv2 is enabled (see: `ec2_prefer_imdsv2` config option).
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
     string.
   - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
@@ -128,6 +152,19 @@ The payload is a JSON dict with the following fields
   - `mac_address` - **string**: the MAC address for the host.
   - `agent_version` - **string**: the version of the Agent that sent this payload.
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent.
+  - `cloud_provider_source` - **string**: the data source used to know that the Agent is running on `cloud_provider`.
+    This is different for each cloud provider. For now ony AWS is supported.
+    Values on AWS:
+    - `IMDSv2`: The Agent successfully contacted IMDSv2 metadata endpoint.
+    - `IMDSv1`: The Agent successfully contacted IMDSv1 metadata endpoint.
+    - `DMI`: The Agent successfully used DMI information to fetch the instance ID (only works on Unix EC2 Nitro instances).
+    - `UUID`: The hypervisor or product UUID has the EC2 prefix. The Agent knows it's running on EC2 but don't know on
+      which instance (see `hypervisor_guest_uuid` or `dmi_product_uuid`).
+  - `cloud_provider_account_id` - **string**: The account/subscription ID from the cloud provider.
+  - `cloud_provider_host_id` - **string**: the unique ID the cloud provider uses to reference this instance.
+    This is different for each cloud provider (for now, ony AWS is supported).
+    - On AWS: the instance ID returned by querying the IMDSv2 endpoint. An empty string is returned if we can't reach
+      IMDSv2 (even if IMDSv1 is available).
   - `hypervisor_guest_uuid` - **string**: the hypervisor guest UUID (Unix only, empty string on Windows or if we can't
     read the data). On `ec2` instance this might start by "ec2". This was introduce in `7.41.0`/`6.41.0`.
   - `dmi_product_uuid` - **string**: the DMI product UUID (Unix only, empty string on Windows or if we can't read the
@@ -159,12 +196,14 @@ Here an example of an inventory payload:
         "config_proxy_http": "",
         "config_proxy_https": "http://localhost:9999",
         "config_site": "",
+        "feature_imdsv2_enabled": false,
         "feature_apm_enabled": true,
         "feature_cspm_enabled": false,
         "feature_cws_enabled": false,
         "feature_logs_enabled": true,
         "feature_networks_enabled": false,
         "feature_process_enabled": false,
+        "feature_remote_configuration_enabled": false,
         "flavor": "agent",
         "hostname_source": "os",
         "install_method_installer_version": "",
@@ -263,6 +302,9 @@ Here an example of an inventory payload:
         "mac_address": "01:23:45:67:89:AB",
         "agent_version": "7.37.0-devel+git.198.68a5b69",
         "cloud_provider": "AWS",
+        "cloud_provider_source": "DMI",
+        "cloud_provider_account_id": "aws_account_id",
+        "cloud_provider_host_id": "i-abcedf",
         "hypervisor_guest_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
         "dmi_product_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
         "dmi_board_asset_tag": "i-abcedf",

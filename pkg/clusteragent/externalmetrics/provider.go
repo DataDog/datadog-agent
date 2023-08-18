@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package externalmetrics
 
@@ -13,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -30,6 +30,10 @@ import (
 const (
 	autogenExpirationPeriodHours int64 = 3
 )
+
+var fakeExternalMetric = provider.ExternalMetricInfo{
+	Metric: "noexternalmetric",
+}
 
 type datadogMetricProvider struct {
 	apiCl            *apiserver.APIClient
@@ -54,6 +58,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	refreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
 	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
+	splitBatchBackoffOnErrors := config.Datadog.GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := common.GetResourcesNamespace()
 	autogenEnabled := config.Datadog.GetBool("external_metrics_provider.enable_datadogmetric_autogen")
 
@@ -69,7 +74,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient failed with: %v", err)
 	}
 
-	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store)
+	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %v", err)
 	}
@@ -98,28 +103,29 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	go autoscalerWatcher.Run(ctx.Done())
 
 	// We shift controller refresh period from retrieverRefreshPeriod to maximize the probability to have new data from DD
-	controller, err := NewDatadogMetricController(apiCl.DDClient, apiCl.DDInformerFactory, le.IsLeader, &provider.store)
+	controller, err := NewDatadogMetricController(apiCl.DDClient, apiCl.DynamicInformerFactory, le.IsLeader, &provider.store)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogMetric Controller failed with: %v", err)
 	}
 
 	// Start informers & controllers (informers can be started multiple times)
-	apiCl.DDInformerFactory.Start(ctx.Done())
+	apiCl.DynamicInformerFactory.Start(ctx.Done())
 	go controller.Run(ctx)
 
 	return provider, nil
 }
 
 func (p *datadogMetricProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+	startTime := time.Now()
 	res, err := p.getExternalMetric(namespace, metricSelector, info)
 	if err != nil {
-		log.Errorf("ExternalMetric query failed with error: %v", err)
 		convErr := apierr.NewInternalError(err)
 		if convErr != nil {
 			err = convErr
 		}
 	}
 
+	setQueryTelemtry("get", namespace, startTime, err)
 	return res, err
 }
 
@@ -136,14 +142,14 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 		parsed = true
 	}
 	if !parsed {
-		return nil, fmt.Errorf("ExternalMetric does not follow DatadogMetric format")
+		return nil, log.Warnf("ExternalMetric does not follow DatadogMetric format: %s", info.Metric)
 	}
 
 	datadogMetric := p.store.Get(datadogMetricID)
-	log.Debugf("DatadogMetric from store: %v", datadogMetric)
+	log.Tracef("DatadogMetric from store: %v", datadogMetric)
 
 	if datadogMetric == nil {
-		return nil, fmt.Errorf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
+		return nil, log.Warnf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
 	}
 
 	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric)
@@ -157,6 +163,7 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 }
 
 func (p *datadogMetricProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
+	startTime := time.Now()
 	datadogMetrics := p.store.GetAll()
 	results := make([]provider.ExternalMetricInfo, 0, len(datadogMetrics))
 	// Unique the external metric names
@@ -174,6 +181,13 @@ func (p *datadogMetricProvider) ListAllExternalMetrics() []provider.ExternalMetr
 		results = append(results, provider.ExternalMetricInfo{Metric: metricName})
 	}
 
+	// Workaround for https://github.com/kubernetes-sigs/custom-metrics-apiserver/issues/146
+	// In any, HPA does not use `List` endpoint
+	if len(results) == 0 {
+		results = append(results, fakeExternalMetric)
+	}
+
 	log.Tracef("Answering list of available metrics: %v", results)
+	setQueryTelemtry("list", "", startTime, nil)
 	return results
 }

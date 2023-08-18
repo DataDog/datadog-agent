@@ -16,15 +16,15 @@ import (
 var (
 	runOptionsWithStandard = RunOptions{
 		RunStandard: true,
-		RunRealTime: false,
+		RunRealtime: false,
 	}
 	runOptionsWithRealTime = RunOptions{
 		RunStandard: false,
-		RunRealTime: true,
+		RunRealtime: true,
 	}
 	runOptionsWithBoth = RunOptions{
 		RunStandard: true,
-		RunRealTime: true,
+		RunRealtime: true,
 	}
 )
 

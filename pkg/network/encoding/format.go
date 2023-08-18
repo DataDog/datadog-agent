@@ -11,10 +11,9 @@ import (
 	"sync"
 	"unsafe"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/gogo/protobuf/proto"
 	"github.com/twmb/murmur3"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -50,18 +49,23 @@ func FormatConnection(
 	conn network.ConnectionStats,
 	routes map[string]RouteIdx,
 	httpEncoder *httpEncoder,
+	http2Encoder *http2Encoder,
+	kafkaEncoder *kafkaEncoder,
 	dnsFormatter *dnsFormatter,
 	ipc ipCache,
 	tagsSet *network.TagsSet,
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort, ipc)
-	c.Raddr = formatAddr(conn.Dest, conn.DPort, ipc)
+	var containerID string
+	if conn.ContainerID != nil {
+		containerID = *conn.ContainerID
+	}
+	c.Laddr = formatAddr(conn.Source, conn.SPort, containerID, ipc)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort, "", ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
-	c.PidCreateTime = 0
 	c.LastBytesSent = conn.Last.SentBytes
 	c.LastBytesReceived = conn.Last.RecvBytes
 	c.LastPacketsSent = conn.Last.SentPackets
@@ -76,16 +80,19 @@ func FormatConnection(
 	c.IntraHost = conn.IntraHost
 	c.LastTcpEstablished = conn.Last.TCPEstablished
 	c.LastTcpClosed = conn.Last.TCPClosed
-	c.Protocol = formatProtocol(conn.Protocol)
+	c.Protocol = formatProtocolStack(conn.ProtocolStack, conn.StaticTags)
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
 	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
-	if httpStats != nil {
-		c.HttpAggregations, _ = proto.Marshal(httpStats)
-	}
+	c.HttpAggregations = httpStats
 
-	conn.Tags |= staticTags
+	http2Stats, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
+	c.Http2Aggregations = http2Stats
+
+	c.DataStreamsAggregations = kafkaEncoder.GetKafkaAggregations(conn)
+
+	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
 
 	return c
@@ -110,14 +117,18 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
-	if tel == nil {
-		return nil
-	}
+	// Fetch USM payload telemetry
+	ret := GetUSMPayloadTelemetry()
 
-	ret := make(map[string]int64)
+	// Merge it with NPM telemetry
 	for k, v := range tel {
 		ret[string(k)] = v
 	}
+
+	if len(ret) == 0 {
+		return nil
+	}
+
 	return ret
 }
 
@@ -148,12 +159,12 @@ func returnToPool(c *model.Connections) {
 	}
 }
 
-func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
+func formatAddr(addr util.Address, port uint16, containerID string, ipc ipCache) *model.Addr {
 	if addr.IsZero() {
 		return nil
 	}
 
-	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port)}
+	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port), ContainerId: containerID}
 }
 
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
@@ -249,7 +260,7 @@ func routeKey(v *network.Via) string {
 
 func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
 	mm := murmur3.New32()
-	for _, tag := range network.GetStaticTags(c.Tags) {
+	for _, tag := range network.GetStaticTags(c.StaticTags) {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
@@ -258,6 +269,14 @@ func formatTags(tagsSet *network.TagsSet, c network.ConnectionStats, connDynamic
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
+		mm.Reset()
+		_, _ = mm.Write(unsafeStringSlice(tag))
+		checksum ^= mm.Sum32()
+		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+	}
+
+	// other tags, e.g., from process env vars like DD_ENV, etc.
+	for tag := range c.Tags {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
@@ -274,23 +293,4 @@ func unsafeStringSlice(key string) []byte {
 	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
 	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
 	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
-}
-
-// formatProtocol converts a single protocol into a protobuf representation of protocol stack.
-// i.e: the input is ProtocolHTTP2 and the output should be:
-// &model.ProtocolStack{
-//		Stack: []model.ProtocolType{
-//			model.ProtocolType_protocolHTTP2,
-//		},
-//	}
-func formatProtocol(protocol network.ProtocolType) *model.ProtocolStack {
-	if protocol == network.ProtocolUnclassified {
-		return nil
-	}
-
-	return &model.ProtocolStack{
-		Stack: []model.ProtocolType{
-			model.ProtocolType(protocol),
-		},
-	}
 }

@@ -4,8 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
-
 
 package collector
 
@@ -17,9 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type CollectorDemuxTestSuite struct {
@@ -30,8 +30,9 @@ type CollectorDemuxTestSuite struct {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	suite.c = NewCollector()
-	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
+	suite.c = NewCollector(aggregator.GetSenderManager())
+	log := fxutil.Test[log.Component](suite.T(), log.MockModule)
+	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 100*time.Hour)
 
 	suite.c.Start()
 }
@@ -148,8 +149,8 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 		return sender == nil
 	}, time.Second, 10*time.Millisecond)
 
-	//create new sender and try registering sampler before flush
-	sender, err = aggregator.GetSender(ch.ID())
+	// create new sender and try registering sampler before flush
+	_, err = aggregator.GetSender(ch.ID())
 	assert.NoError(suite.T(), err)
 
 	// flush
@@ -173,7 +174,7 @@ func TestCollectorDemuxSuite(t *testing.T) {
 }
 
 type cancelledCheck struct {
-	check.StubCheck
+	stub.StubCheck
 	flip chan struct{}
 	flop chan struct{}
 }

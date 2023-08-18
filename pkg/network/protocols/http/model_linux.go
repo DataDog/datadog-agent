@@ -4,22 +4,24 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package http
 
 import (
 	"bytes"
 	"encoding/hex"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 // Path returns the URL from the request fragment captured in eBPF with
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
+func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	bLen := bytes.IndexByte(tx.Request_fragment[:], 0)
 	if bLen == -1 {
 		bLen = len(tx.Request_fragment)
@@ -45,103 +47,72 @@ func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
 	return buffer[:n], fullPath
 }
 
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func (tx *ebpfHttpTx) StatusClass() int {
-	return (int(tx.Response_status_code) / 100) * 100
-}
-
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *ebpfHttpTx) RequestLatency() float64 {
+func (tx *EbpfTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
-	return nsTimestampToFloat(tx.Response_last_seen - tx.Request_started)
+	return protocols.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *ebpfHttpTx) Incomplete() bool {
+func (tx *EbpfTx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_status_code == 0
 }
 
-func (tx *ebpfHttpTx) ReqFragment() []byte {
-	return tx.Request_fragment[:]
+func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
+	return types.ConnectionKey{
+		SrcIPHigh: tx.Tup.Saddr_h,
+		SrcIPLow:  tx.Tup.Saddr_l,
+		DstIPHigh: tx.Tup.Daddr_h,
+		DstIPLow:  tx.Tup.Daddr_l,
+		SrcPort:   tx.Tup.Sport,
+		DstPort:   tx.Tup.Dport,
+	}
 }
 
-func (tx *ebpfHttpTx) isIPV4() bool {
-	return true
-}
-
-func (tx *ebpfHttpTx) SrcIPHigh() uint64 {
-	return tx.Tup.Saddr_h
-}
-
-func (tx *ebpfHttpTx) SrcIPLow() uint64 {
-	return tx.Tup.Saddr_l
-}
-
-func (tx *ebpfHttpTx) SrcPort() uint16 {
-	return tx.Tup.Sport
-}
-
-func (tx *ebpfHttpTx) DstIPHigh() uint64 {
-	return tx.Tup.Daddr_h
-}
-
-func (tx *ebpfHttpTx) DstIPLow() uint64 {
-	return tx.Tup.Daddr_l
-}
-
-func (tx *ebpfHttpTx) DstPort() uint16 {
-	return tx.Tup.Dport
-}
-
-func (tx *ebpfHttpTx) Method() Method {
+func (tx *EbpfTx) Method() Method {
 	return Method(tx.Request_method)
 }
 
-func (tx *ebpfHttpTx) StatusCode() uint16 {
+func (tx *EbpfTx) StatusCode() uint16 {
 	return tx.Response_status_code
 }
 
-func (tx *ebpfHttpTx) SetStatusCode(code uint16) {
+func (tx *EbpfTx) SetStatusCode(code uint16) {
 	tx.Response_status_code = code
 }
 
-func (tx *ebpfHttpTx) ResponseLastSeen() uint64 {
+func (tx *EbpfTx) ResponseLastSeen() uint64 {
 	return tx.Response_last_seen
 }
 
-func (tx *ebpfHttpTx) SetResponseLastSeen(lastSeen uint64) {
+func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Response_last_seen = lastSeen
 
 }
-func (tx *ebpfHttpTx) RequestStarted() uint64 {
+func (tx *EbpfTx) RequestStarted() uint64 {
 	return tx.Request_started
 }
 
-func (tx *ebpfHttpTx) RequestMethod() uint32 {
-	return uint32(tx.Request_method)
-}
-
-func (tx *ebpfHttpTx) SetRequestMethod(m uint32) {
+func (tx *EbpfTx) SetRequestMethod(m Method) {
 	tx.Request_method = uint8(m)
 }
 
 // StaticTags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *ebpfHttpTx) StaticTags() uint64 {
+func (tx *EbpfTx) StaticTags() uint64 {
 	return tx.Tags
 }
 
-func (tx *ebpfHttpTx) DynamicTags() []string {
+func (tx *EbpfTx) DynamicTags() []string {
 	return nil
 }
 
-func (tx *ebpfHttpTx) String() string {
+func (tx *EbpfTx) String() string {
 	var output strings.Builder
-	output.WriteString("ebpfHttpTx{")
+	output.WriteString("ebpfTx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags, 16) + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
@@ -149,30 +120,11 @@ func (tx *ebpfHttpTx) String() string {
 	return output.String()
 }
 
-// Transactions returns the slice of HTTP transactions embedded in the batch
-func (batch *httpBatch) Transactions() []ebpfHttpTx {
-	return batch.Txs[:]
-}
-
-// below is copied from pkg/trace/stats/statsraw.go
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask uint64 = 1 << 10
-
-// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
-func nsTimestampToFloat(ns uint64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
+func requestFragment(fragment []byte) [BufferSize]byte {
+	if len(fragment) >= BufferSize {
+		return *(*[BufferSize]byte)(fragment)
 	}
-	return float64(ns << shift)
-}
-
-func requestFragment(fragment []byte) [HTTPBufferSize]byte {
-	if len(fragment) >= HTTPBufferSize {
-		return *(*[HTTPBufferSize]byte)(fragment)
-	}
-	var b [HTTPBufferSize]byte
+	var b [BufferSize]byte
 	copy(b[:], fragment)
 	return b
 }

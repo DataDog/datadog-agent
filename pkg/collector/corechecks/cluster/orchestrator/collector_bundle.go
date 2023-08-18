@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package orchestrator
 
@@ -12,9 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,19 +24,22 @@ import (
 
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
+	defaultMaximumCRDs      = 100
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way
 // to easily run them all.
 type CollectorBundle struct {
-	check              *OrchestratorCheck
-	collectors         []collectors.Collector
-	discoverCollectors bool
-	extraSyncTimeout   time.Duration
-	inventory          *inventory.CollectorInventory
-	stopCh             chan struct{}
-	runCfg             *collectors.CollectorRunConfig
-	manifestBuffer     *ManifestBuffer
+	check               *OrchestratorCheck
+	collectors          []collectors.Collector
+	discoverCollectors  bool
+	extraSyncTimeout    time.Duration
+	inventory           *inventory.CollectorInventory
+	stopCh              chan struct{}
+	runCfg              *collectors.CollectorRunConfig
+	manifestBuffer      *ManifestBuffer
+	collectorDiscovery  *discovery.DiscoveryCollector
+	activatedCollectors map[string]struct{}
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -55,15 +58,17 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		check:              chk,
 		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
-			APIClient:   chk.apiClient,
-			ClusterID:   chk.clusterID,
-			Config:      chk.orchestratorConfig,
-			MsgGroupRef: chk.groupID,
+			APIClient:                   chk.apiClient,
+			ClusterID:                   chk.clusterID,
+			Config:                      chk.orchestratorConfig,
+			MsgGroupRef:                 chk.groupID,
+			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
 		},
-		stopCh:         make(chan struct{}),
-		manifestBuffer: NewManifestBuffer(chk),
+		stopCh:              chk.stopCh,
+		manifestBuffer:      NewManifestBuffer(chk),
+		collectorDiscovery:  discovery.NewDiscoveryCollectorForInventory(),
+		activatedCollectors: map[string]struct{}{},
 	}
-
 	bundle.prepare()
 
 	return bundle
@@ -77,6 +82,13 @@ func (cb *CollectorBundle) prepare() {
 
 // prepareCollectors initializes the bundle collector list.
 func (cb *CollectorBundle) prepareCollectors() {
+	// we still need to collect non crd resources except if otherwise configured
+	if ok := cb.importCRDCollectorsFromCheckConfig(); ok {
+		if cb.skipImportingDefaultCollectors() {
+			return
+		}
+	}
+
 	if ok := cb.importCollectorsFromCheckConfig(); ok {
 		return
 	}
@@ -89,27 +101,61 @@ func (cb *CollectorBundle) prepareCollectors() {
 	return
 }
 
+// skipImportingDefaultCollectors skips importing the default collectors if the collector list is explicitly set to an
+// empty string. Example:
+/*
+init_config:
+instances:
+  - collectors: []
+    crd_collectors:
+      - datadoghq.com/v1alpha1/datadogmetrics
+*/
+func (cb *CollectorBundle) skipImportingDefaultCollectors() bool {
+	return cb.check.instance.Collectors != nil && len(cb.check.instance.Collectors) == 0
+}
+
 // addCollectorFromConfig appends a collector to the bundle based on the
 // collector name specified in the check configuration.
 //
+// ## Normal Groups
 // The following configuration keys are accepted:
 //   - <collector_name> (e.g "cronjobs")
 //   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
 //
-// Note that in the versionless case the collector version that'll be used is
-// the one declared as the default version in the inventory.
-func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
+// ## CRDs
+// The following configuration keys are accepted:
+//   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
+func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bool) {
 	var (
 		collector collectors.Collector
 		err       error
 	)
 
-	if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
-		version := collectorName[:idx]
+	if isCRD {
+		idx := strings.LastIndex(collectorName, "/")
+		if idx == -1 {
+			_ = cb.check.Warnf("Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName)
+			return
+		}
+		groupVersion := collectorName[:idx]
+		resource := collectorName[idx+1:]
+
+		if cb.skipResources(groupVersion, resource) {
+			return
+		}
+
+		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
+			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
+
+			return
+		}
+		collector, err = cb.collectorDiscovery.VerifyForCRDInventory(resource, groupVersion)
+	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
+		groupVersion := collectorName[:idx]
 		name := collectorName[idx+1:]
-		collector, err = cb.inventory.CollectorForVersion(name, version)
+		collector, err = cb.collectorDiscovery.VerifyForInventory(name, groupVersion, cb.inventory)
 	} else {
-		collector, err = cb.inventory.CollectorForDefaultVersion(collectorName)
+		collector, err = cb.collectorDiscovery.VerifyForInventory(collectorName, "", cb.inventory)
 	}
 
 	if err != nil {
@@ -117,10 +163,18 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 		return
 	}
 
-	if !collector.Metadata().IsStable {
+	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
+	// I am using the fullName for now on purpose in case we have the same resource across 2 different groups setup
+	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+		_ = cb.check.Warnf("collector %s has already been added", collectorName) // Before using unstable info
+		return
+	}
+
+	if !collector.Metadata().IsStable && !isCRD {
 		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
 	}
 
+	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
 	cb.collectors = append(cb.collectors, collector)
 }
 
@@ -132,7 +186,27 @@ func (cb *CollectorBundle) importCollectorsFromCheckConfig() bool {
 		return false
 	}
 	for _, c := range cb.check.instance.Collectors {
-		cb.addCollectorFromConfig(c)
+		cb.addCollectorFromConfig(c, false)
+	}
+	return true
+}
+
+// importCRDCollectorsFromCheckConfig tries to fill the crd bundle with the list of
+// collectors specified in the orchestrator crd check configuration. Returns true if
+// at least one collector was set, false otherwise.
+func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
+	if len(cb.check.instance.CRDCollectors) == 0 {
+		return false
+	}
+
+	crdCollectors := cb.check.instance.CRDCollectors
+	if len(cb.check.instance.CRDCollectors) > defaultMaximumCRDs {
+		crdCollectors = cb.check.instance.CRDCollectors[:defaultMaximumCRDs]
+		cb.check.Warnf("Too many crd collectors are configured, will only collect the first %d collectors", defaultMaximumCRDs)
+	}
+
+	for _, c := range crdCollectors {
+		cb.addCollectorFromConfig(c, true)
 	}
 	return true
 }
@@ -145,7 +219,7 @@ func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
 		return false
 	}
 
-	collectors, err := NewAPIServerDiscoveryProvider().Discover(cb.inventory)
+	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory)
 	if err != nil {
 		_ = cb.check.Warnf("Collector discovery failed: %s", err)
 		return false
@@ -184,20 +258,12 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // synced.
 func (cb *CollectorBundle) Initialize() error {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
-	var availableCollectors []collectors.Collector
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
 	informerSynced := map[cache.SharedInformer]struct{}{}
 
 	for _, collector := range cb.collectors {
 		collector.Init(cb.runCfg)
-		if !collector.IsAvailable() {
-			_ = cb.check.Warnf("Collector %q is unavailable, skipping it", collector.Metadata().FullName())
-			continue
-		}
-
-		availableCollectors = append(availableCollectors, collector)
-
 		informer := collector.Informer()
 
 		if _, found := informerSynced[informer]; !found {
@@ -207,20 +273,15 @@ func (cb *CollectorBundle) Initialize() error {
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
 			// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
 
-			// TODO: right now we use a stop channel which we don't close, that can lead to resource leaks
-			// A recent go-client update https://github.com/kubernetes/kubernetes/pull/104853 changed the behaviour so that
-			// we are not able to start informers anymore once they have been stopped. We will need to work around this. Once this is fixed we can properly release the resources during a check.Close().
 			go informer.Run(cb.stopCh)
 		}
 	}
-
-	cb.collectors = availableCollectors
 
 	return apiserver.SyncInformers(informersToSync, cb.extraSyncTimeout)
 }
 
 // Run is used to sequentially run all collectors in the bundle.
-func (cb *CollectorBundle) Run(sender aggregator.Sender) {
+func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 	// Start a thread to buffer manifests and kill it when the check is finished.
 	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
@@ -240,15 +301,27 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		runDuration := time.Since(runStartTime)
 		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().FullName(), result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
 
-		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), collector.Metadata().NodeType)
-		sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(collector.Metadata().NodeType))
+		nt := collector.Metadata().NodeType
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)
+
+		if collector.Metadata().IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
+			sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))
+		}
+
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
-			if cb.manifestBuffer.Cfg.BufferedManifestEnabled {
+			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && collector.Metadata().SupportsManifestBuffering {
 				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
 			} else {
-				// We don't buffer manifests for the pod check
 				sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 			}
 		}
 	}
+}
+
+func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
+	if groupVersion == "v1" && (resource == "secrets" || resource == "configmaps") {
+		cb.check.Warnf("Skipping collector: %s/%s, we don't support collecting it for now as it can contain sensitive data", groupVersion, resource)
+		return true
+	}
+	return false
 }

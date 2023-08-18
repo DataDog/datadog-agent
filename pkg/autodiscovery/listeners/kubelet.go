@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package listeners
 
@@ -114,6 +113,7 @@ func (l *KubeletListener) createContainerService(
 
 	if l.IsExcluded(
 		containers.GlobalFilter,
+		pod.Annotations,
 		containerName,
 		containerImg.RawName,
 		pod.Namespace,
@@ -163,12 +163,14 @@ func (l *KubeletListener) createContainerService(
 		// from metrics collection but keep them for collecting logs.
 		metricsExcluded: l.IsExcluded(
 			containers.MetricsFilter,
+			pod.Annotations,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
 		) || !container.State.Running,
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
+			pod.Annotations,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,

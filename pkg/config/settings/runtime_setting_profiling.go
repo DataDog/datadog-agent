@@ -10,44 +10,62 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// ProfilingRuntimeSetting wraps operations to change log level at runtime
-type ProfilingRuntimeSetting string
+// ProfilingRuntimeSetting wraps operations to change profiling at runtime
+type ProfilingRuntimeSetting struct {
+	SettingName string
+	Service     string
+
+	Config       config.ConfigReaderWriter
+	ConfigPrefix string
+	source       Source
+}
+
+func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRuntimeSetting {
+	return &ProfilingRuntimeSetting{
+		SettingName: settingName,
+		Service:     service,
+		source:      SourceDefault,
+	}
+}
 
 // Description returns the runtime setting's description
-func (l ProfilingRuntimeSetting) Description() string {
+func (l *ProfilingRuntimeSetting) Description() string {
 	return "Enable/disable profiling on the agent, valid values are: true, false, restart"
 }
 
-// Hidden returns whether or not this setting is hidden from the list of runtime settings
-func (l ProfilingRuntimeSetting) Hidden() bool {
+// Hidden returns whether this setting is hidden from the list of runtime settings
+func (l *ProfilingRuntimeSetting) Hidden() bool {
 	return true
 }
 
 // Name returns the name of the runtime setting
-func (l ProfilingRuntimeSetting) Name() string {
-	return string(l)
+func (l *ProfilingRuntimeSetting) Name() string {
+	return l.SettingName
 }
 
 // Get returns the current value of the runtime setting
-func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
-	return config.Datadog.GetBool("internal_profiling.enabled"), nil
+func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
+	var cfg config.ConfigReaderWriter = config.Datadog
+	if l.Config != nil {
+		cfg = l.Config
+	}
+	return cfg.GetBool(l.ConfigPrefix + "internal_profiling.enabled"), nil
 }
 
 // Set changes the value of the runtime setting
-func (l ProfilingRuntimeSetting) Set(v interface{}) error {
+func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 	var profile bool
 	var err error
 
 	if v, ok := v.(string); ok && strings.ToLower(v) == "restart" {
-		if err := l.Set(false); err != nil {
+		if err := l.Set(false, source); err != nil {
 			return err
 		}
-		return l.Set(true)
+		return l.Set(true, source)
 	}
 
 	profile, err = GetBool(v)
@@ -56,45 +74,57 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
 	}
 
+	var cfg config.ConfigReaderWriter = config.Datadog
+	if l.Config != nil {
+		cfg = l.Config
+	}
+
 	if profile {
 		// populate site
 		s := config.DefaultSite
-		if config.Datadog.IsSet("site") {
-			s = config.Datadog.GetString("site")
+		if cfg.IsSet(l.ConfigPrefix + "site") {
+			s = cfg.GetString(l.ConfigPrefix + "site")
 		}
 
 		// allow full url override for development use
 		site := fmt.Sprintf(profiling.ProfilingURLTemplate, s)
-		if config.Datadog.IsSet("internal_profiling.profile_dd_url") {
-			site = config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if cfg.IsSet(l.ConfigPrefix + "internal_profiling.profile_dd_url") {
+			site = cfg.GetString(l.ConfigPrefix + "internal_profiling.profile_dd_url")
 		}
 
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
-		service := "datadog-agent"
-		if flavor.GetFlavor() == flavor.ClusterAgent {
-			service = "datadog-cluster-agent"
-		}
+
+		tags := cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
+		tags = append(tags, fmt.Sprintf("version:%v", v))
 
 		settings := profiling.Settings{
 			ProfilingURL:         site,
-			Env:                  config.Datadog.GetString("env"),
-			Service:              service,
-			Period:               config.Datadog.GetDuration("internal_profiling.period"),
-			MutexProfileFraction: profiling.GetMutexProfileFraction(),
-			BlockProfileRate:     profiling.GetBlockProfileRate(),
-			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-			Tags:                 []string{fmt.Sprintf("version:%v", v)},
+			Socket:               cfg.GetString(l.ConfigPrefix + "internal_profiling.unix_socket"),
+			Env:                  cfg.GetString(l.ConfigPrefix + "env"),
+			Service:              l.Service,
+			Period:               cfg.GetDuration(l.ConfigPrefix + "internal_profiling.period"),
+			CPUDuration:          cfg.GetDuration(l.ConfigPrefix + "internal_profiling.cpu_duration"),
+			MutexProfileFraction: cfg.GetInt(l.ConfigPrefix + "internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     cfg.GetInt(l.ConfigPrefix + "internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: cfg.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
+			WithDeltaProfiles:    cfg.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
+			Tags:                 tags,
 		}
 		err := profiling.Start(settings)
 		if err == nil {
-			config.Datadog.Set("internal_profiling.enabled", true)
+			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true)
 		}
 	} else {
 		profiling.Stop()
-		config.Datadog.Set("internal_profiling.enabled", false)
+		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false)
 	}
 
+	l.source = source
 	return nil
+}
+
+func (l *ProfilingRuntimeSetting) GetSource() Source {
+	return l.source
 }

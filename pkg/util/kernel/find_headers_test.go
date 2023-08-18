@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kernel
 
@@ -14,8 +13,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 func TestGetKernelHeaders(t *testing.T) {
@@ -23,8 +20,8 @@ func TestGetKernelHeaders(t *testing.T) {
 		t.Skip("set INTEGRATION environment variable to run")
 	}
 
-	cfg := testConfig()
-	dirs := GetKernelHeaders(cfg, nil)
+	opts := KernelHeaderOptions{}
+	dirs := GetKernelHeaders(opts, nil)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)
 
@@ -54,16 +51,5 @@ func TestParseHeaderVersion(t *testing.T) {
 				assert.Equal(t, c.v, hv, "version mismatch of `%s`", c.body)
 			}
 		}
-	}
-}
-
-func testConfig() *ebpf.Config {
-	return &ebpf.Config{
-		EnableKernelHeaderDownload: false,
-		KernelHeadersDirs:          nil,
-		KernelHeadersDownloadDir:   "",
-		AptConfigDir:               "",
-		YumReposDir:                "",
-		ZypperReposDir:             "",
 	}
 }

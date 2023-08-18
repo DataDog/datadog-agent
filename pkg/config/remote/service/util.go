@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -154,7 +154,7 @@ func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys,
 	}, nil
 }
 
-func buildLatestConfigsRequest(hostname string, traceAgentEnv string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
+func buildLatestConfigsRequest(hostname string, traceAgentEnv string, orgUUID string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
 	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
@@ -185,6 +185,7 @@ func buildLatestConfigsRequest(hostname string, traceAgentEnv string, state upta
 		HasError:                     lastUpdateErr != nil,
 		Error:                        lastUpdateErrString,
 		TraceAgentEnv:                traceAgentEnv,
+		OrgUuid:                      orgUUID,
 	}
 }
 

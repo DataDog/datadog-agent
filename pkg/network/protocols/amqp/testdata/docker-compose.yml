@@ -1,0 +1,10 @@
+version: '3'
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - ${AMQP_ADDR:-127.0.0.1}:${AMQP_PORT:-5672}:5672
+      - ${AMQP_ADDR:-127.0.0.1}:15672:15672
+    environment:
+      - "RABBITMQ_DEFAULT_PASS=${PASS:-guest}"
+      - "RABBITMQ_DEFAULT_USER=${USER:-guest}"

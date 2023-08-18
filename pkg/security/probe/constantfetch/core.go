@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package constantfetch
 
@@ -46,6 +45,7 @@ func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer btf.FlushKernelSpec()
 	return NewBTFConstantFetcherFromSpec(spec), nil
 }
 

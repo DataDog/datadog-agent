@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package apiserver
 
@@ -434,14 +433,11 @@ func TestMetadataController(t *testing.T) {
 	informerFactory.Start(stop)
 	go metaController.Run(stop)
 
-	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
-		if !metaController.endpointsListerSynced() && !metaController.nodeListerSynced() {
-			return false
-		}
-		return true
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
+		return metaController.endpointsListerSynced() && metaController.nodeListerSynced()
 	})
 
-	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
 		metadataNames, err := GetPodMetadataNames(node.Name, pod.Namespace, pod.Name)
 		if err != nil {
 			return false
@@ -456,7 +452,7 @@ func TestMetadataController(t *testing.T) {
 
 	cl := &APIClient{Cl: client, timeoutSeconds: 5}
 
-	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 500*time.Millisecond, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
 		fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
 		require.Nil(t, errList)
 		list := fullmapper.Nodes

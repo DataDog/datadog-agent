@@ -36,6 +36,7 @@ configure_file(constants.h.in constants.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
     three.cpp
+    three_mem.cpp
     ../common/cgo_free.c
     ../common/stringutils.c
     ../common/log.c

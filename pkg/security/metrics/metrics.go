@@ -5,12 +5,6 @@
 
 package metrics
 
-import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-)
-
 var (
 	// MetricRuntimePrefix is the prefix of the metrics sent by the runtime security module
 	MetricRuntimePrefix = "datadog.runtime_security"
@@ -28,12 +22,6 @@ var (
 	// expired because the process-agent was not processing them fast enough
 	// Tags: -
 	MetricProcessEventsServerExpired = newRuntimeMetric(".event_server.process_events_expired")
-
-	// Load controller metrics
-
-	// MetricLoadControllerPidDiscarder is the name of the metric used to count the number of pid discarders
-	// Tags: -
-	MetricLoadControllerPidDiscarder = newRuntimeMetric(".load_controller.pids_discarder")
 
 	// Rate limiter metrics
 
@@ -76,6 +64,18 @@ var (
 	// MetricEventDiscarded is the number of event discarded
 	// Tags: discarder_type, event_type
 	MetricEventDiscarded = newRuntimeMetric(".discarders.event_discarded")
+	// MetricApproverAdded is the number of approvers added
+	// Tags: approver_type, event_type
+	MetricApproverAdded = newRuntimeMetric(".approvers.approver_added")
+	// MetricEventApproved is the number of events approved
+	// Tags: approver_type, event_type
+	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
+
+	// syscalls metrics
+
+	// MetricSyscallsInFlight is the number of inflight events
+	// Tags: event_type
+	MetricSyscallsInFlight = newRuntimeMetric(".syscalls_map.event_inflight")
 
 	// Perf buffer metrics
 
@@ -101,6 +101,9 @@ var (
 	// MetricPerfBufferBytesRead is the name of the metric used to count the number of bytes read from a perf buffer
 	// Tags: map
 	MetricPerfBufferBytesRead = newRuntimeMetric(".perf_buffer.bytes.read")
+	// MetricPerfBufferBytesInUse is the name of the metric used to count the percentage of space left in the ring buffer
+	// Tags: map
+	MetricPerfBufferBytesInUse = newRuntimeMetric(".perf_buffer.bytes.in_use")
 	// MetricPerfBufferSortingError is the name of the metric used to report events reordering issues.
 	// Tags: map, event_type
 	MetricPerfBufferSortingError = newRuntimeMetric(".perf_buffer.sorting_error")
@@ -148,6 +151,9 @@ var (
 	// MetricProcessResolverEnvsSize is the name of the metric used to report the number of envs size
 	// Tags: -
 	MetricProcessResolverEnvsSize = newRuntimeMetric(".process_resolver.envs.size")
+	// MetricProcessEventBrokenLineage is the name of the metric used to report a broken lineage
+	// Tags: -
+	MetricProcessEventBrokenLineage = newRuntimeMetric(".process_resolver.event_broken_lineage")
 
 	// Mount resolver metrics
 
@@ -158,7 +164,7 @@ var (
 	// MetricMountResolverHits is the counter of successful mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverHits = newRuntimeMetric(".mount_resolver.hits")
-	// MetricDentryResolverMiss is the counter of unsuccessful mount resolution
+	// MetricMountResolverMiss is the counter of unsuccessful mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverMiss = newRuntimeMetric(".mount_resolver.miss")
 
@@ -166,22 +172,26 @@ var (
 
 	// MetricActivityDumpEventProcessed is the name of the metric used to count the number of events processed while
 	// creating an activity dump.
-	// Tags: event_type
+	// Tags: event_type, tree_type
 	MetricActivityDumpEventProcessed = newRuntimeMetric(".activity_dump.event.processed")
 	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to an
 	// activity dump.
-	// Tags: event_type
+	// Tags: event_type, tree_type
 	MetricActivityDumpEventAdded = newRuntimeMetric(".activity_dump.event.added")
+	// MetricActivityDumpEventDropped is the name of the metric used to count the number of events that were dropped from an
+	// activity dump.
+	// Tags: event_type, reason, tree_type
+	MetricActivityDumpEventDropped = newRuntimeMetric(".activity_dump.event.dropped")
 	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in
 	// bytes
 	// Tags: format, storage_type, compression
 	MetricActivityDumpSizeInBytes = newRuntimeMetric(".activity_dump.size_in_bytes")
+	// MetricActivityDumpPersistedDumps is the name of the metric used to reported the number of dumps that were persisted
+	// Tags: format, storage_type, compression
+	MetricActivityDumpPersistedDumps = newRuntimeMetric(".activity_dump.persisted_dumps")
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
-	// MetricActivityDumpPathMergeCount is the name of the metric used to report the number of path merged
-	// Tags: -
-	MetricActivityDumpPathMergeCount = newRuntimeMetric(".activity_dump.path_merged")
 	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
 	// Tags:reduction, event_type
 	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
@@ -192,6 +202,70 @@ var (
 	// be sent because they are too big
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
+	// MetricActivityDumpEmptyDropped is the name of the metric used to report the number of activity dumps dropped because they were empty
+	// Tags: -
+	MetricActivityDumpEmptyDropped = newRuntimeMetric(".activity_dump.empty_dump_dropped")
+	// MetricActivityDumpDropMaxDumpReached is the name of the metric used to report that an activity dump was dropped because the maximum amount of dumps for a workload was reached
+	// Tags: -
+	MetricActivityDumpDropMaxDumpReached = newRuntimeMetric(".activity_dump.drop_max_dump_reached")
+	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
+	// Tags: -
+	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
+
+	// SBOM resolver metrics
+
+	// MetricSBOMResolverActiveSBOMs is the name of the metric used to report the count of SBOMs kept in memory
+	// Tags: -
+	MetricSBOMResolverActiveSBOMs = newRuntimeMetric(".sbom_resolver.active_sboms")
+	// MetricSBOMResolverSBOMGenerations is the name of the metric used to report when a SBOM is being generated at runtime
+	// Tags: -
+	MetricSBOMResolverSBOMGenerations = newRuntimeMetric(".sbom_resolver.sbom_generations")
+	// MetricSBOMResolverFailedSBOMGenerations is the name of the metric used to report when a SBOM generation failed
+	// Tags: -
+	MetricSBOMResolverFailedSBOMGenerations = newRuntimeMetric(".sbom_resolver.failed_sbom_generations")
+	// MetricSBOMResolverSBOMCacheLen is the name of the metric used to report the count of SBOMs kept in cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheLen = newRuntimeMetric(".sbom_resolver.sbom_cache.len")
+	// MetricSBOMResolverSBOMCacheHit is the name of the metric used to report the number of SBOMs that were generated from cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheHit = newRuntimeMetric(".sbom_resolver.sbom_cache.hit")
+	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
+	// Tags: -
+	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
+
+	// Security Profile metrics
+
+	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category
+	// Tags: in_kernel (true or false), anomaly_detection (true or false), auto_suppression (true or false), workload_hardening (true or false)
+	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
+	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
+	// Tags: -
+	MetricSecurityProfileCacheLen = newRuntimeMetric(".security_profile.cache.len")
+	// MetricSecurityProfileCacheHit is the name of the metric used to report the count of Security Profile cache hits
+	// Tags: -
+	MetricSecurityProfileCacheHit = newRuntimeMetric(".security_profile.cache.hit")
+	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
+	// Tags: -
+	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
+	// MetricSecurityProfileEventFiltering is the name of the metric used to report the count of Security Profile event filtered
+	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
+	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
+
+	// Hash resolver metrics
+
+	// MetricHashResolverHashCount is the name of the metric used to report the count of hashes generated by the hash
+	// resolver
+	// Tags: event_type, hash
+	MetricHashResolverHashCount = newRuntimeMetric(".hash_resolver.count")
+	// MetricHashResolverHashMiss is the name of the metric used to report the amount of times we failed to compute a hash
+	// Tags: event_type, reason
+	MetricHashResolverHashMiss = newRuntimeMetric(".hash_resolver.miss")
+	// MetricHashResolverHashCacheHit is the name of the metric used to report the amount of times the cache was used
+	// Tags: event_type
+	MetricHashResolverHashCacheHit = newRuntimeMetric(".hash_resolver.cache_hit")
+	// MetricHashResolverHashCacheLen is the name of the metric used to report the count of hashes in cache
+	// Tags: -
+	MetricHashResolverHashCacheLen = newRuntimeMetric(".hash_resolver.cache_len")
 
 	// Namespace resolver metrics
 
@@ -216,7 +290,7 @@ var (
 	// MetricPolicy is the name of the metric used to report policy versions
 	// Tags: -
 	MetricPolicy = newRuntimeMetric(".policy")
-	// MetricRuleStatus is the name of the metric used to report the rule status
+	// MetricRulesStatus is the name of the metric used to report the rule status
 	// Tags: -
 	MetricRulesStatus = newRuntimeMetric(".rules_status")
 
@@ -236,12 +310,15 @@ var (
 	// MetricSecurityAgentFIMRunning is reported when the security agent `FIM` feature is enabled
 	MetricSecurityAgentFIMRunning = newAgentMetric(".fim.running")
 
-	// MetricSecurityAgentRuntimeContainersRunning is used to report the count of running containers when the security agent
+	// MetricSecurityAgentRuntimeContainersRunning is used to report the count of running containers when the security agent.
 	// `Runtime` feature is enabled
 	MetricSecurityAgentRuntimeContainersRunning = newAgentMetric(".runtime.containers_running")
 	// MetricSecurityAgentFIMContainersRunning is used to report the count of running containers when the security agent
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
+	// MetricRuntimeCgroupsRunning is used to report the count of running cgroups.
+	// Tags: -
+	MetricRuntimeCgroupsRunning = newAgentMetric(".runtime.cgroups_running")
 
 	// Event Monitoring metrics
 
@@ -385,11 +462,6 @@ var (
 	MetricRuntimeCgroupMemoryKmemLimitInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.kmem_limit_in_bytes")
 )
 
-// SetTagsWithCardinality returns the array of tags and set the requested cardinality
-func SetTagsWithCardinality(cardinality string, tags ...string) []string {
-	return append(tags, fmt.Sprintf("%s:%s", dogstatsd.CardinalityTagPrefix, cardinality))
-}
-
 var (
 	// CacheTag is assigned to metrics related to userspace cache
 	CacheTag = "type:cache"
@@ -410,6 +482,13 @@ var (
 	PathResolutionTag = "resolution:path"
 	// AllResolutionsTags is the list of resolution tags
 	AllResolutionsTags = []string{SegmentResolutionTag, ParentResolutionTag, PathResolutionTag}
+
+	// ProcessSourceEventTags is assigned to metrics for process cache entries created from events
+	ProcessSourceEventTags = []string{"type:event"}
+	// ProcessSourceKernelMapsTags is assigned to metrics for process cache entries populated from kernel maps
+	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
+	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
+	ProcessSourceProcTags = []string{ProcFSTag}
 )
 
 func newRuntimeMetric(name string) string {

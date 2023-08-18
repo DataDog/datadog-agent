@@ -27,14 +27,22 @@ SPOT_REQUEST_ID=$(aws ec2 request-spot-instances \
                       --query "SpotInstanceRequests[*].SpotInstanceRequestId" \
                       --output text)
 
-until [[ -n ${INSTANCE_ID:+x} ]]; do
+# Try finding EC2 Spot instance 500 times
+n=1
+until [[ -n ${INSTANCE_ID:+x} ]] || [ $n -ge 500 ]; do
     sleep 5
     INSTANCE_ID=$(aws ec2 describe-spot-instance-requests \
                       --region "${REGION}" \
                       --spot-instance-request-ids "${SPOT_REQUEST_ID}" \
                       --query "SpotInstanceRequests[*].InstanceId" \
                       --output text)
+    n=$(( $n + 1 ))
 done
+
+if [[ -z ${INSTANCE_ID:+x} ]]; then
+    echo "Failed to allocate end to end test EC2 Spot instance after $n attempts"
+    exit 1
+fi
 
 aws ec2 create-tags --resources "${SPOT_REQUEST_ID}" "${INSTANCE_ID}" \
     --region "${REGION}" \

@@ -1,14 +1,10 @@
-#include "tracer.h"
+#include "kconfig.h"
+
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
-#include "ip.h"
-#include "defs.h"
 
-static __always_inline bool dns_stats_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("dns_stats_enabled", val);
-    return val == ENABLED;
-}
+#include "offsets.h"
+#include "ip.h"
 
 // This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
 // When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.

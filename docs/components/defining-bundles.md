@@ -16,7 +16,7 @@ The package must have the following defined in `bundle.go`:
  * A team-name comment of the form `// team: <teamname>`.
    This is used to generate CODEOWNERS information.
 
- * `BundleParams` -- the type of the bundle's parameters (see below).
+ * An optional `BundleParams` -- the type of the bundle's parameters (see below).
    This item should have a formulaic doc string like `// BundleParams defines the parameters for this bundle.`
 
  * `Bundle` -- an `fx.Option` that can be included in an `fx.App` to make this bundle's components available.
@@ -26,6 +26,8 @@ The package must have the following defined in `bundle.go`:
 
 Typically, a bundle will automatically instantiate the top-level components that represent the bundle's purpose.
 For example, the trace-agent bundle `comp/trace` might automatically instantiate `comp/trace/agent`.
+
+You can use the invoke task `inv components.new-bundle comp/<bundleName>` to generate a pre-filled `bundle.go` file for the given bundle.
 
 ## Bundle Parameters
 
@@ -37,39 +39,29 @@ These parameters are limited to two kinds:
 
 Anything else is runtime configuration and should be handled vi `comp/core/config` or another mechanism.
 
-To avoid Go package cycles, the `BundleParams` type must be defined in the bundle's internal package, and re-exported from the bundle package:
-
-```go
-// --- comp/<bundleName>/internal/params.go ---
-
-// BundleParams defines the parameters for this bundle.
-type BundleParams struct {
-    ...
-}
-```
+Bundle parameters must stored only `Params` types for sub components. The reason is that each sub component 
+must be usable without `BundleParams`.
 
 ```go
 // --- comp/<bundleName>/bundle.go ---
-import ".../comp/<bundleName>/internal"
 import ".../comp/<bundleName>/foo"
+import ".../comp/<bundleName>/bar"
 // ...
 
 // BundleParams defines the parameters for this bundle.
-type BundleParams = internal.BundleParams
+type BundleParams struct {
+    Foo foo.Params
+    Bar bar.Params
+}
 
 var Bundle = fxutil.Bundle(
+    // You must tell to fx how to get foo.Params from BundleParams.
+	  fx.Provide(func(params BundleParams) foo.Params { return params.Foo }),
     foo.Module,
+    // You must tell to fx how to get bar.Params from BundleParams.
+	  fx.Provide(func(params BundleParams) bar.Params { return params.Bar }),
+    bar.Module,
 )
-```
-
-Components within the bundle can then require `internal.BundleParams` and modify their behavior appropriately:
-
-```go
-// --- comp/<bundleName>/foo/foo.go
-
-func newFoo(..., params internal.BundleParams) provides {
-    if params.HyperMode { ... }
-}
 ```
 
 ## Testing

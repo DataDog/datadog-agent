@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -86,6 +85,10 @@ func (c *cgroupV1) GetMemoryStats(stats *MemoryStats) error {
 	}
 
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory", "memory.usage_in_bytes"), &stats.UsageTotal); err != nil {
+		reportError(err)
+	}
+
+	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory", "memory.max_usage_in_bytes"), &stats.Peak); err != nil {
 		reportError(err)
 	}
 

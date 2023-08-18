@@ -7,8 +7,6 @@
 CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView,
                                    std::shared_ptr<ITargetMachine> targetMachine)
     : _domainUser(false)
-    , _doInstallSysprobe(true)
-    , _ddnpmPresent(false)
     , _ddUserExists(false)
     , _targetMachine(std::move(targetMachine))
     , _propertyView(std::move(propertyView))
@@ -31,7 +29,7 @@ CustomActionData::CustomActionData(std::shared_ptr<IPropertyView> propertyView,
     }
 
     // Process some data now
-    if (!parseUsernameData() || !parseSysprobeData())
+    if (!parseUsernameData())
     {
         throw std::exception("Error parsing machine information");
     }
@@ -102,75 +100,13 @@ void CustomActionData::Sid(sid_ptr &sid)
     _sid = std::move(sid);
 }
 
-bool CustomActionData::installSysprobe() const
-{
-    return _doInstallSysprobe;
-}
-
-bool CustomActionData::npmPresent() const
-{
-    return this->_ddnpmPresent;
-}
-
 std::shared_ptr<ITargetMachine> CustomActionData::GetTargetMachine() const
 {
     return _targetMachine;
 }
 
 // return value of this function is true if the data was parsed,
-// false otherwise. Return value of this function doesn't indicate whether
-// sysprobe is to be installed; this function sets the boolean that can
-// be checked by installSysprobe();
-bool CustomActionData::parseSysprobeData()
-{
-    std::wstring sysprobePresent;
-    std::wstring addlocal;
-    std::wstring npm;
-    std::wstring npmFeature;
-    this->_doInstallSysprobe = false;
-    this->_ddnpmPresent = false;
-    if (!this->_propertyView->value(L"SYSPROBE_PRESENT", sysprobePresent))
-    {
-        // key isn't even there.
-        WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT not present");
-        return true;
-    }
-    WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT is %S", sysprobePresent.c_str());
-    if (sysprobePresent.compare(L"true") != 0)
-    {
-        // explicitly disabled
-        WcaLog(LOGMSG_STANDARD, "SYSPROBE_PRESENT explicitly disabled %S", sysprobePresent.c_str());
-        return true;
-    }
-    this->_doInstallSysprobe = true;
-
-    if (!this->_propertyView->value(L"NPM", npm))
-    {
-        WcaLog(LOGMSG_STANDARD, "NPM property not present");
-    }
-    else
-    {
-        WcaLog(LOGMSG_STANDARD, "NPM enabled via NPM property");
-        this->_ddnpmPresent = true;
-    }
-
-    if (this->_propertyView->value(L"NPMFEATURE", npmFeature))
-    {
-        // this property is set to "on" or "off" depending on the desired installed state
-        // of the NPM feature.
-        WcaLog(LOGMSG_STANDARD, "NPMFEATURE key is present and (%S)", npmFeature.c_str());
-        if (_wcsicmp(npmFeature.c_str(), L"on") == 0)
-        {
-            this->_ddnpmPresent = true;
-        }
-    }
-    else
-    {
-        WcaLog(LOGMSG_STANDARD, "NPMFEATURE not present");
-    }
-
-    return true;
-}
+// false otherwise.
 
 std::optional<CustomActionData::User> CustomActionData::findPreviousUserInfo()
 {

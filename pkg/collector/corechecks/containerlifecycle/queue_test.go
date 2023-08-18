@@ -36,27 +36,27 @@ func TestSingleQueueAdd(t *testing.T) {
 
 	tests := []struct {
 		name string
-		data []model.EventsPayload
+		data []*model.EventsPayload
 		ev   event
-		want []model.EventsPayload
+		want []*model.EventsPayload
 	}{
 		{
 			name: "empty queue",
-			data: []model.EventsPayload{},
+			data: []*model.EventsPayload{},
 			ev:   fakeContainerEvent("obj1"),
-			want: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
+			want: []*model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
 		},
 		{
 			name: "last payload not full",
-			data: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
+			data: []*model.EventsPayload{{Version: "v1", Events: modelEvents("obj1")}},
 			ev:   fakeContainerEvent("obj2"),
-			want: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
+			want: []*model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
 		},
 		{
 			name: "last payload full",
-			data: []model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
+			data: []*model.EventsPayload{{Version: "v1", Events: modelEvents("obj1", "obj2")}},
 			ev:   fakeContainerEvent("obj3"),
-			want: []model.EventsPayload{
+			want: []*model.EventsPayload{
 				{Version: "v1", Events: modelEvents("obj1", "obj2")},
 				{Version: "v1", Events: modelEvents("obj3")},
 			},

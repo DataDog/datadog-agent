@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package middleware
 
@@ -20,5 +19,6 @@ func (c *CheckWrapper) Inner() check.Check {
 // Wait blocks until Run() finishes execution in another
 // goroutine. Does not block if Run() is not executing.
 func (c *CheckWrapper) Wait() {
-	c.wg.Wait()
+	c.runM.Lock()
+	defer c.runM.Unlock()
 }

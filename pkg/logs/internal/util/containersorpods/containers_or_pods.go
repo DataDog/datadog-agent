@@ -51,17 +51,17 @@ func (lw LogWhat) String() string {
 //
 // The decision is rather complex:
 //
-//     - if any of the container features (docker, containerd, cri, podman) are
-//       present and kubernetes is not, wait for the dockerutil service to start and
-//       return LogContainers
-//     - if the kubernetes feature is available and no container features are
-//       available, wait for the kubelet service to start, and return LogPods
-//     - if none of the features are available, LogNothing
-//     - if at least one container feature _and_ the kubernetes feature are available,
-//       then wait for either of the dockerutil service or the kubelet service to start.
-//       This always tries both at the same time, and if both are available will
-//       return LogPods if `logs_config.k8s_container_use_file` is true or
-//       LogContainers if the configuration setting is false.
+//   - if any of the container features (docker, containerd, cri, podman) are
+//     present and kubernetes is not, wait for the dockerutil service to start and
+//     return LogContainers
+//   - if the kubernetes feature is available and no container features are
+//     available, wait for the kubelet service to start, and return LogPods
+//   - if none of the features are available, LogNothing
+//   - if at least one container feature _and_ the kubernetes feature are available,
+//     then wait for either of the dockerutil service or the kubelet service to start.
+//     This always tries both at the same time, and if both are available will
+//     return LogPods if `logs_config.k8s_container_use_file` is true or
+//     LogContainers if the configuration setting is false.
 //
 // If this function returns LogPods, then the caller may assume the kubelet
 // service is available. Similarly, if this function returns LogContainers,

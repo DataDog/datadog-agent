@@ -6,9 +6,28 @@
 package checkconfig
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+type ProfileMetricType string
+
+const (
+	ProfileMetricTypeGauge                 ProfileMetricType = "gauge"
+	ProfileMetricTypeMonotonicCount        ProfileMetricType = "monotonic_count"
+	ProfileMetricTypeMonotonicCountAndRate ProfileMetricType = "monotonic_count_and_rate"
+	ProfileMetricTypeRate                  ProfileMetricType = "rate"
+	ProfileMetricTypeFlagStream            ProfileMetricType = "flag_stream"
+
+	// ProfileMetricTypeCounter is DEPRECATED
+	// `counter` is deprecated in favour of `rate`
+	ProfileMetricTypeCounter ProfileMetricType = "counter"
+
+	// ProfileMetricTypePercent is DEPRECATED
+	// `percent` is deprecated in favour of `scale_factor`
+	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
 // SymbolConfig holds info for a single symbol/oid
@@ -23,8 +42,15 @@ type SymbolConfig struct {
 	MatchValue           string `yaml:"match_value"`
 	MatchPatternCompiled *regexp.Regexp
 
-	ScaleFactor float64 `yaml:"scale_factor"`
-	Format      string  `yaml:"format"`
+	ScaleFactor      float64 `yaml:"scale_factor"`
+	Format           string  `yaml:"format"`
+	ConstantValueOne bool    `yaml:"constant_value_one"`
+
+	// `metric_type` is used for force the metric type
+	//   When empty, by default, the metric type is derived from SNMP OID value type.
+	//   Valid `metric_type` types: `gauge`, `rate`, `monotonic_count`, `monotonic_count_and_rate`
+	//   Deprecated types: `counter` (use `rate` instead), percent (use `scale_factor` instead)
+	MetricType ProfileMetricType `yaml:"metric_type"`
 }
 
 // MetricTagConfig holds metric tag info
@@ -83,8 +109,10 @@ type MetricsConfig struct {
 	StaticTags []string            `yaml:"static_tags"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags"`
 
-	ForcedType string              `yaml:"forced_type"`
-	Options    MetricsConfigOption `yaml:"options"`
+	ForcedType ProfileMetricType `yaml:"forced_type"` // deprecated in favour of metric_type
+	MetricType ProfileMetricType `yaml:"metric_type"`
+
+	Options MetricsConfigOption `yaml:"options"`
 }
 
 // GetSymbolTags returns symbol tags
@@ -110,7 +138,16 @@ func (m *MetricsConfig) IsScalar() bool {
 func (mtc *MetricTagConfig) GetTags(value string) []string {
 	var tags []string
 	if mtc.Tag != "" {
-		tags = append(tags, mtc.Tag+":"+value)
+		if len(mtc.Mapping) > 0 {
+			mappedValue, err := GetMappedValue(value, mtc.Mapping)
+			if err != nil {
+				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`", value, mtc.Mapping)
+			} else {
+				tags = append(tags, mtc.Tag+":"+mappedValue)
+			}
+		} else {
+			tags = append(tags, mtc.Tag+":"+value)
+		}
 	} else if mtc.Match != "" {
 		if mtc.pattern == nil {
 			log.Warnf("match pattern must be present: match=%s", mtc.Match)
@@ -162,4 +199,17 @@ func normalizeMetrics(metrics []MetricsConfig) {
 			metric.OID = ""
 		}
 	}
+}
+
+// GetMappedValue retrieves mapped value from a given mapping.
+// If mapping is empty, it will return the index.
+func GetMappedValue(index string, mapping map[string]string) (string, error) {
+	if len(mapping) > 0 {
+		mappedValue, ok := mapping[index]
+		if !ok {
+			return "", fmt.Errorf("mapping for `%s` does not exist. mapping=`%v`", index, mapping)
+		}
+		return mappedValue, nil
+	}
+	return index, nil
 }

@@ -32,12 +32,16 @@ func decryptConfig(conf integration.Config) (integration.Config, error) {
 	}
 
 	// instances
-	for idx := range conf.Instances {
-		conf.Instances[idx], err = secretsDecrypt(conf.Instances[idx], conf.Name)
+	// we cannot update in place as, being a slice, it would modify the input config as well
+	instances := make([]integration.Data, 0, len(conf.Instances))
+	for _, inputInstance := range conf.Instances {
+		decryptedInstance, err := secretsDecrypt(inputInstance, conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
+		instances = append(instances, decryptedInstance)
 	}
+	conf.Instances = instances
 
 	// metrics
 	conf.MetricConfig, err = secretsDecrypt(conf.MetricConfig, conf.Name)

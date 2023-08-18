@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -12,19 +11,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
-	"syscall"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -32,19 +29,49 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
+const tracerModuleName = "network_tracer"
+
+// Telemetry
+// Will track the count of expired TCP connections
+// We are manually expiring TCP connections because it seems that we are losing some TCP close events
+// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
+// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
+// However there are some caveats by doing that:
+// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
+// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
+// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
+// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
+//
+// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
+// to determine whether a connection is truly closed or not
+var tracerTelemetry = struct {
+	skippedConns         telemetry.Counter
+	expiredTCPConns      telemetry.Counter
+	closedConns          *nettelemetry.StatCounterWrapper
+	connStatsMapSize     telemetry.Gauge
+	payloadSizePerClient telemetry.Gauge
+}{
+	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
+	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
+	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
+	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
+	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
+}
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
@@ -52,34 +79,13 @@ type Tracer struct {
 	state        network.State
 	conntracker  netlink.Conntracker
 	reverseDNS   dns.ReverseDNS
-	httpMonitor  *http.Monitor
+	usmMonitor   *usm.Monitor
 	ebpfTracer   connection.Tracer
-	bpfTelemetry *telemetry.EBPFTelemetry
-
-	// Telemetry
-	skippedConns *atomic.Int64 `stats:""`
-	// Will track the count of expired TCP connections
-	// We are manually expiring TCP connections because it seems that we are losing some TCP close events
-	// For now we are only tracking the `tcp_close` probe, but we should also track the `tcp_set_state` probe when
-	// states are set to `TCP_CLOSE_WAIT`, `TCP_CLOSE` and `TCP_FIN_WAIT1` we should probably also track `tcp_time_wait`
-	// However there are some caveats by doing that:
-	// - `tcp_set_state` does not have access to the PID of the connection => we have to remove the PID from the connection tuple (which can lead to issues)
-	// - We will have multiple probes that can trigger for the same connection close event => we would have to add something to dedupe those
-	// - - Using the timestamp does not seem to be reliable (we are already seeing unordered connections)
-	// - - Having IDs for those events would need to have an internal monotonic counter and this is tricky to manage (race conditions, cleaning)
-	//
-	// If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
-	// to determine whether a connection is truly closed or not
-	expiredTCPConns  *atomic.Int64 `stats:""`
-	closedConns      *atomic.Int64 `stats:""`
-	connStatsMapSize *atomic.Int64 `stats:""`
-	lastCheck        *atomic.Int64 `stats:""`
+	bpfTelemetry *nettelemetry.EBPFTelemetry
+	lastCheck    *atomic.Int64
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
-
-	// Internal buffer used to compute bytekeys
-	buf []byte
 
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
@@ -89,12 +95,32 @@ type Tracer struct {
 
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
+
+	processCache *processCache
+
+	timeResolver *TimeResolver
+
+	exitTelemetry chan struct{}
 }
 
 // NewTracer creates a Tracer
 func NewTracer(config *config.Config) (*Tracer, error) {
-	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+	tr, err := newTracer(config)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tr.start(); err != nil {
+		return nil, err
+	}
+
+	return tr, nil
+}
+
+// newTracer is an internal function used by tests primarily
+// (and NewTracer above)
+func newTracer(cfg *config.Config) (*Tracer, error) {
+	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
 
@@ -111,135 +137,136 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		log.Infof("detected kernel version %s, will use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}
 
-	usmSupported := currKernelVersion >= http.MinimumKernelVersion
-	if !usmSupported && config.ServiceMonitoringEnabled {
-		errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
-		if !config.NPMEnabled {
-			return nil, fmt.Errorf(errStr)
-		}
-		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
-		config.EnableHTTPMonitoring = false
-		config.EnableHTTPSMonitoring = false
+	var bpfTelemetry *nettelemetry.EBPFTelemetry
+	if nettelemetry.EBPFTelemetrySupported() {
+		bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+		coretelemetry.GetCompatComponent().RegisterCollector(bpfTelemetry)
 	}
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
-	}
-	defer offsetBuf.Close()
-
-	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
-	var constantEditors []manager.ConstantEditor
-	if needsOffsets {
-		for i := 0; i < 5; i++ {
-			constantEditors, err = runOffsetGuessing(config, offsetBuf)
-			if err == nil {
-				break
+	if cfg.ServiceMonitoringEnabled {
+		if !http.Supported() {
+			errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
+			if !cfg.NPMEnabled {
+				return nil, fmt.Errorf(errStr)
 			}
-			time.Sleep(1 * time.Second)
+			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
+			cfg.EnableHTTPMonitoring = false
+			cfg.EnableHTTP2Monitoring = false
+			cfg.EnableHTTPSMonitoring = false
 		}
-		if err != nil {
-			return nil, fmt.Errorf("error guessing offsets: %s", err)
+
+		if !http2.Supported() {
+			cfg.EnableHTTP2Monitoring = false
+			log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http2.MinimumKernelVersion, currKernelVersion)
 		}
 	}
 
-	var bpfTelemetry *telemetry.EBPFTelemetry
-	if usmSupported {
-		bpfTelemetry = telemetry.NewEBPFTelemetry()
-	}
-	ebpfTracer, err := kprobe.New(config, constantEditors, bpfTelemetry)
+	ebpfTracer, err := connection.NewTracer(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
+	coretelemetry.GetCompatComponent().RegisterCollector(ebpfTracer)
 
-	conntracker, err := newConntracker(config, bpfTelemetry)
+	conntracker, err := newConntracker(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 
 	state := network.NewState(
-		config.ClientStateExpiry,
-		config.MaxClosedConnectionsBuffered,
-		config.MaxConnectionsStateBuffered,
-		config.MaxDNSStatsBuffered,
-		config.MaxHTTPStatsBuffered,
+		cfg.ClientStateExpiry,
+		cfg.MaxClosedConnectionsBuffered,
+		cfg.MaxConnectionsStateBuffered,
+		cfg.MaxDNSStatsBuffered,
+		cfg.MaxHTTPStatsBuffered,
+		cfg.MaxKafkaStatsBuffered,
 	)
 
-	gwLookup := newGatewayLookup(config)
+	gwLookup := newGatewayLookup(cfg)
 	if gwLookup != nil {
 		log.Info("gateway lookup enabled")
 	}
 
 	tr := &Tracer{
-		config:                     config,
+		config:                     cfg,
 		state:                      state,
-		reverseDNS:                 newReverseDNS(config),
-		httpMonitor:                newHTTPMonitor(config, ebpfTracer, bpfTelemetry, constantEditors),
+		reverseDNS:                 newReverseDNS(cfg),
+		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
-		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		buf:                        make([]byte, network.ConnectionByteKeyMaxLen),
-		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
-		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
+		sourceExcludes:             network.ParseConnectionFilters(cfg.ExcludedSourceConnections),
+		destExcludes:               network.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
+		sysctlUDPConnTimeout:       sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
+		sysctlUDPConnStreamTimeout: sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   gwLookup,
 		ebpfTracer:                 ebpfTracer,
-
-		skippedConns:     atomic.NewInt64(0),
-		expiredTCPConns:  atomic.NewInt64(0),
-		closedConns:      atomic.NewInt64(0),
-		connStatsMapSize: atomic.NewInt64(0),
-		lastCheck:        atomic.NewInt64(0),
-		bpfTelemetry:     bpfTelemetry,
+		bpfTelemetry:               bpfTelemetry,
+		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
+		exitTelemetry:              make(chan struct{}),
 	}
 
-	err = ebpfTracer.Start(tr.storeClosedConnections)
-	if err != nil {
-		tr.Stop()
-		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
-	}
+	if cfg.EnableProcessEventMonitoring {
+		if err = events.Init(); err != nil {
+			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
+		}
 
-	if err = tr.reverseDNS.Start(); err != nil {
-		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
+		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+			return nil, fmt.Errorf("could not create process cache; %w", err)
+		}
+		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
+
+		events.RegisterHandler(tr.processCache.handleProcessEvent)
+
+		if tr.timeResolver, err = NewTimeResolver(); err != nil {
+			return nil, fmt.Errorf("could not create time resolver: %w", err)
+		}
 	}
 
 	return tr, nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+// start starts the tracer. This function is present to separate
+// the creation from the start of the tracer for tests
+func (tr *Tracer) start() error {
+	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
+	if err != nil {
+		tr.Stop()
+		return fmt.Errorf("could not start ebpf manager: %s", err)
+	}
+
+	if err = tr.reverseDNS.Start(); err != nil {
+		tr.Stop()
+		return fmt.Errorf("could not start reverse dns monitor: %w", err)
+	}
+
+	return nil
+}
+
+func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
 
 	var c netlink.Conntracker
 	var err error
-	if cfg.EnableRuntimeCompiler {
-		c, err = NewEBPFConntracker(cfg, bpfTelemetry)
-		if err == nil {
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+		coretelemetry.GetCompatComponent().RegisterCollector(c)
+		return c, nil
+	}
+
+	if cfg.AllowNetlinkConntrackerFallback {
+		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
+		if c, err = netlink.NewConntracker(cfg); err == nil {
+			coretelemetry.GetCompatComponent().RegisterCollector(c)
 			return c, nil
 		}
-
-		if !cfg.AllowPrecompiledFallback {
-			if cfg.IgnoreConntrackInitFailure {
-				log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
-				return netlink.NewNoOpConntracker(), nil
-			}
-			return nil, fmt.Errorf("error initializing ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
-		}
-
-		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 	}
 
-	c, err = netlink.NewConntracker(cfg)
-	if err != nil {
-		if cfg.IgnoreConntrackInitFailure {
-			log.Warnf("could not initialize netlink conntrack, tracer will continue without NAT tracking: %s", err)
-			return netlink.NewNoOpConntracker(), nil
-		}
-		return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	if cfg.IgnoreConntrackInitFailure {
+		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
+		return netlink.NewNoOpConntracker(), nil
 	}
-	return c, nil
+
+	return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 }
 
 func newReverseDNS(c *config.Config) dns.ReverseDNS {
@@ -257,65 +284,15 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	return rdns
 }
 
-func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
-	// Enable kernel probes used for offset guessing.
-	offsetMgr := newOffsetManager()
-	offsetOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-	}
-	enabledProbes, err := offsetGuessProbes(config)
-	if err != nil {
-		return nil, fmt.Errorf("unable to configure offset guessing probes: %w", err)
-	}
-
-	for _, p := range offsetMgr.Probes {
-		if _, enabled := enabledProbes[probes.ProbeName(p.EBPFSection)]; !enabled {
-			offsetOptions.ExcludedFunctions = append(offsetOptions.ExcludedFunctions, p.EBPFFuncName)
-		}
-	}
-	for probeName, funcName := range enabledProbes {
-		offsetOptions.ActivatedProbes = append(
-			offsetOptions.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
-					EBPFFuncName: funcName,
-					UID:          "offset",
-				},
-			})
-	}
-	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
-		return nil, fmt.Errorf("could not load bpf module for offset guessing: %s", err)
-	}
-
-	if err := offsetMgr.Start(); err != nil {
-		return nil, fmt.Errorf("could not start offset ebpf manager: %s", err)
-	}
-	defer func() {
-		err := offsetMgr.Stop(manager.CleanAll)
-		if err != nil {
-			log.Warnf("error stopping offset ebpf manager: %s", err)
-		}
-	}()
-	start := time.Now()
-	editors, err := guessOffsets(offsetMgr, config)
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("socket struct offset guessing complete (took %v)", time.Since(start))
-	return editors, nil
-}
-
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
+	_ = t.timeResolver.Sync()
 	for i := range connections {
 		cs := &connections[i]
 		if t.shouldSkipConnection(cs) {
 			connections[rejected], connections[i] = connections[i], connections[rejected]
 			rejected++
+			tracerTelemetry.skippedConns.Inc(cs.Type.String())
 			continue
 		}
 
@@ -324,12 +301,51 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		if cs.IPTranslation != nil {
 			t.conntracker.DeleteTranslation(*cs)
 		}
+
+		t.addProcessInfo(cs)
+
+		tracerTelemetry.closedConns.Inc(cs.Type.String())
 	}
 
 	connections = connections[rejected:]
-	t.closedConns.Add(int64(len(connections)))
-	t.skippedConns.Add(int64(rejected))
 	t.state.StoreClosedConnections(connections)
+}
+
+func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
+	if t.processCache == nil {
+		return
+	}
+
+	c.ContainerID = nil
+
+	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
+	p, ok := t.processCache.Get(c.Pid, int64(ts))
+	if !ok {
+		return
+	}
+
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
+	}
+
+	if c.Tags == nil {
+		c.Tags = make(map[string]struct{})
+	}
+
+	addTag := func(k, v string) {
+		if v == "" {
+			return
+		}
+		c.Tags[k+":"+v] = struct{}{}
+	}
+
+	addTag("env", p.Envs["DD_ENV"])
+	addTag("version", p.Envs["DD_VERSION"])
+	addTag("service", p.Envs["DD_SERVICE"])
+
+	if p.ContainerID != "" {
+		c.ContainerID = &p.ContainerID
+	}
 }
 
 // Stop stops the tracer
@@ -339,35 +355,51 @@ func (t *Tracer) Stop() {
 	}
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
-	t.httpMonitor.Stop()
+	t.usmMonitor.Stop()
 	t.conntracker.Close()
+	t.processCache.Stop()
+	close(t.exitTelemetry)
+	coretelemetry.GetCompatComponent().Reset()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
-	log.Tracef("GetActiveConnections clientID=%s", clientID)
-
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("GetActiveConnections clientID=%s", clientID)
+	}
 	t.ebpfTracer.FlushPending()
-	latestTime, err := t.getConnections(t.activeBuffer)
+	latestTime, active, err := t.getConnections(t.activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
-	active := t.activeBuffer.Connections()
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
 	t.activeBuffer.Reset()
 
-	ips := make([]util.Address, 0, len(delta.Conns)*2)
-	for _, conn := range delta.Conns {
-		ips = append(ips, conn.Source, conn.Dest)
+	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
+	var udpConns, tcpConns int
+	for i := range delta.Conns {
+		conn := &delta.Conns[i]
+		ips[conn.Source] = struct{}{}
+		ips[conn.Dest] = struct{}{}
+		switch conn.Type {
+		case network.UDP:
+			udpConns++
+		case network.TCP:
+			tcpConns++
+		}
 	}
+
+	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
+	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
 	khfr := int32(kernel.HeaderProvider.GetResult())
 	coretm := ddebpf.GetCORETelemetryByAsset()
+	pbassets := netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
@@ -375,10 +407,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		DNS:                         names,
 		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
+		HTTP2:                       delta.HTTP2,
+		Kafka:                       delta.Kafka,
 		ConnTelemetry:               ctm,
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
 		CORETelemetryByAsset:        coretm,
+		PrebuiltAssets:              pbassets,
 	}, nil
 }
 
@@ -388,46 +423,22 @@ func (t *Tracer) RegisterClient(clientID string) error {
 	return nil
 }
 
+func (t *Tracer) removeClient(clientID string) {
+	t.state.RemoveClient(clientID)
+}
+
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
 	tm := map[network.ConnTelemetryType]int64{
-		network.MonotonicKprobesTriggered: kprobeStats.Hits,
-		network.MonotonicKprobesMissed:    kprobeStats.Misses,
+		network.MonotonicKprobesTriggered: int64(kprobeStats.Hits),
+		network.MonotonicKprobesMissed:    int64(kprobeStats.Misses),
 		network.ConnsBpfMapSize:           int64(mapSize),
-		network.MonotonicConnsClosed:      t.closedConns.Load(),
+		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
 	}
 
-	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats)
+	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats, kafkaStats)
 	if err != nil {
 		return nil
-	}
-
-	conntrackStats := stats["conntrack"].(map[string]int64)
-	if rt, ok := conntrackStats["registers_total"]; ok {
-		tm[network.MonotonicConntrackRegisters] = rt
-	}
-	if sp, ok := conntrackStats["sampling_pct"]; ok {
-		tm[network.ConntrackSamplingPercent] = sp
-	}
-
-	dnsStats := stats["dns"].(map[string]int64)
-	if pp, ok := dnsStats["packets_processed"]; ok {
-		tm[network.MonotonicDNSPacketsProcessed] = pp
-	}
-
-	if ds, ok := dnsStats["dropped_stats"]; ok {
-		tm[network.DNSStatsDropped] = ds
-	}
-
-	ebpfStats := stats["ebpf"].(map[string]int64)
-	if usp, ok := ebpfStats["udp_sends_processed"]; ok {
-		tm[network.MonotonicUDPSendsProcessed] = usp
-	}
-	if usm, ok := ebpfStats["udp_sends_missed"]; ok {
-		tm[network.MonotonicUDPSendsMissed] = usm
-	}
-	if pl, ok := ebpfStats["closed_conn_polling_lost"]; ok {
-		tm[network.MonotonicPerfLost] = pl
 	}
 
 	stateStats := stats["state"].(map[string]int64)
@@ -445,7 +456,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 	telemetryByAsset := map[string]runtime.CompilationTelemetry{
 		"tracer":          runtime.Tracer.GetTelemetry(),
 		"conntrack":       runtime.Conntrack.GetTelemetry(),
-		"http":            runtime.Http.GetTelemetry(),
+		"usm":             runtime.Usm.GetTelemetry(),
 		"oomKill":         runtime.OomKill.GetTelemetry(),
 		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
 		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
@@ -466,13 +477,13 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, err error) {
+func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
 
 	latestTime, err := ddebpf.NowNanoseconds()
 	if err != nil {
-		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
+		return 0, nil, fmt.Errorf("error retrieving latest timestamp: %s", err)
 	}
 
 	var expired []network.ConnectionStats
@@ -480,40 +491,45 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)
 			if c.Type == network.TCP {
-				t.expiredTCPConns.Inc()
+				tracerTelemetry.expiredTCPConns.Inc()
 			}
-			t.closedConns.Inc()
+			tracerTelemetry.closedConns.Inc(c.Type.String())
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			t.skippedConns.Inc()
+			tracerTelemetry.skippedConns.Inc(c.Type.String())
 			return false
 		}
 		return true
 	})
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
-	active := activeBuffer.Connections()
-	for i := range active {
-		active[i].IPTranslation = t.conntracker.GetTranslationForConn(active[i])
+	activeConnections = activeBuffer.Connections()
+	_ = t.timeResolver.Sync()
+	for i := range activeConnections {
+		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
 		// iterating (leads to ever-increasing connections in the map,
 		// since gateway resolution connects to the ec2 metadata
 		// endpoint)
-		t.connVia(&active[i])
+		t.connVia(&activeConnections[i])
+		t.addProcessInfo(&activeConnections[i])
 	}
 
-	entryCount := len(active)
+	// get rid of stale process entries in the cache
+	t.processCache.Trim()
+
+	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {
 		log.Errorf("connection tracking map size has reached the limit of %d. Accurate connection count and data volume metrics will be affected. Increase config value `system_probe_config.max_tracked_connections` to correct this.", t.config.MaxTrackedConnections)
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
-	t.connStatsMapSize.Store(int64(entryCount))
+	tracerTelemetry.connStatsMapSize.Set(float64(entryCount))
 
 	// Remove expired entries
 	t.removeEntries(expired)
@@ -523,9 +539,9 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	latestTime, err = ddebpf.NowNanoseconds()
 	if err != nil {
-		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
+		return 0, nil, fmt.Errorf("error retrieving latest timestamp: %s", err)
 	}
-	return uint64(latestTime), nil
+	return uint64(latestTime), activeConnections, nil
 }
 
 func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
@@ -552,7 +568,9 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 
 	t.state.RemoveConnections(toRemove)
 
-	log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
+	}
 }
 
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
@@ -589,20 +607,18 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	processCacheStats
 	bpfMapStats
 	bpfHelperStats
+	kafkaStats
 )
 
 var allStats = []statsComp{
-	conntrackStats,
-	dnsStats,
-	epbfStats,
-	gatewayLookupStats,
-	kprobesStats,
 	stateStats,
 	tracerStats,
-	bpfHelperStats,
+	httpStats,
 	bpfMapStats,
+	bpfHelperStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -617,32 +633,20 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	ret := map[string]interface{}{}
 	for _, c := range comps {
 		switch c {
-		case conntrackStats:
-			ret["conntrack"] = t.conntracker.GetStats()
-		case dnsStats:
-			ret["dns"] = t.reverseDNS.GetStats()
-		case epbfStats:
-			ret["ebpf"] = t.ebpfTracer.GetTelemetry()
-		case gatewayLookupStats:
-			ret["gateway_lookup"] = t.gwLookup.GetStats()
-		case kprobesStats:
-			ret["kprobes"] = ddebpf.GetProbeStats()
 		case stateStats:
 			ret["state"] = t.state.GetStats()["telemetry"]
 		case tracerStats:
-			tracerStats := atomicstats.Report(t)
+			tracerStats := make(map[string]interface{})
+			tracerStats["last_check"] = t.lastCheck.Load()
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
+		case httpStats:
+			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
 		case bpfMapStats:
-			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
+			ret[nettelemetry.EBPFMapTelemetryNS] = t.bpfTelemetry.GetMapsTelemetry()
 		case bpfHelperStats:
-			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
+			ret[nettelemetry.EBPFHelperTelemetryNS] = t.bpfTelemetry.GetHelpersTelemetry()
 		}
-	}
-
-	// merge with components already migrated to `network/telemetry`
-	for k, v := range telemetry.ReportExpvar() {
-		ret[k] = v
 	}
 
 	return ret, nil
@@ -664,33 +668,32 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	activeBuffer := network.NewConnectionBuffer(512, 512)
-	_, err := t.getConnections(activeBuffer)
+	_, connections, err := t.getConnections(activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 	return &network.Connections{
 		BufferedData: network.BufferedData{
-			Conns: activeBuffer.Connections(),
+			Conns: connections,
 		},
 	}, nil
 
 }
 
-// DebugEBPFMaps returns all maps registred in the eBPF manager
+// DebugEBPFMaps returns all maps registered in the eBPF manager
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
 	if err != nil {
 		return "", err
 	}
-	if t.httpMonitor == nil {
+	if t.usmMonitor == nil {
 		return "tracer:\n" + tracerMaps, nil
 	}
-
-	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+	usmMaps, err := t.usmMonitor.DumpMaps(maps...)
 	if err != nil {
 		return "", err
 	}
-	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
+	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + usmMaps, nil
 }
 
 // connectionExpired returns true if the passed in connection has expired
@@ -698,7 +701,7 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 // expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
 // but use conntrack as a source of truth to keep long-lived idle TCP conns in the userspace state, while evicting closed TCP connections.
 // for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
-// UDP expiries
+// UDP expires
 func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uint64, ctr *cachedConntrack) bool {
 	timeout := t.timeoutForConn(conn)
 	if !conn.IsExpired(latestTime, timeout) {
@@ -741,7 +744,7 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 	}
 	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(ns)
+	rootNS, err := kernel.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -767,7 +770,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}
 	defer ns.Close()
 
-	rootNS, err := util.GetInoForNs(ns)
+	rootNS, err := kernel.GetInoForNs(ns)
 	if err != nil {
 		return nil, err
 	}
@@ -785,31 +788,30 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	}, nil
 }
 
-func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
-	if !c.EnableHTTPMonitoring {
-		return nil
+// DebugDumpProcessCache dumps the process cache
+func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
+	if t.processCache != nil {
+		return t.processCache.Dump()
 	}
 
-	// Shared with the HTTP program
-	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
+	return nil, nil
+}
 
-	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry) *usm.Monitor {
+	// Shared with the USM program
+	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
+	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
+
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
 	if err != nil {
-		log.Errorf("could not instantiate http monitor: %s", err)
+		log.Errorf("usm initialization failed: %s", err)
 		return nil
 	}
 
-	err = monitor.Start()
-	if errors.Is(err, syscall.ENOMEM) {
-		log.Error("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+	if err := monitor.Start(); err != nil {
+		log.Errorf("usm startup failed: %s", err)
 		return nil
 	}
 
-	if err != nil {
-		log.Errorf("could not enable http monitoring: %s", err)
-		return nil
-	}
-
-	log.Info("http monitoring enabled")
 	return monitor
 }

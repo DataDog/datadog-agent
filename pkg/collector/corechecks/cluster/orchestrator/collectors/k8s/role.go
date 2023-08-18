@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -39,11 +38,14 @@ type RoleCollector struct {
 func NewRoleCollector() *RoleCollector {
 	return &RoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "roles",
-			NodeType:         orchestrator.K8sRole,
-			Version:          "rbac.authorization.k8s.io/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "roles",
+			NodeType:                  orchestrator.K8sRole,
+			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleHandlers)),
 	}
@@ -56,12 +58,9 @@ func (c *RoleCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *RoleCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().Roles()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Rbac().V1().Roles()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *RoleCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *RoleCollector) Metadata() *collectors.CollectorMetadata {

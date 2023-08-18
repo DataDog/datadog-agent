@@ -84,6 +84,22 @@ var LegacyMetadataConfig = MetadataConfig{
 			},
 		},
 	},
+	"ip_addresses": {
+		Fields: map[string]MetadataField{
+			"if_index": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.2",
+					Name: "ipAdEntIfIndex",
+				},
+			},
+			"netmask": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.3",
+					Name: "ipAdEntNetMask",
+				},
+			},
+		},
+	},
 }
 
 var TopologyMetadataConfig = MetadataConfig{
@@ -136,6 +152,16 @@ var TopologyMetadataConfig = MetadataConfig{
 			//   - 1.0.8802.1.1.2.1.4.1.1.12  lldpRemSysCapEnabled
 		},
 	},
+	"lldp_remote_management": {
+		Fields: map[string]MetadataField{
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.2.1.3",
+					Name: "lldpRemManAddrIfSubtype",
+				},
+			},
+		},
+	},
 	"lldp_local": {
 		Fields: map[string]MetadataField{
 			"interface_id_type": {
@@ -150,6 +176,50 @@ var TopologyMetadataConfig = MetadataConfig{
 					Name: "lldpLocPortID",
 				},
 			},
+		},
+	},
+	"cdp_remote": {
+		Fields: map[string]MetadataField{
+			"device_desc": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
+					Name: "cdpCacheVersion",
+				},
+			},
+			"device_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
+					Name: "cdpCacheDeviceId",
+				},
+			},
+			"interface_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
+					Name: "cdpCacheDevicePort",
+				},
+			},
+			"device_name": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
+					Name: "cdpCacheSysName",
+				},
+			},
+			"device_address_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
+					Name: "cdpCachePrimaryMgmtAddrType",
+				},
+			},
+			"device_address": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
+					Name: "cdpCachePrimaryMgmtAddr",
+				},
+			},
+			// TODO: Add
+			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.4 cdpCacheAddress
+			//   - 1.3.6.1.4.1.9.9.23.1.2.1.1.22  cdpCacheSecondaryMgmtAddrType
+			// as backup when cdpCachePrimaryMgmtAddr is not present or cdpCachePrimaryMgmtAddrType is not ip(1)
 		},
 	},
 }

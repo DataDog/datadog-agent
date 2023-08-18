@@ -4,19 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kernel
 
 import (
 	"os"
 	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-// IsIPv6Enabled returns whether or not IPv6 has been enabled on the host
+// IsIPv6Enabled returns whether IPv6 has been enabled on the host
 func IsIPv6Enabled() bool {
-	_, err := os.ReadFile(filepath.Join(util.GetProcRoot(), "net/if_inet6"))
+	_, err := os.ReadFile(filepath.Join(ProcFSRoot(), "net/if_inet6"))
 	return err == nil
 }

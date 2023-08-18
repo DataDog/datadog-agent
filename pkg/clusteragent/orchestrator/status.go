@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package orchestrator
 
@@ -72,6 +71,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	status["OrchestratorEndpoints"] = endpoints
 	setCacheInformationDCAMode(status)
 	setCollectionIsWorkingDCAMode(status)
+	setManifestBufferInformationDCAMode(status)
 
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
@@ -97,6 +97,10 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
 		status["ContainerScrubbing"] = "Container scrubbing: enabled"
+	}
+
+	if config.Datadog.GetBool("orchestrator_explorer.manifest_collection.enabled") {
+		status["ManifestCollection"] = "Manifest collection: enabled"
 	}
 
 	return status
@@ -173,5 +177,17 @@ func setCollectionIsWorkingDCAMode(status map[string]interface{}) {
 	} else {
 		status["CollectionWorking"] = "The collection is not running because this agent is not the leader"
 	}
+
+}
+
+func setManifestBufferInformationDCAMode(status map[string]interface{}) {
+	manifestBufferJSON := []byte(expvar.Get("orchestrator-manifest-buffer").String())
+	manifestBuffer := make(map[string]int64)
+	json.Unmarshal(manifestBufferJSON, &manifestBuffer) //nolint:errcheck
+	status["ManifestsFlushedLastTime"] = manifestBuffer["ManifestsFlushedLastTime"]
+	status["BufferFlushed"] = manifestBuffer["BufferFlushed"]
+	delete(manifestBuffer, "ManifestsFlushedLastTime")
+	delete(manifestBuffer, "BufferFlushed")
+	status["ManifestBuffer"] = manifestBuffer
 
 }

@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    When a pod was annotated with ``prometheus.io/scrape: true``, the Agent used to schedule one ``openmetrics`` check per container in the pod unless a ``datadog.prometheusScrape.additionalConfigs[].autodiscovery.kubernetes_container_names`` list was defined, which restricted the potential container targets.
+    The Agent is now able to leverage the ``prometheus.io/port`` annotation to schedule an ``openmetrics`` check only on the container of the pod that declares that port in its spec.

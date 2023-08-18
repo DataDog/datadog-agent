@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 # This script sets up the environment and then runs the test kitchen itself.
 
@@ -171,11 +171,12 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   fi
 
   if [ "$result" -eq 0 ]; then
-      # if kitchen test succeeded, exit with 0
+      echo "Kitchen test succeeded exiting 0"
       exit 0
   else
-    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}"; then
+    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}" ; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
+      echo "Kitchen tests failed and it should not be an infrastructure problem"
       exit 1
     else
       cp -R "${DD_AGENT_TESTING_DIR}"/.kitchen/logs "${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}"

@@ -11,16 +11,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getTaggerList(w http.ResponseWriter, r *http.Request) {
+func getTaggerList(deps APIServerDeps, w http.ResponseWriter, r *http.Request) {
 	cardinality := collectors.TagCardinality(tagger.ChecksCardinality)
 	response := tagger.List(cardinality)
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		setJSONError(w, deps.Log.Errorf("Unable to marshal tagger list response: %s", err), 500)
 		return
 	}
 	w.Write(jsonTags)

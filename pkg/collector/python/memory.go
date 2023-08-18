@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -70,6 +69,7 @@ func init() {
 }
 
 // MemoryTracker is the method exposed to the RTLoader for memory tracking
+//
 //export MemoryTracker
 func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	// run sync for reliability reasons

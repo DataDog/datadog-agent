@@ -4,36 +4,32 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// spliceProbes holds the list of probes used to track splice events
-var spliceProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kretprobe/get_pipe_info",
-			EBPFFuncName: "kretprobe_get_pipe_info",
+func getSpliceProbes(fentry bool) []*manager.Probe {
+	var spliceProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_get_pipe_info",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/get_pipe_info",
-			EBPFFuncName: "kprobe_get_pipe_info",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_get_pipe_info",
+			},
 		},
-	},
-}
+	}
 
-func getSpliceProbes() []*manager.Probe {
 	spliceProbes = append(spliceProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "splice",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return spliceProbes
 }

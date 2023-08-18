@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -70,7 +69,7 @@ func (h *PersistentVolumeHandlers) ResourceList(ctx *processors.ProcessorContext
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *PersistentVolumeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *PersistentVolumeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.PersistentVolume).UID
 }
 

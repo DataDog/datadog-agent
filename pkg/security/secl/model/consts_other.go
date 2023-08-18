@@ -4,14 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package model
 
 var (
 	errorConstants     = map[string]int{}
 	openFlagsConstants = map[string]int{}
-	chmodModeConstants = map[string]int{}
+	fileModeConstants  = map[string]int{}
+	inodeModeConstants = map[string]int{}
 	// KernelCapabilityConstants list of kernel capabilities
 	KernelCapabilityConstants = map[string]uint64{}
 	unlinkFlagsConstants      = map[string]int{}

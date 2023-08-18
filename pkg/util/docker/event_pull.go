@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -46,7 +45,8 @@ func (d *DockerUtil) openEventChannel(ctx context.Context, since, until time.Tim
 // It can return nil, nil if the event is filtered out, one should check for nil pointers before using the event.
 func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Message, filter *containers.Filter) (*ContainerEvent, error) {
 	// Type filtering
-	if msg.Type != "container" {
+	// Filtering out prune events as well as they don't have a container name
+	if msg.Type != events.ContainerEventType || msg.Action == "prune" {
 		return nil, nil
 	}
 
@@ -70,19 +70,9 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 			log.Warnf("can't resolve image name %s: %s", imageName, err)
 		}
 	}
-	if filter != nil && filter.IsExcluded(containerName, imageName, "") {
+	if filter != nil && filter.IsExcluded(nil, containerName, imageName, "") {
 		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil
-	}
-
-	// msg.TimeNano does not hold the nanosecond portion of the timestamp
-	// like it's usual to do in Go, but the whole timestamp value as ns value
-	// We need to subtract the second value to get only the nanoseconds.
-	// Keeping that behind a value test in case docker developers fix that
-	// inconsistency in the future.
-	ns := msg.TimeNano
-	if ns > 1e10 {
-		ns = ns - msg.Time*1e9
 	}
 
 	action := msg.Action
@@ -97,18 +87,32 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 		ContainerName: containerName,
 		ImageName:     imageName,
 		Action:        action,
-		Timestamp:     time.Unix(msg.Time, ns),
+		Timestamp:     timeFromMessage(msg),
 		Attributes:    msg.Actor.Attributes,
 	}
 
 	return event, nil
 }
 
+// processImageEvent formats the events from a channel.
+// It can return nil, nil if the event is filtered out, one should check for nil pointers before using the event.
+func (d *DockerUtil) processImageEvent(msg events.Message) *ImageEvent {
+	if msg.Type != events.ImageEventType {
+		return nil
+	}
+
+	return &ImageEvent{
+		ImageID:   msg.Actor.ID,
+		Action:    msg.Action,
+		Timestamp: timeFromMessage(msg),
+	}
+}
+
 // LatestContainerEvents returns events matching the filter that occurred after the time passed.
 // It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
 func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error) {
-	var events []*ContainerEvent
-	filters := map[string]string{"type": "container"}
+	var containerEvents []*ContainerEvent
+	filters := map[string]string{"type": events.ContainerEventType}
 
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
@@ -126,7 +130,7 @@ func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time,
 			} else if event == nil {
 				continue
 			}
-			events = append(events, event)
+			containerEvents = append(containerEvents, event)
 			if event.Timestamp.After(maxTimestamp) {
 				maxTimestamp = event.Timestamp
 			}
@@ -134,8 +138,23 @@ func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time,
 			if err == io.EOF {
 				break
 			} else {
-				return events, maxTimestamp, err
+				return containerEvents, maxTimestamp, err
 			}
 		}
 	}
+}
+
+func timeFromMessage(msg events.Message) time.Time {
+	// msg.TimeNano does not hold the nanosecond portion of the timestamp
+	// like it's usual to do in Go, but the whole timestamp value as ns value
+	// We need to subtract the second value to get only the nanoseconds.
+	// Keeping that behind a value test in case docker developers fix that
+	// inconsistency in the future.
+
+	ns := msg.TimeNano
+	if ns > 1e10 {
+		ns = ns - msg.Time*1e9
+	}
+
+	return time.Unix(msg.Time, ns)
 }

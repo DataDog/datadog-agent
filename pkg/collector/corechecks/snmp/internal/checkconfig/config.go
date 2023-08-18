@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
@@ -130,30 +131,40 @@ type InstanceConfig struct {
 	// the integration will fetch OIDs from the devices and deduct which metrics  can be monitored (from all OOTB profile metrics definition)
 	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
+
+	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
+	// it's only supported for single device instance (`ip_address`)
+	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
-	Name                  string
-	IPAddress             string
-	Port                  uint16
-	CommunityString       string
-	SnmpVersion           string
-	Timeout               int
-	Retries               int
-	User                  string
-	AuthProtocol          string
-	AuthKey               string
-	PrivProtocol          string
-	PrivKey               string
-	ContextName           string
-	OidConfig             OidConfig
-	Metrics               []MetricsConfig
-	Metadata              MetadataConfig
+	Name            string
+	IPAddress       string
+	Port            uint16
+	CommunityString string
+	SnmpVersion     string
+	Timeout         int
+	Retries         int
+	User            string
+	AuthProtocol    string
+	AuthKey         string
+	PrivProtocol    string
+	PrivKey         string
+	ContextName     string
+	OidConfig       OidConfig
+	// RequestedMetrics are the metrics explicitly requested by config.
+	RequestedMetrics []MetricsConfig
+	// RequestedMetricTags are the tags explicitly requested by config.
+	RequestedMetricTags []MetricTagConfig
+	// Metrics combines RequestedMetrics with profile metrics.
+	Metrics  []MetricsConfig
+	Metadata MetadataConfig
+	// MetricTags combines RequestedMetricTags with profile metric tags.
 	MetricTags            []MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	Profiles              profileDefinitionMap
+	Profiles              profileConfigMap
 	ProfileTags           []string
 	Profile               string
 	ProfileDef            *profileDefinition
@@ -178,16 +189,17 @@ type CheckConfig struct {
 	DiscoveryInterval        int
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
+	InterfaceConfigs         []snmpintegration.InterfaceConfig
 }
 
-// RefreshWithProfile refreshes config based on profile
-func (c *CheckConfig) RefreshWithProfile(profile string) error {
+// SetProfile refreshes config based on profile
+func (c *CheckConfig) SetProfile(profile string) error {
 	if _, ok := c.Profiles[profile]; !ok {
 		return fmt.Errorf("unknown profile `%s`", profile)
 	}
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
-	definition := c.Profiles[profile]
+	definition := c.Profiles[profile].Definition
 	c.ProfileDef = &definition
 	c.Profile = profile
 
@@ -196,17 +208,36 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	}
 	tags = append(tags, definition.StaticTags...)
 	c.ProfileTags = tags
-
-	c.UpdateConfigMetadataMetricsAndTags(definition.Metadata, definition.Metrics, definition.MetricTags, c.CollectTopology)
-
+	c.RebuildMetadataMetricsAndTags()
 	return nil
 }
 
-func (c *CheckConfig) UpdateConfigMetadataMetricsAndTags(metadata MetadataConfig, metrics []MetricsConfig, metricTags []MetricTagConfig, collectTopology bool) {
-	c.Metadata = updateMetadataDefinitionWithDefaults(metadata, collectTopology)
-	c.Metrics = append(c.Metrics, metrics...)
-	c.MetricTags = append(c.MetricTags, metricTags...)
+// SetAutodetectProfile sets the profile to the provided auto-detected metrics
+// and tags. This overwrites any preexisting profile but does not affect
+// RequestedMetrics or RequestedMetricTags, which will still be queried.
+func (c *CheckConfig) SetAutodetectProfile(metrics []MetricsConfig, tags []MetricTagConfig) {
+	c.Profile = "autodetect"
+	c.ProfileDef = &profileDefinition{
+		Metrics:    metrics,
+		MetricTags: tags,
+	}
+	c.ProfileTags = nil
+	c.RebuildMetadataMetricsAndTags()
+}
 
+// RebuildMetadataMetricsAndTags rebuilds c.Metrics, c.Metadata, c.MetricTags,
+// and c.OidConfig by merging data from requested metrics/tags and the current
+// profile.
+func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
+	c.Metrics = c.RequestedMetrics
+	c.MetricTags = c.RequestedMetricTags
+	if c.ProfileDef != nil {
+		c.Metadata = updateMetadataDefinitionWithDefaults(c.ProfileDef.Metadata, c.CollectTopology)
+		c.Metrics = append(c.Metrics, c.ProfileDef.Metrics...)
+		c.MetricTags = append(c.MetricTags, c.ProfileDef.MetricTags...)
+	} else {
+		c.Metadata = updateMetadataDefinitionWithDefaults(nil, c.CollectTopology)
+	}
 	c.OidConfig.clean()
 	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
 	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
@@ -216,10 +247,6 @@ func (c *CheckConfig) UpdateConfigMetadataMetricsAndTags(metadata MetadataConfig
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
 	c.DeviceIDTags = coreutil.SortUniqInPlace(c.getDeviceIDTags())
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
-}
-
-func (c *CheckConfig) AddUptimeMetric() {
-	c.Metrics = append(c.Metrics, uptimeMetricConfig)
 }
 
 // GetStaticTags return static tags built from configuration
@@ -288,7 +315,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
-	initConfig.CollectTopology = false // TODO: Make CollectTopology default to true when GA
+	initConfig.CollectTopology = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -425,8 +452,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.PrivKey = instance.PrivKey
 	c.ContextName = instance.ContextName
 
-	c.Metrics = instance.Metrics
-
 	if instance.OidBatchSize != 0 {
 		c.OidBatchSize = int(instance.OidBatchSize)
 	} else if initConfig.OidBatchSize != 0 {
@@ -461,31 +486,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	// profile configs
-	profile := instance.Profile
-	if profile != "" || len(c.Metrics) > 0 {
-		c.AutodetectProfile = false
-	} else {
-		c.AutodetectProfile = true
-	}
-
-	// metrics Configs
-	if instance.UseGlobalMetrics {
-		c.Metrics = append(c.Metrics, initConfig.GlobalMetrics...)
-	}
-	normalizeMetrics(c.Metrics)
-
-	c.InstanceTags = instance.Tags
-	c.MetricTags = instance.MetricTags
-
-	c.AddUptimeMetric()
-
-	c.Metadata = updateMetadataDefinitionWithDefaults(nil, c.CollectTopology)
-	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
-	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
-
 	// Profile Configs
-	var profiles profileDefinitionMap
+	var profiles profileConfigMap
 	if len(initConfig.Profiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
@@ -501,24 +503,45 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		}
 		profiles = defaultProfiles
 	}
-
 	for _, profileDef := range profiles {
-		normalizeMetrics(profileDef.Metrics)
+		normalizeMetrics(profileDef.Definition.Metrics)
 	}
-
 	c.Profiles = profiles
 
-	errors := ValidateEnrichMetrics(c.Metrics)
-	errors = append(errors, ValidateEnrichMetricTags(c.MetricTags)...)
+	// profile configs
+	profile := instance.Profile
+	if profile != "" || len(instance.Metrics) > 0 {
+		c.AutodetectProfile = false
+	} else {
+		c.AutodetectProfile = true
+	}
+
+	c.InstanceTags = instance.Tags
+	c.InterfaceConfigs = instance.InterfaceConfigs
+
+	// configure requested metrics and metric tags
+	c.RequestedMetrics = instance.Metrics
+
+	if instance.UseGlobalMetrics {
+		c.RequestedMetrics = append(c.RequestedMetrics, initConfig.GlobalMetrics...)
+	}
+	// Always request uptime
+	c.RequestedMetrics = append(c.RequestedMetrics, uptimeMetricConfig)
+	normalizeMetrics(c.RequestedMetrics)
+	c.RequestedMetricTags = instance.MetricTags
+	errors := ValidateEnrichMetrics(c.RequestedMetrics)
+	errors = append(errors, ValidateEnrichMetricTags(c.RequestedMetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
 	if profile != "" {
-		err = c.RefreshWithProfile(profile)
+		err = c.SetProfile(profile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
+	} else {
+		c.RebuildMetadataMetricsAndTags()
 	}
 
 	c.UpdateDeviceIDAndTags()
@@ -596,19 +619,19 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ContextName = c.ContextName
 	newConfig.ContextName = c.ContextName
 	newConfig.OidConfig = c.OidConfig
-	newConfig.Metrics = make([]MetricsConfig, 0, len(c.Metrics))
-	for _, metric := range c.Metrics {
-		newConfig.Metrics = append(newConfig.Metrics, metric)
-	}
+	newConfig.RequestedMetrics = make([]MetricsConfig, len(c.RequestedMetrics))
+	copy(newConfig.RequestedMetrics, c.RequestedMetrics)
+	newConfig.Metrics = make([]MetricsConfig, len(c.Metrics))
+	copy(newConfig.Metrics, c.Metrics)
 
 	// Metadata: shallow copy is enough since metadata is not modified.
-	// However, it might be fully replaced, see CheckConfig.RefreshWithProfile
+	// However, it might be fully replaced, see CheckConfig.SetProfile
 	newConfig.Metadata = c.Metadata
 
-	newConfig.MetricTags = make([]MetricTagConfig, 0, len(c.MetricTags))
-	for _, metricTag := range c.MetricTags {
-		newConfig.MetricTags = append(newConfig.MetricTags, metricTag)
-	}
+	newConfig.RequestedMetricTags = make([]MetricTagConfig, len(c.RequestedMetricTags))
+	copy(newConfig.RequestedMetricTags, c.RequestedMetricTags)
+	newConfig.MetricTags = make([]MetricTagConfig, len(c.MetricTags))
+	copy(newConfig.MetricTags, c.MetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
 	newConfig.Profiles = c.Profiles
@@ -629,6 +652,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
 	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
+	newConfig.InterfaceConfigs = c.InterfaceConfigs
 
 	return &newConfig
 }
@@ -703,12 +727,12 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 }
 
 // GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string) (string, error) {
+func GetProfileForSysObjectID(profiles profileConfigMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 
-	for profile, definition := range profiles {
-		for _, oidPattern := range definition.SysObjectIds {
+	for profile, profConfig := range profiles {
+		for _, oidPattern := range profConfig.Definition.SysObjectIds {
 			found, err := filepath.Match(oidPattern, sysObjectID)
 			if err != nil {
 				log.Debugf("pattern error: %s", err)
@@ -717,8 +741,13 @@ func GetProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string)
 			if !found {
 				continue
 			}
-			if matchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
-				return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, matchedProfile)
+			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
+				if profiles[prevMatchedProfile].isUserProfile && !profConfig.isUserProfile {
+					continue
+				}
+				if profiles[prevMatchedProfile].isUserProfile == profConfig.isUserProfile {
+					return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, prevMatchedProfile)
+				}
 			}
 			tmpSysOidToProfile[oidPattern] = profile
 			matchedOids = append(matchedOids, oidPattern)

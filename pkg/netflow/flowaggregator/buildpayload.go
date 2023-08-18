@@ -6,21 +6,26 @@
 package flowaggregator
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
 )
 
-func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
+func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		// TODO: Implement Tos
-		FlowType:     string(aggFlow.FlowType),
-		SamplingRate: aggFlow.SamplingRate,
-		Direction:    enrichment.RemapDirection(aggFlow.Direction),
+		FlushTimestamp: flushTime.UnixMilli(),
+		FlowType:       string(aggFlow.FlowType),
+		SamplingRate:   aggFlow.SamplingRate,
+		Direction:      enrichment.RemapDirection(aggFlow.Direction),
 		Device: payload.Device{
-			IP:        common.IPBytesToString(aggFlow.DeviceAddr),
 			Namespace: aggFlow.Namespace,
+		},
+		Exporter: payload.Exporter{
+			IP: common.IPBytesToString(aggFlow.ExporterAddr),
 		},
 		Start:      aggFlow.StartTimestamp,
 		End:        aggFlow.EndTimestamp,

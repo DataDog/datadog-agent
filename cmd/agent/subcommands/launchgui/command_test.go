@@ -21,6 +21,6 @@ func TestCommand(t *testing.T) {
 		[]string{"launch-gui"},
 		launchGui,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }

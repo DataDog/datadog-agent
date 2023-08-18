@@ -12,18 +12,19 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
@@ -41,6 +42,8 @@ type serverSecure struct {
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
 	configService      *remoteconfig.Service
+	dogstatsdServer    dogstatsdServer.Component
+	capture            dsdReplay.Component
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -76,17 +79,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 		return &pb.CaptureTriggerResponse{}, err
 	}
 
-	err = common.DSD.Capture(req.GetPath(), d, req.GetCompressed())
-	if err != nil {
-		return &pb.CaptureTriggerResponse{}, err
-	}
-
-	// wait for the capture to start
-	for !common.DSD.TCapture.IsOngoing() {
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	p, err := common.DSD.TCapture.Path()
+	p, err := s.capture.Start(req.GetPath(), d, req.GetCompressed())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
 	}
@@ -123,18 +116,20 @@ func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.Tagg
 	return &pb.TaggerStateResponse{Loaded: true}, nil
 }
 
+var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
+
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	if s.configService == nil {
-		log.Debug("Remote configuration service not initialized")
-		return nil, errors.New("remote configuration service not initialized")
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
 	}
-	return s.configService.ClientGetConfigs(in)
+	return s.configService.ClientGetConfigs(ctx, in)
 }
 
 func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
 	if s.configService == nil {
-		log.Debug("Remote configuration service not initialized")
-		return nil, errors.New("remote configuration service not initialized")
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
 	}
 	return s.configService.ConfigGetState()
 }

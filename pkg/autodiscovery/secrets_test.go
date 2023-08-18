@@ -67,7 +67,6 @@ func (m *MockSecretDecrypt) install() func() {
 	originalSecretsDecrypt := secretsDecrypt
 	secretsDecrypt = m.getDecryptFunc()
 	return func() { secretsDecrypt = originalSecretsDecrypt }
-
 }
 
 var sharedTpl = integration.Config{
@@ -114,8 +113,10 @@ func TestSecretDecrypt(t *testing.T) {
 	mockDecrypt := MockSecretDecrypt{t, makeSharedScenarios()}
 	defer mockDecrypt.install()()
 
-	_, err := decryptConfig(sharedTpl)
+	newConfig, err := decryptConfig(sharedTpl)
 	require.NoError(t, err)
+
+	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
 }

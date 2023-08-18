@@ -1,5 +1,6 @@
 ---
 include:
+  - /.gitlab/setup.yml
   - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
@@ -10,23 +11,26 @@ include:
   - /.gitlab/binary_build.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
-  - /.gitlab/internal_deploy.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
+  - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
   - /.gitlab/check_deploy.yml
   - /.gitlab/dev_container_deploy.yml
-  - /.gitlab/deploy_6.yml
-  - /.gitlab/deploy_7.yml
+  - /.gitlab/deploy_common.yml
+  - /.gitlab/deploy_containers.yml
+  - /.gitlab/deploy_packages.yml
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
-  - /.gitlab/deploy_invalidate.yml
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/e2e_test_junit_upload.yml
+  - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
@@ -39,6 +43,8 @@ include:
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/benchmarks/benchmarks.yml
+  - /.gitlab/benchmarks/macrobenchmarks.yml
 
 default:
   retry:
@@ -49,11 +55,8 @@ default:
       - unknown_failure
       - api_failure
 
-workflow:
-  rules:
-    - if: $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
-
 stages:
+  - setup
   - maintenance_jobs
   - deps_build
   - deps_fetch
@@ -61,25 +64,28 @@ stages:
   - source_test_junit_upload
   - binary_build
   - package_deps_build
+  - kernel_matrix_testing
   - integration_test
+  - benchmarks
   - package_build
-  - internal_deploy
   - kitchen_deploy
   - kitchen_testing
+  - kitchen_tests_upload
   - pkg_metrics
   - container_build
   - container_scan
   - check_deploy
   - dev_container_deploy
-  - deploy6
-  - deploy7
+  - deploy_containers
+  - deploy_packages
+  - trigger_release
   - deploy_dca
   - choco_build
   - choco_deploy
-  - deploy_invalidate
   - internal_image_deploy
-  - trigger_release
+  - install_script_testing
   - e2e
+  - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
@@ -116,13 +122,13 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
+  BUCKET_BRANCH: nightly # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
+  DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -137,20 +143,33 @@ variables:
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
+  S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v10863649-c23f296
-  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v10863649-c23f296
-  DATADOG_AGENT_ARMBUILDIMAGES: v10863649-c23f296
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10863649-c23f296
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10863649-c23f296
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v10582792-c2b9fb7
+
+  # Build images versions
+  # To use images from datadog-agent-buildimages dev branches, set the corresponding
+  # SUFFIX variable to _test_only
+  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_WINBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_ARMBUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18868373-918b265
+  DATADOG_AGENT_BUILDERS: v19040681-572898a
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: b26f1d056477
+
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
-  NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
   DEB_GPG_KEY_ID: ad9589b7
   DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
@@ -166,10 +185,13 @@ variables:
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   ARTIFACTORY_USERNAME: datadog-agent
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
-  USE_CACHING_PROXY_RUBY: "true"
+  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-098ea4991ff2d244c"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-04493daab2918046c"
 
 #
 # Condition mixins for simplification of rules
@@ -212,6 +234,11 @@ variables:
 
 .if_not_stable_repo_branch: &if_not_stable_repo_branch
   if: $BUCKET_BRANCH != "stable"
+
+# CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
+# See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 # Rule to trigger all builds conditionally.
 # By default:
@@ -257,6 +284,37 @@ variables:
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+.if_scheduled_main: &if_scheduled_main
+  if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
+
+#
+# Workflow rules
+# Rules used to define whether a pipeline should run, and with which variables
+#
+
+workflow:
+  rules:
+    - <<: *if_triggered_pipeline
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
+    - <<: *if_main_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
+    - <<: *if_release_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
+    - <<: *if_deploy
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
+    - if: $CI_COMMIT_TAG == null
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -445,6 +503,19 @@ variables:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
+# rule to trigger job for internal image deployment if deploy is set or
+# manually if not
+.on_deploy_a7_internal_or_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    variables:
+      RELEASE_PROD: "true"
+  - when: manual
+    allow_failure: true
+    variables:
+      RELEASE_PROD: "false"
+
 # Same as on_deploy_a7_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
 .on_deploy_a7_manual_final:
@@ -497,6 +568,43 @@ variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
+
+# This is used for image vulnerability scanning. Because agent 6
+# uses python 2, which has many vulnerabilities that will not get
+# patched, we do not wish to scan this image. For this reason, only
+# agent 7 versions should be published internally using these
+# configurations.
+.on_deploy_a7_internal_rc:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+
+# Same as on_deploy_a7_manual_final, except the job is used to publish images
+# to our internal registries.
+.on_deploy_a7_internal_manual_final:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_deploy_on_beta_repo_branch
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      IMG_REGISTRIES: internal-aws-ddbuild
 
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
@@ -587,6 +695,19 @@ variables:
   - <<: *if_deploy
     when: manual
     allow_failure: true
+
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: on_success
 
 .on_deploy_stable_repo_branch_a7_manual:
   - <<: *if_not_version_7
@@ -720,27 +841,42 @@ variables:
   - <<: *if_testing_cleanup
 
 .on_security_agent_changes_or_manual:
+  - <<: *if_main_branch
   - changes:
-      - pkg/ebpf/**/*
-      - pkg/security/**/*
-      - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-      - test/kitchen/test/integration/security-agent-test/**/*
-      - test/kitchen/test/integration/security-agent-stress/**/*
-      - .gitlab/functional_test/security_agent.yml
+      paths:
+        - pkg/ebpf/**/*
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+        - test/kitchen/test/integration/security-agent-test/**/*
+        - test/kitchen/test/integration/security-agent-stress/**/*
+        - .gitlab/functional_test/security_agent.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
 
 .on_system_probe_changes_or_manual:
+  - <<: *if_main_branch
   - changes:
-      - pkg/collector/corechecks/ebpf/**/*
-      - pkg/ebpf/**/*
-      - pkg/network/**/*
-      - pkg/util/kernel/**/*
-      - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-      - test/kitchen/test/integration/system-probe-test/**/*
-      - test/kitchen/test/integration/win-sysprobe-test/**/*
-      - .gitlab/functional_test/system_probe.yml
+      paths:
+        - pkg/collector/corechecks/ebpf/**/*
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+        - pkg/process/monitor/*
+        - pkg/util/kernel/**/*
+        - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+        - test/kitchen/test/integration/system-probe-test/**/*
+        - test/kitchen/test/integration/win-sysprobe-test/**/*
+        - .gitlab/functional_test/system_probe.yml
+        - .gitlab/kernel_version_testing/system_probe.yml
+        - test/new-e2e/system-probe/**/*
+        - test/new-e2e/scenarios/system-probe/**/*
+        - test/new-e2e/runner/**/*
+        - test/new-e2e-utils/**/*
+        - test/new-e2e/go.mod
+        - tasks/system_probe.py
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -754,4 +890,18 @@ variables:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_trace_agent_changes_or_manual:
+  - changes:
+      - pkg/trace/**/*
+      - .gitlab/benchmarks/*
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_scheduled_main_or_manual:
+  - <<: *if_scheduled_main
+    when: always
+  - when: manual
     allow_failure: true

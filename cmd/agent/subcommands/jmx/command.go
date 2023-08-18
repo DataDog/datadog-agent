@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 // Package jmx implements 'agent jmx'.
 package jmx
@@ -23,9 +22,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -45,6 +46,7 @@ type cliParams struct {
 	saveFlare             bool
 	discoveryTimeout      uint
 	discoveryMinInstances uint
+	instanceFilter        string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -63,6 +65,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	jmxCmd.PersistentFlags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	jmxCmd.PersistentFlags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	jmxCmd.PersistentFlags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
+	jmxCmd.PersistentFlags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
 
 	// All subcommands use the same provided components, with a different
 	// oneShot callback, and with some complex derivation of the
@@ -75,7 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		if cliParams.saveFlare {
 			// Windows cannot accept ":" in file names
 			filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-			cliParams.logFile = filepath.Join(common.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
+			cliParams.logFile = filepath.Join(path.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
 			cliParams.jmxLogLevel = "debug"
 		}
 
@@ -83,11 +86,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		if cliParams.jmxLogLevel == "" {
 			cliParams.jmxLogLevel = "debug"
 		}
-
-		params := core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForOneShot("CORE", cliParams.jmxLogLevel, false)
-
+		params := core.BundleParams{
+			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+			LogParams:    log.LogForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
-			params = params.LogToFile(cliParams.logFile)
+			params.LogParams.LogToFile(cliParams.logFile)
 		}
 
 		return fxutil.OneShot(callback,
@@ -228,12 +231,12 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 		return fmt.Errorf("Unable to set up JMX logger: %v", err)
 	}
 
-	common.LoadComponents(context.Background(), config.GetString("confd_path"))
+	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), config.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll)
+	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.
@@ -241,11 +244,14 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 	var allConfigs []integration.Config
 	if len(cliParams.cliSelectedChecks) == 0 {
-		allConfigs = common.WaitForAllConfigsFromAD(waitCtx)
+		allConfigs, err = common.WaitForAllConfigsFromAD(waitCtx)
 	} else {
-		allConfigs = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances))
+		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
 	}
 	cancelTimeout()
+	if err != nil {
+		return err
+	}
 
 	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs)
 

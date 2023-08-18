@@ -91,9 +91,22 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
 fi
 
 # Make the system-probe and security-agent binaries and eBPF programs owned by root
-chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
-chown root:root ${INSTALL_DIR}/embedded/bin/security-agent
-chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/ebpf
+if [ -f "$INSTALL_DIR/embedded/bin/system-probe" ]; then
+    chown root:root ${INSTALL_DIR}/embedded/bin/system-probe
+fi
+
+if [ -f "$INSTALL_DIR/embedded/bin/security-agent" ]; then
+    chown root:root ${INSTALL_DIR}/embedded/bin/security-agent
+fi
+
+if [ -d "$INSTALL_DIR/embedded/share/system-probe/ebpf" ]; then
+    chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/ebpf
+fi
+
+if [ -d "$INSTALL_DIR/embedded/share/system-probe/java" ]; then
+    chown -R root:root ${INSTALL_DIR}/embedded/share/system-probe/java
+
+fi
 
 # Enable and restart the agent service here on Debian platforms
 # On RHEL, this is done in the posttrans script

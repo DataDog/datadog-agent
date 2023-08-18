@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package model
 
@@ -40,7 +39,7 @@ var templatedTags = map[string]tagGetter{
 		if err != nil {
 			return "", err
 		}
-		return clustername.GetClusterName(ctx, hname), nil
+		return clustername.GetClusterNameTagValue(ctx, hname), nil
 	},
 }
 

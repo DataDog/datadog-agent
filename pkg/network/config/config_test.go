@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+
 package config
 
 import (
@@ -10,31 +12,19 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
-
-var originalConfig = config.Datadog
-
-func restoreGlobalConfig() {
-	config.Datadog = originalConfig
-}
-
-func newConfig() {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(config.Datadog)
-}
 
 func TestDisablingDNSInspection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -43,9 +33,7 @@ func TestDisablingDNSInspection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -57,8 +45,7 @@ func TestDisablingDNSInspection(t *testing.T) {
 
 func TestDisablingProtocolClassification(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-NoPRTCLClassifying.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -67,11 +54,8 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		os.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
-		defer os.Unsetenv("DD_ENABLE_PROTOCOL_CLASSIFICATION")
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -82,9 +66,7 @@ func TestDisablingProtocolClassification(t *testing.T) {
 
 func TestEnableGoTLSSupport(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGoTLS.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -93,10 +75,8 @@ func TestEnableGoTLSSupport(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
@@ -105,36 +85,50 @@ func TestEnableGoTLSSupport(t *testing.T) {
 	})
 }
 
-func TestEnableHTTPMonitoring(t *testing.T) {
+func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-EnableHTTPStatusCodeAggr.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_STATS_BY_STATUS_CODE", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTPMonitoring)
+		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
 	})
 }
 
-func TestEnableHTTPMonitoringViaHTTP(t *testing.T) {
-	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
+func TestEnableHTTPMonitoring(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DeprecatedEnableHTTP.yaml")
+		require.NoError(t, err)
+		cfg := New()
 
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -143,11 +137,8 @@ func TestEnableHTTPMonitoringViaHTTP(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
 
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -155,13 +146,140 @@ func TestEnableHTTPMonitoringViaHTTP(t *testing.T) {
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+	})
+}
+
+func TestEnableDataStreams(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDataStreams.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.DataStreamsEnabled)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.DataStreamsEnabled)
+	})
+}
+
+func TestEnableJavaTLSSupport(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableJavaTLS.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableJavaTLSSupport)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_JAVA_TLS_ENABLED", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableJavaTLSSupport)
+	})
+}
+
+func TestEnableHTTP2Monitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP2.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTP2Monitoring)
+	})
+}
+
+func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
+	aconfig.ResetSystemProbeConfig(t)
+
+	_, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg := New()
+
+	assert.False(t, cfg.EnableJavaTLSSupport)
+}
+
+func TestDefaultDisabledHTTP2Support(t *testing.T) {
+	aconfig.ResetSystemProbeConfig(t)
+
+	_, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg := New()
+
+	assert.False(t, cfg.EnableHTTP2Monitoring)
 }
 
 func TestDisableGatewayLookup(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		// default config
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -169,7 +287,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 
 		assert.True(t, cfg.EnableGatewayLookup)
 
-		newConfig()
+		aconfig.ResetSystemProbeConfig(t)
 		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableGwLookup.yaml")
 		require.NoError(t, err)
 		cfg = New()
@@ -178,9 +296,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -192,9 +308,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 
 func TestIgnoreConntrackInitFailure(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreCTInitFailure.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -203,9 +317,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -218,9 +330,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 
 func TestEnablingDNSStatsCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -229,9 +339,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_COLLECT_DNS_STATS", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -239,7 +347,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 
 		assert.False(t, cfg.CollectDNSStats)
 
-		newConfig()
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_COLLECT_DNS_STATS", "true")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
@@ -251,9 +359,7 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 
 func TestDisablingDNSDomainCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -262,9 +368,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -272,7 +376,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 
 		assert.False(t, cfg.CollectDNSDomains)
 
-		newConfig()
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
@@ -284,9 +388,7 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 
 func TestSettingMaxDNSStats(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
 		require.NoError(t, err)
 		cfg := New()
@@ -295,10 +397,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		newConfig()
+		aconfig.ResetSystemProbeConfig(t)
 		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -306,7 +405,7 @@ func TestSettingMaxDNSStats(t *testing.T) {
 
 		assert.Equal(t, 20000, cfg.MaxDNSStats) // default value
 
-		newConfig()
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS", "10000")
 		_, err = sysconfig.New("")
 		require.NoError(t, err)
@@ -334,25 +433,7 @@ func TestHTTPReplaceRules(t *testing.T) {
 		},
 	}
 
-	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-HTTPReplaceRules.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		require.Len(t, cfg.HTTPReplaceRules, 3)
-		for i, r := range expected {
-			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
-		}
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+	envContent := `
         [
           {
             "pattern": "/users/(.*)",
@@ -366,9 +447,11 @@ func TestHTTPReplaceRules(t *testing.T) {
             "pattern": "payment_id"
           }
         ]
-        `)
+        `
 
-		_, err := sysconfig.New("")
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRulesDeprecated.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
@@ -377,51 +460,725 @@ func TestHTTPReplaceRules(t *testing.T) {
 			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
 		}
 	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRules.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+		// Setting a different value for the old value, as we should override.
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+        [
+          {
+            "pattern": "payment_id"
+          }
+        ]
+        `)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+
+		assert.Empty(t, cfg.HTTPReplaceRules)
+	})
+}
+
+func TestMaxTrackedHTTPConnections(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnectionsDeprecated.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnections.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1026")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1024))
+	})
+}
+
+func TestHTTPMapCleanerInterval(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  http_map_cleaner_interval_in_s: 1025
+`)
+
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_map_cleaner_interval_in_s: 1025
+`)
+
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1026")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPMapCleanerInterval, 300*time.Second)
+	})
+}
+
+func TestHTTPIdleConnectionTTL(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  http_idle_connection_ttl_in_s: 1025
+`)
+
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_idle_connection_ttl_in_s: 1025
+`)
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", "1026")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 1025*time.Second)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPIdleConnectionTTL, 30*time.Second)
+	})
+}
+
+func TestHTTPNotificationThreshold(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+network_config:
+  http_notification_threshold: 100
+`)
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_notification_threshold: 100
+`)
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "101")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+}
+
+// Testing we're not exceeding the limit for http_notification_threshold.
+func TestHTTPNotificationThresholdOverLimit(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+network_config:
+  http_notification_threshold: 1025
+`)
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_notification_threshold: 1025
+`)
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1026")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+}
+
+func TestHTTPMaxRequestFragment(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+network_config:
+  http_max_request_fragment: 155
+`)
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "155")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_max_request_fragment: 155
+`)
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "155")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "155")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "155")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "151")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "155")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(155))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+}
+
+// Testing we're not exceeding the hard coded limit of http_max_request_fragment.
+func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+network_config:
+  http_max_request_fragment: 175
+`)
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_max_request_fragment: 175
+`)
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "176")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+	})
 }
 
 func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	maxTrackedConnections := New().MaxTrackedConnections
 
 	t.Run("value set", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
-
 		cfg := New()
-		require.Equal(t, int(maxTrackedConnections-1), cfg.MaxClosedConnectionsBuffered)
+		require.Equal(t, maxTrackedConnections-1, cfg.MaxClosedConnectionsBuffered)
 	})
 
 	t.Run("value not set", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
+		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
-		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
+		require.Equal(t, cfg.MaxTrackedConnections, cfg.MaxClosedConnectionsBuffered)
 	})
 }
 
 func TestMaxHTTPStatsBuffered(t *testing.T) {
-	t.Run("value set through env var", func(t *testing.T) {
-		newConfig()
-		t.Cleanup(restoreGlobalConfig)
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBufferedDeprecated.yaml")
+		require.NoError(t, err)
+		cfg := New()
 
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
 
 		cfg := New()
-		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBuffered.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "514")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 100000)
+	})
+}
+
+func TestMaxKafkaStatsBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_KAFKA_STATS_BUFFERED", "50000")
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxKafkaStatsBuffered)
 	})
 
 	t.Run("value set through yaml", func(t *testing.T) {
-		newConfig()
-		t.Cleanup(restoreGlobalConfig)
-
+		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
-network_config:
-  max_http_stats_buffered: 30000
+service_monitoring_config:
+  max_kafka_stats_buffered: 30000
 `)
 
-		assert.Equal(t, 30000, cfg.MaxHTTPStatsBuffered)
+		assert.Equal(t, 30000, cfg.MaxKafkaStatsBuffered)
 	})
 }
 
@@ -429,8 +1186,8 @@ func TestNetworkConfigEnabled(t *testing.T) {
 	ys := true
 
 	for i, tc := range []struct {
-		sysIn, npmIn, usmIn    *bool
-		npmEnabled, usmEnabled bool
+		sysIn, npmIn, usmIn, dsmIn         *bool
+		npmEnabled, usmEnabled, dsmEnabled bool
 	}{
 		{sysIn: nil, npmIn: nil, usmIn: nil, npmEnabled: false, usmEnabled: false},
 		{sysIn: nil, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
@@ -441,8 +1198,15 @@ func TestNetworkConfigEnabled(t *testing.T) {
 		{sysIn: &ys, npmIn: nil, usmIn: &ys, npmEnabled: false, usmEnabled: true},
 		{sysIn: &ys, npmIn: &ys, usmIn: nil, npmEnabled: true, usmEnabled: false},
 		{sysIn: &ys, npmIn: &ys, usmIn: &ys, npmEnabled: true, usmEnabled: true},
+		{sysIn: nil, npmIn: nil, usmIn: nil, dsmIn: &ys, npmEnabled: false, usmEnabled: true, dsmEnabled: true},
+		{sysIn: nil, npmIn: nil, usmIn: &ys, dsmIn: &ys, npmEnabled: false, usmEnabled: true, dsmEnabled: true},
+		{sysIn: nil, npmIn: &ys, usmIn: &ys, dsmIn: &ys, npmEnabled: true, usmEnabled: true, dsmEnabled: true},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			f, err := os.CreateTemp(t.TempDir(), "emptyconfig*.yaml")
+			require.NoError(t, err)
+			t.Cleanup(func() { f.Close() })
+
 			if tc.sysIn != nil {
 				t.Setenv("DD_SYSTEM_PROBE_ENABLED", strconv.FormatBool(*tc.sysIn))
 			}
@@ -452,15 +1216,17 @@ func TestNetworkConfigEnabled(t *testing.T) {
 			if tc.usmIn != nil {
 				t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(*tc.usmIn))
 			}
+			if tc.dsmIn != nil {
+				t.Setenv("DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED", strconv.FormatBool(*tc.dsmIn))
+			}
 
-			newConfig()
-			t.Cleanup(restoreGlobalConfig)
-
-			_, err := sysconfig.New("")
+			aconfig.ResetSystemProbeConfig(t)
+			_, err = sysconfig.New(f.Name())
 			require.NoError(t, err)
 			cfg := New()
 			assert.Equal(t, tc.npmEnabled, cfg.NPMEnabled, "npm state")
 			assert.Equal(t, tc.usmEnabled, cfg.ServiceMonitoringEnabled, "usm state")
+			assert.Equal(t, tc.dsmEnabled, cfg.DataStreamsEnabled, "dsm state")
 		})
 	}
 }

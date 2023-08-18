@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -19,8 +18,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -38,7 +37,7 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.module.SendStats()
+	test.cws.SendStats()
 
 	key := metrics.MetricRuleSetLoaded
 	assert.NotEmpty(t, test.statsdClient.Get(key))
@@ -53,10 +52,10 @@ func TestRulesetLoaded(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			// force a reload
 			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.RulesetLoadedRuleID, rule.ID, "wrong rule")
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.RulesetLoadedRuleID, rule.ID, "wrong rule")
 
-			test.module.SendStats()
+			test.cws.SendStats()
 
 			assert.Equal(t, count+1, test.statsdClient.Get(key))
 
@@ -106,8 +105,8 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				return err
 			}
 			return f.Close()
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.AbnormalPathRuleID, rule.ID, "wrong rule")
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+			assert.Equal(t, events.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
 		}, getEventTimeout, model.CustomTruncatedParentsEventType)
 		if err != nil {
@@ -120,7 +119,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				return err
 			}
 			return f.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			// check the length of the filepath that triggered the custom event
 			filepath, err := event.GetFieldValue("open.file.path")
 			if err == nil {
@@ -151,52 +150,4 @@ func TestTruncatedParentsMap(t *testing.T) {
 
 func TestTruncatedParentsERPC(t *testing.T) {
 	truncatedParents(t, testOpts{disableMapDentryResolution: true, disableAbnormalPathCheck: true})
-}
-
-func TestNoisyProcess(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID: "path_test",
-		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
-		Expression: `open.file.path == "{{.Root}}/do_not_match/test-open"`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	file, _, err := test.Path("test-open")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("noisy_process", func(t *testing.T) {
-		err = test.GetCustomEventSent(t, func() error {
-			// generate load
-			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
-				f, err := os.OpenFile(file, os.O_CREATE, 0755)
-				if err != nil {
-					return err
-				}
-				if err = f.Close(); err != nil {
-					return err
-				}
-				if err = os.Remove(file); err != nil {
-					return err
-				}
-			}
-			return nil
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, sprobe.NoisyProcessRuleID, rule.ID, "wrong rule")
-			return true
-		}, getEventTimeout, model.CustomNoisyProcessEventType)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// make sure the discarder has expired before moving on to other tests
-		t.Logf("waiting for the discarder to expire (%s)", testMod.config.LoadControllerDiscarderTimeout)
-		time.Sleep(testMod.config.LoadControllerDiscarderTimeout + 1*time.Second)
-	})
 }

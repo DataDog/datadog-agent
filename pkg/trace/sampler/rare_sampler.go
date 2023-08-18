@@ -12,9 +12,9 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -96,6 +96,10 @@ func (e *RareSampler) Stop() {
 
 func (e *RareSampler) SetEnabled(enabled bool) {
 	e.enabled.Store(enabled)
+}
+
+func (e *RareSampler) IsEnabled() bool {
+	return e.enabled.Load()
 }
 
 func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {

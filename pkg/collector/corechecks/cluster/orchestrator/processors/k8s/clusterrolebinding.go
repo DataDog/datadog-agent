@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -70,7 +69,7 @@ func (h *ClusterRoleBindingHandlers) ResourceList(ctx *processors.ProcessorConte
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *ClusterRoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *ClusterRoleBindingHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*rbacv1.ClusterRoleBinding).UID
 }
 

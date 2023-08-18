@@ -8,6 +8,7 @@ package corechecks
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -35,15 +36,6 @@ func GetRegisteredFactoryKeys() []string {
 	return factoryKeys
 }
 
-// GetCheckFactory grabs factory for specific check
-func GetCheckFactory(name string) CheckFactory {
-	f, ok := catalog[name]
-	if !ok {
-		return nil
-	}
-	return f
-}
-
 // GoCheckLoader is a specific loader for checks living in this package
 type GoCheckLoader struct{}
 
@@ -58,7 +50,7 @@ func (gl *GoCheckLoader) Name() string {
 }
 
 // Load returns a Go check
-func (gl *GoCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 
 	factory, found := catalog[config.Name]
@@ -68,7 +60,7 @@ func (gl *GoCheckLoader) Load(config integration.Config, instance integration.Da
 	}
 
 	c = factory()
-	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
 		log.Errorf("core.loader: could not configure check %s: %s", c, err)
 		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
 		return c, fmt.Errorf(msg)

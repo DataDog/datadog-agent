@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -16,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -54,15 +53,15 @@ func TestSignalEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGUSR1), event.Signal.Type, "wrong signal")
 			assert.Equal(t, int64(0), event.Signal.Retval, "wrong retval")
-			assert.Equal(t, event.Async, false)
 
-			if !validateSignalSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateSignalSchema(t, event)
 		})
 	})
 
@@ -77,15 +76,15 @@ func TestSignalEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGKILL), event.Signal.Type, "wrong signal")
 			assert.Equal(t, -int64(unix.EPERM), event.Signal.Retval, "wrong retval")
-			assert.Equal(t, event.Async, false)
 
-			if !validateSignalSchema(t, event) {
-				t.Error(event.String())
-			}
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+
+			test.validateSignalSchema(t, event)
 		})
 	})
 }

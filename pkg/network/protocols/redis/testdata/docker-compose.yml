@@ -1,0 +1,9 @@
+version: '3'
+services:
+  redis:
+    image: redis:7-alpine
+    entrypoint: redis-server --ignore-warnings ARM64-COW-BUG
+    ports:
+      - ${REDIS_ADDR:-127.0.0.1}:${REDIS_PORT:-6379}:6379
+    environment:
+      - "ALLOW_EMPTY_PASSWORD=yes"

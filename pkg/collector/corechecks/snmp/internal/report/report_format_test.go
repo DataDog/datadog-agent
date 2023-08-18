@@ -22,13 +22,53 @@ func Test_formatValue(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name: "format mac address",
+			name: "mac_address: format mac_address",
 			value: valuestore.ResultValue{
 				Value: []byte{0x82, 0xa5, 0x6e, 0xa5, 0xc8, 0x01},
 			},
 			format: "mac_address",
 			expectedValue: valuestore.ResultValue{
 				Value: "82:a5:6e:a5:c8:01",
+			},
+		},
+		{
+			name: "ip_address: format IPv4 address",
+			value: valuestore.ResultValue{
+				Value: []byte{0x0a, 0x43, 0x00, 0x07},
+			},
+			format: "ip_address",
+			expectedValue: valuestore.ResultValue{
+				Value: "10.67.0.7",
+			},
+		},
+		{
+			name: "ip_address: format IPv6 address",
+			value: valuestore.ResultValue{
+				Value: []byte{0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68},
+			},
+			format: "ip_address",
+			expectedValue: valuestore.ResultValue{
+				Value: "2001:4860:0:2001::68",
+			},
+		},
+		{
+			name: "ip_address: invalid ip_address",
+			value: valuestore.ResultValue{
+				Value: []byte{0x64, 0x43}, // only 2 bytes instead of 4 bytes (IPv4)
+			},
+			format: "ip_address",
+			expectedValue: valuestore.ResultValue{
+				Value: "?6443", // net.IP(...).String() will return `?` followed by hex when input is not IPv4 or IPv6
+			},
+		},
+		{
+			name: "ip_address: empty raw bytes",
+			value: valuestore.ResultValue{
+				Value: []byte{},
+			},
+			format: "ip_address",
+			expectedValue: valuestore.ResultValue{
+				Value: "",
 			},
 		},
 		{

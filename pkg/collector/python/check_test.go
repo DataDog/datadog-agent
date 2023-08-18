@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && test
-// +build python,test
 
 package python
 
@@ -62,4 +61,8 @@ func TestConfigure(t *testing.T) {
 
 func TestConfigureDeprecated(t *testing.T) {
 	testConfigureDeprecated(t)
+}
+
+func TestCheckDiagnosesDeserialization(t *testing.T) {
+	testGetDiagnoses(t)
 }

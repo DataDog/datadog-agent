@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 package main
 
@@ -23,6 +22,7 @@ var (
 	// CIncludePattern is the regex for #include headers of C files
 	CIncludePattern = `^\s*#include\s+"(.*)"$`
 	includeRegexp   *regexp.Regexp
+	ignoredHeaders  = map[string]struct{}{"vmlinux.h": {}}
 )
 
 func init() {
@@ -39,27 +39,40 @@ func main() {
 		panic("please use 'go run include_headers.go <c_file> <output_file> [include_dir]...'")
 	}
 
-	args := os.Args[1:]
-	inputFile, err := filepath.Abs(args[0])
+	// cwd is guaranteed to be the directory where the go:generate comment is found
+	cwd, err := os.Getwd()
 	if err != nil {
-		log.Fatalf("unable to get absolute path to %s: %s", args[0], err)
+		log.Fatalf("unable to get current working directory: %s", err)
 	}
-	outputFile, err := filepath.Abs(args[1])
+	root := rootDir(cwd)
+	args := os.Args[1:]
+	inputFile, err := resolvePath(root, args[0])
 	if err != nil {
-		log.Fatalf("unable to get absolute path to %s: %s", args[1], err)
+		log.Fatalf("unable to resolve path to %s: %s", args[0], err)
+	}
+	outputFile, err := resolvePath(root, args[1])
+	if err != nil {
+		log.Fatalf("unable to resolve path to %s: %s", args[1], err)
 	}
 
-	err = runProcessing(inputFile, outputFile, args[2:])
+	err = runProcessing(root, inputFile, outputFile, args[2:])
 	if err != nil {
 		log.Fatalf("error including headers: %s", err)
 	}
 	fmt.Printf("successfully included headers from %s => %s\n", inputFile, outputFile)
 }
 
-func runProcessing(inputFile, outputFile string, dirs []string) error {
+func resolvePath(root, path string) (string, error) {
+	if strings.HasPrefix(path, "pkg/") {
+		return filepath.Join(root, path), nil
+	}
+	return filepath.Abs(path)
+}
+
+func runProcessing(root, inputFile, outputFile string, dirs []string) error {
 	var includeDirs []string
 	for _, d := range dirs {
-		dir, err := filepath.Abs(d)
+		dir, err := resolvePath(root, d)
 		if err != nil {
 			return fmt.Errorf("unable to get absolute path to %s: %s", d, err)
 		}
@@ -96,7 +109,6 @@ func runProcessing(inputFile, outputFile string, dirs []string) error {
 		return nil
 	}
 
-	root := rootDir(outputFile)
 	depsFile := fmt.Sprintf("%s.d", outputFile)
 	odeps, err := os.Create(depsFile)
 	if err != nil {
@@ -143,6 +155,9 @@ func processIncludes(path string, out io.Writer, ps *pathSearcher, includedFiles
 		match := includeRegexp.FindSubmatch(scanner.Bytes())
 		if len(match) == 2 {
 			headerName := string(match[1])
+			if _, ok := ignoredHeaders[headerName]; ok {
+				continue
+			}
 			headerPath, err := ps.findInclude(path, headerName)
 			if err != nil {
 				return fmt.Errorf("error searching for header: %s", err)

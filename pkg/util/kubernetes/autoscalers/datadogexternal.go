@@ -4,16 +4,18 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package autoscalers
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
+	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -50,6 +52,7 @@ type Point struct {
 	Value     float64
 	Timestamp int64
 	Valid     bool
+	Error     error
 }
 
 const (
@@ -60,7 +63,7 @@ const (
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (map[string]Point, error) {
+func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
 	ddQueriesLen := len(ddQueries)
 	if ddQueriesLen == 0 {
 		log.Tracef("No query in input - nothing to do")
@@ -68,10 +71,12 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 	}
 
 	query := strings.Join(ddQueries, ",")
-	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
+	currentTime := time.Now()
+	currentTimeUnix := time.Now().Unix()
+	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, query)
 	if err != nil {
 		ddRequests.Inc("error", le.JoinLeaderValue)
-		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
+		return nil, fmt.Errorf("error while executing metric query %s: %w", query, err)
 	}
 	ddRequests.Inc("success", le.JoinLeaderValue)
 
@@ -97,59 +102,60 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 		// Otherwise we are not able to determine which value we should take for Autoscaling
 		if existingPoint, found := processedMetrics[ddQueries[queryIndex]]; found {
 			if existingPoint.Valid {
-				log.Warnf("Multiple Series found for query: %s. Please change your query to return a single Serie. Results will be flagged as invalid", ddQueries[queryIndex])
 				existingPoint.Valid = false
-				existingPoint.Timestamp = time.Now().Unix()
+				existingPoint.Timestamp = currentTimeUnix
+				existingPoint.Error = errors.New("multiple series found. Please change your query to return a single serie")
 				processedMetrics[ddQueries[queryIndex]] = existingPoint
 			}
 			continue
 		}
 
-		// Use on the penultimate bucket, since the very last bucket can be subject to variations due to late points.
-		var skippedLastPoint bool
-		var point Point
-		// Find the most recent value.
+		// As we batch queries to Datadog API, all returned series return the same number of points, aligned to the smallest rollup value.
+		// This means that a lot of points can be `nil`.
+		// What we want is to find the two most recent points that are not `nil` and use the penultimate one if present, otherwise the last one.
+		var matchedPoint *datadog.DataPoint
 		for i := len(serie.Points) - 1; i >= 0; i-- {
 			if serie.Points[i][value] == nil {
-				// We need this as if multiple metrics are queried, their points' timestamps align this can result in empty values.
 				continue
 			}
-			// We need at least 2 points per window queried on batched metrics.
-			// If a single sparse metric is processed and only has 1 point in the window, use the value.
-			if !skippedLastPoint && len(serie.Points) > 1 {
-				// Skip last point unless the query window only contains one valid point
-				skippedLastPoint = true
-				continue
+
+			if matchedPoint == nil {
+				matchedPoint = &serie.Points[i]
+			} else if matchedPoint != nil {
+				// Penuultimate point found, we can stop here.
+				matchedPoint = &serie.Points[i]
+				break
 			}
-			point.Value = *serie.Points[i][value]                       // store the original value
-			point.Timestamp = int64(*serie.Points[i][timestamp] / 1000) // Datadog's API returns timestamps in s
-			point.Valid = true
-
-			m := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
-			processedMetrics[ddQueries[queryIndex]] = point
-
-			// Prometheus submissions on the processed external metrics
-			metricsEval.Set(point.Value, m, le.JoinLeaderValue)
-			precision := time.Now().Unix() - point.Timestamp
-			metricsDelay.Set(float64(precision), m, le.JoinLeaderValue)
-
-			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", ddQueries[queryIndex], point.Value, point.Timestamp, i+1, len(serie.Points))
-			break
 		}
+
+		// No point found, we can't do anything with this serie.
+		if matchedPoint == nil {
+			log.Debugf("No point found in serie for query: %s", ddQueries[queryIndex])
+			continue
+		}
+
+		processedPoint := Point{
+			Timestamp: int64(*matchedPoint[timestamp] / 1000),
+			Value:     *matchedPoint[value],
+			Valid:     true,
+		}
+		processedMetrics[ddQueries[queryIndex]] = processedPoint
+
+		// Prometheus submissions on the processed external metrics
+		metricTag := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
+		metricsEval.Set(processedPoint.Value, metricTag, le.JoinLeaderValue)
+		delay := currentTimeUnix - processedPoint.Timestamp
+		metricsDelay.Set(float64(delay), metricTag, le.JoinLeaderValue)
 	}
 
 	// If the returned Series is empty for one or more processedMetrics, add it as invalid
 	for _, ddQuery := range ddQueries {
 		if _, found := processedMetrics[ddQuery]; !found {
 			processedMetrics[ddQuery] = Point{
-				Timestamp: time.Now().Unix(),
+				Timestamp: currentTimeUnix,
+				Error:     fmt.Errorf("no serie returned for this query, check data is available in the last %.0f seconds", math.Ceil(timeWindow.Seconds())),
 			}
 		}
-	}
-
-	// If we add no series at all, return an error on top of invalid metrics
-	if len(seriesSlice) == 0 {
-		return processedMetrics, log.Warnf("none of the queries %s returned any point, there might be an issue with them", query)
 	}
 
 	return processedMetrics, nil

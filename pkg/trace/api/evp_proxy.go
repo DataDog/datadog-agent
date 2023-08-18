@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -83,7 +84,7 @@ func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot)},
 	}
 }
 
@@ -93,9 +94,10 @@ func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 // is proxied back to the client, while for all aditional endpoints the
 // response is discarded.
 type evpProxyTransport struct {
-	transport http.RoundTripper
-	endpoints []config.Endpoint
-	conf      *config.AgentConfig
+	transport           http.RoundTripper
+	endpoints           []config.Endpoint
+	conf                *config.AgentConfig
+	containerIDProvider IDProvider
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -117,7 +119,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}()
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
-	containerID := req.Header.Get(headerContainerID)
+	containerID := t.containerIDProvider.GetContainerID(req.Context(), req.Header)
 	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
@@ -157,14 +159,14 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Set Datadog headers, except API key which is set per-endpoint
 	if containerID != "" {
-		req.Header.Set(headerContainerID, containerID)
+		req.Header.Set(header.ContainerID, containerID)
 		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
-	req.Header.Set(headerContainerID, containerID)
+	req.Header.Set(header.ContainerID, containerID)
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
 	}

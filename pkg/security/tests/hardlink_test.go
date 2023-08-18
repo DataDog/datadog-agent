@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -13,7 +12,7 @@ import (
 	"os/exec"
 	"testing"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -52,7 +51,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
 		})
 
@@ -70,7 +69,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
 		})
 	})
@@ -90,14 +89,14 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
 		})
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
 		})
 	})

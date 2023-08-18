@@ -29,7 +29,6 @@ func TestAutoSelectStrategy(t *testing.T) {
 		d.StoreInvocationTime(now.Add(time.Second * time.Duration(i)))
 	}
 
-	fmt.Print(len(d.lastInvocations))
 	// when not enough data, the flush at the end strategy should be selected
 	// -----
 
@@ -55,7 +54,6 @@ func TestAutoSelectStrategy(t *testing.T) {
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 	assert.True(d.StoreInvocationTime(now.Add(-time.Minute * 6)))
 	// because of the interval, we should kept the "flush at the end" strategy
-	fmt.Println(d.InvocationInterval())
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 }
 

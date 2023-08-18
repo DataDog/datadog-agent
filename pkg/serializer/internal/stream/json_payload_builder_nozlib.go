@@ -4,14 +4,13 @@
 // Copyright 2019-present Datadog, Inc.
 
 //go:build !zlib
-// +build !zlib
 
 package stream
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 

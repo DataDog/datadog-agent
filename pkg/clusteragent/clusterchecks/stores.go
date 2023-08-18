@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -14,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,7 +29,7 @@ type clusterStore struct {
 	nodes            map[string]*nodeStore                    // All nodes known to the cluster-agent
 	danglingConfigs  map[string]integration.Config            // Configs we could not dispatch to any node
 	endpointsConfigs map[string]map[string]integration.Config // Endpoints configs to be consumed by node agents
-	idToDigest       map[check.ID]string                      // link check IDs to check configs
+	idToDigest       map[checkid.ID]string                    // link check IDs to check configs
 }
 
 func newClusterStore() *clusterStore {
@@ -47,7 +46,7 @@ func (s *clusterStore) reset() {
 	s.nodes = make(map[string]*nodeStore)
 	s.danglingConfigs = make(map[string]integration.Config)
 	s.endpointsConfigs = make(map[string]map[string]integration.Config)
-	s.idToDigest = make(map[check.ID]string)
+	s.idToDigest = make(map[checkid.ID]string)
 }
 
 // getNodeStore retrieves the store struct for a given node name, if it exists
@@ -84,7 +83,6 @@ type nodeStore struct {
 	sync.RWMutex
 	name             string
 	heartbeat        int64
-	lastStatus       types.NodeStatus
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config
 	clientIP         string
@@ -103,7 +101,7 @@ func newNodeStore(name, clientIP string) *nodeStore {
 }
 
 func (s *nodeStore) addConfig(config integration.Config) {
-	s.lastConfigChange = timestampNow()
+	s.lastConfigChange = timestampNowNano()
 	s.digestToConfig[config.Digest()] = config
 	dispatchedConfigs.Inc(s.name, le.JoinLeaderValue)
 }
@@ -114,7 +112,7 @@ func (s *nodeStore) removeConfig(digest string) {
 		log.Debugf("unknown digest %s, skipping", digest)
 		return
 	}
-	s.lastConfigChange = timestampNow()
+	s.lastConfigChange = timestampNowNano()
 	delete(s.digestToConfig, digest)
 	dispatchedConfigs.Dec(s.name, le.JoinLeaderValue)
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -40,11 +39,14 @@ type PersistentVolumeClaimCollector struct {
 func NewPersistentVolumeClaimCollector() *PersistentVolumeClaimCollector {
 	return &PersistentVolumeClaimCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "persistentvolumeclaims",
-			NodeType:         orchestrator.K8sPersistentVolumeClaim,
-			Version:          "v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "persistentvolumeclaims",
+			NodeType:                  orchestrator.K8sPersistentVolumeClaim,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeClaimHandlers)),
 	}
@@ -57,12 +59,9 @@ func (c *PersistentVolumeClaimCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *PersistentVolumeClaimCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().PersistentVolumeClaims()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().PersistentVolumeClaims()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *PersistentVolumeClaimCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *PersistentVolumeClaimCollector) Metadata() *collectors.CollectorMetadata {

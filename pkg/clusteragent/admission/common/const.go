@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package common
 
@@ -14,4 +13,10 @@ const (
 
 	// InjectionModeLabelKey pod label to chose the config injection at the pod level.
 	InjectionModeLabelKey = "admission.datadoghq.com/config.mode"
+
+	// LibVersionAnnotKeyFormat is the format of the library version annotation
+	LibVersionAnnotKeyFormat = "admission.datadoghq.com/%s-lib.version"
+
+	// LibConfigV1AnnotKeyFormat is the format of the library config annotation
+	LibConfigV1AnnotKeyFormat = "admission.datadoghq.com/%s-lib.config.v1"
 )

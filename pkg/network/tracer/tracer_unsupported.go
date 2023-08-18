@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
-// +build linux,!linux_bpf windows,!npm !linux,!windows
 
 package tracer
 
@@ -64,5 +63,10 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 
 // DebugHostConntrack is not implemented on this OS for Tracer
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugDumpProcessCache is not implemented on this OS for Tracer
+func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }

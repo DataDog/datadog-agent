@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (linux && !linux_bpf) || ebpf_bindata
-// +build linux,!linux_bpf ebpf_bindata
 
 package ebpf
 
@@ -12,10 +11,10 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }

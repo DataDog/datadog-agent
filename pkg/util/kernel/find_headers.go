@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kernel
 
@@ -22,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/mholt/archiver/v3"
 	"golang.org/x/exp/maps"
@@ -31,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -82,16 +78,26 @@ type headerProvider struct {
 	kernelHeaders []string
 }
 
-func initProvider(config *ebpf.Config) {
+type KernelHeaderOptions struct {
+	DownloadEnabled bool
+	Dirs            []string
+	DownloadDir     string
+
+	AptConfigDir   string
+	YumReposDir    string
+	ZypperReposDir string
+}
+
+func initProvider(opts KernelHeaderOptions) {
 	HeaderProvider = &headerProvider{
-		downloadEnabled:   config.EnableKernelHeaderDownload,
-		headerDirs:        config.KernelHeadersDirs,
-		headerDownloadDir: config.KernelHeadersDownloadDir,
+		downloadEnabled:   opts.DownloadEnabled,
+		headerDirs:        opts.Dirs,
+		headerDownloadDir: opts.DownloadDir,
 
 		downloader: headerDownloader{
-			aptConfigDir:   config.AptConfigDir,
-			yumReposDir:    config.YumReposDir,
-			zypperReposDir: config.ZypperReposDir,
+			aptConfigDir:   opts.AptConfigDir,
+			yumReposDir:    opts.YumReposDir,
+			zypperReposDir: opts.ZypperReposDir,
 		},
 
 		result:        notAttempted,
@@ -107,12 +113,12 @@ func initProvider(config *ebpf.Config) {
 // Any subsequent calls to GetKernelHeaders will return the result of the first call. This is because
 // kernel header downloading can be a resource intensive process, so we don't want to retry it an unlimited
 // number of times.
-func GetKernelHeaders(config *ebpf.Config, client statsd.ClientInterface) []string {
+func GetKernelHeaders(opts KernelHeaderOptions, client statsd.ClientInterface) []string {
 	providerMu.Lock()
 	defer providerMu.Unlock()
 
 	if HeaderProvider == nil {
-		initProvider(config)
+		initProvider(opts)
 	}
 
 	if HeaderProvider.result != notAttempted {
@@ -128,13 +134,6 @@ func GetKernelHeaders(config *ebpf.Config, client statsd.ClientInterface) []stri
 	}
 
 	headers, result, err := HeaderProvider.getKernelHeaders(hv)
-	if result == downloadFailure {
-		// Download failures can be due to intermittent issues. To mitigate this, if a download
-		// failure occurs we will wait a moment and retry the download one time.
-		log.Infof("%s. Waiting 5 seconds and retrying kernel header download.", err)
-		time.Sleep(5 * time.Second)
-		headers, result, err = HeaderProvider.downloadHeaders(hv)
-	}
 	if client != nil {
 		submitTelemetry(result, client)
 	}
@@ -347,19 +346,17 @@ func parseHeaderVersion(r io.Reader) (Version, error) {
 }
 
 func getDefaultHeaderDirs() []string {
-	// KernelVersion == uname -r
-	hi := host.GetStatusInformation()
-	if hi.KernelVersion == "" {
+	hi, err := Release()
+	if err != nil {
 		return []string{}
 	}
 
-	dirs := []string{
-		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
-		fmt.Sprintf(centosKernelModulesPath, hi.KernelVersion),
+	return []string{
+		fmt.Sprintf(kernelModulesPath, hi),
+		fmt.Sprintf(debKernelModulesPath, hi),
+		fmt.Sprintf(cosKernelModulesPath, hi),
+		fmt.Sprintf(centosKernelModulesPath, hi),
 	}
-	return dirs
 }
 
 func getDownloadedHeaderDirs(headerDownloadDir string) []string {
@@ -444,7 +441,11 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 		platform = strings.ToLower(target.Distro.Display)
 	} else {
 		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
-		platform = host.GetStatusInformation().Platform
+		platform, err = Platform()
+		if err != nil {
+			log.Warnf("failed to retrieve host platform information: %s", err)
+			return
+		}
 	}
 
 	tags := []string{
@@ -464,7 +465,7 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 		fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(result).String()),
 	)
 
-	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil {
+	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil && !errors.Is(err, statsd.ErrNoClient) {
 		log.Warnf("error submitting kernel header downloading metric to statsd: %s", err)
 	}
 }

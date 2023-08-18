@@ -1,2 +1,0 @@
-system_probe_config:
-  enable_oom_kill: true

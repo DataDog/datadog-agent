@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package network
 
@@ -23,19 +22,19 @@ import (
 	"github.com/vishvananda/netns"
 
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var testRootNs uint32
 
 func TestMain(m *testing.M) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	if err != nil {
 		log.Critical(err)
 		os.Exit(1)
 	}
-	testRootNs, err = util.GetInoForNs(rootNs)
+	testRootNs, err = kernel.GetInoForNs(rootNs)
 	if err != nil {
 		log.Critical(err)
 		os.Exit(1)
@@ -79,11 +78,11 @@ func TestReadInitialTCPState(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	nsIno, err := util.GetInoForNs(ns)
+	nsIno, err := kernel.GetInoForNs(ns)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		initialPorts, err := ReadInitialState("/proc", TCP, true, true)
+		initialPorts, err := ReadInitialState("/proc", TCP, true)
 		require.NoError(t, err)
 		for _, p := range ports[:2] {
 			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
@@ -140,11 +139,11 @@ func TestReadInitialUDPState(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 
-	nsIno, err := util.GetInoForNs(ns)
+	nsIno, err := kernel.GetInoForNs(ns)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		initialPorts, err := ReadInitialState("/proc", UDP, true, true)
+		initialPorts, err := ReadInitialState("/proc", UDP, true)
 		require.NoError(t, err)
 		for _, p := range ports[:2] {
 			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {

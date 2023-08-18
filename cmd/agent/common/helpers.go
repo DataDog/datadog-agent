@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -20,55 +21,34 @@ import (
 	"github.com/DataDog/viper"
 )
 
-// SetupConfig fires up the configuration system
-func SetupConfig(confFilePath string) error {
-	_, err := SetupConfigWithWarnings(confFilePath, "")
-	return err
-}
-
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
 func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
-	return setupConfig(confFilePath, configName, false, true)
+	return setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, false, true, config.SystemProbe.GetEnvVars())
 }
 
 // SetupConfigWithoutSecrets fires up the configuration system without secrets support
 func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
-	_, err := setupConfig(confFilePath, configName, true, true)
+	_, err := setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, true, true, config.SystemProbe.GetEnvVars())
 	return err
 }
 
-// SetupConfigIfExist fires up the configuration system but
-// doesn't raise an error if the configuration file is the default one
-// and it doesn't exist.
-func SetupConfigIfExist(confFilePath string) error {
-	_, err := setupConfig(confFilePath, "", false, false)
-	return err
-}
-
-func setupConfig(confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool) (*config.Warnings, error) {
+func setupConfig(cfg config.Config, origin string, confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool, additionalKnownEnvVars []string) (*config.Warnings, error) {
 	if configName != "" {
-		config.Datadog.SetConfigName(configName)
+		cfg.SetConfigName(configName)
 	}
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
+		cfg.AddConfigPath(confFilePath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(confFilePath, ".yaml") {
-			config.Datadog.SetConfigFile(confFilePath)
+			cfg.SetConfigFile(confFilePath)
 		}
 	}
-	config.Datadog.AddConfigPath(DefaultConfPath)
+	cfg.AddConfigPath(path.DefaultConfPath)
 	// load the configuration
-	var err error
-	var warnings *config.Warnings
-
-	if withoutSecrets {
-		warnings, err = config.LoadWithoutSecret()
-	} else {
-		warnings, err = config.Load()
-	}
+	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets, nil)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
@@ -104,21 +84,21 @@ func SelectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(co
 }
 
 // SetupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func SetupInternalProfiling() {
-	if v := config.Datadog.GetInt("internal_profiling.block_profile_rate"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v); err != nil {
+func SetupInternalProfiling(cfg config.ConfigReader, configPrefix string) {
+	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
+		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, settings.SourceConfig); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
 		}
 	}
 
-	if v := config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v); err != nil {
+	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
+		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SourceConfig); err != nil {
 			log.Errorf("Error mutex profile fraction: %v", err)
 		}
 	}
 
-	if config.Datadog.GetBool("internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true)
+	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
+		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SourceConfig)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}

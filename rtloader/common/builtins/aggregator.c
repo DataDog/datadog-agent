@@ -425,15 +425,22 @@ static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)
 
     PyObject *check = NULL;
     char *check_id = NULL;
-    char *raw_event = NULL;
+    char *raw_event_ptr = NULL;
+    Py_ssize_t raw_event_sz = 0;
     char *event_type = NULL;
 
-    if (!PyArg_ParseTuple(args, "Osss", &check, &check_id, &raw_event, &event_type)) {
+    if (!PyArg_ParseTuple(args, "Oss#s", &check, &check_id, &raw_event_ptr, &raw_event_sz, &event_type)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
-    cb_submit_event_platform_event(check_id, raw_event, event_type);
+    if (raw_event_sz > INT_MAX) {
+        PyErr_SetString(PyExc_ValueError, "event is too large");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    cb_submit_event_platform_event(check_id, raw_event_ptr, raw_event_sz, event_type);
     PyGILState_Release(gstate);
     Py_RETURN_NONE;
 }

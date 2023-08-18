@@ -13,7 +13,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/theupdateframework/go-tuf/data"
+	"github.com/DataDog/go-tuf/data"
 )
 
 var (
@@ -62,6 +62,11 @@ type Update struct {
 	ClientConfigs []string
 }
 
+// isEmpty returns whether or not all the fields of `Update` are empty
+func (u *Update) isEmpty() bool {
+	return len(u.TUFRoots) == 0 && len(u.TUFTargets) == 0 && (u.TargetFiles == nil || len(u.TargetFiles) == 0) && len(u.ClientConfigs) == 0
+}
+
 // Repository is a remote config client used in a downstream process to retrieve
 // remote config updates from an Agent.
 type Repository struct {
@@ -87,7 +92,7 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 	}
 
 	configs := make(map[string]map[string]interface{})
-	for _, product := range allProducts {
+	for product := range validProducts {
 		configs[product] = make(map[string]interface{})
 	}
 
@@ -107,9 +112,12 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 
 // NewUnverifiedRepository creates a new remote config repository that will
 // track config files for a client WITHOUT verifying any TUF related metadata.
+//
+// When creating this we pretend we have a root version of 1, as the backend expects
+// to not have to send the initial "embedded" root.
 func NewUnverifiedRepository() (*Repository, error) {
 	configs := make(map[string]map[string]interface{})
-	for _, product := range allProducts {
+	for product := range validProducts {
 		configs[product] = make(map[string]interface{})
 	}
 
@@ -118,6 +126,7 @@ func NewUnverifiedRepository() (*Repository, error) {
 		metadata:               make(map[string]Metadata),
 		configs:                configs,
 		tufVerificationEnabled: false,
+		latestRootVersion:      1, // The backend expects us to start with a root version of 1.
 	}, nil
 }
 
@@ -127,6 +136,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	var err error
 	var updatedTargets *data.Targets
 	var tmpRootClient *tufRootsClient
+
+	// If there's literally nothing in the update, it's not an error.
+	if update.isEmpty() {
+		return []string{}, nil
+	}
 
 	// TUF: Update the roots and verify the TUF Targets file (optional)
 	//
@@ -166,6 +180,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		for path := range configs {
 			if _, ok := clientConfigsMap[path]; !ok {
 				result.removed = append(result.removed, path)
+				parsedPath, err := parseConfigPath(path)
+				if err != nil {
+					return nil, err
+				}
+				result.productsUpdated[parsedPath.Product] = true
 			}
 		}
 	}
@@ -183,6 +202,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 			return nil, err
 		}
 
+		// 3.b and 3.c: Check if this configuration is either new or has been modified
 		storedMetadata, exists := r.metadata[path]
 		if exists && hashesEqual(targetFileMetadata.Hashes, storedMetadata.Hashes) {
 			continue
@@ -217,6 +237,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		}
 		result.metadata[path] = m
 		result.changed[parsedPath.Product][path] = config
+		result.productsUpdated[parsedPath.Product] = true
 	}
 
 	// 4.a: Store the new targets.signed.custom.opaque_client_state
@@ -242,8 +263,8 @@ func (r *Repository) Update(update Update) ([]string, error) {
 	}
 
 	changedProducts := make([]string, 0)
-	for product, configs := range result.changed {
-		if len(configs) > 0 {
+	for product, updated := range result.productsUpdated {
+		if updated {
 			changedProducts = append(changedProducts, product)
 		}
 	}
@@ -262,6 +283,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
 	if m, ok := r.metadata[cfgPath]; ok {
 		m.ApplyStatus = status
+		r.metadata[cfgPath] = m
 	}
 }
 
@@ -333,22 +355,24 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 // An updateResult allows the client to apply the update as a transaction
 // after validating all required preconditions
 type updateResult struct {
-	removed  []string
-	metadata map[string]Metadata
-	changed  map[string]map[string]interface{}
+	removed         []string
+	metadata        map[string]Metadata
+	changed         map[string]map[string]interface{}
+	productsUpdated map[string]bool
 }
 
 func newUpdateResult() updateResult {
 	changed := make(map[string]map[string]interface{})
 
-	for _, p := range allProducts {
-		changed[p] = make(map[string]interface{})
+	for product := range validProducts {
+		changed[product] = make(map[string]interface{})
 	}
 
 	return updateResult{
-		removed:  make([]string, 0),
-		metadata: make(map[string]Metadata),
-		changed:  changed,
+		removed:         make([]string, 0),
+		metadata:        make(map[string]Metadata),
+		changed:         changed,
+		productsUpdated: map[string]bool{},
 	}
 }
 

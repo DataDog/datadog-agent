@@ -1,18 +1,18 @@
 ---
 title: Creating Custom Agent Rules
 kind: documentation
-description: "Agent expression attributes and operators for Cloud Workload Security Rules"
+description: "Agent expression attributes and operators for CSM Threats Rules"
 disable_edit: true
 further_reading:
-- link: "/security_platform/cloud_workload_security/getting_started/"
+- link: "/security/cloud_workload_security/getting_started/"
   tag: "Documentation"
-  text: "Get started with Datadog Cloud Workload Security"
+  text: "Get started with Datadog CSM Threats"
 ---
 
 {{ warning_message }}
 
 ## Agent expression syntax
-Cloud Workload Security (CWS) first evaluates activity within the Datadog Agent against Agent expressions to decide what activity to collect. This portion of a CWS rule is called the Agent expression. Agent expressions use Datadog's Security Language (SECL). The standard format of a SECL expression is as follows:
+Cloud Security Management Threats (CSM Threats) first evaluates activity within the Datadog Agent against Agent expressions to decide what activity to collect. This portion of a CSM Threats rule is called the Agent expression. Agent expressions use Datadog's Security Language (SECL). The standard format of a SECL expression is as follows:
 
 {% raw %}
 {{< code-block lang="javascript" >}}
@@ -127,7 +127,7 @@ dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25",
 Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.
 
 ### Command line arguments
-The *args_flags* and *args_options* are helpers to ease the writing of CWS rules based on command line arguments.
+The *args_flags* and *args_options* are helpers to ease the writing of CSM Threats rules based on command line arguments.
 
 *args_flags* is used to catch arguments that start with either one or two hyphen characters but do not accept any associated value.
 
@@ -140,13 +140,13 @@ Examples:
 
 Examples:
 * `T=8` and `width=8` both are in *args_options* for the command `ls -T 8 --width=8`
-* `exec.args_options ~= [ “s=.*\’” ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
+* `exec.args_options in [ r"s=.*\\" ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
 
 ### File rights
 
 The *file.rights* attribute can now be used in addition to *file.mode*. *file.mode* can hold values set by the kernel, while the *file.rights* only holds the values set by the user. These rights may be more familiar because they are in the `chmod` commands.
 
-## Event types
+## Event attributes
 
 {% for event_type in event_types %}
 {% if event_type.name == "*" %}
@@ -161,12 +161,54 @@ _This event type is experimental and may change in the future._
 {{ event_type.definition }}
 {% endif %}
 
-| Property | Type | Definition | Constants |
-| -------- | ---- | ---------- | --------- |
+| Property | Definition |
+| -------- | ------------- |
 {% for property in event_type.properties %}
-| `{{ property.name }}` | {{ property.datatype }} | {{ property.definition }} | {{ property.constants }} |
+| [`{{ property.name }}`](#{{ property.doc_link }}) | {{ property.definition }} |
 {% endfor %}
 
+{% endfor %}
+
+## Attributes documentation
+
+{% for property_doc in properties_doc_list %}
+
+### `{{ property_doc.name }}` {% raw %}{#{% endraw %}{{ property_doc.link }}{% raw %}}{% endraw %}
+
+Type: {{ property_doc.datatype }}
+
+{% if property_doc.definition != "" %}
+Definition: {{ property_doc.definition }}
+{% endif %}
+
+{% if property_doc.prefixes|length > 1 %}
+`{{ property_doc.name }}` has {{ property_doc.prefixes|length }} possible prefixes:
+{% for prefix in property_doc.prefixes %}`{{ prefix }}`{% if not loop.last %} {% endif %}{% endfor %}
+
+{% endif %}
+{% if property_doc.constants != "" %}
+
+Constants: [{{ property_doc.constants }}](#{{ property_doc.constants_link }})
+
+{% endif %}
+
+{% if property_doc.examples|length > 0 %}
+
+{% for example in property_doc.examples %}
+
+Example:
+
+{% raw %}{{< code-block lang="javascript" >}}{% endraw %}
+
+{{ example.expression }}
+{% raw %}{{< /code-block >}}{% endraw %}
+
+{% if example.description != "" %}
+
+{{ example.description }}
+{% endif %}
+{% endfor %}
+{% endif %}
 {% endfor %}
 
 ## Constants
@@ -174,7 +216,7 @@ _This event type is experimental and may change in the future._
 Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
 
 {% for constants in constants_list %}
-### `{{ constants.name }}`
+### `{{ constants.name }}` {% raw %}{#{% endraw %}{{ constants.link }}{% raw %}}{% endraw %}
 
 {{ constants.definition }}
 

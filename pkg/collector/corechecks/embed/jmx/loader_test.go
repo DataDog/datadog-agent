@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmx
 
@@ -17,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
@@ -57,7 +57,7 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	for _, cfg := range cfgs {
 		for _, instance := range cfg.Instances {
-			if loadedCheck, err := jl.Load(cfg, instance); err == nil {
+			if loadedCheck, err := jl.Load(aggregator.GetSenderManager(), cfg, instance); err == nil {
 				checks = append(checks, loadedCheck)
 			} else {
 				numOtherInstances++

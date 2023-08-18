@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -14,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var sampleCgroupProcs = `1142219
@@ -65,6 +65,23 @@ var cgroupV1ProcCgroup = `12:rdma:/
 2:pids:/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
 1:name=systemd:/kubepods/burstable/pod15513b48-e7a5-48fc-b9e3-92f713f36504/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f
 0::/system.slice/containerd.service`
+
+// Notice that in this example the paths contain ":"
+var cgroupV1ProcCgroupWithColons = `13:misc:/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+12:perf_event:/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+11:freezer:/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+10:pids:/kuberuntime.slice/containerd.service/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+9:cpuset:/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+8:memory:/kuberuntime.slice/containerd.service/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+7:rdma:/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+6:blkio:/kuberuntime.slice/containerd.service/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+5:devices:/kuberuntime.slice/containerd.service/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+4:net_cls,net_prio:/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+3:hugetlb:/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+2:cpu,cpuacct:/kuberuntime.slice/containerd.service/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+1:name=systemd:/kuberuntime.slice/containerd.service/kubepods-burstable-pod5be537b8_3a4e_4607_af71_31598b3a4fd3.slice:cri-containerd:1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120
+0::/
+`
 
 var dindProcCgroup = `14:name=systemd:/docker/88ea268ece65a02d68b169fd74bcbcb427eb7f28900db0e3b906fb2eeb7341df/kubelet/kubepods/burstable/poda5ea884f-9e60-4912-bd62-fef9a31db47a/a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e
 13:rdma:/
@@ -159,4 +176,42 @@ func TestProcPidMapperCgroupV2(t *testing.T) {
 	pids, err := cgFooV2.GetPIDs(0)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []int{420, 430}, pids)
+}
+
+func TestIdentiferFromCgroupReferences(t *testing.T) {
+	tests := []struct {
+		name        string
+		fileContent string
+		expectedID  string
+	}{
+		{
+			name:        "cgroup v1",
+			fileContent: cgroupV1ProcCgroup,
+			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015f",
+		},
+		{
+			name:        "cgroup v1 with colons",
+			fileContent: cgroupV1ProcCgroupWithColons,
+			expectedID:  "1c8f503430973935b7d8a80c4f58c0946b052a021e6855b358e5ec38601af120",
+		},
+		{
+			name:        "docker in docker",
+			fileContent: dindProcCgroup,
+			expectedID:  "a51a9f7d073f848e7fc59e56e8f11524f330a2175a4ed26327da2dfe0d28015e",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fakeFsPath := t.TempDir()
+			procPath := filepath.Join(fakeFsPath, "proc")
+			procPIDPath := filepath.Join(procPath, "123")
+			require.NoErrorf(t, os.MkdirAll(procPIDPath, 0o750), "impossible to create temp directory '%s'", procPath)
+			require.NoError(t, os.WriteFile(filepath.Join(procPIDPath, "cgroup"), []byte(test.fileContent), 0o640))
+
+			id, err := IdentiferFromCgroupReferences(procPath, "123", defaultBaseController, ContainerFilter)
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedID, id)
+		})
+	}
 }

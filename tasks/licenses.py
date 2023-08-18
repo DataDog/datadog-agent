@@ -19,6 +19,7 @@ COPYRIGHT_LOCATIONS = [
     'LICENSE.md',
     'LICENSE.txt',
     'License.txt',
+    'license.txt',
     'COPYING',
     'NOTICE',
     'README',
@@ -60,9 +61,9 @@ CONTRIBUTORS_WITH_UNCOMMENTED_HEADER = [
     'gopkg.in/Knetic/govaluate.v3',
 ]
 
+
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
-
     # we need the full vendor tree in order to perform this analysis
     from .go import deps_vendored
 
@@ -76,13 +77,37 @@ def get_licenses_list(ctx):
         shutil.rmtree("vendor/")
 
 
+def is_valid_quote(copyright):
+    stack = []
+    quotes_to_check = ["'", '"']
+    for c in copyright:
+        if c in quotes_to_check:
+            if stack and stack[-1] == c:
+                stack.pop()
+            else:
+                stack.append(c)
+    return len(stack) == 0
+
+
 def licenses_csv(licenses):
     licenses.sort(key=lambda lic: lic["package"])
 
     def fmt_copyright(lic):
-        copyright = ' | '.join(sorted(lic['copyright']))
+        # discards copyright with invalid quotes to ensure generated csv is valid
+        filtered_copyright = []
+        for copyright in lic["copyright"]:
+            if is_valid_quote(copyright):
+                filtered_copyright.append(copyright)
+            else:
+                print(
+                    f'The copyright `{copyright}` of `{lic["component"]},{lic["package"]}` was discarded because its copyright contains invalid quotes. To fix the discarded copyright, modify `.copyright-overrides.yml` to fix the bad-quotes copyright'
+                )
+        if len(copyright) == 0:
+            copyright = "UNKNOWN"
+        copyright = ' | '.join(sorted(filtered_copyright))
         # quote for inclusion in CSV, if necessary
         if ',' in copyright:
+            copyright = copyright.replace('"', '""')
             copyright = f'"{copyright}"'
         return copyright
 
@@ -196,7 +221,7 @@ def find_copyright_for(package, overrides, ctx):
 
     for filename in COPYRIGHT_LOCATIONS:
         filename = os.path.join(pkgdir, filename)
-        if os.path.exists(filename):
+        if os.path.isfile(filename):
             for line in open(filename, encoding="utf-8"):
                 mo = COPYRIGHT_RE.search(line)
                 if not mo:

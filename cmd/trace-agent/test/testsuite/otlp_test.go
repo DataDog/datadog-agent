@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -79,7 +79,7 @@ apm_config:
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
-		waitForTrace(t, &r, func(p pb.AgentPayload) {
+		waitForTrace(t, &r, func(p *pb.AgentPayload) {
 			assert := assert.New(t)
 			assert.Equal(p.Env, "my-env")
 			assert.Len(p.TracerPayloads, 1)

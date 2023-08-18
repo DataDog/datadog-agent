@@ -12,7 +12,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -27,14 +26,14 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 	type reducedObfuscationConfig struct {
-		ElasticSearch        bool                         `json:"elastic_search"`
-		Mongo                bool                         `json:"mongo"`
-		SQLExecPlan          bool                         `json:"sql_exec_plan"`
-		SQLExecPlanNormalize bool                         `json:"sql_exec_plan_normalize"`
-		HTTP                 config.HTTPObfuscationConfig `json:"http"`
-		RemoveStackTraces    bool                         `json:"remove_stack_traces"`
-		Redis                bool                         `json:"redis"`
-		Memcached            bool                         `json:"memcached"`
+		ElasticSearch        bool                          `json:"elastic_search"`
+		Mongo                bool                          `json:"mongo"`
+		SQLExecPlan          bool                          `json:"sql_exec_plan"`
+		SQLExecPlanNormalize bool                          `json:"sql_exec_plan_normalize"`
+		HTTP                 config.HTTPObfuscationConfig  `json:"http"`
+		RemoveStackTraces    bool                          `json:"remove_stack_traces"`
+		Redis                config.RedisObfuscationConfig `json:"redis"`
+		Memcached            bool                          `json:"memcached"`
 	}
 	type reducedConfig struct {
 		DefaultEnv             string                        `json:"default_env"`
@@ -59,7 +58,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.SQLExecPlanNormalize = o.SQLExecPlanNormalize.Enabled
 		oconf.HTTP = o.HTTP
 		oconf.RemoveStackTraces = o.RemoveStackTraces
-		oconf.Redis = o.Redis.Enabled
+		oconf.Redis = o.Redis
 		oconf.Memcached = o.Memcached.Enabled
 	}
 	txt, err := json.MarshalIndent(struct {
@@ -75,7 +74,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		Version:          r.conf.AgentVersion,
 		GitCommit:        r.conf.GitCommit,
 		Endpoints:        all,
-		FeatureFlags:     features.All(),
+		FeatureFlags:     r.conf.AllFeatures(),
 		ClientDropP0s:    true,
 		SpanMetaStructs:  true,
 		LongRunningSpans: true,

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -196,7 +196,7 @@ func (a *RegistryAuditor) recoverRegistry() map[string]*RegistryEntry {
 	mr, err := os.ReadFile(a.registryPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Debugf("Could not find state file at %q, will start with default offsets", a.registryPath)
+			log.Infof("Could not find state file at %q, will start with default offsets", a.registryPath)
 		} else {
 			log.Error(err)
 		}

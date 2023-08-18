@@ -58,6 +58,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
@@ -77,6 +78,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
+	cfg.GlobalTags[functionARNKey] = "test_ARN"
 	recv := newTestReceiverFromConfig(cfg)
 	recv.buildMux().ServeHTTP(rec, req)
 
@@ -96,6 +98,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_1", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 
 		endpointCalled.Add(2)
 		return nil
@@ -107,6 +110,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_2", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("test_ARN", req.Header.Get("DD-Function-ARN"))
 
 		endpointCalled.Add(3)
 		return nil
@@ -128,6 +132,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	cfg.Hostname = "test_hostname"
 	cfg.SkipSSLValidation = true
 	cfg.DefaultEnv = "test_env"
+	cfg.GlobalTags[functionARNKey] = "test_ARN"
 
 	req, rec := newRequestRecorder(t)
 	recv := newTestReceiverFromConfig(cfg)
@@ -190,5 +195,43 @@ func TestTelemetryConfig(t *testing.T) {
 		recv.buildMux().ServeHTTP(rec, req)
 
 		assert.Equal(t, "OK", recordedResponse(t, rec))
+	})
+}
+
+func TestExtractFargateTask(t *testing.T) {
+	t.Run("contains-tag", func(t *testing.T) {
+		tags := "foo:bar,baz:,task_arn:123"
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.True(t, ok)
+		assert.Equal(t, "123", taskArn)
+	})
+
+	t.Run("doesnt-contain-tag", func(t *testing.T) {
+		tags := "foo:bar,,"
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.False(t, ok)
+		assert.Equal(t, "", taskArn)
+	})
+
+	t.Run("contain-empty-tag", func(t *testing.T) {
+		tags := "foo:bar,task_arn:,baz:abc"
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.True(t, ok)
+		assert.Equal(t, "", taskArn)
+	})
+
+	t.Run("empty-string", func(t *testing.T) {
+		tags := ""
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.False(t, ok)
+		assert.Equal(t, "", taskArn)
 	})
 }

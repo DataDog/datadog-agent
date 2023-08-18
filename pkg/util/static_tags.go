@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,17 +25,17 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	// fargate (ECS or EKS) does not have host tags, so we need to
 	// add static tags to each container manually
 
-	if !fargate.IsFargateInstance(ctx) {
+	if !fargate.IsFargateInstance() {
 		return nil
 	}
 
 	tags := []string{}
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	tags = append(tags, config.GetConfiguredTags(false)...)
+	tags = append(tags, configUtils.GetConfiguredTags(config.Datadog, false)...)
 
 	// EKS Fargate specific tags
-	if fargate.IsEKSFargateInstance() {
+	if config.IsFeaturePresent(config.EKSFargate) {
 		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {
@@ -56,7 +57,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 		if found {
 			log.Infof("'%s' was set manually via DD_TAGS, not changing it", clusterTagNamePrefix+tag)
 		} else {
-			cluster := clustername.GetClusterName(ctx, "")
+			cluster := clustername.GetClusterNameTagValue(ctx, "")
 			if cluster == "" {
 				log.Infof("Couldn't build the %q.. tag, DD_CLUSTER_NAME can be used to set it", clusterTagNamePrefix)
 			} else {

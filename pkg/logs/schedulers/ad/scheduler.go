@@ -11,15 +11,14 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
-	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,23 +77,6 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			for _, source := range sources {
 				s.mgr.AddSource(source)
 			}
-		case !ddUtil.CcaInAD() && s.newService(config):
-			entityType, _, err := s.parseEntity(config.TaggerEntity)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			// logs only consider container services
-			if entityType != containers.ContainerEntityName {
-				continue
-			}
-			log.Infof("Received a new service: %v", config.ServiceID)
-			service, err := s.toService(config)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			s.mgr.AddService(service)
 		default:
 			// invalid integration config
 			continue
@@ -131,24 +113,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 					s.mgr.RemoveSource(source)
 				}
 			}
-		case !ddUtil.CcaInAD() && s.newService(config):
-			// new service to remove
-			entityType, _, err := s.parseEntity(config.TaggerEntity)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			// logs only consider container services
-			if entityType != containers.ContainerEntityName {
-				continue
-			}
-			log.Infof("New service to remove: entity: %v", config.ServiceID)
-			service, err := s.toService(config)
-			if err != nil {
-				log.Warnf("Invalid service: %v", err)
-				continue
-			}
-			s.mgr.RemoveService(service)
 		default:
 			// invalid integration config
 			continue
@@ -159,11 +123,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 // newSources returns true if the config can be mapped to sources.
 func (s *Scheduler) newSources(config integration.Config) bool {
 	return config.Provider != ""
-}
-
-// newService returns true if the config can be mapped to a service.
-func (s *Scheduler) newService(config integration.Config) bool {
-	return config.Provider == "" && config.ServiceID != ""
 }
 
 // configName returns the name of the configuration.
@@ -231,7 +190,7 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer) {
+			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
@@ -260,15 +219,6 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 		return nil, err
 	}
 	return service.NewService(provider, identifier), nil
-}
-
-// parseEntity breaks down an entity into a service provider and a service identifier.
-func (s *Scheduler) parseEntity(entity string) (string, string, error) {
-	components := strings.Split(entity, containers.EntitySeparator)
-	if len(components) != 2 {
-		return "", "", fmt.Errorf("entity is malformed : %v", entity)
-	}
-	return components[0], components[1], nil
 }
 
 // parseServiceID breaks down an AD service ID, assuming it is formatted

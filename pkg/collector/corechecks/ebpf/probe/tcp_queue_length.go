@@ -4,10 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
-//go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/tcp-queue-length-kern.c ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/c
-//go:generate go run ../../../../ebpf/bytecode/runtime/integrity.go ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/bytecode/runtime/tcp-queue-length.go runtime
+//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern.c pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/bytecode/runtime/tcp-queue-length.go runtime
 
 package probe
 
@@ -16,23 +15,19 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-/*
-#include <string.h>
-#include "../c/runtime/tcp-queue-length-kern-user.h"
-*/
-import "C"
 
 const (
 	statsMapName = "tcp_queue_stats"
@@ -44,17 +39,27 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
-	if err != nil {
-		return nil, err
+	if cfg.EnableCORE {
+		probe, err := loadTCPQueueLengthCOREProbe(cfg)
+		if err != nil {
+			if !cfg.AllowRuntimeCompiledFallback {
+				return nil, fmt.Errorf("error loading CO-RE tcp-queue-length probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
+			}
+			log.Warnf("error loading CO-RE tcp-queue-length probe: %s. falling back to runtime compiled probe", err)
+		} else {
+			return probe, nil
+		}
 	}
-	defer compiledOutput.Close()
 
+	return loadTCPQueueLengthRuntimeCompiledProbe(cfg)
+}
+
+func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*TCPQueueLengthTracer, error) {
 	probes := []*manager.Probe{
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_recvmsg", EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_recvmsg", EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_sendmsg", EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_sendmsg", EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg", UID: "tcpq"}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: "tcpq"}},
 	}
 
 	maps := []*manager.Map{
@@ -68,14 +73,12 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 		Maps:   maps,
 	}
 
-	managerOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+	managerOptions.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
 	}
 
-	if err := m.InitWithOptions(compiledOutput, managerOptions); err != nil {
+	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
 	}
 
@@ -89,6 +92,7 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 	} else if !ok {
 		return nil, fmt.Errorf("failed to get map '%s'", statsMapName)
 	}
+	ebpfcheck.AddNameMappings(m, "tcp_queue_length")
 
 	return &TCPQueueLengthTracer{
 		m:        m,
@@ -97,51 +101,84 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 }
 
 func (t *TCPQueueLengthTracer) Close() {
+	ebpfcheck.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping TCP Queue Length: %s", err)
 	}
 }
 
 func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
-	cpus, err := cpupossible.Get()
+	nbCpus, err := kernel.PossibleCPUs()
 	if err != nil {
 		log.Errorf("Failed to get online CPUs: %v", err)
 		return TCPQueueLengthStats{}
 	}
-	nbCpus := len(cpus)
 
 	result := make(TCPQueueLengthStats)
 
-	var statsKey C.struct_stats_key
-	statsValue := make([]C.struct_stats_value, nbCpus)
+	var statsKey StructStatsKey
+	var keys []StructStatsKey
+	statsValue := make([]StructStatsValue, nbCpus)
 	it := t.statsMap.Iterate()
-	for it.Next(unsafe.Pointer(&statsKey), unsafe.Pointer(&statsValue[0])) {
-		cgroupName := C.GoString(&statsKey.cgroup_name[0])
-		// This cannot happen because statsKey.cgroup_name is filled by bpf_probe_read_str which ensures a NULL-terminated string
-		if len(cgroupName) >= C.sizeof_struct_stats_key {
-			log.Critical("statsKey.cgroup_name wasn’t properly NULL-terminated")
-			break
-		}
-
+	for it.Next(unsafe.Pointer(&statsKey), &statsValue) {
+		cgroupName := string(statsKey.Cgroup[:])
 		max := TCPQueueLengthStatsValue{}
-		for _, cpu := range cpus {
-			if uint32(statsValue[cpu].read_buffer_max_usage) > max.ReadBufferMaxUsage {
-				max.ReadBufferMaxUsage = uint32(statsValue[cpu].read_buffer_max_usage)
+		for cpu := 0; cpu < nbCpus; cpu++ {
+			if statsValue[cpu].Read_buffer_max_usage > max.ReadBufferMaxUsage {
+				max.ReadBufferMaxUsage = statsValue[cpu].Read_buffer_max_usage
 			}
-			if uint32(statsValue[cpu].write_buffer_max_usage) > max.WriteBufferMaxUsage {
-				max.WriteBufferMaxUsage = uint32(statsValue[cpu].write_buffer_max_usage)
+			if statsValue[cpu].Write_buffer_max_usage > max.WriteBufferMaxUsage {
+				max.WriteBufferMaxUsage = statsValue[cpu].Write_buffer_max_usage
 			}
 		}
 		result[cgroupName] = max
-
-		if err := t.statsMap.Delete(unsafe.Pointer(&statsKey)); err != nil {
+		keys = append(keys, statsKey)
+	}
+	if err := it.Err(); err != nil {
+		log.Warnf("failed to iterate on TCP queue length stats while flushing: %s", err)
+	}
+	for _, k := range keys {
+		if err := t.statsMap.Delete(unsafe.Pointer(&k)); err != nil {
 			log.Warnf("failed to delete stat: %s", err)
 		}
 	}
 
-	if err := it.Err(); err != nil {
-		log.Warnf("failed to iterate on TCP queue length stats while flushing: %s", err)
+	return result
+}
+
+func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("error detecting kernel version: %s", err)
+	}
+	if kv < kernel.VersionCode(4, 8, 0) {
+		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
 	}
 
-	return result
+	filename := "tcp-queue-length.o"
+	if cfg.BPFDebug {
+		filename = "tcp-queue-length-debug.o"
+	}
+
+	var probe *TCPQueueLengthTracer
+	err = ebpf.LoadCOREAsset(cfg, filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+		probe, err = startTCPQueueLengthProbe(buf, opts)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("successfully loaded CO-RE version of tcp-queue-length probe")
+	return probe, nil
+}
+
+func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	if err != nil {
+		return nil, err
+	}
+	defer compiledOutput.Close()
+
+	return startTCPQueueLengthProbe(compiledOutput, manager.Options{})
 }

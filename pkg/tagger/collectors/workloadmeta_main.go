@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -22,10 +24,15 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource    = workloadmetaCollectorName + "-static"
-	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	staticSource         = workloadmetaCollectorName + "-static"
+	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	nodeSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesNode)
+	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
+	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
+
+	clusterTagNamePrefix = "kube_cluster_name"
 )
 
 // CollectorPriorities holds collector priorities
@@ -78,6 +85,16 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 	c.staticTags = util.GetStaticTags(ctx)
+	if _, exists := c.staticTags[clusterTagNamePrefix]; flavor.GetFlavor() == flavor.ClusterAgent && !exists {
+		// If we are running the cluster agent, we want to set the kube_cluster_name tag as a global tag if we are able
+		// to read it, for the instances where we are running in an environment where hostname cannot be detected.
+		if cluster := clustername.GetClusterNameTagValue(ctx, ""); cluster != "" {
+			if c.staticTags == nil {
+				c.staticTags = make(map[string]string, 1)
+			}
+			c.staticTags[clusterTagNamePrefix] = cluster
+		}
+	}
 	if len(c.staticTags) > 0 {
 		tags := utils.NewTagList()
 
@@ -146,6 +163,7 @@ func NewWorkloadMetaCollector(ctx context.Context, store workloadmeta.Store, p p
 		retrieveMappingFromConfig("docker_labels_as_tags"),
 		retrieveMappingFromConfig("container_labels_as_tags"),
 	)
+	// Adding new environment variables require adding them to pkg/util/containers/env_vars_filter.go
 	containerEnvAsTags := mergeMaps(
 		retrieveMappingFromConfig("docker_env_as_tags"),
 		retrieveMappingFromConfig("container_env_as_tags"),
@@ -187,4 +205,5 @@ func init() {
 	CollectorPriorities[podSource] = NodeOrchestrator
 	CollectorPriorities[taskSource] = NodeOrchestrator
 	CollectorPriorities[containerSource] = NodeRuntime
+	CollectorPriorities[containerImageSource] = NodeRuntime
 }

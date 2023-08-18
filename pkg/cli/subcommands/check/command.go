@@ -25,15 +25,20 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -57,6 +62,7 @@ type cliParams struct {
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
 	formatTable               bool
@@ -81,9 +87,10 @@ type cliParams struct {
 }
 
 type GlobalParams struct {
-	ConfFilePath string
-	ConfigName   string
-	LoggerName   string
+	ConfFilePath         string
+	SysProbeConfFilePath string
+	ConfigName           string
+	LoggerName           string
 }
 
 // MakeCommand returns a `check` command to be used by agent binaries.
@@ -105,9 +112,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithConfigName(globalParams.ConfigName)).
-					LogForOneShot(globalParams.LoggerName, "off", true)),
+				fx.Supply(core.BundleParams{
+					ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					LogParams:            log.LogForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
+				forwarder.Bundle,
+				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 			)
 		},
 	}
@@ -117,6 +128,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().IntVar(&cliParams.checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	cmd.Flags().StringVarP(&cliParams.logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&cliParams.checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
+	cmd.Flags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
 	cmd.Flags().BoolVarP(&cliParams.formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	cmd.Flags().BoolVarP(&cliParams.formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&cliParams.breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -147,13 +159,19 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, forwarder defaultforwarder.Component, cliParams *cliParams) error {
 	previousIntegrationTracing := false
+	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {
 			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
+
+		}
+		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
+			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
 		pkgconfig.Datadog.Set("integration_tracing", true)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -163,6 +181,12 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		return nil
 	}
 
+	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
+	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
+	pkgconfig.Datadog.Set("sbom.host.enabled", "false")
+	pkgconfig.Datadog.Set("sbom.container_image.enabled", "false")
+	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
+
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		fmt.Printf("Cannot get hostname, exiting: %v\n", err)
@@ -170,24 +194,27 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	}
 
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 0
-	opts.UseNoopForwarder = true
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
-	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll)
+	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-	allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances))
+
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
 	cancelTimeout()
+	if err != nil {
+		return err
+	}
 
 	// make sure the checks in cs are not JMX checks
 	for idx := range allConfigs {
@@ -476,13 +503,14 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	if cliParams.generateIntegrationTraces {
 		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
 	}
 
 	return nil
 }
 
-func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *check.Stats {
-	s := check.NewStats(c)
+func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
+	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {
@@ -510,11 +538,11 @@ func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexe
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
+	_ = os.Mkdir(path.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(path.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {

@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package v3or4
 
@@ -32,22 +31,28 @@ const (
 	taskMetadataWithTagsPath = "/taskWithTags"
 )
 
+type Client interface {
+	GetTask(ctx context.Context) (*Task, error)
+	GetContainer(ctx context.Context) (*Container, error)
+	GetTaskWithTags(ctx context.Context) (*Task, error)
+}
+
 // Client represents a client for a metadata v3 or v4 API endpoint.
-type Client struct {
+type client struct {
 	agentURL   string
 	apiVersion string
 }
 
 // NewClient creates a new client for the specified metadata v3 or v4 API endpoint.
-func NewClient(agentURL, apiVersion string) *Client {
-	return &Client{
+func NewClient(agentURL, apiVersion string) Client {
+	return &client{
 		agentURL:   agentURL,
 		apiVersion: apiVersion,
 	}
 }
 
 // GetContainer returns metadata for a container.
-func (c *Client) GetContainer(ctx context.Context) (*Container, error) {
+func (c *client) GetContainer(ctx context.Context) (*Container, error) {
 	var ct Container
 	if err := c.get(ctx, "", &ct); err != nil {
 		return nil, err
@@ -56,16 +61,16 @@ func (c *Client) GetContainer(ctx context.Context) (*Container, error) {
 }
 
 // GetTask returns the current task.
-func (c *Client) GetTask(ctx context.Context) (*Task, error) {
+func (c *client) GetTask(ctx context.Context) (*Task, error) {
 	return c.getTaskMetadataAtPath(ctx, taskMetadataPath)
 }
 
 // GetTaskWithTags returns the current task, including propagated resource tags.
-func (c *Client) GetTaskWithTags(ctx context.Context) (*Task, error) {
+func (c *client) GetTaskWithTags(ctx context.Context) (*Task, error) {
 	return c.getTaskMetadataAtPath(ctx, taskMetadataWithTagsPath)
 }
 
-func (c *Client) get(ctx context.Context, path string, v interface{}) error {
+func (c *client) get(ctx context.Context, path string, v interface{}) error {
 	client := http.Client{Timeout: common.MetadataTimeout()}
 	url, err := c.makeURL(path)
 	if err != nil {
@@ -99,7 +104,7 @@ func (c *Client) get(ctx context.Context, path string, v interface{}) error {
 	return nil
 }
 
-func (c *Client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task, error) {
+func (c *client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task, error) {
 	var t Task
 	if err := c.get(ctx, path, &t); err != nil {
 		return nil, err
@@ -107,7 +112,7 @@ func (c *Client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task,
 	return &t, nil
 }
 
-func (c *Client) makeURL(requestPath string) (string, error) {
+func (c *client) makeURL(requestPath string) (string, error) {
 	u, err := url.Parse(c.agentURL)
 	if err != nil {
 		return "", err

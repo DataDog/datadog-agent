@@ -121,8 +121,8 @@ func (s *Sender) run() {
 func additionalDestinationsSink(bufferSize int) chan *message.Payload {
 	sink := make(chan *message.Payload, bufferSize)
 	go func() {
-		for {
-			<-sink
+		// drain channel, stop when channel is closed
+		for range sink {
 		}
 	}()
 	return sink

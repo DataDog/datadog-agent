@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +54,7 @@ func TestPayloadChunking(t *testing.T) {
 	for i := 0; i < payloadCount+1; i++ {
 		select {
 		case p := <-r.Out():
-			if v, ok := p.(pb.AgentPayload); ok {
+			if v, ok := p.(*pb.AgentPayload); ok {
 				// ok
 				for _, tracerPayload := range v.TracerPayloads {
 					got += len(tracerPayload.Chunks)

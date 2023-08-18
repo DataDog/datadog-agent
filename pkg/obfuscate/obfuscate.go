@@ -82,6 +82,9 @@ type Config struct {
 	// HTTP holds the obfuscation settings for HTTP URLs.
 	HTTP HTTPConfig
 
+	// Redis holds the obfuscation settings for Redis commands.
+	Redis RedisConfig
+
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
 
@@ -104,16 +107,16 @@ type SQLConfig struct {
 
 	// TableNames specifies whether the obfuscator should also extract the table names that a query addresses,
 	// in addition to obfuscating.
-	TableNames bool `json:"table_names"`
+	TableNames bool `json:"table_names" yaml:"table_names"`
 
 	// CollectCommands specifies whether the obfuscator should extract and return commands as SQL metadata when obfuscating.
-	CollectCommands bool `json:"collect_commands"`
+	CollectCommands bool `json:"collect_commands" yaml:"collect_commands"`
 
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
-	CollectComments bool `json:"collect_comments"`
+	CollectComments bool `json:"collect_comments" yaml:"collect_comments"`
 
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
-	ReplaceDigits bool `json:"replace_digits"`
+	ReplaceDigits bool `json:"replace_digits" yaml:"replace_digits"`
 
 	// KeepSQLAlias reports whether SQL aliases ("AS") should be truncated.
 	KeepSQLAlias bool `json:"keep_sql_alias"`
@@ -152,6 +155,16 @@ type HTTPConfig struct {
 	RemovePathDigits bool
 }
 
+// RedisConfig holds the configuration settings for Redis obfuscation
+type RedisConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool
+
+	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool
+}
+
 // JSONConfig holds the obfuscation configuration for sensitive
 // data found in JSON objects.
 type JSONConfig struct {
@@ -176,6 +189,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 		opts:              &cfg,
 		queryCache:        newMeasuredCache(cacheOptions{On: cfg.SQL.Cache, Statsd: cfg.Statsd}),
 		sqlLiteralEscapes: atomic.NewBool(false),
+		log:               cfg.Logger,
 	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)

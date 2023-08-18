@@ -8,7 +8,6 @@
 // at the agent level.
 
 //go:build !python || windows
-// +build !python windows
 
 package agent
 

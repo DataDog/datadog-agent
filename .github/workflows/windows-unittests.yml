@@ -7,15 +7,14 @@ on:
       - 7.[0-9][0-9].x
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   windows-unit-tests:
-    runs-on: windows-2019 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
+    runs-on: windows-2022 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
     steps:
-      - name: Set git to use LF # needed so gofmt doesn't think every file needs reformatting
-        run: |
-          git config --global core.autocrlf false
-          git config --global core.eol lf
-
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
         with:
@@ -35,7 +34,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop';
           # install dependencies
-          python -m pip install codecov -r requirements.txt
+          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
+          # python -m pip install codecov
+          python -m pip install -r requirements.txt
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           inv -e install-tools
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -50,10 +51,13 @@ jobs:
         run: |
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
           echo $PATH
-          inv -e rtloader.make
-          inv -e rtloader.format --raise-if-changed
-          inv -e rtloader.install
+          powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
-          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
-          inv -e codecov
+          inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
+
+      - name: Upload Codecov results
+        uses: codecov/codecov-action@v3
+        with:
+          flags: windows
+          name: codecov-windows

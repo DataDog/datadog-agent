@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 package filesystem
 
@@ -70,4 +69,9 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 		acl.GrantSid(windows.GENERIC_ALL, p.administratorSid),
 		acl.GrantSid(windows.GENERIC_ALL, p.systemSid),
 		acl.GrantSid(windows.GENERIC_ALL, p.currentUserSid))
+}
+
+// RemoveAccessToOtherUsers on Windows this function calls RestrictAccessToUser
+func (p *Permission) RemoveAccessToOtherUsers(path string) error {
+	return p.RestrictAccessToUser(path)
 }

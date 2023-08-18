@@ -15,14 +15,15 @@ import (
 // namespace and pod name.
 //
 // The data is stored in the following schema:
-// {
-// 	"namespace1": {
-// 		"pod": { "svc1": {}, "svc2": {}, "svc3": {} ]
-// 	},
-//  "namespace2": {
-// 		"pod2": [ "svc1": {}, "svc2": {}, "svc3": {} ]
-// 	}
-// }
+//
+//	{
+//		"namespace1": {
+//			"pod": { "svc1": {}, "svc2": {}, "svc3": {} ]
+//		},
+//	 "namespace2": {
+//			"pod2": [ "svc1": {}, "svc2": {}, "svc3": {} ]
+//		}
+//	}
 type NamespacesPodsStringsSet map[string]MapStringSet
 
 // MapStringSet maps a set of string by a string key

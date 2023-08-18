@@ -9,39 +9,74 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/core-agent"
 )
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, confdPath string) {
-	if flavor.GetFlavor() != flavor.ClusterAgent {
-		store := workloadmeta.GetGlobalStore()
-		store.Start(ctx)
+func LoadComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
+	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
+	if err != nil {
+		log.Errorf("failed to create SBOM scanner: %s", err)
+	} else if sbomScanner != nil {
+		sbomScanner.Start(ctx)
+	}
 
-		tagger.SetDefaultTagger(local.NewTagger(store))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
+	var catalog workloadmeta.CollectorCatalog
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		catalog = workloadmeta.ClusterAgentCatalog
+	} else {
+		catalog = workloadmeta.NodeAgentCatalog
+	}
+
+	store := workloadmeta.CreateGlobalStore(catalog)
+	store.Start(ctx)
+
+	var t tagger.Tagger
+
+	if config.IsCLCRunner() {
+		options, err := remote.CLCRunnerOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+			t = local.NewFakeTagger()
+		} else if options.Disabled {
+			log.Info("remote tagger is disabled")
+			t = local.NewFakeTagger()
+		} else {
+			t = remote.NewTagger(options)
 		}
+	} else {
+		t = local.NewTagger(store)
+	}
+
+	tagger.SetDefaultTagger(t)
+	if err := tagger.Init(ctx); err != nil {
+		log.Errorf("failed to start the tagger: %s", err)
 	}
 
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available
-	Coll = collector.NewCollector(GetPythonPaths()...)
+	Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
 
 	// setup autodiscovery
 	confSearchPaths := []string{
 		confdPath,
-		filepath.Join(GetDistPath(), "conf.d"),
+		filepath.Join(path.GetDistPath(), "conf.d"),
 		"",
 	}
 

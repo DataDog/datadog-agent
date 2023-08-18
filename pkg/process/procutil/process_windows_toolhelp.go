@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package procutil
 
@@ -251,6 +250,10 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	}
 
 	cp.parsedArgs = ParseCmdLineArgs(cp.commandLine)
+	if len(cp.commandLine) > 0 && len(cp.parsedArgs) == 0 {
+		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cp.commandLine, pe32.Th32ProcessID)
+	}
+
 	return
 }
 

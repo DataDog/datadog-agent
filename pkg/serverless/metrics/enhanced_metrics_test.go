@@ -6,24 +6,32 @@
 package metrics
 
 import (
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
-	go GenerateEnhancedMetricsFromFunctionLog("JavaScript heap out of memory", reportLogTime, tags, demux)
+	isOOM := ContainsOutOfMemoryLog("JavaScript heap out of memory")
+	if isOOM {
+		GenerateOutOfMemoryEnhancedMetrics(reportLogTime, tags, demux)
+	}
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
+	assert.True(t, isOOM)
 	assert.Len(t, generatedMetrics, 2, "two enhanced metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
@@ -44,19 +52,24 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
-
-	go GenerateEnhancedMetricsFromFunctionLog("Task timed out after 30.03 seconds", time.Now(), tags, demux)
+	isOOM := ContainsOutOfMemoryLog("Task timed out after 30.03 seconds")
+	if isOOM {
+		GenerateOutOfMemoryEnhancedMetrics(time.Now(), tags, demux)
+	}
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	assert.False(t, isOOM)
 	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
@@ -76,7 +89,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	}
 	go GenerateEnhancedMetricsFromReportLog(args)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(7, 0, 100*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:7], []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
@@ -132,7 +145,8 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
@@ -152,7 +166,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 	}
 	go GenerateEnhancedMetricsFromReportLog(args)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(6, 0, 0100*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:6], []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
@@ -201,13 +215,14 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 }
 
 func TestSendTimeoutEnhancedMetric(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
 	go SendTimeoutEnhancedMetric(tags, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       timeoutsMetric,
@@ -222,13 +237,14 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 }
 
 func TestSendInvocationEnhancedMetric(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
 	go SendInvocationEnhancedMetric(tags, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       invocationsMetric,
@@ -242,14 +258,31 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestDisableEnhancedMetrics(t *testing.T) {
+	os.Setenv("DD_ENHANCED_METRICS", "false")
+	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	defer demux.Stop(false)
+	tags := []string{"functionname:test-function"}
+
+	go SendInvocationEnhancedMetric(tags, demux)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+}
+
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	mockTime := time.Now()
 	go SendOutOfMemoryEnhancedMetric(tags, mockTime, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       OutOfMemoryMetric,
@@ -263,13 +296,14 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 }
 
 func TestSendErrorsEnhancedMetric(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	mockTime := time.Now()
 	go SendErrorsEnhancedMetric(tags, mockTime, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       ErrorsMetric,
@@ -323,7 +357,8 @@ func TestCalculateEstimatedCost(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Time{}
@@ -338,7 +373,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Demux:            demux,
 	}
 	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       responseLatencyMetric,
 		Value:      19,
@@ -365,7 +400,8 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Now()
@@ -380,7 +416,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Demux:            demux,
 	}
 	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       responseLatencyMetric,
 		Value:      19,
@@ -407,7 +443,8 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
@@ -422,7 +459,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Demux:            demux,
 	}
 	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       runtimeDurationMetric,
 		Value:      153,

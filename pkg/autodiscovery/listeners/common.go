@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package listeners
 
@@ -87,14 +86,14 @@ func newContainerFilters() (*containerFilters, error) {
 	}, nil
 }
 
-func (f *containerFilters) IsExcluded(filter containers.FilterType, name, image, ns string) bool {
+func (f *containerFilters) IsExcluded(filter containers.FilterType, annotations map[string]string, name, image, ns string) bool {
 	switch filter {
 	case containers.GlobalFilter:
-		return f.global.IsExcluded(name, image, ns)
+		return f.global.IsExcluded(annotations, name, image, ns)
 	case containers.MetricsFilter:
-		return f.metrics.IsExcluded(name, image, ns)
+		return f.metrics.IsExcluded(annotations, name, image, ns)
 	case containers.LogsFilter:
-		return f.logs.IsExcluded(name, image, ns)
+		return f.logs.IsExcluded(annotations, name, image, ns)
 	}
 	return false
 }

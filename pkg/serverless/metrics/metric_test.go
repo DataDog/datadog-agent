@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -19,9 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -34,7 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
-	config.DetectFeatures()
+	config.Load()
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
@@ -42,15 +43,13 @@ func TestStartDoesNotBlock(t *testing.T) {
 	assert.True(t, metricAgent.IsReady())
 }
 
-type ValidMetricConfigMocked struct {
-}
+type ValidMetricConfigMocked struct{}
 
 func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return map[string][]string{"http://localhost:8888": {"value"}}, nil
 }
 
-type InvalidMetricConfigMocked struct {
-}
+type InvalidMetricConfigMocked struct{}
 
 func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return nil, fmt.Errorf("error")
@@ -63,10 +62,9 @@ func TestStartInvalidConfig(t *testing.T) {
 	assert.False(t, metricAgent.IsReady())
 }
 
-type MetricDogStatsDMocked struct {
-}
+type MetricDogStatsDMocked struct{}
 
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (*dogstatsd.Server, error) {
+func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -96,23 +94,25 @@ func TestStartWithProxy(t *testing.T) {
 	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
+
 func TestRaceFlushVersusAddSample(t *testing.T) {
-
-	config.DetectFeatures()
-
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
 
 	assert.NotNil(t, metricAgent.Demux)
 
-	go func() {
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	server := http.Server{
+		Addr: "localhost:8888",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(10 * time.Millisecond)
-		})
+		}),
+	}
+	defer server.Close()
 
-		err := http.ListenAndServe("localhost:8888", nil)
-		if err != nil {
+	go func() {
+		err := server.ListenAndServe()
+		if !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}()
@@ -190,12 +190,10 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
-	opts.FlushInterval = 10 * time.Millisecond
-	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	s, err := dogstatsd.NewServer(demux, true)
+	s := dogstatsdServer.NewServerlessServer()
+	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 

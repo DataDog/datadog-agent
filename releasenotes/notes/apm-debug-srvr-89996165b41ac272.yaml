@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    APM:
+      - Run the /debug/* endpoints in a separate server which uses port 5012 by default and only listens on ``127.0.0.1``. The port is configurable through ``apm_config.debug.port`` and ``DD_APM_DEBUG_PORT``, set it to 0 to disable the server.
+      - Scrub the content served by the expvar endpoint.

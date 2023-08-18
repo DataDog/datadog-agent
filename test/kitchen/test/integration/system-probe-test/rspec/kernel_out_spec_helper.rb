@@ -1,1 +1,0 @@
-../../common/rspec/kernel_out_spec_helper.rb

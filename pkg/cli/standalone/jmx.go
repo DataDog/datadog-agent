@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package standalone
 
@@ -13,10 +12,12 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,7 +56,7 @@ func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, co
 // The common utils, including AutoConfig, must have already been initialized.
 func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string, configs []integration.Config) error {
 	// start the cmd HTTP server
-	if err := api.StartServer(nil); err != nil {
+	if err := api.StartServer(nil, nil, nil, nil, nil, util.NewNoneOptional[logsAgent.Component]()); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
 	}
 

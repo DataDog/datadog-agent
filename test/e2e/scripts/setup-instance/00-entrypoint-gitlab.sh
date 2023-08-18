@@ -21,7 +21,7 @@ ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
 tee specification.json << EOF
 {
   "ImageId": "${AMI}",
-  "InstanceType": "c5.2xlarge",
+  "InstanceType": "t3.2xlarge",
   "Monitoring": {
     "Enabled": false
   },
@@ -37,11 +37,11 @@ tee specification.json << EOF
   ],
   "UserData": "${IGNITION_BASE64}",
 
-  "SubnetId": "subnet-c18341ed",
+  "SubnetId": "subnet-05d7c6b1b5cfea811",
   "IamInstanceProfile": {
     "Name": "ci-datadog-agent-e2e-runner"
   },
-  "SecurityGroupIds": ["sg-0f5617ceb3e5a6c39"]
+  "SecurityGroupIds": ["sg-019917348cb0eb7e7"]
 }
 EOF
 

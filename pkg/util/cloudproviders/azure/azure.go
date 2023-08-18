@@ -189,3 +189,22 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 func GetPublicIPv4(ctx context.Context) (string, error) {
 	return publicIPv4Fetcher.FetchString(ctx)
 }
+
+type instanceMetadata struct {
+	SubscriptionID string `json:"subscriptionId"`
+}
+
+// GetSubscriptionID returns the subscription ID of the current Azure instance
+func GetSubscriptionID(ctx context.Context) (string, error) {
+	body, err := instanceMetaFetcher.FetchString(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	var metadata instanceMetadata
+	if err := json.Unmarshal([]byte(body), &metadata); err != nil {
+		return "", err
+	}
+
+	return metadata.SubscriptionID, nil
+}

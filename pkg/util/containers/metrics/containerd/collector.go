@@ -4,8 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && (linux || windows)
-// +build containerd
-// +build linux windows
 
 package containerd
 
@@ -15,9 +13,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
+	prototypes "github.com/gogo/protobuf/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containerd"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -109,7 +110,12 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 	}
 
 	// Filling information from Spec
-	OCISpec, err := c.client.Spec(containerNS, container)
+	var OCISpec *oci.Spec
+	info, err := c.client.Info(containerNS, container)
+	if err == nil {
+		OCISpec, err = c.client.Spec(containerNS, info, containerd.DefaultAllowedSpecMaxSize)
+	}
+
 	if err == nil {
 		fillStatsFromSpec(containerStats, OCISpec)
 	} else {
@@ -178,7 +184,10 @@ func (c *containerdCollector) getContainerdMetrics(containerNS string, container
 		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, err)
 	}
 
-	metrics, err := typeurl.UnmarshalAny(metricTask.Data)
+	metrics, err := typeurl.UnmarshalAny(&prototypes.Any{
+		TypeUrl: metricTask.Data.TypeUrl,
+		Value:   metricTask.Data.Value,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not convert the metrics data from container with ID %s: %s", containerID, err)
 	}

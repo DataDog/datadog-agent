@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -40,11 +39,14 @@ type StatefulSetCollector struct {
 func NewStatefulSetCollector() *StatefulSetCollector {
 	return &StatefulSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "statefulsets",
-			NodeType:         orchestrator.K8sStatefulSet,
-			Version:          "apps/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "statefulsets",
+			NodeType:                  orchestrator.K8sStatefulSet,
+			Version:                   "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.StatefulSetHandlers)),
 	}
@@ -57,12 +59,9 @@ func (c *StatefulSetCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *StatefulSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().StatefulSets()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Apps().V1().StatefulSets()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *StatefulSetCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *StatefulSetCollector) Metadata() *collectors.CollectorMetadata {

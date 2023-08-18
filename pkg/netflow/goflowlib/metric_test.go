@@ -77,9 +77,9 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.MonotonicCountType,
-			expectedName:       "processor.flows",
+			expectedName:       "processor.processed",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
 			expectedErr:        "",
 		},
 		{
@@ -96,9 +96,9 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.MonotonicCountType,
-			expectedName:       "processor.flows",
+			expectedName:       "processor.processed",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
 			expectedErr:        "",
 		},
 		{
@@ -115,9 +115,9 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.GaugeType,
-			expectedName:       "processor.flows",
+			expectedName:       "processor.processed",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
 			expectedErr:        "",
 		},
 		{
@@ -177,7 +177,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "processor.flowsets",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:data_flow_set"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:data_flow_set"},
 			expectedErr:        "",
 		},
 		{
@@ -197,7 +197,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "processor.flowsets",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:template_flow_set"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:template_flow_set"},
 			expectedErr:        "",
 		},
 		{
@@ -217,7 +217,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "processor.flowsets",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:options_template_flow_set"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:options_template_flow_set"},
 			expectedErr:        "",
 		},
 		{
@@ -237,7 +237,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "processor.flowsets",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:options_data_flow_set"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:options_data_flow_set"},
 			expectedErr:        "",
 		},
 		{
@@ -257,7 +257,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "processor.flowsets",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
 			expectedErr:        "",
 		},
 		{
@@ -348,9 +348,9 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.MonotonicCountType,
-			expectedName:       "processor.flows",
+			expectedName:       "processor.processed",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow"},
 			expectedErr:        "",
 		},
 		{
@@ -370,7 +370,26 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "processor.flowsets",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:data_flow_set"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:netflow", "type:data_flow_set"},
+			expectedErr:        "",
+		},
+		{
+			name: "METRIC flow_process_nf_errors_count",
+			metricFamily: &promClient.MetricFamily{
+				Name: proto.String("flow_process_nf_errors_count"),
+				Type: promClient.MetricType_COUNTER.Enum(),
+			},
+			metric: &promClient.Metric{
+				Counter: &promClient.Counter{Value: proto.Float64(10)},
+				Label: []*promClient.LabelPair{
+					{Name: proto.String("router"), Value: proto.String("1.2.3.4")},
+					{Name: proto.String("error"), Value: proto.String("some-error")},
+				},
+			},
+			expectedMetricType: metrics.MonotonicCountType,
+			expectedName:       "processor.errors",
+			expectedValue:      10.0,
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "error:some-error", "flow_protocol:netflow"},
 			expectedErr:        "",
 		},
 		{
@@ -390,7 +409,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "traffic.bytes",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "listener_port:2000", "collector_type:netflow5"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "listener_port:2000", "collector_type:netflow5"},
 			expectedErr:        "",
 		},
 		{
@@ -410,7 +429,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "traffic.packets",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "listener_port:2000", "collector_type:netflow5"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "listener_port:2000", "collector_type:netflow5"},
 			expectedErr:        "",
 		},
 		{
@@ -427,9 +446,9 @@ func TestConvertMetric(t *testing.T) {
 				},
 			},
 			expectedMetricType: metrics.MonotonicCountType,
-			expectedName:       "processor.flows",
+			expectedName:       "processor.processed",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "version:5", "flow_protocol:sflow"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "version:5", "flow_protocol:sflow"},
 			expectedErr:        "",
 		},
 		{
@@ -448,7 +467,7 @@ func TestConvertMetric(t *testing.T) {
 			expectedMetricType: metrics.MonotonicCountType,
 			expectedName:       "processor.errors",
 			expectedValue:      10.0,
-			expectedTags:       []string{"device_ip:1.2.3.4", "error:some-error", "flow_protocol:sflow"},
+			expectedTags:       []string{"exporter_ip:1.2.3.4", "error:some-error", "flow_protocol:sflow"},
 			expectedErr:        "",
 		},
 	}

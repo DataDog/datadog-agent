@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
 
@@ -14,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 var _ metricAggregator = &sumValuesAggregator{}
@@ -184,7 +183,7 @@ func Test_counterAggregator(t *testing.T) {
 				agg.accumulate(metric)
 			}
 
-			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
 
 			s.AssertNumberOfCalls(t, "Gauge", len(tt.expected))
 			for _, expected := range tt.expected {
@@ -233,7 +232,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
-				status:  metrics.ServiceCheckOK,
+				status:  servicecheck.ServiceCheckOK,
 				tags:    []string{"namespace:foo", "cronjob:bar"},
 				message: "",
 			},
@@ -270,7 +269,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				tags:    []string{"namespace:foo", "cronjob:bar"},
 				message: "",
 			},
@@ -295,7 +294,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				aggFailed.accumulate(metric)
 			}
 
-			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
 
 			s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, "", tt.expected.tags, tt.expected.message)
 			s.AssertNumberOfCalls(t, "ServiceCheck", 1)
@@ -308,7 +307,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 				aggComplete.accumulate(metric)
 			}
 
-			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.LabelJoins))
+			agg.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
 
 			s.AssertServiceCheck(t, tt.expected.name, tt.expected.status, "", tt.expected.tags, tt.expected.message)
 			s.AssertNumberOfCalls(t, "ServiceCheck", 2)

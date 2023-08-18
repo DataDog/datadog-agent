@@ -26,7 +26,7 @@ When this occurs, information from those sources is merged into one entity.
 
 The _Store_ is the central component of the package, storing the set of entities.
 A store has a set of _collectors_ responsible for notifying the store of workload changes.
-Each collector is specialized to a particular external service such as Kuberntes or ECS, roughly corresponding to a source.
+Each collector is specialized to a particular external service such as Kubernetes or ECS, roughly corresponding to a source.
 Collectors can either poll for updates, or translate a stream of events from the external service, as appropriate.
 
 The store provides information to other components either through subscriptions or by querying the current state.

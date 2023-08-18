@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -32,11 +31,14 @@ type CronJobV1Beta1Collector struct {
 func NewCronJobV1Beta1Collector() *CronJobV1Beta1Collector {
 	return &CronJobV1Beta1Collector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: false,
-			IsStable:         true,
-			Name:             "cronjobs",
-			NodeType:         orchestrator.K8sCronJob,
-			Version:          "batch/v1beta1",
+			IsDefaultVersion:          false,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "cronjobs",
+			NodeType:                  orchestrator.K8sCronJob,
+			Version:                   "batch/v1beta1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Beta1Handlers)),
 	}
@@ -49,12 +51,9 @@ func (c *CronJobV1Beta1Collector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *CronJobV1Beta1Collector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Batch().V1beta1().CronJobs()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Batch().V1beta1().CronJobs()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *CronJobV1Beta1Collector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *CronJobV1Beta1Collector) Metadata() *collectors.CollectorMetadata {

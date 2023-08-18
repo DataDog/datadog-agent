@@ -12,15 +12,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -105,14 +107,7 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// Orchestrator Explorer
-	if config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
-		oc.OrchestrationCollectionEnabled = true
-		// Set clustername
-		hname, _ := hostname.Get(context.TODO())
-		if clusterName := clustername.GetClusterName(context.TODO(), hname); clusterName != "" {
-			oc.KubeClusterName = clusterName
-		}
-	}
+	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
 	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
@@ -157,7 +152,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) erro
 func extractOrchestratorDDUrl() (*url.URL, error) {
 	orchestratorURL := key(orchestratorNS, "orchestrator_dd_url")
 	processURL := key(processNS, "orchestrator_dd_url")
-	URL, err := url.Parse(config.GetMainEndpointWithConfigBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
+	URL, err := url.Parse(utils.GetMainEndpointBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
 	}
@@ -166,7 +161,7 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 
 // NewOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder() forwarder.Forwarder {
+func NewOrchestratorForwarder(log log.Component) forwarder.Forwarder {
 	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		return nil
 	}
@@ -178,10 +173,10 @@ func NewOrchestratorForwarder() forwarder.Forwarder {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(keysPerDomain))
+	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
+	return forwarder.NewDefaultForwarder(config.Datadog, log, orchestratorForwarderOpts)
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
@@ -192,13 +187,25 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 	val := config.Datadog.GetInt(configKey)
 
 	if val <= 0 {
-		log.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
+		pkglog.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
 		return
 	}
 	if val > upperBound {
-		log.Warnf("Ignoring invalid value for setting %s (exceeds maximum allowed value %d)", configKey, upperBound)
+		pkglog.Warnf("Ignoring invalid value for setting %s (exceeds maximum allowed value %d)", configKey, upperBound)
 		return
 	}
 
 	setter(val)
+}
+
+// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
+func IsOrchestratorEnabled() (bool, string) {
+	enabled := config.Datadog.GetBool(key(orchestratorNS, "enabled"))
+	var clusterName string
+	if enabled {
+		// Set clustername
+		hname, _ := hostname.Get(context.TODO())
+		clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
+	}
+	return enabled, clusterName
 }

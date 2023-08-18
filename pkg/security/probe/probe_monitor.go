@@ -4,98 +4,80 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
-	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/approver"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitor struct {
 	probe *Probe
 
-	loadController      *LoadController
-	perfBufferMonitor   *PerfBufferMonitor
-	activityDumpManager *ActivityDumpManager
-	runtimeMonitor      *RuntimeMonitor
-	discarderMonitor    *DiscarderMonitor
+	eventStreamMonitor *eventstream.EventStreamMonitor
+	runtimeMonitor     *runtime.RuntimeMonitor
+	discarderMonitor   *discarder.DiscarderMonitor
+	cgroupsMonitor     *cgroups.CgroupsMonitor
+	approverMonitor    *approver.ApproverMonitor
+	syscallsMonitor    *syscalls.SyscallsMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
-func NewMonitor(p *Probe) (*Monitor, error) {
-	var err error
-	m := &Monitor{
+func NewMonitor(p *Probe) *Monitor {
+	return &Monitor{
 		probe: p,
 	}
+}
 
-	// instantiate a new load controller
-	m.loadController, err = NewLoadController(p)
-	if err != nil {
-		return nil, err
-	}
+// Init initializes the monitor
+func (m *Monitor) Init() error {
+	var err error
+	p := m.probe
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.Config.Probe, p.Erpc, p.Manager, p.StatsdClient, p.onEventLost, p.UseRingBuffers())
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create the events statistics monitor: %w", err)
+		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
-	if p.config.ActivityDumpEnabled {
-		m.activityDumpManager, err = NewActivityDumpManager(p)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
-		}
+	if p.Config.Probe.RuntimeMonitor {
+		m.runtimeMonitor = runtime.NewRuntimeMonitor(p.StatsdClient)
 	}
 
-	if p.config.RuntimeMonitor {
-		m.runtimeMonitor = NewRuntimeMonitor(p.statsdClient)
-	}
-
-	m.discarderMonitor, err = NewDiscarderMonitor(p)
+	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
+		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
+	}
+	m.approverMonitor, err = approver.NewApproverMonitor(p.Manager, p.StatsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the approver monitor: %w", err)
+	}
+	m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.StatsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
 
-	return m, nil
+	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
+
+	return nil
 }
 
 // GetPerfBufferMonitor returns the perf buffer monitor
-func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
-	return m.perfBufferMonitor
-}
-
-// GetActivityDumpManager returns the activity dump manager
-func (m *Monitor) GetActivityDumpManager() *ActivityDumpManager {
-	return m.activityDumpManager
-}
-
-// Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
-func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	delta := 1
-	if m.activityDumpManager != nil {
-		delta++
-	}
-	wg.Add(delta)
-
-	go m.loadController.Start(ctx, wg)
-
-	if m.activityDumpManager != nil {
-		go m.activityDumpManager.Start(ctx, wg)
-	}
-	return nil
+func (m *Monitor) GetEventStreamMonitor() *eventstream.EventStreamMonitor {
+	return m.eventStreamMonitor
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -119,24 +101,24 @@ func (m *Monitor) SendStats() error {
 		if err := resolvers.MountResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send mount_resolver stats: %w", err)
 		}
+		if resolvers.SBOMResolver != nil {
+			if err := resolvers.SBOMResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send sbom_resolver stats: %w", err)
+			}
+		}
+		if resolvers.HashResolver != nil {
+			if err := resolvers.HashResolver.SendStats(); err != nil {
+				return fmt.Errorf("failed to send hash_resolver stats: %w", err)
+			}
+		}
 	}
 
-	if err := m.perfBufferMonitor.SendStats(); err != nil {
+	if err := m.eventStreamMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send events stats: %w", err)
 	}
 	time.Sleep(delay)
 
-	if err := m.loadController.SendStats(); err != nil {
-		return fmt.Errorf("failed to send load controller stats: %w", err)
-	}
-
-	if m.activityDumpManager != nil {
-		if err := m.activityDumpManager.SendStats(); err != nil {
-			return fmt.Errorf("failed to send activity dump maanger stats: %w", err)
-		}
-	}
-
-	if m.probe.config.RuntimeMonitor {
+	if m.probe.Config.Probe.RuntimeMonitor {
 		if err := m.runtimeMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
 		}
@@ -146,105 +128,53 @@ func (m *Monitor) SendStats() error {
 		return fmt.Errorf("failed to send discarder stats: %w", err)
 	}
 
+	if err := m.cgroupsMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send cgroups stats: %w", err)
+	}
+
+	if err := m.approverMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send evaluation set stats: %w", err)
+	}
+
+	if err := m.syscallsMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send evaluation set stats: %w", err)
+	}
+
 	return nil
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
-func (m *Monitor) ProcessEvent(event *Event) {
-	m.loadController.Count(event)
+func (m *Monitor) ProcessEvent(event *model.Event) {
+	// handle event errors
+	if event.Error == nil {
+		return
+	}
+	var notCritical *path.ErrPathResolutionNotCritical
+	if errors.As(event.Error, &notCritical) {
+		return
+	}
 
-	// Look for an unresolved path
-	if err := event.GetPathResolutionError(); err != nil {
+	var pathErr *path.ErrPathResolution
+	if errors.As(event.Error, &pathErr) {
 		m.probe.DispatchCustomEvent(
-			NewAbnormalPathEvent(event, err),
+			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, m.probe, pathErr.Err),
 		)
-	} else {
-		if m.activityDumpManager != nil {
-			m.activityDumpManager.ProcessEvent(event)
-		}
-	}
-}
-
-// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
-type RuleSetLoadedReport struct {
-	Rule  *rules.Rule
-	Event *CustomEvent
-}
-
-// ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
-	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
-	report := RuleSetLoadedReport{Rule: r, Event: ev}
-
-	if err := m.probe.statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
-		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
+		return
 	}
 
-	m.probe.DispatchCustomEvent(report.Rule, report.Event)
-}
-
-// SelfTestReport represents the rule and the custom event related to a SelfTest event; ready to be dispatched
-type SelfTestReport struct {
-	Rule  *rules.Rule
-	Event *CustomEvent
-}
-
-// ReportSelfTest reports to Datadog that a self test was performed
-func (m *Monitor) ReportSelfTest(success []string, fails []string) {
-	// send metric with number of success and fails
-	tags := []string{
-		fmt.Sprintf("success:%d", len(success)),
-		fmt.Sprintf("fails:%d", len(fails)),
-	}
-	if err := m.probe.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
-		log.Error(fmt.Errorf("failed to send self_test metric: %w", err))
+	var processContextErr *ErrNoProcessContext
+	if errors.As(event.Error, &processContextErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, m.probe, event.Error),
+		)
+		return
 	}
 
-	// send the custom event with the list of succeed and failed self tests
-	r, ev := NewSelfTestEvent(success, fails)
-	report := SelfTestReport{Rule: r, Event: ev}
-	m.probe.DispatchCustomEvent(report.Rule, report.Event)
-}
-
-// ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
-var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
-
-// DumpActivity handles an activity dump request
-func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
-		return &api.ActivityDumpMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
+	var brokenLineageErr *ErrProcessBrokenLineage
+	if errors.As(event.Error, &brokenLineageErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, m.probe, event.Error),
+		)
+		return
 	}
-	return m.activityDumpManager.DumpActivity(params)
-}
-
-// ListActivityDumps returns the list of active dumps
-func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
-		return &api.ActivityDumpListMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.ListActivityDumps(params)
-}
-
-// StopActivityDump stops an active activity dump
-func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
-		return &api.ActivityDumpStopMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.StopActivityDump(params)
-}
-
-// GenerateTranscoding encodes an activity dump following the input parameters
-func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
-		return &api.TranscodingRequestMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return m.activityDumpManager.TranscodingRequest(params)
 }

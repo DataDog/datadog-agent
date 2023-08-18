@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package system
 
@@ -38,6 +37,7 @@ func buildIOStats(procPath string, cgs *cgroups.IOStats) *provider.ContainerIOSt
 	convertField(cgs.WriteBytes, &cs.WriteBytes)
 	convertField(cgs.ReadOperations, &cs.ReadOperations)
 	convertField(cgs.WriteOperations, &cs.WriteOperations)
+	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	deviceMapping, err := GetDiskDeviceMapping(procPath)
 	if err != nil {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -12,8 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
-	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/avast/retry-go/v4"
@@ -21,20 +19,21 @@ import (
 )
 
 type testDrive struct {
-	file       *os.File
-	dev        *losetup.Device
-	mountPoint string
+	file  *os.File
+	dev   *losetup.Device
+	mount *testMount
 }
 
 func (td *testDrive) Root() string {
-	return td.mountPoint
+	return td.mount.target
+}
+
+func (td *testDrive) FSType() string {
+	return td.mount.fstype
 }
 
 func (td *testDrive) Path(filename ...string) string {
-	components := []string{td.mountPoint}
-	components = append(components, filename...)
-	path := path.Join(components...)
-	return path
+	return td.mount.path(filename...)
 }
 
 func newTestDrive(tb testing.TB, fsType string, mountOpts []string, mountPoint string) (*testDrive, error) {
@@ -72,12 +71,26 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 			return nil, fmt.Errorf("failed to create testdrive loop device: %w", err)
 		}
 
-		if len(mountOpts) == 0 {
-			mountOpts = append(mountOpts, "auto")
+		// if len(mountOpts) == 0 {
+		// 	mountOpts = append(mountOpts, "auto")
+		// }
+
+		var env []string
+		if fsType == "xfs" {
+			// starting with v5.19, mkfs.xfs does not accept filesystem of size < 300MB
+			// for more info see
+			// https://lore.kernel.org/all/164738662491.3191861.15611882856331908607.stgit@magnolia/
+			// https://patchwork.ozlabs.org/project/ltp/patch/20220817204015.31420-1-pvorel@suse.cz/#2950033
+			// so we re-use the undocumented escape path used in fstests
+			env = os.Environ()
+			env = append(env, "TEST_DIR=1", "TEST_DEV=1", "QA_CHECK_FS=1")
 		}
 
 		mkfsCmd := exec.Command("/sbin/mkfs."+fsType, dev.Path())
-		if err := mkfsCmd.Run(); err != nil {
+		mkfsCmd.Env = env
+
+		if out, err := mkfsCmd.CombinedOutput(); err != nil {
+			tb.Error(string(out))
 			_ = dev.Detach()
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
@@ -91,9 +104,14 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 		devPath = "none"
 	}
 
-	mountCmd := exec.Command("mount", "-t", fsType, "-o", strings.Join(mountOpts, ","), devPath, mountPoint)
+	mount := newTestMount(
+		mountPoint,
+		withSource(devPath),
+		withFSType(fsType),
+		withMountOpts(mountOpts...),
+	)
 
-	if err := mountCmd.Run(); err != nil {
+	if err := mount.mount(); err != nil {
 		if loopback != nil {
 			_ = loopback.Detach()
 		}
@@ -103,25 +121,24 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 	}
 
 	return &testDrive{
-		file:       backingFile,
-		dev:        loopback,
-		mountPoint: mountPoint,
+		file:  backingFile,
+		dev:   loopback,
+		mount: mount,
 	}, nil
 }
 
 func (td *testDrive) lsof() string {
-	lsofCmd := exec.Command("lsof", td.mountPoint)
+	lsofCmd := exec.Command("lsof", td.Root())
 	output, _ := lsofCmd.CombinedOutput()
 	return string(output)
 }
 
-func (td *testDrive) Unmount() error {
-	unmountCmd := exec.Command("umount", "-f", td.mountPoint)
-	return unmountCmd.Run()
+func (td *testDrive) unmount() error {
+	return td.mount.unmount(syscall.MNT_FORCE)
 }
 
 func (td *testDrive) Close() {
-	if err := td.Unmount(); err != nil {
+	if err := td.unmount(); err != nil {
 		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
 	}
 	if td.dev != nil {
@@ -133,5 +150,5 @@ func (td *testDrive) Close() {
 		}
 	}
 	os.Remove(td.file.Name())
-	os.Remove(td.mountPoint)
+	os.RemoveAll(td.Root())
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -85,14 +86,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 	snmpWalkCmd := &cobra.Command{
 		Use:   "walk <IP Address>[:Port] [OID] [OPTIONS]",
-		Short: "Perform a snmpwalk",
+		Short: "Perform a snmpwalk, if only a valid IP address is provided with the oid then the agent default snmp config will be used",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
 			cliParams.cmd = cmd
 			return fxutil.OneShot(snmpwalk,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForOneShot("CORE", "off", true)),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},

@@ -8,7 +8,6 @@
 // which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
-// +build cgo,linux
 
 package ebpf
 
@@ -16,6 +15,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -65,11 +65,8 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, source string) error {
-	// TODO: Remove that hard-code and put it somewhere else
-	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
-
-	err := t.CommonConfigure(initConfig, config, source)
+func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := t.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -83,7 +80,8 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return nil
 	}
 
-	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil()
+	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
+		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}
@@ -106,7 +104,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	for k, v := range stats {
 		containerID, err := cgroups.ContainerFilter("", k)
 		if err != nil || containerID == "" {
-			log.Warnf("Unable to extract containerID from cgroup name: %s, err: %v", k, err)
+			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", k, err)
 			continue
 		}
 

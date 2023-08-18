@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package kubernetesapiserver
 
@@ -17,7 +16,9 @@ import (
 	osq "github.com/openshift/api/quota/v1"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -32,10 +33,10 @@ func TestReportClusterQuotas(t *testing.T) {
 	config.Datadog.Set("cluster_name", "test-cluster-name")
 	defer config.Datadog.Set("cluster_name", prevClusterName)
 
-	var instanceCfg = []byte("")
-	var initCfg = []byte("")
+	instanceCfg := []byte("")
+	initCfg := []byte("")
 	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
-	err = kubeASCheck.Configure(instanceCfg, initCfg, "test")
+	err = kubeASCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())

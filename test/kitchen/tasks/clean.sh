@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/bin/bash
 
 # This script cleans up any stray azure vms that may remain from the prior run.
 

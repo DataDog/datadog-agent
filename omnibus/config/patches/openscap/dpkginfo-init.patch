@@ -1,0 +1,13 @@
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -122,6 +122,10 @@ void dpkginfo_free_reply(struct dpkginfo_reply_t *reply)
+ 
+ int dpkginfo_init()
+ {
++	if (cgCache != NULL) {
++		return 0;
++	}
++
+         cgCache = new pkgCacheFile;
+         if (_init_done == 0)
+                 if (opencache() != 1) {

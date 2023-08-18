@@ -124,16 +124,17 @@ func flushToSeries(
 // is called with each Metric in term, while `contextKeyChanged` is called after the
 // last Metric with each context key is processed. The last argument of the callback is the index
 // of the contextMetrics in contextMetricsCollection.
-//  For example:
-//     callback(key1, metric1, 0)
-//     callback(key1, metric2, 1)
-//     callback(key1, metric3, 2)
-//     contextKeyChanged()
-//     callback(key2, metric4, 0)
-//     contextKeyChanged()
-//     callback(key3, metric5, 0)
-//     callback(key3, metric6, 1)
-//     contextKeyChanged()
+//
+//	For example:
+//	   callback(key1, metric1, 0)
+//	   callback(key1, metric2, 1)
+//	   callback(key1, metric3, 2)
+//	   contextKeyChanged()
+//	   callback(key2, metric4, 0)
+//	   contextKeyChanged()
+//	   callback(key3, metric5, 0)
+//	   callback(key3, metric6, 1)
+//	   contextKeyChanged()
 func aggregateContextMetricsByContextKey(
 	contextMetricsCollection []ContextMetrics,
 	callback func(ckey.ContextKey, Metric, int),

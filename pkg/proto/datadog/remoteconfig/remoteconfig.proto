@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.config;
 
-option go_package = "pkg/proto/pbgo";  // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 // Backend definitions
 
@@ -53,6 +53,7 @@ message LatestConfigsRequest {
   bool has_error = 11;
   string error = 12;
   string trace_agent_env = 13;
+  string org_uuid = 14;
 }
 
 message LatestConfigsResponse {
@@ -63,6 +64,11 @@ message LatestConfigsResponse {
 
 message OrgDataResponse {
   string uuid = 1;
+}
+
+message OrgStatusResponse {
+  bool enabled = 1;
+  bool authorized = 2;
 }
 
 // Client definitions
@@ -85,6 +91,7 @@ message ClientTracer {
   string language = 2;
   string tracer_version = 3;
   string service = 4;
+  repeated string extra_services = 8;
   string env = 5;
   string app_version = 6;
   repeated string tags = 7;
@@ -93,6 +100,9 @@ message ClientTracer {
 message ClientAgent {
   string name = 1;
   string version = 2;
+  string cluster_name = 3;
+  string cluster_id = 4;
+  repeated string cws_workloads = 5;
 }
 
 message ConfigState {
@@ -149,6 +159,7 @@ message GetStateConfigResponse {
   map<string, FileMetaState> config_state = 1;
   map<string, FileMetaState> director_state = 2;
   map<string, string> target_filenames = 3;
+  repeated Client active_clients = 4;
 }
 
 

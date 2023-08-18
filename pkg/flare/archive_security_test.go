@@ -4,29 +4,34 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package flare
 
 import (
-	"archive/zip"
-	"os"
-	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	// Required to initialize the "dogstatsd" expvar
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
-	assert := assert.New(t)
-
-	common.SetupConfig("./test")
+	common.SetupConfigWithWarnings("./test", "")
 	mockConfig := config.Mock(t)
 	mockConfig.Set("compliance_config.dir", "./test/compliance.d")
 	logFilePath := "./test/logs/agent.log"
+
+	// Mock getLinuxKernelSymbols. It can take a long time to scrub when creating a flare.
+	defer func(f func(flarehelpers.FlareBuilder) error) {
+		linuxKernelSymbols = f
+	}(getLinuxKernelSymbols)
+	linuxKernelSymbols = func(fb flarehelpers.FlareBuilder) error {
+		fb.AddFile("kallsyms", []byte("some kernel symbol"))
+		return nil
+	}
 
 	tests := []struct {
 		name          string
@@ -54,23 +59,11 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			zipFilePath, err := CreateSecurityAgentArchive(test.local, logFilePath, nil, nil)
-			defer os.Remove(zipFilePath)
+			mock := flarehelpers.NewFlareBuilderMock(t, test.local)
+			createSecurityAgentArchive(mock.Fb, logFilePath, nil, nil)
 
-			assert.NoError(err)
-
-			// asserts that it as indeed created a permissions.log file
-			z, err := zip.OpenReader(zipFilePath)
-			assert.NoError(err, "opening the zip shouldn't pop an error")
-
-			var fileNames []string
-			for _, f := range z.File {
-				fileNames = append(fileNames, f.Name)
-			}
-
-			dir := fileNames[0]
 			for _, f := range test.expectedFiles {
-				assert.Contains(fileNames, filepath.Join(dir, f))
+				mock.AssertFileExists(f)
 			}
 		})
 	}

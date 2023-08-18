@@ -14,11 +14,26 @@ class GoModule:
     If True, a check will run to ensure this is true.
     """
 
-    def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, independent=False):
+    def __init__(
+        self,
+        path,
+        targets=None,
+        condition=lambda: True,
+        should_tag=True,
+        importable=True,
+        independent=False,
+        lint_targets=None,
+    ):
         self.path = path
         self.targets = targets if targets else ["."]
+        self.lint_targets = lint_targets if lint_targets else self.targets
         self.condition = condition
         self.should_tag = should_tag
+        # HACK: Workaround for modules that can be tested, but not imported (eg. gohai), because
+        # they define a main package
+        # A better solution would be to automatically detect if a module contains a main package,
+        # at the cost of spending some time parsing the module.
+        self.importable = importable
         self.independent = independent
 
         self._dependencies = None
@@ -117,7 +132,7 @@ class GoModule:
 DEFAULT_MODULES = {
     ".": GoModule(
         ".",
-        targets=["./pkg", "./cmd"],
+        targets=["./pkg", "./cmd", "./comp"],
     ),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
@@ -125,14 +140,23 @@ DEFAULT_MODULES = {
     "test/e2e/containers/otlp_sender": GoModule(
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
-    "pkg/quantile": GoModule("pkg/quantile", independent=True),
+    "test/new-e2e": GoModule(
+        "test/new-e2e",
+        independent=True,
+        should_tag=False,
+        targets=["./runner", "./utils/e2e/client"],
+        lint_targets=["."],
+    ),
+    "test/fakeintake": GoModule("test/fakeintake", independent=True),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
+    "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
+    "pkg/proto": GoModule("pkg/proto", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True),
-    "pkg/otlp/model": GoModule("pkg/otlp/model", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
+    "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
 }
 
@@ -157,7 +181,7 @@ def generate_dummy_package(ctx, folder):
     try:
         import_paths = []
         for mod in DEFAULT_MODULES.values():
-            if mod.path != "." and mod.condition():
+            if mod.path != "." and mod.condition() and mod.importable:
                 import_paths.append(mod.import_path)
 
         os.mkdir(folder)

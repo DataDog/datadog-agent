@@ -25,12 +25,17 @@ type measuredListener struct {
 	timedout *atomic.Uint32 // timedout connection count
 	errored  *atomic.Uint32 // errored connection count
 	exit     chan struct{}  // exit signal channel (on Close call)
+	sem      chan struct{}  // Used to limit active connections
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
 // datadog.trace_agent.receiver.<name>. Additionally, a "status" tag will be added with
 // potential values "accepted", "timedout" or "errored".
-func NewMeasuredListener(ln net.Listener, name string) net.Listener {
+func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener {
+	if maxConn == 0 {
+		maxConn = 1
+	}
+	log.Infof("Listener started with %d maximum connections.", maxConn)
 	ml := &measuredListener{
 		Listener: ln,
 		name:     "datadog.trace_agent.receiver." + name,
@@ -38,6 +43,7 @@ func NewMeasuredListener(ln net.Listener, name string) net.Listener {
 		timedout: atomic.NewUint32(0),
 		errored:  atomic.NewUint32(0),
 		exit:     make(chan struct{}),
+		sem:      make(chan struct{}, maxConn),
 	}
 	go ml.run()
 	return ml
@@ -69,10 +75,27 @@ func (ln *measuredListener) flushMetrics() {
 	}
 }
 
+type onCloseConn struct {
+	net.Conn
+	onClose func()
+}
+
+func (c *onCloseConn) Close() error {
+	err := c.Conn.Close()
+	c.onClose()
+	return err
+}
+
+func OnCloseConn(c net.Conn, onclose func()) net.Conn {
+	return &onCloseConn{c, onclose}
+}
+
 // Accept implements net.Listener and keeps counts on connection statuses.
 func (ln *measuredListener) Accept() (net.Conn, error) {
+	ln.sem <- struct{}{}
 	conn, err := ln.Listener.Accept()
 	if err != nil {
+		log.Debugf("Error connection named %q: %s", ln.name, err)
 		if ne, ok := err.(net.Error); ok && ne.Timeout() && !ne.Temporary() {
 			ln.timedout.Inc()
 		} else {
@@ -80,8 +103,11 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 		}
 	} else {
 		ln.accepted.Inc()
+		log.Tracef("Accepted connection named %q.", ln.name)
 	}
-	log.Tracef("Accepted connection named %q.", ln.name)
+	conn = OnCloseConn(conn, func() {
+		<-ln.sem
+	})
 	return conn, err
 }
 

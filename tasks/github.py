@@ -1,8 +1,13 @@
 import os
 
-from invoke import task
+from invoke import Exit, task
 
-from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
+from .libs.github_actions_tools import (
+    download_artifacts_with_retry,
+    follow_workflow_run,
+    print_workflow_conclusion,
+    trigger_macos_workflow,
+)
 from .utils import DEFAULT_BRANCH, load_release_versions
 
 
@@ -14,8 +19,10 @@ def trigger_macos_build(
     major_version="7",
     python_runtimes="3",
     destination=".",
+    version_cache=None,
+    retry_download=3,
+    retry_interval=10,
 ):
-
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
@@ -30,11 +37,17 @@ def trigger_macos_build(
         # can be constructed properly for nightlies.
         gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
         bucket_branch=os.environ.get("BUCKET_BRANCH", None),
+        version_cache_file_content=version_cache,
     )
 
-    follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run_id)
 
-    download_artifacts(run_id, destination)
+    print_workflow_conclusion(workflow_conclusion)
+
+    download_artifacts_with_retry(run_id, destination, retry_download, retry_interval)
+
+    if workflow_conclusion != "success":
+        raise Exit(code=1)
 
 
 @task
@@ -44,8 +57,10 @@ def trigger_macos_test(
     release_version="nightly-a7",
     python_runtimes="3",
     destination=".",
+    version_cache=None,
+    retry_download=3,
+    retry_interval=10,
 ):
-
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
@@ -54,8 +69,59 @@ def trigger_macos_test(
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
+        version_cache_file_content=version_cache,
     )
 
-    follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run_id)
 
-    download_artifacts(run_id, destination)
+    print_workflow_conclusion(workflow_conclusion)
+
+    download_artifacts_with_retry(run_id, destination, retry_download, retry_interval)
+
+    if workflow_conclusion != "success":
+        raise Exit(code=1)
+
+
+@task
+def lint_codeowner(_):
+    """
+    Check every package in `pkg` has an owner
+    """
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    root_folder = os.path.join(base, "..")
+    os.chdir(root_folder)
+
+    owners = get_code_owners(root_folder)
+
+    # make sure each root package has an owner
+    pkgs_without_owner = find_packages_without_owner(owners, "pkg")
+    if len(pkgs_without_owner) > 0:
+        raise Exit(
+            f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
+            code=1,
+        )
+
+
+def find_packages_without_owner(owners, folder):
+    pkg_without_owners = []
+    for x in os.listdir(folder):
+        path = os.path.join("/" + folder, x)
+        if path not in owners:
+            pkg_without_owners.append(path)
+    return pkg_without_owners
+
+
+def get_code_owners(root_folder):
+    code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
+    owners = {}
+    with open(code_owner_path) as f:
+        for line in f:
+            line = line.strip()
+            line = line.split("#")[0]  # remove comment
+            if len(line) > 0:
+                parts = line.split()
+                path = os.path.normpath(parts[0])
+                # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
+                owners[path] = parts[1:]
+    return owners

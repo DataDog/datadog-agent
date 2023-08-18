@@ -10,11 +10,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,8 +26,18 @@ const (
 	serviceCheckStatusKey = "datadog.agent.check_status"
 
 	// Variables for the utilization expvars
-	windowSize      = 5 * time.Minute
 	pollingInterval = 15 * time.Second
+)
+
+// The worker utilization is also reported via expvars, but it emits one metric
+// for each worker, which is a bit inconvenient to use because the number of
+// workers might be different on every Agent. With telemetry, we can use a
+// single metric and put the worker name in a tag.
+var workerUtilization = telemetry.NewGauge(
+	"collector",
+	"worker_utilization",
+	[]string{"worker_name"},
+	"Worker utilization. It's a value between 0 and 1 that represents the share of time that the check runner worker is running checks",
 )
 
 // Worker is an object that encapsulates the logic to manage a loop of processing
@@ -34,20 +47,21 @@ type Worker struct {
 	Name string
 
 	checksTracker           *tracker.RunningChecksTracker
-	getDefaultSenderFunc    func() (aggregator.Sender, error)
+	getDefaultSenderFunc    func() (sender.Sender, error)
 	pendingChecksChan       chan check.Check
 	runnerID                int
-	shouldAddCheckStatsFunc func(id check.ID) bool
-	utilizationTracker      UtilizationTracker
+	shouldAddCheckStatsFunc func(id checkid.ID) bool
+	utilizationTickInterval time.Duration
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
+	senderManager sender.SenderManager,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
-	shouldAddCheckStatsFunc func(id check.ID) bool,
+	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
@@ -68,8 +82,7 @@ func NewWorker(
 		pendingChecksChan,
 		checksTracker,
 		shouldAddCheckStatsFunc,
-		aggregator.GetDefaultSender,
-		windowSize,
+		senderManager.GetDefaultSender,
 		pollingInterval,
 	)
 }
@@ -82,10 +95,9 @@ func newWorkerWithOptions(
 	ID int,
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
-	shouldAddCheckStatsFunc func(id check.ID) bool,
-	getDefaultSenderFunc func() (aggregator.Sender, error),
-	windowSize time.Duration,
-	pollingInterval time.Duration,
+	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	getDefaultSenderFunc func() (sender.Sender, error),
+	utilizationTickInterval time.Duration,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
@@ -93,10 +105,6 @@ func newWorkerWithOptions(
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
-	utilizationTracker, err := NewUtilizationTracker(workerName, windowSize, pollingInterval)
-	if err != nil {
-		return nil, err
-	}
 
 	return &Worker{
 		ID:                      ID,
@@ -106,7 +114,7 @@ func newWorkerWithOptions(
 		runnerID:                runnerID,
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
-		utilizationTracker:      utilizationTracker,
+		utilizationTickInterval: utilizationTickInterval,
 	}, nil
 }
 
@@ -114,14 +122,12 @@ func newWorkerWithOptions(
 func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
-	if err := w.utilizationTracker.Start(); err != nil {
-		log.Warnf("Runner %d, worker %d: %s", w.runnerID, w.ID, err)
-	}
-	defer func() {
-		if err := w.utilizationTracker.Stop(); err != nil {
-			log.Warnf("Runner %d, worker %d: %s", w.runnerID, w.ID, err)
-		}
-	}()
+	utilizationTracker := NewUtilizationTracker(w.Name, w.utilizationTickInterval)
+	defer utilizationTracker.Stop()
+
+	startUtilizationUpdater(w.Name, utilizationTracker)
+	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
+	defer cancel()
 
 	for check := range w.pendingChecksChan {
 		checkLogger := CheckLogger{Check: check}
@@ -140,13 +146,13 @@ func (w *Worker) Run() {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		w.utilizationTracker.CheckStarted(longRunning)
+		utilizationTracker.CheckStarted()
 
 		// Run the check
 		var checkErr error
 		checkErr = check.Run()
 
-		w.utilizationTracker.CheckFinished()
+		utilizationTracker.CheckFinished()
 
 		expvars.DeleteRunningStats(check.ID())
 
@@ -157,24 +163,29 @@ func (w *Worker) Run() {
 		if err != nil {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
-		serviceCheckStatus := metrics.ServiceCheckOK
+		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
+		serviceCheckStatus := servicecheck.ServiceCheckOK
 
 		hname, _ := hostname.Get(context.TODO())
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
-			serviceCheckStatus = metrics.ServiceCheckWarning
+			serviceCheckStatus = servicecheck.ServiceCheckWarning
 		}
 
 		if checkErr != nil {
 			checkLogger.Error(checkErr)
 			expvars.AddErrorsCount(1)
-			serviceCheckStatus = metrics.ServiceCheckCritical
+			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
 
 		if sender != nil && !longRunning {
-			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			if config.Datadog.GetBool("integration_check_status_enabled") {
+				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			}
+			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+			// it here for now to make sure it's not breaking any historical behavior
+			// with the shared default sender.
 			sender.Commit()
 		}
 
@@ -198,4 +209,46 @@ func (w *Worker) Run() {
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
+}
+
+func startUtilizationUpdater(name string, ut *UtilizationTracker) {
+	expvars.SetWorkerStats(name, &expvars.WorkerStats{
+		Utilization: 0.0,
+	})
+
+	workerUtilization.Set(0, name)
+
+	go func() {
+		for value := range ut.Output {
+			expvars.SetWorkerStats(name, &expvars.WorkerStats{
+				Utilization: value,
+			})
+
+			workerUtilization.Set(value, name)
+		}
+		expvars.DeleteWorkerStats(name)
+	}()
+}
+
+func startTrackerTicker(ut *UtilizationTracker, interval time.Duration) func() {
+	ticker := time.NewTicker(interval)
+	cancel := make(chan struct{}, 1)
+	done := make(chan struct{})
+	go func() {
+		defer ticker.Stop()
+		defer close(done)
+		for {
+			select {
+			case <-ticker.C:
+				ut.Tick()
+			case <-cancel:
+				return
+			}
+		}
+	}()
+
+	return func() {
+		cancel <- struct{}{}
+		<-done // make sure Tick will not be called after we return.
+	}
 }

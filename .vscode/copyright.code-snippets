@@ -1,0 +1,14 @@
+
+{
+	"Copyright header": {
+		"scope": "go",
+		"prefix": ["copy","copyheader"],
+		"body": [
+			"$LINE_COMMENT Unless explicitly stated otherwise all files in this repository are licensed",
+      "$LINE_COMMENT under the Apache License Version 2.0.",
+      "$LINE_COMMENT This product includes software developed at Datadog (https://www.datadoghq.com/).",
+      "$LINE_COMMENT Copyright 2016-present Datadog, Inc.",
+		],
+		"description": "Add Datadog copyright header. Place your cursor at the beginning of your `.go` file",
+	}
+}

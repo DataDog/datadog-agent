@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds detection for a process being executed directly from memory without the binary present on disk.

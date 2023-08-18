@@ -28,7 +28,7 @@ func TestConfigCommand(t *testing.T) {
 		showRuntimeConfiguration,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }
 
@@ -45,7 +45,7 @@ func TestConfigListRuntimeCommand(t *testing.T) {
 		listRuntimeConfigurableValue,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }
 
@@ -62,7 +62,7 @@ func TestConfigSetCommand(t *testing.T) {
 		setConfigValue,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo", "bar"}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }
 
@@ -79,6 +79,6 @@ func TestConfigGetCommand(t *testing.T) {
 		getConfigValue,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }

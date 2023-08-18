@@ -1,0 +1,6 @@
+---
+# setup stage
+# Contains job that needs to be done at the start of the CI
+
+include:
+  - /.gitlab/setup/setup.yml

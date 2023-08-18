@@ -402,7 +402,7 @@ UINT doFinalizeInstall(CustomActionData &data)
             WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink");
         }
     }
-
+    
     // write out the username & domain we used.  Even write it out if we didn't create it,
     // it's needed on xDCs where we may not have created the user -and- is necessary on upgrade
     // from previous install that didn't write this key

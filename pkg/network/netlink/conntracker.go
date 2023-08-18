@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package netlink
 
@@ -17,27 +16,35 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
-	"go.uber.org/atomic"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
+
+	"github.com/cihub/seelog"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	compactInterval      = time.Minute
 	defaultOrphanTimeout = 2 * time.Minute
+	telemetryModuleName  = "network_tracer__conntracker"
 )
+
+var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
+	// Describe returns all descriptions of the collector
+	Describe(descs chan<- *prometheus.Desc)
+	// Collect returns the current state of all metrics of the collector
+	Collect(metrics chan<- prometheus.Metric)
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
 	DeleteTranslation(network.ConnectionStats)
-	IsSampling() bool
-	GetStats() map[string]int64
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
 }
@@ -60,17 +67,6 @@ type orphanEntry struct {
 	expires time.Time
 }
 
-type stats struct {
-	gets                 *atomic.Int64
-	getTimeTotal         *atomic.Int64
-	registers            *atomic.Int64
-	registersDropped     *atomic.Int64
-	registersTotalTime   *atomic.Int64
-	unregisters          *atomic.Int64
-	unregistersTotalTime *atomic.Int64
-	evicts               *atomic.Int64
-}
-
 type realConntracker struct {
 	sync.RWMutex
 	consumer *Consumer
@@ -81,7 +77,31 @@ type realConntracker struct {
 	maxStateSize int
 
 	compactTicker *time.Ticker
-	stats         stats
+	exit          chan struct{}
+}
+
+var conntrackerTelemetry = struct {
+	getsDuration        telemetry.Histogram
+	registersDuration   telemetry.Histogram
+	unregistersDuration telemetry.Histogram
+	getsTotal           telemetry.Counter
+	registersTotal      telemetry.Counter
+	unregistersTotal    telemetry.Counter
+	evictsTotal         telemetry.Counter
+	registersDropped    telemetry.Counter
+	stateSize           *prometheus.Desc
+	orphanSize          *prometheus.Desc
+}{
+	telemetry.NewHistogram(telemetryModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples in the map", defaultBuckets),
+	telemetry.NewHistogram(telemetryModuleName, "registers_duration_nanoseconds", []string{}, "Histogram measuring the time spent updating/creating connection tuples in the map", defaultBuckets),
+	telemetry.NewHistogram(telemetryModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent removing connection tuples from the map", defaultBuckets),
+	telemetry.NewCounter(telemetryModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the map"),
+	telemetry.NewCounter(telemetryModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the map"),
+	telemetry.NewCounter(telemetryModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the map"),
+	telemetry.NewCounter(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
+	telemetry.NewCounter(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
+	prometheus.NewDesc(telemetryModuleName+"__state_size", "Gauge measuring the current size of the conntrack cache", nil, nil),
+	prometheus.NewDesc(telemetryModuleName+"__orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -106,19 +126,6 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	}
 }
 
-func newStats() stats {
-	return stats{
-		gets:                 atomic.NewInt64(0),
-		getTimeTotal:         atomic.NewInt64(0),
-		registers:            atomic.NewInt64(0),
-		registersDropped:     atomic.NewInt64(0),
-		registersTotalTime:   atomic.NewInt64(0),
-		unregisters:          atomic.NewInt64(0),
-		unregistersTotalTime: atomic.NewInt64(0),
-		evicts:               atomic.NewInt64(0),
-	}
-}
-
 func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 	consumer, err := NewConsumer(cfg)
 	if err != nil {
@@ -130,8 +137,8 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 		cache:         newConntrackCache(cfg.ConntrackMaxStateSize, defaultOrphanTimeout),
 		maxStateSize:  cfg.ConntrackMaxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
+		exit:          make(chan struct{}),
 		decoder:       NewDecoder(),
-		stats:         newStats(),
 	}
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
@@ -151,10 +158,10 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 }
 
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
-	then := time.Now().UnixNano()
+	then := time.Now()
 	defer func() {
-		ctr.stats.gets.Inc()
-		ctr.stats.getTimeTotal.Add(time.Now().UnixNano() - then)
+		conntrackerTelemetry.getsDuration.Observe(float64(time.Since(then).Nanoseconds()))
+		conntrackerTelemetry.getsTotal.Inc()
 	}()
 
 	ctr.Lock()
@@ -174,53 +181,20 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	return t.IPTranslation
 }
 
-func (ctr *realConntracker) GetStats() map[string]int64 {
-	// only a few stats are locked
-	ctr.RLock()
-	size := ctr.cache.cache.Len()
-	orphanSize := ctr.cache.orphans.Len()
-	ctr.RUnlock()
+// Describe returns all descriptions of the collector
+func (ctr *realConntracker) Describe(ch chan<- *prometheus.Desc) {
+	ch <- conntrackerTelemetry.stateSize
+	ch <- conntrackerTelemetry.orphanSize
+}
 
-	m := map[string]int64{
-		"state_size":  int64(size),
-		"orphan_size": int64(orphanSize),
-	}
-
-	gets := ctr.stats.gets.Load()
-	getTimeTotal := ctr.stats.getTimeTotal.Load()
-	m["gets_total"] = gets
-	if gets != 0 {
-		m["nanoseconds_per_get"] = getTimeTotal / gets
-	}
-
-	registers := ctr.stats.registers.Load()
-	m["registers_total"] = registers
-	registersTotalTime := ctr.stats.registersTotalTime.Load()
-	if registers != 0 {
-		m["nanoseconds_per_register"] = registersTotalTime / registers
-	}
-
-	unregisters := ctr.stats.unregisters.Load()
-	unregisterTotalTime := ctr.stats.unregistersTotalTime.Load()
-	m["unregisters_total"] = unregisters
-	if unregisters != 0 {
-		m["nanoseconds_per_unregister"] = unregisterTotalTime / unregisters
-	}
-	m["evicts_total"] = ctr.stats.evicts.Load()
-
-	// Merge telemetry from the consumer
-	for k, v := range ctr.consumer.GetStats() {
-		m[k] = v
-	}
-
-	return m
+// Collect returns the current state of all metrics of the collector
+func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.stateSize, prometheus.CounterValue, float64(ctr.cache.cache.Len()))
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
 }
 
 func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
-	then := time.Now().UnixNano()
-	defer func() {
-		ctr.stats.unregistersTotalTime.Add(time.Now().UnixNano() - then)
-	}()
+	then := time.Now()
 
 	ctr.Lock()
 	defer ctr.Unlock()
@@ -232,18 +206,16 @@ func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	}
 
 	if ctr.cache.Remove(k) {
-		ctr.stats.unregisters.Inc()
+		conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(then).Nanoseconds()))
+		conntrackerTelemetry.unregistersTotal.Inc()
 	}
-}
-
-func (ctr *realConntracker) IsSampling() bool {
-	return ctr.consumer.GetStats()[samplingPct] < 100
 }
 
 func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
 	ctr.cache.Purge()
+	close(ctr.exit)
 }
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
@@ -253,10 +225,13 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 			if !IsNAT(c) {
 				continue
 			}
+			then := time.Now()
 
 			evicts := ctr.cache.Add(c, false)
-			ctr.stats.registers.Inc()
-			ctr.stats.evicts.Add(int64(evicts))
+
+			conntrackerTelemetry.registersTotal.Inc()
+			conntrackerTelemetry.registersDuration.Observe(float64(time.Since(then).Nanoseconds()))
+			conntrackerTelemetry.evictsTotal.Add(float64(evicts))
 		}
 	}
 }
@@ -266,20 +241,19 @@ func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
 	if !IsNAT(c) {
-		ctr.stats.registersDropped.Inc()
+		conntrackerTelemetry.registersDropped.Inc()
 		return 0
 	}
-
-	then := time.Now().UnixNano()
+	then := time.Now()
 
 	ctr.Lock()
 	defer ctr.Unlock()
 
 	evicts := ctr.cache.Add(c, true)
 
-	ctr.stats.registers.Inc()
-	ctr.stats.evicts.Add(int64(evicts))
-	ctr.stats.registersTotalTime.Add(time.Now().UnixNano() - then)
+	conntrackerTelemetry.registersTotal.Inc()
+	conntrackerTelemetry.registersDuration.Observe(float64(time.Since(then).Nanoseconds()))
+	conntrackerTelemetry.evictsTotal.Add(float64(evicts))
 
 	return 0
 }
@@ -317,7 +291,7 @@ func (ctr *realConntracker) run() error {
 func (ctr *realConntracker) compact() {
 	var removed int64
 	defer func() {
-		ctr.stats.unregisters.Add(removed)
+		conntrackerTelemetry.unregistersTotal.Add(float64(removed))
 		log.Debugf("removed %d orphans", removed)
 	}()
 
@@ -328,7 +302,7 @@ func (ctr *realConntracker) compact() {
 }
 
 type conntrackCache struct {
-	cache         *simplelru.LRU
+	cache         *simplelru.LRU[connKey, *translationEntry]
 	orphans       *list.List
 	orphanTimeout time.Duration
 }
@@ -339,8 +313,7 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 		orphanTimeout: orphanTimeout,
 	}
 
-	c.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
-		t := value.(*translationEntry)
+	c.cache, _ = simplelru.NewLRU(maxSize, func(_ connKey, t *translationEntry) {
 		if t.orphan != nil {
 			c.orphans.Remove(t.orphan)
 		}
@@ -350,12 +323,11 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 }
 
 func (cc *conntrackCache) Get(k connKey) (*translationEntry, bool) {
-	v, ok := cc.cache.Get(k)
+	t, ok := cc.cache.Get(k)
 	if !ok {
 		return nil, false
 	}
 
-	t := v.(*translationEntry)
 	if t.orphan != nil {
 		cc.orphans.Remove(t.orphan)
 		t.orphan = nil
@@ -380,11 +352,10 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 			return
 		}
 
-		if v, ok := cc.cache.Peek(key); ok {
+		if t, ok := cc.cache.Peek(key); ok {
 			// value is going to get replaced
 			// by the call to Add below, make
 			// sure orphan is removed
-			t := v.(*translationEntry)
 			if t.orphan != nil {
 				cc.orphans.Remove(t.orphan)
 			}
@@ -405,7 +376,9 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		}
 	}
 
-	log.Tracef("%s", c)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("%s", c)
+	}
 
 	registerTuple(&c.Origin, &c.Reply)
 	registerTuple(&c.Reply, &c.Origin)
@@ -425,7 +398,9 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 		cc.cache.Remove(o.key)
 		removed++
-		log.Tracef("removed orphan %+v", o.key)
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("removed orphan %+v", o.key)
+		}
 	}
 
 	return removed

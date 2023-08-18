@@ -84,8 +84,6 @@ func NewZkTestSuite(zkVersion, containerName string) *ZkTestSuite {
 func (suite *ZkTestSuite) SetupSuite() {
 	var err error
 
-	config.DetectFeatures()
-
 	suite.compose = &utils.ComposeConf{
 		ProjectName: "zk",
 		FilePath:    "testdata/zk.compose",
@@ -148,13 +146,13 @@ func (suite *ZkTestSuite) TestCollect() {
 	require.Len(suite.T(), templates[0].Instances, 1)
 	require.Equal(suite.T(), "{\"key\":2}", string(templates[0].Instances[0]))
 
-	// FIXME: require.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
+	// FIXME: require.Equal(suite.T(), checkid.ID("/datadog/check_configs/nginx"), templates[1].ID)
 	require.Equal(suite.T(), "nginx_b", templates[1].Name)
 	require.Equal(suite.T(), "{\"key\":3}", string(templates[1].InitConfig))
 	require.Len(suite.T(), templates[1].Instances, 1)
 	require.Equal(suite.T(), "{}", string(templates[1].Instances[0]))
 
-	// FIXME: require.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
+	// FIXME: require.Equal(suite.T(), checkid.ID("/datadog/check_configs/redis"), templates[2].ID)
 	require.Equal(suite.T(), "redis_a", templates[2].Name)
 	require.Equal(suite.T(), "{}", string(templates[2].InitConfig))
 	require.Len(suite.T(), templates[2].Instances, 1)

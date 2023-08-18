@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package etw
 
@@ -27,13 +26,9 @@ import (
 */
 import "C"
 
-// From GetUnixTimestamp() datadog-windows-filter\ddfilter\http\http_callbacks.c
-// difference between windows and unix epochs in 100ns intervals
-// 11644473600s * 1000ms/s * 1000us/ms * 10 intervals/us
-const EPOCH_DIFFERENCE_SECS uint64 = 116444736000000000
-
 // Copied from github.com\DataDog\datadog-agent\pkg\network\http\http_stats.go
 // Note: cannot refer to it due to package circularity
+//
 //nolint:deadcode
 const (
 	methodUnknown uint32 = iota
@@ -48,6 +43,7 @@ const (
 )
 
 // From HTTP_VERB enumeration (http.h)
+//
 //nolint:deadcode
 const (
 	httpVerbUnparsed uint32 = iota
@@ -201,7 +197,9 @@ func bytesIndexOfDoubleZero(data []byte) int {
 }
 
 // From
-//    datadog-agent\pkg\util\winutil\winstrings.go
+//
+//	datadog-agent\pkg\util\winutil\winstrings.go
+//
 // ConvertWindowsString converts a windows c-string
 // into a go string.  Even though the input is array
 // of uint8, the underlying data is expected to be
@@ -244,15 +242,6 @@ func FormatUInt(num uint64) string {
 	}
 
 	return output
-}
-
-// stampToTime translates FileTime to a golang time. Same as in standard packages.
-// // From GetUnixTimestamp() datadog-windows-filter\ddfilter\http\http_callbacks.c
-// returns timestamp in ns since unix epoch
-
-// FilteTimeToUnixTime converts a windows Filetime to unix time
-func FileTimeToUnixTime(ft uint64) uint64 {
-	return (ft - EPOCH_DIFFERENCE_SECS) * 100
 }
 
 // FormatUnixTime takes a unix timestamp and returns a human readable string
@@ -315,17 +304,17 @@ func ip6format(ip [16]uint8) string {
 	return ipObj.String()
 }
 
-func ipAndPortFromTup(tup driver.ConnTupleType, srv bool) ([16]uint8, uint16) {
-	if srv {
-		return tup.SrvAddr, tup.SrvPort
+func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {
+	if local {
+		return tup.LocalAddr, tup.LocalPort
 	} else {
-		return tup.CliAddr, tup.CliPort
+		return tup.RemoteAddr, tup.RemotePort
 	}
 }
 
 // IpFormat takes a binary ip representation and returns a string type
-func IpFormat(tup driver.ConnTupleType, srv bool) string {
-	ip, port := ipAndPortFromTup(tup, srv)
+func IpFormat(tup driver.ConnTupleType, local bool) string {
+	ip, port := ipAndPortFromTup(tup, local)
 
 	if tup.Family == 2 {
 		// IPv4

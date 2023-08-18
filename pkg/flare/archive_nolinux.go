@@ -4,30 +4,35 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package flare
 
-func zipLinuxKernelSymbols(tempDir, hostname string) error {
+import (
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+)
+
+func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {}
+
+func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
 
-func zipLinuxKprobeEvents(tempDir, hostname string) error {
+func getLinuxKprobeEvents(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
 
-func zipLinuxDmesg(tempDir, hostname string) error {
+func getLinuxDmesg(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
 
-func zipLinuxPid1MountInfo(tempDir, hostname string) error {
+func getLinuxPid1MountInfo(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
 
-func zipLinuxTracingAvailableEvents(tempDir, hostname string) error {
+func getLinuxTracingAvailableEvents(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
 
-func zipLinuxTracingAvailableFilterFunctions(tempDir, hostname string) error {
+func getLinuxTracingAvailableFilterFunctions(fb flarehelpers.FlareBuilder) error {
 	return nil
 }

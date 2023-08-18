@@ -64,14 +64,8 @@ type ident struct {
 	Ident *string
 }
 
-// ReplacementContext represents the group of Options and Macro Store used during SECL evaluation
-type ReplacementContext struct {
-	*Opts
-	*MacroStore
-}
-
-func identToEvaluator(obj *ident, state *State) (interface{}, lexer.Position, error) {
-	if accessor, ok := state.replCtx.Opts.Constants[*obj.Ident]; ok {
+func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+	if accessor, ok := opts.Constants[*obj.Ident]; ok {
 		return accessor, obj.Pos, nil
 	}
 
@@ -87,11 +81,11 @@ func identToEvaluator(obj *ident, state *State) (interface{}, lexer.Position, er
 	}
 
 	// transform extracted field to support legacy SECL fields
-	if state.replCtx.Opts.LegacyFields != nil {
-		if newField, ok := state.replCtx.Opts.LegacyFields[field]; ok {
+	if opts.LegacyFields != nil {
+		if newField, ok := opts.LegacyFields[field]; ok {
 			field = newField
 		}
-		if newField, ok := state.replCtx.Opts.LegacyFields[field]; ok {
+		if newField, ok := opts.LegacyFields[field]; ok {
 			itField = newField
 		}
 	}
@@ -127,7 +121,7 @@ func identToEvaluator(obj *ident, state *State) (interface{}, lexer.Position, er
 
 		// regID not specified or `_` generate one
 		if regID == "" || regID == "_" {
-			regID = RandString(8)
+			regID = state.newAnonymousRegID()
 		}
 
 		if info, exists := state.registersInfo[regID]; exists {
@@ -158,7 +152,7 @@ func identToEvaluator(obj *ident, state *State) (interface{}, lexer.Position, er
 	return accessor, obj.Pos, nil
 }
 
-func arrayToEvaluator(array *ast.Array, state *State) (interface{}, lexer.Position, error) {
+func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	if len(array.Numbers) != 0 {
 		var evaluator IntArrayEvaluator
 		evaluator.AppendValues(array.Numbers...)
@@ -175,13 +169,13 @@ func arrayToEvaluator(array *ast.Array, state *State) (interface{}, lexer.Positi
 		}
 
 		// could be an iterator
-		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, state)
+		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, opts, state)
 	} else if array.Variable != nil {
 		varName, ok := isVariableName(*array.Variable)
 		if !ok {
 			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
 		}
-		return evaluatorFromVariable(varName, array.Pos, state.replCtx)
+		return evaluatorFromVariable(varName, array.Pos, opts)
 	} else if array.CIDR != nil {
 		var values CIDRValues
 		if err := values.AppendCIDR(*array.CIDR); err != nil {
@@ -224,26 +218,25 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
-func evaluatorFromVariable(varname string, pos lexer.Position, replCtx ReplacementContext) (interface{}, lexer.Position, error) {
-	value, exists := replCtx.Opts.Variables[varname]
-	if !exists {
+func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	variable := opts.VariableStore.Get(varname)
+	if variable == nil {
 		return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 	}
 
-	return value.GetEvaluator(), pos, nil
+	return variable.GetEvaluator(), pos, nil
 }
 
-func stringEvaluatorFromVariable(str string, pos lexer.Position, replCtx ReplacementContext) (interface{}, lexer.Position, error) {
+func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
 	doLoc := func(sub string) error {
 		if varname, ok := isVariableName(sub); ok {
-			value, exists := replCtx.Opts.Variables[varname]
-			if !exists {
-				return NewError(pos, "variable '%s' doesn't exist", varname)
+			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts)
+			if err != nil {
+				return err
 			}
 
-			evaluator := value.GetEvaluator()
 			switch evaluator := evaluator.(type) {
 			case *StringArrayEvaluator:
 				evaluators = append(evaluators, &StringEvaluator{
@@ -386,7 +379,7 @@ func StringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator
 	return evaluator, nil
 }
 
-func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position, error) {
+func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	var err error
 	var boolEvaluator *BoolEvaluator
 	var pos lexer.Position
@@ -394,9 +387,9 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 
 	switch obj := obj.(type) {
 	case *ast.BooleanExpression:
-		return nodeToEvaluator(obj.Expression, state)
+		return nodeToEvaluator(obj.Expression, opts, state)
 	case *ast.Expression:
-		cmp, pos, err = nodeToEvaluator(obj.Comparison, state)
+		cmp, pos, err = nodeToEvaluator(obj.Comparison, opts, state)
 		if err != nil {
 			return nil, pos, err
 		}
@@ -407,7 +400,7 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Bool)
 			}
 
-			next, pos, err = nodeToEvaluator(obj.Next, state)
+			next, pos, err = nodeToEvaluator(obj.Next, opts, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -435,7 +428,7 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 		}
 		return cmp, obj.Pos, nil
 	case *ast.BitOperation:
-		unary, pos, err = nodeToEvaluator(obj.Unary, state)
+		unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
 		if err != nil {
 			return nil, pos, err
 		}
@@ -446,7 +439,7 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
 			}
 
-			next, pos, err = nodeToEvaluator(obj.Next, state)
+			next, pos, err = nodeToEvaluator(obj.Next, opts, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -480,14 +473,64 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 		}
 		return unary, obj.Pos, nil
 
+	case *ast.ArithmeticOperation:
+		// Process the first operand
+		first, pos, err := nodeToEvaluator(obj.First, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+
+		// If it's just one element (is a bitoperation: maybe a string, an int ....)
+		if len(obj.Rest) == 0 {
+			return first, obj.Pos, nil
+		}
+
+		// Else it's an operation, so it must be an int
+		currInt, ok := first.(*IntEvaluator)
+		if !ok {
+			return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
+		}
+
+		// Process the remaining operations and operands
+		for _, arithElem := range obj.Rest {
+			// Handle the operand
+			operand, pos, err := nodeToEvaluator(arithElem.Operand, opts, state)
+			if err != nil {
+				return nil, pos, err
+			}
+			operandInt, ok := operand.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			// Perform the operation on the current and next operands
+			switch arithElem.Op {
+			case "+":
+				currInt, err = IntPlus(currInt, operandInt, state)
+				if err != nil {
+					return nil, pos, err
+				}
+
+			case "-":
+				currInt, err = IntMinus(currInt, operandInt, state)
+				if err != nil {
+					return nil, pos, err
+				}
+			}
+		}
+
+		// Return the final result after processing all operations and operands
+		currInt.isFromArithmeticOperation = true
+		return currInt, obj.Pos, nil
+
 	case *ast.Comparison:
-		unary, pos, err = nodeToEvaluator(obj.BitOperation, state)
+		unary, pos, err = nodeToEvaluator(obj.ArithmeticOperation, opts, state)
 		if err != nil {
 			return nil, pos, err
 		}
 
 		if obj.ArrayComparison != nil {
-			next, pos, err = nodeToEvaluator(obj.ArrayComparison, state)
+			next, pos, err = nodeToEvaluator(obj.ArrayComparison, opts, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -710,7 +753,7 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 				return nil, pos, NewTypeError(pos, reflect.Array)
 			}
 		} else if obj.ScalarComparison != nil {
-			next, pos, err = nodeToEvaluator(obj.ScalarComparison, state)
+			next, pos, err = nodeToEvaluator(obj.ScalarComparison, opts, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -887,31 +930,73 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 				switch nextInt := next.(type) {
 				case *IntEvaluator:
 					if nextInt.isDuration {
-						switch *obj.ScalarComparison.Op {
-						case "<":
-							boolEvaluator, err = DurationLesserThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
+						if unary.isFromArithmeticOperation {
+							switch *obj.ScalarComparison.Op {
+							case "<":
+								boolEvaluator, err = DurationLesserThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "<=":
+								boolEvaluator, err = DurationLesserOrEqualThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">":
+								boolEvaluator, err = DurationGreaterThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">=":
+								boolEvaluator, err = DurationGreaterOrEqualThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "==":
+								boolEvaluator, err = DurationEqualArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
 							}
-							return boolEvaluator, obj.Pos, nil
-						case "<=":
-							boolEvaluator, err = DurationLesserOrEqualThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
+
+						} else {
+							switch *obj.ScalarComparison.Op {
+							case "<":
+								boolEvaluator, err = DurationLesserThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "<=":
+								boolEvaluator, err = DurationLesserOrEqualThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">":
+								boolEvaluator, err = DurationGreaterThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">=":
+								boolEvaluator, err = DurationGreaterOrEqualThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "==":
+								boolEvaluator, err = DurationEqual(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
 							}
-							return boolEvaluator, obj.Pos, nil
-						case ">":
-							boolEvaluator, err = DurationGreaterThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
-							}
-							return boolEvaluator, obj.Pos, nil
-						case ">=":
-							boolEvaluator, err = DurationGreaterOrEqualThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
-							}
-							return boolEvaluator, obj.Pos, nil
 						}
 					} else {
 						switch *obj.ScalarComparison.Op {
@@ -1007,59 +1092,88 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 					return nil, pos, NewTypeError(pos, reflect.Int)
 				}
 
-				switch *obj.ScalarComparison.Op {
-				case "<":
-					boolEvaluator, err = IntArrayGreaterThan(nextInt, unary, state)
-					if err != nil {
-						return nil, obj.Pos, err
+				if nextInt.isDuration {
+					switch *obj.ScalarComparison.Op {
+					case "<":
+						boolEvaluator, err = DurationArrayLesserThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "<=":
+						boolEvaluator, err = DurationArrayLesserOrEqualThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">":
+						boolEvaluator, err = DurationArrayGreaterThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">=":
+						boolEvaluator, err = DurationArrayGreaterOrEqualThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
 					}
-					return boolEvaluator, obj.Pos, nil
-				case "<=":
-					boolEvaluator, err = IntArrayGreaterOrEqualThan(nextInt, unary, state)
-					if err != nil {
-						return nil, obj.Pos, err
+				} else {
+					switch *obj.ScalarComparison.Op {
+					case "<":
+						boolEvaluator, err = IntArrayGreaterThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "<=":
+						boolEvaluator, err = IntArrayGreaterOrEqualThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">":
+						boolEvaluator, err = IntArrayLesserThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case ">=":
+						boolEvaluator, err = IntArrayLesserOrEqualThan(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
+					case "!=":
+						boolEvaluator, err = IntArrayEquals(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return Not(boolEvaluator, state), obj.Pos, nil
+					case "==":
+						boolEvaluator, err = IntArrayEquals(nextInt, unary, state)
+						if err != nil {
+							return nil, obj.Pos, err
+						}
+						return boolEvaluator, obj.Pos, nil
 					}
-					return boolEvaluator, obj.Pos, nil
-				case ">":
-					boolEvaluator, err = IntArrayLesserThan(nextInt, unary, state)
-					if err != nil {
-						return nil, obj.Pos, err
-					}
-					return boolEvaluator, obj.Pos, nil
-				case ">=":
-					boolEvaluator, err = IntArrayLesserOrEqualThan(nextInt, unary, state)
-					if err != nil {
-						return nil, obj.Pos, err
-					}
-					return boolEvaluator, obj.Pos, nil
-				case "!=":
-					boolEvaluator, err = IntArrayEquals(nextInt, unary, state)
-					if err != nil {
-						return nil, obj.Pos, err
-					}
-					return Not(boolEvaluator, state), obj.Pos, nil
-				case "==":
-					boolEvaluator, err = IntArrayEquals(nextInt, unary, state)
-					if err != nil {
-						return nil, obj.Pos, err
-					}
-					return boolEvaluator, obj.Pos, nil
+					return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 				}
-				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			}
 		} else {
 			return unary, pos, nil
 		}
 
 	case *ast.ArrayComparison:
-		return nodeToEvaluator(obj.Array, state)
+		return nodeToEvaluator(obj.Array, opts, state)
 
 	case *ast.ScalarComparison:
-		return nodeToEvaluator(obj.Next, state)
+		return nodeToEvaluator(obj.Next, opts, state)
 
 	case *ast.Unary:
 		if obj.Op != nil {
-			unary, pos, err = nodeToEvaluator(obj.Unary, state)
+			unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
 			if err != nil {
 				return nil, pos, err
 			}
@@ -1090,11 +1204,11 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
 
-		return nodeToEvaluator(obj.Primary, state)
+		return nodeToEvaluator(obj.Primary, opts, state)
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:
-			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, state)
+			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
 		case obj.Number != nil:
 			return &IntEvaluator{
 				Value: *obj.Number,
@@ -1105,7 +1219,7 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 				return nil, obj.Pos, NewError(obj.Pos, "internal variable error '%s'", varname)
 			}
 
-			return evaluatorFromVariable(varname, obj.Pos, state.replCtx)
+			return evaluatorFromVariable(varname, obj.Pos, opts)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
@@ -1116,7 +1230,7 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 
 			// contains variables
 			if len(variableRegex.FindAllIndex([]byte(str), -1)) > 0 {
-				return stringEvaluatorFromVariable(str, obj.Pos, state.replCtx)
+				return stringEvaluatorFromVariable(str, obj.Pos, opts)
 			}
 
 			return &StringEvaluator{
@@ -1158,12 +1272,12 @@ func nodeToEvaluator(obj interface{}, state *State) (interface{}, lexer.Position
 			}
 			return evaluator, obj.Pos, nil
 		case obj.SubExpression != nil:
-			return nodeToEvaluator(obj.SubExpression, state)
+			return nodeToEvaluator(obj.SubExpression, opts, state)
 		default:
 			return nil, obj.Pos, NewError(obj.Pos, "unknown primary '%s'", reflect.TypeOf(obj))
 		}
 	case *ast.Array:
-		return arrayToEvaluator(obj, state)
+		return arrayToEvaluator(obj, opts, state)
 	}
 
 	return nil, lexer.Position{}, NewError(lexer.Position{}, "unknown entity '%s'", reflect.TypeOf(obj))

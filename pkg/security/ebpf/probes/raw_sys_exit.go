@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -20,7 +19,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileChmodEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_chmod_exit",
 				EBPFFuncName: "tracepoint_handle_sys_chmod_exit",
 			},
 		},
@@ -28,7 +26,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileChownEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_chown_exit",
 				EBPFFuncName: "tracepoint_handle_sys_chown_exit",
 			},
 		},
@@ -36,7 +33,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileLinkEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_link_exit",
 				EBPFFuncName: "tracepoint_handle_sys_link_exit",
 			},
 		},
@@ -44,7 +40,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileMkdirEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_mkdir_exit",
 				EBPFFuncName: "tracepoint_handle_sys_mkdir_exit",
 			},
 		},
@@ -52,7 +47,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileMountEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_mount_exit",
 				EBPFFuncName: "tracepoint_handle_sys_mount_exit",
 			},
 		},
@@ -60,7 +54,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileOpenEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_open_exit",
 				EBPFFuncName: "tracepoint_handle_sys_open_exit",
 			},
 		},
@@ -68,7 +61,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileRenameEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_rename_exit",
 				EBPFFuncName: "tracepoint_handle_sys_rename_exit",
 			},
 		},
@@ -76,7 +68,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileRmdirEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_rmdir_exit",
 				EBPFFuncName: "tracepoint_handle_sys_rmdir_exit",
 			},
 		},
@@ -84,7 +75,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileSetXAttrEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_setxattr_exit",
 				EBPFFuncName: "tracepoint_handle_sys_setxattr_exit",
 			},
 		},
@@ -92,7 +82,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileRemoveXAttrEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_removexattr_exit",
 				EBPFFuncName: "tracepoint_handle_sys_removexattr_exit",
 			},
 		},
@@ -100,7 +89,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileUmountEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_umount_exit",
 				EBPFFuncName: "tracepoint_handle_sys_umount_exit",
 			},
 		},
@@ -108,7 +96,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileUnlinkEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_unlink_exit",
 				EBPFFuncName: "tracepoint_handle_sys_unlink_exit",
 			},
 		},
@@ -116,7 +103,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.FileUtimesEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_utimes_exit",
 				EBPFFuncName: "tracepoint_handle_sys_utimes_exit",
 			},
 		},
@@ -124,7 +110,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.SetuidEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_commit_creds_exit",
 				EBPFFuncName: "tracepoint_handle_sys_commit_creds_exit",
 			},
 		},
@@ -132,7 +117,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.SetgidEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_commit_creds_exit",
 				EBPFFuncName: "tracepoint_handle_sys_commit_creds_exit",
 			},
 		},
@@ -140,7 +124,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.CapsetEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_commit_creds_exit",
 				EBPFFuncName: "tracepoint_handle_sys_commit_creds_exit",
 			},
 		},
@@ -148,7 +131,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.MMapEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_mmap_exit",
 				EBPFFuncName: "tracepoint_handle_sys_mmap_exit",
 			},
 		},
@@ -156,7 +138,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.MProtectEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_mprotect_exit",
 				EBPFFuncName: "tracepoint_handle_sys_mprotect_exit",
 			},
 		},
@@ -164,7 +145,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.PTraceEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_ptrace_exit",
 				EBPFFuncName: "tracepoint_handle_sys_ptrace_exit",
 			},
 		},
@@ -172,7 +152,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.SpliceEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_splice_exit",
 				EBPFFuncName: "tracepoint_handle_sys_splice_exit",
 			},
 		},
@@ -180,7 +159,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.BPFEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_bpf_exit",
 				EBPFFuncName: "tracepoint_handle_sys_bpf_exit",
 			},
 		},
@@ -188,7 +166,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.BindEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_bind_exit",
 				EBPFFuncName: "tracepoint_handle_sys_bind_exit",
 			},
 		},
@@ -196,7 +173,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.LoadModuleEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_init_module_exit",
 				EBPFFuncName: "tracepoint_handle_sys_init_module_exit",
 			},
 		},
@@ -204,7 +180,6 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "sys_exit_progs",
 			Key:           uint32(model.UnloadModuleEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  "tracepoint/handle_sys_delete_module_exit",
 				EBPFFuncName: "tracepoint_handle_sys_delete_module_exit",
 			},
 		},

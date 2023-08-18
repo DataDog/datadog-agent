@@ -7,32 +7,33 @@ package run
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
+	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
-func initRuntimeSettings() error {
+func initRuntimeSettings(serverDebug dogstatsdDebug.Component) error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeMutexProfileFraction()); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate("runtime_block_profile_rate")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewRuntimeBlockProfileRate()); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(settings.DsdStatsRuntimeSetting("dogstatsd_stats")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(settings.NewDsdStatsRuntimeSetting(serverDebug)); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(settings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogPayloadsRuntimeSetting{}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogPayloadsRuntimeSetting()); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines("internal_profiling_goroutines")); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingGoroutines()); err != nil {
 		return err
 	}
-	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("internal_profiling"))
+	return commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"))
 }

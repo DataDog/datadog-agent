@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Replace ``;`` with ``&`` in the URL to open GUI to follow golang.org/issue/25192.

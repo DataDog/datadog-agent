@@ -4,19 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package ecsfargate
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +27,7 @@ const (
 
 type collector struct {
 	store  workloadmeta.Store
-	metaV2 *v2.Client
+	metaV2 v2.Client
 	seen   map[workloadmeta.EntityID]struct{}
 }
 
@@ -45,10 +42,6 @@ func init() {
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.ECSFargate) {
 		return errors.NewDisabled(componentName, "Agent is not running on Fargate")
-	}
-
-	if !ecsutil.IsFargateInstance(ctx) {
-		return fmt.Errorf("failed to connect to ECS Fargate task metadata API")
 	}
 
 	var err error
@@ -68,12 +61,12 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	c.store.Notify(c.parseTask(ctx, task))
+	c.store.Notify(c.parseTask(task))
 
 	return nil
 }
 
-func (c *collector) parseTask(ctx context.Context, task *v2.Task) []workloadmeta.CollectorEvent {
+func (c *collector) parseTask(task *v2.Task) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 	seen := make(map[workloadmeta.EntityID]struct{})
 
@@ -164,7 +157,8 @@ func (c *collector) parseTaskContainers(
 
 		seen[entityID] = struct{}{}
 
-		image, err := workloadmeta.NewContainerImage(container.Image)
+		image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
+
 		if err != nil {
 			log.Debugf("cannot split image name %q: %s", container.Image, err)
 		}

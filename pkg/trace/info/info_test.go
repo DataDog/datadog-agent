@@ -27,6 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
+var clearAddEp = map[string][]string{
+	"ep": {"aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"},
+}
+
+var scrubbedAddEp = map[string][]string{
+	"ep": {"***************************abbbb", "***********************************abbbb"},
+}
+
 type testServerHandler struct {
 	t *testing.T
 }
@@ -124,6 +132,11 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.Endpoints = append(conf.Endpoints, &config.Endpoint{Host: "ABC", APIKey: "key2"})
 	conf.TelemetryConfig.Endpoints[0].APIKey = "key1"
 	conf.Proxy = nil
+	conf.EVPProxy.APIKey = "evp_api_key"
+	conf.EVPProxy.ApplicationKey = "evp_app_key"
+	conf.EVPProxy.AdditionalEndpoints = clearAddEp
+	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
+	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
 	assert.NotNil(conf)
 
 	err := InitInfo(conf)
@@ -149,7 +162,7 @@ func TestInfo(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -194,7 +207,7 @@ func TestWarning(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -228,7 +241,7 @@ func TestNotRunning(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -245,7 +258,7 @@ func TestNotRunning(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[0]))
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
-	assert.Equal(fmt.Sprintf("  Not running (port %d)", port), lines[4])
+	assert.Equal(fmt.Sprintf("  Not running or unreachable on 127.0.0.1:%d", port), lines[4])
 	assert.Equal("", lines[5])
 	assert.Equal("", lines[6])
 }
@@ -267,7 +280,7 @@ func TestError(t *testing.T) {
 	assert.Equal(2, len(hostPort))
 	port, err := strconv.Atoi(hostPort[1])
 	assert.NoError(err)
-	conf.ReceiverPort = port
+	conf.DebugServerPort = port
 
 	var buf bytes.Buffer
 	err = Info(&buf, conf)
@@ -285,7 +298,7 @@ func TestError(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
 	assert.Regexp(regexp.MustCompile(`^  Error: .*$`), lines[4])
-	assert.Equal(fmt.Sprintf("  URL: http://localhost:%d/debug/vars", port), lines[5])
+	assert.Equal(fmt.Sprintf("  URL: http://127.0.0.1:%d/debug/vars", port), lines[5])
 	assert.Equal("", lines[6])
 	assert.Equal("", lines[7])
 }
@@ -294,6 +307,8 @@ func TestInfoReceiverStats(t *testing.T) {
 	assert := assert.New(t)
 	conf := testInit(t)
 	assert.NotNil(conf)
+
+	assert.NotNil(publishReceiverStats())
 
 	stats := NewReceiverStats()
 	t1 := &TagStats{
@@ -376,6 +391,17 @@ func TestInfoConfig(t *testing.T) {
 		assert.Equal("", e.APIKey, "API Keys should *NEVER* be exported")
 		conf.TelemetryConfig.Endpoints[i].APIKey = "" // make conf equal to confCopy to assert equality of other fields
 	}
+	assert.Equal("", confCopy.EVPProxy.APIKey, "EVP API Key should *NEVER* be exported")
+	conf.EVPProxy.APIKey = ""
+	assert.Equal("", confCopy.EVPProxy.ApplicationKey, "EVP APP Key should *NEVER* be exported")
+	conf.EVPProxy.ApplicationKey = ""
+	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
+	conf.DebuggerProxy.APIKey = ""
+
+	// Any key-like data should scrubbed
+	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
+	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
+
 	conf.ContainerTags = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
@@ -418,6 +444,8 @@ func TestPublishReceiverStats(t *testing.T) {
 				atom(10),
 				atom(11),
 				atom(12),
+				atom(13),
+				atom(14),
 			},
 			TracesFiltered:     atom(4),
 			TracesPriorityNone: atom(5),
@@ -463,14 +491,16 @@ func TestPublishReceiverStats(t *testing.T) {
 				"ServiceEmpty":          2.0,
 				"ServiceTruncate":       3.0,
 				"ServiceInvalid":        4.0,
-				"SpanNameEmpty":         5.0,
-				"SpanNameTruncate":      6.0,
-				"SpanNameInvalid":       7.0,
-				"ResourceEmpty":         8.0,
-				"TypeTruncate":          9.0,
-				"InvalidStartDate":      10.0,
-				"InvalidDuration":       11.0,
-				"InvalidHTTPStatusCode": 12.0,
+				"PeerServiceTruncate":   5.0,
+				"PeerServiceInvalid":    6.0,
+				"SpanNameEmpty":         7.0,
+				"SpanNameTruncate":      8.0,
+				"SpanNameInvalid":       9.0,
+				"ResourceEmpty":         10.0,
+				"TypeTruncate":          11.0,
+				"InvalidStartDate":      12.0,
+				"InvalidDuration":       13.0,
+				"InvalidHTTPStatusCode": 14.0,
 			},
 			"SpansReceived": 10.0,
 			"TracerVersion": "",
@@ -515,4 +545,18 @@ func TestPublishRateLimiterStats(t *testing.T) {
 			"RecentTracesSeen":    3.0,
 			"RecentTracesDropped": 4.0,
 		})
+}
+
+func TestScrubCreds(t *testing.T) {
+	assert := assert.New(t)
+	conf := testInit(t)
+	assert.NotNil(conf)
+
+	confExpvar := expvar.Get("config").String()
+	var got config.AgentConfig
+	err := json.Unmarshal([]byte(confExpvar), &got)
+	assert.NoError(err)
+
+	assert.EqualValues(got.EVPProxy.AdditionalEndpoints, scrubbedAddEp)
+	assert.EqualValues(got.ProfilingProxy.AdditionalEndpoints, scrubbedAddEp)
 }

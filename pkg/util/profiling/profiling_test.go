@@ -22,6 +22,7 @@ func TestProfiling(t *testing.T) {
 		MutexProfileFraction: 0,
 		BlockProfileRate:     0,
 		WithGoroutineProfile: false,
+		WithDeltaProfiles:    false,
 		Tags:                 []string{"1.0.0"},
 	}
 	err := Start(settings)

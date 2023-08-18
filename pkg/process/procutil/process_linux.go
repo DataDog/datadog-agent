@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package procutil
 
@@ -12,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +23,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,6 +58,7 @@ type statInfo struct {
 	ppid       int32
 	createTime int64
 	nice       int32
+	flags      uint32
 	cpuStat    *CPUTimesStat
 }
 
@@ -107,7 +109,7 @@ type probe struct {
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe(options ...Option) Probe {
-	hostProc := util.HostProc()
+	hostProc := kernel.ProcFSRoot()
 	bootTime, err := bootTime(hostProc)
 	if err != nil {
 		log.Errorf("could not parse boot time: %s", err)
@@ -166,7 +168,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	statsByPID := make(map[int32]*Stats, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
@@ -211,20 +213,26 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 	procsByPID := make(map[int32]*Process, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
 
 		cmdline := p.getCmdline(pathForPID)
-		if len(cmdline) == 0 {
-			// NOTE: The agent's process check currently skips all processes that have no cmdline (i.e kernel processes).
-			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			continue
-		}
-
+		comm := p.getCommandName(pathForPID)
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
+
+		if len(cmdline) == 0 {
+			if isKernelThread(statInfo.flags) {
+				log.Tracef("Skipping kernel process pid:%d", pid)
+				// NOTE: The agent's process check currently skips all processes that are kernel threads which have
+				//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
+				//       Moving this check down the stack saves us from a number of needless follow-up system calls.
+				continue
+			}
+			log.Debugf("process with empty cmdline not skipped pid:%d", pid)
+		}
 
 		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
 		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
@@ -240,6 +248,7 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			Pid:     pid,                                       // /proc/[pid]
 			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
 			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
+			Comm:    comm,                                      // /proc/[pid]/comm
 			Name:    statusInfo.name,                           // /proc/[pid]/status
 			Uids:    statusInfo.uids,                           // /proc/[pid]/status
 			Gids:    statusInfo.gids,                           // /proc/[pid]/status
@@ -279,7 +288,7 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
-		if !util.PathExists(pathForPID) {
+		if !filesystem.FileExists(pathForPID) {
 			log.Debugf("Unable to create new process %d, dir %s doesn't exist", pid, pathForPID)
 			continue
 		}
@@ -356,6 +365,20 @@ func (p *probe) getCmdline(pidPath string) []string {
 	}
 
 	return trimAndSplitBytes(cmdline)
+}
+
+// getCommandName retrieves the command name from "comm" file for a process in procfs
+func (p *probe) getCommandName(pidPath string) string {
+	comm, err := os.ReadFile(filepath.Join(pidPath, "comm"))
+	if err != nil {
+		log.Debugf("Unable to read process command name from %s: %s", pidPath, err)
+		return ""
+	}
+
+	if len(comm) == 0 {
+		return ""
+	}
+	return string(bytes.Trim(comm, "\x00\t\n\v\f\r "))
 }
 
 // parseIO retrieves io info from "io" file for a process in procfs
@@ -569,7 +592,7 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
-	var ppidStr, utimeStr, stimeStr, startTimeStr string
+	var ppidStr, flagStr, utimeStr, stimeStr, startTimeStr string
 
 	for _, c := range content {
 		if unicode.IsSpace(rune(c)) {
@@ -585,6 +608,8 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		switch spaces {
 		case 2:
 			ppidStr += string(c)
+		case 7:
+			flagStr += string(c)
 		case 12:
 			utimeStr += string(c)
 		case 13:
@@ -601,6 +626,11 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	ppid, err := strconv.ParseInt(ppidStr, 10, 32)
 	if err == nil {
 		sInfo.ppid = int32(ppid)
+	}
+
+	flags, err := strconv.ParseUint(flagStr, 10, 32)
+	if err == nil {
+		sInfo.flags = uint32(flags)
 	}
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
@@ -692,13 +722,31 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
+// PROC_SUPER_MAGIC is the superblock magic value (its unique identifier) of procfs filesystem
+const PROC_SUPER_MAGIC = 0x9fa0
+
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
 func (p *probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
-	if err := p.ensurePathReadable(path); err != nil {
+	fi, err := os.Lstat(path)
+	if err != nil {
 		return -1
+	}
+
+	if err := p.ensurePathReadableFromFileInfo(fi); err != nil {
+		return -1
+	}
+
+	// Starting with kernel 6.2, we can use a simpler fast path
+	// see https://github.com/torvalds/linux/commit/f1f1f2569901ec5b9d425f2e91c09a0e320768f3
+	if count := fi.Size(); count > 0 {
+		// ensure the FS type is `procfs`
+		buf := new(syscall.Statfs_t)
+		if err := syscall.Statfs(path, buf); err == nil && buf.Type == PROC_SUPER_MAGIC {
+			return int32(count)
+		}
 	}
 
 	d, err := os.Open(path)
@@ -742,6 +790,15 @@ func (p *probe) ensurePathReadable(path string) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
+	}
+
+	return p.ensurePathReadableFromFileInfo(info)
+}
+
+func (p *probe) ensurePathReadableFromFileInfo(info fs.FileInfo) error {
+	// User is (effectively or actually) root
+	if p.euid == 0 {
+		return nil
 	}
 
 	// File mode is world readable and not a symlink
@@ -849,4 +906,10 @@ func getClockTicks() float64 {
 		}
 	}
 	return clockTicks
+}
+
+// isKernelThread checks if the PF_KTHREAD flag is set which identifies this process as a kernel thread
+// See: https://github.com/torvalds/linux/commit/7b34e4283c685f5cc6ba6d30e939906eee0d4bcf
+func isKernelThread(flags uint32) bool {
+	return flags&0x00200000 == 0x00200000
 }

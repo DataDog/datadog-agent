@@ -4,22 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
 
 package http
 
-type httpTX interface {
-	ReqFragment() []byte
-	StatusClass() int
+import (
+	"github.com/DataDog/datadog-agent/pkg/network/types"
+)
+
+type Transaction interface {
 	RequestLatency() float64
-	isIPV4() bool
-	SrcIPLow() uint64
-	SrcIPHigh() uint64
-	SrcPort() uint16
-	DstIPLow() uint64
-	DstIPHigh() uint64
-	DstPort() uint16
+	ConnTuple() types.ConnectionKey
 	Method() Method
+	SetRequestMethod(Method)
 	StatusCode() uint16
 	SetStatusCode(uint16)
 	StaticTags() uint64
@@ -30,6 +26,4 @@ type httpTX interface {
 	ResponseLastSeen() uint64
 	SetResponseLastSeen(ls uint64)
 	RequestStarted() uint64
-	SetRequestMethod(uint32)
-	RequestMethod() uint32
 }

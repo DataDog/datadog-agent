@@ -10,6 +10,8 @@ version "4.4.28" do
     source sha256: "9e936811f9fad11dbca33ca19bd97c55c52eb3ca15901f27ade046cc79e69e87"
 end
 
+ship_source_offer true
+
 source url: "https://github.com/besser82/libxcrypt/releases/download/v#{version}/libxcrypt-#{version}.tar.xz",
        extract: :seven_zip
 
@@ -21,7 +23,7 @@ build do
 
     env = with_standard_compiler_flags
 
-    if redhat? && !arm?
+    if redhat? && !arm? && ohai['platform_version'].to_i == 6
         # On the CentOS 6 builder, use gcc 4.9.2 in the devtoolset-3 env,
         # and ignore sign conversion warnings.
         env["CC"] = "/opt/rh/devtoolset-3/root/usr/bin/gcc"

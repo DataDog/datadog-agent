@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package externalmetrics
 
@@ -169,9 +168,15 @@ func (w *AutoscalerWatcher) processAutoscalers() {
 	// Go through all DatadogMetric and perform necessary actions
 	for _, datadogMetric := range w.store.GetAll() {
 		var autoscalerReferences string
+
 		externalMetric, active := datadogMetricReferences[datadogMetric.ID]
 		if externalMetric != nil {
 			autoscalerReferences = strings.Join(externalMetric.autoscalerReferences, autoscalerReferencesSep)
+		}
+
+		// Make sure we don't de-activate metrics that are forced to be always active
+		if datadogMetric.AlwaysActive {
+			active = true
 		}
 
 		// Update DatadogMetric active status

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -27,7 +26,7 @@ func TestProcessContainerEvent(t *testing.T) {
 	timestamp := time.Now().Truncate(10 * time.Millisecond)
 
 	// Container filter
-	filter, err := containers.NewFilter([]string{},
+	filter, err := containers.NewFilter(containers.GlobalFilter, []string{},
 		[]string{"name:excluded_name", "image:excluded_image"})
 
 	assert.Nil(err)
@@ -51,6 +50,15 @@ func TestProcessContainerEvent(t *testing.T) {
 			// Ignore non-container events
 			source: events.Message{
 				Type: "notcontainer",
+			},
+			event: nil,
+			err:   nil,
+		},
+		{
+			// Ignore prune events
+			source: events.Message{
+				Type:   "container",
+				Action: "prune",
 			},
 			event: nil,
 			err:   nil,
@@ -183,5 +191,53 @@ func TestProcessContainerEvent(t *testing.T) {
 			assert.NotNil(err)
 			assert.Contains(err.Error(), tc.err.Error())
 		}
+	}
+}
+
+func TestProcessImageEvent(t *testing.T) {
+	timestamp := time.Now().Truncate(10 * time.Millisecond)
+
+	tests := []struct {
+		name               string
+		message            events.Message
+		expectedImageEvent *ImageEvent
+	}{
+		{
+			name:               "empty event",
+			message:            events.Message{},
+			expectedImageEvent: nil,
+		},
+		{
+			name: "non-image event",
+			message: events.Message{
+				Type: events.ContainerEventType,
+			},
+			expectedImageEvent: nil,
+		},
+		{
+			name: "standard case",
+			message: events.Message{
+				Type:   events.ImageEventType,
+				Action: ImageEventActionPull,
+				Actor: events.Actor{
+					ID: "agent:latest",
+				},
+				Time:     timestamp.Unix(),
+				TimeNano: timestamp.UnixNano(),
+			},
+			expectedImageEvent: &ImageEvent{
+				ImageID:   "agent:latest",
+				Action:    ImageEventActionPull,
+				Timestamp: timestamp,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dockerUtil := &DockerUtil{}
+			imageEvent := dockerUtil.processImageEvent(test.message)
+			assert.Equal(t, test.expectedImageEvent, imageEvent)
+		})
 	}
 }

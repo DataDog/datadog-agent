@@ -13,10 +13,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/theupdateframework/go-tuf/client"
-	"github.com/theupdateframework/go-tuf/data"
-	"github.com/theupdateframework/go-tuf/util"
-	"github.com/theupdateframework/go-tuf/verify"
+	"github.com/DataDog/go-tuf/client"
+	"github.com/DataDog/go-tuf/data"
+	"github.com/DataDog/go-tuf/util"
+	"github.com/DataDog/go-tuf/verify"
 )
 
 type tufRootsClient struct {
@@ -30,7 +30,7 @@ func newTufRootsClient(root []byte) (*tufRootsClient, error) {
 	rootRemoteStore := &rootClientRemoteStore{}
 	rootClient := client.NewClient(rootLocalStore, rootRemoteStore)
 
-	err := rootClient.InitLocal(root)
+	err := rootClient.Init(root)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,7 @@
+init_config:
+  loader: core
+  use_device_id_as_hostname: true
+instances:
+  - ip_address: dd-snmp
+    port: 1161
+    community_string: "public"

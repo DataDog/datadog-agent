@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestDisableRootNetNamespace(t *testing.T) {
-	newConfig()
-	config.Datadog.Set("network_config.enable_root_netns", false)
+	aconfig.ResetSystemProbeConfig(t)
+	t.Setenv("DD_NETWORK_CONFIG_ENABLE_ROOT_NETNS", "false")
 
 	cfg := New()
 	require.False(t, cfg.EnableConntrackAllNamespaces)

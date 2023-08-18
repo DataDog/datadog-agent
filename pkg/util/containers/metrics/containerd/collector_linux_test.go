@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && linux
-// +build containerd,linux
 
 package containerd
 
@@ -16,10 +15,12 @@ import (
 	v2 "github.com/containerd/cgroups/v2/stats"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -44,8 +45,9 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			},
 		},
 		Memory: &v1.MemoryStat{
-			Cache: 20,
-			RSS:   100,
+			Cache:        20,
+			RSS:          100,
+			InactiveFile: 10,
 			Usage: &v1.MemoryEntry{
 				Limit: 2000,
 				Usage: 1000,
@@ -124,13 +126,14 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			NrThrottled:   1,
 		},
 		Memory: &v2.MemoryStat{
-			File:        20,
-			Anon:        100,
-			Usage:       1000,
-			UsageLimit:  2000,
-			SwapUsage:   10,
-			Slab:        400,
-			KernelStack: 100,
+			File:         20,
+			Anon:         100,
+			InactiveFile: 10,
+			Usage:        1000,
+			UsageLimit:   2000,
+			SwapUsage:    10,
+			Slab:         400,
+			KernelStack:  100,
 		},
 		Io: &v2.IOStat{
 			Usage: []*v2.IOEntry{
@@ -164,42 +167,46 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Linux cgroup v1 metrics",
 			containerdMetrics: &types.Metric{
-				Data: linuxCgroupV1MetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxCgroupV1MetricsAny.GetTypeUrl(),
+					Value:   linuxCgroupV1MetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:            pointer.Float64Ptr(10000),
-					System:           pointer.Float64Ptr(6000),
-					User:             pointer.Float64Ptr(4000),
-					ThrottledPeriods: pointer.Float64Ptr(1),
-					ThrottledTime:    pointer.Float64Ptr(1000),
+					Total:            pointer.Ptr(10000.0),
+					System:           pointer.Ptr(6000.0),
+					User:             pointer.Ptr(4000.0),
+					ThrottledPeriods: pointer.Ptr(1.0),
+					ThrottledTime:    pointer.Ptr(1000.0),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal:   pointer.Float64Ptr(1000),
-					KernelMemory: pointer.Float64Ptr(500),
-					Limit:        pointer.Float64Ptr(2000),
-					RSS:          pointer.Float64Ptr(100),
-					Cache:        pointer.Float64Ptr(20),
-					Swap:         pointer.Float64Ptr(10),
+					UsageTotal:   pointer.Ptr(1000.0),
+					WorkingSet:   pointer.Ptr(990.0),
+					KernelMemory: pointer.Ptr(500.0),
+					Limit:        pointer.Ptr(2000.0),
+					RSS:          pointer.Ptr(100.0),
+					Cache:        pointer.Ptr(20.0),
+					Swap:         pointer.Ptr(10.0),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       pointer.Float64Ptr(60),
-					WriteBytes:      pointer.Float64Ptr(20),
-					ReadOperations:  pointer.Float64Ptr(6),
-					WriteOperations: pointer.Float64Ptr(3),
+					ReadBytes:       pointer.Ptr(60.0),
+					WriteBytes:      pointer.Ptr(20.0),
+					ReadOperations:  pointer.Ptr(6.0),
+					WriteOperations: pointer.Ptr(3.0),
 					Devices: map[string]provider.DeviceIOStats{
 						"1:1": {
-							ReadBytes:       pointer.Float64Ptr(10),
-							WriteBytes:      pointer.Float64Ptr(15),
-							ReadOperations:  pointer.Float64Ptr(1),
-							WriteOperations: pointer.Float64Ptr(2),
+							ReadBytes:       pointer.Ptr(10.0),
+							WriteBytes:      pointer.Ptr(15.0),
+							ReadOperations:  pointer.Ptr(1.0),
+							WriteOperations: pointer.Ptr(2.0),
 						},
 						"1:2": {
-							ReadBytes:       pointer.Float64Ptr(50),
-							WriteBytes:      pointer.Float64Ptr(5),
-							ReadOperations:  pointer.Float64Ptr(5),
-							WriteOperations: pointer.Float64Ptr(1),
+							ReadBytes:       pointer.Ptr(50.0),
+							WriteBytes:      pointer.Ptr(5.0),
+							ReadOperations:  pointer.Ptr(5.0),
+							WriteOperations: pointer.Ptr(1.0),
 						},
 					},
 				},
@@ -208,42 +215,46 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Linux cgroup v2 metrics",
 			containerdMetrics: &types.Metric{
-				Data: linuxCgroupV2MetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxCgroupV2MetricsAny.GetTypeUrl(),
+					Value:   linuxCgroupV2MetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:            pointer.Float64Ptr(10000),
-					System:           pointer.Float64Ptr(6000),
-					User:             pointer.Float64Ptr(4000),
-					ThrottledPeriods: pointer.Float64Ptr(1),
-					ThrottledTime:    pointer.Float64Ptr(1000),
+					Total:            pointer.Ptr(10000.0),
+					System:           pointer.Ptr(6000.0),
+					User:             pointer.Ptr(4000.0),
+					ThrottledPeriods: pointer.Ptr(1.0),
+					ThrottledTime:    pointer.Ptr(1000.0),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal:   pointer.Float64Ptr(1000),
-					KernelMemory: pointer.Float64Ptr(500),
-					Limit:        pointer.Float64Ptr(2000),
-					RSS:          pointer.Float64Ptr(100),
-					Cache:        pointer.Float64Ptr(20),
-					Swap:         pointer.Float64Ptr(10),
+					UsageTotal:   pointer.Ptr(1000.0),
+					WorkingSet:   pointer.Ptr(990.0),
+					KernelMemory: pointer.Ptr(500.0),
+					Limit:        pointer.Ptr(2000.0),
+					RSS:          pointer.Ptr(100.0),
+					Cache:        pointer.Ptr(20.0),
+					Swap:         pointer.Ptr(10.0),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       pointer.Float64Ptr(60),
-					WriteBytes:      pointer.Float64Ptr(20),
-					ReadOperations:  pointer.Float64Ptr(6),
-					WriteOperations: pointer.Float64Ptr(3),
+					ReadBytes:       pointer.Ptr(60.0),
+					WriteBytes:      pointer.Ptr(20.0),
+					ReadOperations:  pointer.Ptr(6.0),
+					WriteOperations: pointer.Ptr(3.0),
 					Devices: map[string]provider.DeviceIOStats{
 						"1:1": {
-							ReadBytes:       pointer.Float64Ptr(10),
-							WriteBytes:      pointer.Float64Ptr(15),
-							ReadOperations:  pointer.Float64Ptr(1),
-							WriteOperations: pointer.Float64Ptr(2),
+							ReadBytes:       pointer.Ptr(10.0),
+							WriteBytes:      pointer.Ptr(15.0),
+							ReadOperations:  pointer.Ptr(1.0),
+							WriteOperations: pointer.Ptr(2.0),
 						},
 						"1:2": {
-							ReadBytes:       pointer.Float64Ptr(50),
-							WriteBytes:      pointer.Float64Ptr(5),
-							ReadOperations:  pointer.Float64Ptr(5),
-							WriteOperations: pointer.Float64Ptr(1),
+							ReadBytes:       pointer.Ptr(50.0),
+							WriteBytes:      pointer.Ptr(5.0),
+							ReadOperations:  pointer.Ptr(5.0),
+							WriteOperations: pointer.Ptr(1.0),
 						},
 					},
 				},
@@ -316,25 +327,28 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		{
 			name: "Linux with no interface mapping",
 			containerdMetrics: &types.Metric{
-				Data: linuxMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxMetricsAny.GetTypeUrl(),
+					Value:   linuxMetricsAny.GetValue(),
+				},
 			},
 			expectedNetworkStats: &provider.ContainerNetworkStats{
-				BytesSent:   pointer.Float64Ptr(220),
-				BytesRcvd:   pointer.Float64Ptr(110),
-				PacketsSent: pointer.Float64Ptr(22),
-				PacketsRcvd: pointer.Float64Ptr(11),
+				BytesSent:   pointer.Ptr(220.0),
+				BytesRcvd:   pointer.Ptr(110.0),
+				PacketsSent: pointer.Ptr(22.0),
+				PacketsRcvd: pointer.Ptr(11.0),
 				Interfaces: map[string]provider.InterfaceNetStats{
 					"interface-1": {
-						BytesSent:   pointer.Float64Ptr(20),
-						BytesRcvd:   pointer.Float64Ptr(10),
-						PacketsSent: pointer.Float64Ptr(2),
-						PacketsRcvd: pointer.Float64Ptr(1),
+						BytesSent:   pointer.Ptr(20.0),
+						BytesRcvd:   pointer.Ptr(10.0),
+						PacketsSent: pointer.Ptr(2.0),
+						PacketsRcvd: pointer.Ptr(1.0),
 					},
 					"interface-2": {
-						BytesSent:   pointer.Float64Ptr(200),
-						BytesRcvd:   pointer.Float64Ptr(100),
-						PacketsSent: pointer.Float64Ptr(20),
-						PacketsRcvd: pointer.Float64Ptr(10),
+						BytesSent:   pointer.Ptr(200.0),
+						BytesRcvd:   pointer.Ptr(100.0),
+						PacketsSent: pointer.Ptr(20.0),
+						PacketsRcvd: pointer.Ptr(10.0),
 					},
 				},
 			},
@@ -365,9 +379,8 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// ID and cache TTL not relevant for these tests
 			result, err := collector.GetContainerNetworkStats("", containerID, 10*time.Second)
+			require.NoError(t, err)
 			result.Timestamp = time.Time{} // We have no control over it, so set it to avoid checking it.
-
-			assert.NoError(t, err)
 			assert.Empty(t, cmp.Diff(test.expectedNetworkStats, result))
 		})
 	}
@@ -385,15 +398,15 @@ func Test_fillStatsFromSpec(t *testing.T) {
 				Linux: &specs.Linux{
 					Resources: &specs.LinuxResources{
 						CPU: &specs.LinuxCPU{
-							Quota:  pointer.Int64Ptr(1000),
-							Period: pointer.UInt64Ptr(10000),
+							Quota:  pointer.Ptr(int64(1000)),
+							Period: pointer.Ptr(uint64(10000)),
 						},
 					},
 				},
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(10),
+					Limit: pointer.Ptr(10.0),
 				},
 			},
 		},
@@ -403,14 +416,14 @@ func Test_fillStatsFromSpec(t *testing.T) {
 				Linux: &specs.Linux{
 					Resources: &specs.LinuxResources{
 						CPU: &specs.LinuxCPU{
-							Quota: pointer.Int64Ptr(10000),
+							Quota: pointer.Ptr(int64(10000)),
 						},
 					},
 				},
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(10),
+					Limit: pointer.Ptr(10.0),
 				},
 			},
 		},
@@ -427,7 +440,7 @@ func Test_fillStatsFromSpec(t *testing.T) {
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(400),
+					Limit: pointer.Ptr(400.0),
 				},
 			},
 		},
@@ -440,7 +453,8 @@ func Test_fillStatsFromSpec(t *testing.T) {
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(100 * float64(system.HostCPUCount())),
+					Limit:          pointer.Ptr(100 * float64(system.HostCPUCount())),
+					DefaultedLimit: true,
 				},
 			},
 		},

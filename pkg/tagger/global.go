@@ -7,10 +7,11 @@ package tagger
 
 import (
 	"context"
+	"errors"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -76,8 +77,8 @@ func Init(ctx context.Context) error {
 			DogstatsdCardinality = collectors.LowCardinality
 		}
 
-		if config.IsCLCRunner() {
-			log.Infof("Tagger not started on CLC")
+		if defaultTagger == nil {
+			initErr = errors.New("tagger has not been set")
 			return
 		}
 

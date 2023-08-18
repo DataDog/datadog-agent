@@ -366,8 +366,6 @@ class ContainerScenario(TestCase):
                 * `agents.containers.agent.env`:
 
                     ```
-                    - name: "DD_LOGS_CONFIG_CCA_IN_AD"
-                      value: "true"
                     - name: "DD_LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE"
                       value: "{'true' if self.dcuf else 'false'}"
                     ```
@@ -408,7 +406,6 @@ class ContainerScenario(TestCase):
                         -e DOCKER_DD_AGENT= \\
                         -e DD_API_KEY=$DD_API_KEY \\
                         -e DD_LOGS_ENABLED=true \\
-                        -e DD_LOGS_CONFIG_CCA_IN_AD=true \\
                         -e LOGS_CONFIG_CONTAINER_COLLECT_ALL={'true' if self.cca else 'false'} \\
                         -e LOGS_CONFIG_DOCKER_CONTAINER_USE_FILE={'true' if self.dcuf else 'false'} \\
                         -e LOGS_CONFIG_K8S_CONTAINER_USE_FILE={'true' if self.dcuf else 'false'} \\
@@ -498,17 +495,6 @@ class ContainerScenario(TestCase):
         self.special_case_empty_annotation()
         self.special_case_no_docker_file_access()
 
-        self.append(
-            textwrap.dedent(
-                '''\
-            # Unexpected Results
-
-            If things aren't working as expected, compare to a run with
-            `cca_in_ad` false.  If the behavior is *better* with `cca_in_ad` set
-            to false, then the check has failed.'''
-            )
-        )
-
     def special_case_type_docker(self):
         if self.cfgsource == 'annotation':
             self.append(
@@ -517,9 +503,7 @@ class ContainerScenario(TestCase):
                 # With `type:docker` in Annotation
 
                 As an additional check, delete the test pod and create a new
-                one with `"type": "docker"` added to the annotation.  The
-                result should be no worse than with `cca_in_ad: false`.
-
+                one with `"type": "docker"` added to the annotation.
                 '''
                 )
             )

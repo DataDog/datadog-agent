@@ -6,7 +6,8 @@ from invoke import task
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
 
@@ -33,19 +34,17 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-
-        ctx.run(
-            f"windmc --target {windres_target}  -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc"
-        )
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/trace-agent/windows_resources/trace-agent.rc --target {windres_target} -O coff -o cmd/trace-agent/rsrc.syso"
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/trace-agent/windows/resources/trace-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/trace-agent/rsrc.syso",
         )
 
     build_include = (
@@ -123,3 +122,15 @@ def cross_compile(ctx, tag=""):
     ctx.run("git checkout -")
 
     print(f"Done! Binaries are located in ./bin/trace-agent/{tag}")
+
+
+@task
+def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
+    """
+    Runs the benchmarks. Use "--bench=X" to specify benchmarks to run. Use the "--output=X" argument to specify where to output results.
+    """
+    if not bench:
+        print("Argument --bench=<bench_regex> is required.")
+        return
+    with ctx.cd("./pkg/trace"):
+        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 10 -benchtime 2s ./... | tee {output}")

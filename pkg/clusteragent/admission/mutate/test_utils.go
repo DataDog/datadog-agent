@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -86,13 +85,25 @@ func fakePodWithLabel(k, v string) *corev1.Pod {
 }
 
 func fakePodWithAnnotation(k, v string) *corev1.Pod {
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
 			Annotations: map[string]string{
 				k: v,
 			},
 		},
 	}
+	return withContainer(pod, "-container")
+}
+
+func fakePodWithAnnotations(as map[string]string) *corev1.Pod {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "pod",
+			Annotations: as,
+		},
+	}
+	return withContainer(pod, "-container")
 }
 
 func fakePodWithEnv(name, env string) *corev1.Pod {
@@ -121,8 +132,4 @@ func fakePod(name string) *corev1.Pod {
 func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
 	return pod
-}
-
-func boolPointer(b bool) *bool {
-	return &b
 }

@@ -4,7 +4,9 @@ Cluster Agent tasks
 
 import glob
 import os
+import platform
 import shutil
+import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -18,6 +20,7 @@ from .utils import load_release_versions
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 POLICIES_REPO = "https://github.com/DataDog/security-agent-policies.git"
+CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "amd64"}
 
 
 @task
@@ -91,7 +94,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         deps(ctx)
 
     # We need docker for the kubeapiserver integration tests
-    tags = get_default_build_tags(build="cluster-agent") + ["docker"]
+    tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
 
     go_build_tags = " ".join(get_build_tags(tags, []))
     race_opt = "-race" if race else ""
@@ -116,10 +119,16 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
 
 @task
-def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
+def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     """
     Build the docker image
     """
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch` parameter")
+        raise Exit(code=1)
 
     dca_binary = glob.glob(os.path.join(BIN_PATH, "datadog-cluster-agent"))
     # get the last debian package built
@@ -132,15 +141,79 @@ def image_build(ctx, arch='amd64', tag=AGENT_TAG, push=False):
 
     build_context = "Dockerfiles/cluster-agent"
     exec_path = f"{build_context}/datadog-cluster-agent.{arch}"
-    dockerfile_path = f"{build_context}/{arch}/Dockerfile"
+    dockerfile_path = f"{build_context}/Dockerfile"
 
     shutil.copy2(latest_file, exec_path)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
-    ctx.run(f"docker build -t {tag} {build_context} -f {dockerfile_path}")
+    ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
     ctx.run(f"rm {exec_path}")
 
     if push:
         ctx.run(f"docker push {tag}")
+
+
+@task
+def hacky_dev_image_build(ctx, base_image=None, target_image="cluster-agent", push=False, signed_pull=False):
+    os.environ["DELVE"] = "1"
+    build(ctx)
+
+    if base_image is None:
+        import requests
+        import semver
+
+        # Try to guess what is the latest release of the cluster-agent
+        latest_release = semver.VersionInfo(0)
+        tags = requests.get("https://gcr.io/v2/datadoghq/cluster-agent/tags/list")
+        for tag in tags.json()['tags']:
+            if not semver.VersionInfo.isvalid(tag):
+                continue
+            ver = semver.VersionInfo.parse(tag)
+            if ver.prerelease or ver.build:
+                continue
+            if ver > latest_release:
+                latest_release = ver
+        base_image = f"gcr.io/datadoghq/cluster-agent:{latest_release}"
+
+    with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
+        dockerfile.write(
+            f'''FROM ubuntu:latest AS src
+
+COPY . /usr/src/datadog-agent
+
+RUN find /usr/src/datadog-agent -type f \\! -name \\*.go -print0 | xargs -0 rm
+RUN find /usr/src/datadog-agent -type d -empty -print0 | xargs -0 rmdir
+
+FROM golang:latest AS dlv
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+FROM {base_image}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y bash-completion less vim tshark && \
+    apt-get clean
+
+ENV DELVE_PAGER=less
+
+COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
+COPY --from=src /usr/src/datadog-agent {os.getcwd()}
+COPY bin/datadog-cluster-agent/datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
+RUN agent                 completion bash > /usr/share/bash-completion/completions/agent
+RUN datadog-cluster-agent completion bash > /usr/share/bash-completion/completions/datadog-cluster-agent
+
+ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
+'''
+        )
+        dockerfile.flush()
+
+        pull_env = {}
+        if signed_pull:
+            pull_env['DOCKER_CONTENT_TRUST'] = '1'
+        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+
+        if push:
+            ctx.run(f'docker push {target_image}')
 
 
 @task

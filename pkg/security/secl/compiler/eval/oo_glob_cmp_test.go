@@ -26,7 +26,7 @@ func TestOPOverrideGlobEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
@@ -51,7 +51,7 @@ func TestOPOverrideGlobEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
@@ -82,7 +82,7 @@ func TestOPOverrideGlobContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
@@ -106,7 +106,7 @@ func TestOPOverrideGlobContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
@@ -128,7 +128,7 @@ func TestOPOverrideGlobArrayMatches(t *testing.T) {
 		b := &StringValuesEvaluator{
 			Values: values,
 		}
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringArrayMatches(a, b, state)
 		assert.Empty(t, err)
@@ -147,7 +147,7 @@ func TestOPOverrideGlobArrayMatches(t *testing.T) {
 		b := &StringValuesEvaluator{
 			Values: values,
 		}
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringArrayMatches(a, b, state)
 		assert.Empty(t, err)
@@ -165,7 +165,7 @@ func TestOPOverrideGlobArrayContains(t *testing.T) {
 		b := &StringArrayEvaluator{
 			Values: []string{"/2/abc/3"},
 		}
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)
@@ -182,7 +182,7 @@ func TestOPOverrideGlobArrayContains(t *testing.T) {
 			Field:  "dont_forget_me_or_it_wont_compile_a",
 			Values: []string{"/2/abc/3"},
 		}
-		state := NewState(&testModel{}, "", nil, nilReplCtx())
+		state := NewState(&testModel{}, "", nil)
 
 		e, err := GlobCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)

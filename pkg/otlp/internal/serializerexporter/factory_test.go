@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package serializerexporter
 
@@ -14,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config/configtest"
+	"go.opentelemetry.io/collector/exporter/exportertest"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -22,7 +21,7 @@ import (
 func TestNewFactory(t *testing.T) {
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()
-	assert.NoError(t, configtest.CheckConfigStruct(cfg))
+	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 	_, ok := factory.CreateDefaultConfig().(*exporterConfig)
 	assert.True(t, ok)
 }
@@ -30,7 +29,7 @@ func TestNewFactory(t *testing.T) {
 func TestNewMetricsExporter(t *testing.T) {
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()
-	set := componenttest.NewNopExporterCreateSettings()
+	set := exportertest.NewNopCreateSettings()
 	exp, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
@@ -43,7 +42,7 @@ func TestNewMetricsExporterInvalid(t *testing.T) {
 	expCfg := cfg.(*exporterConfig)
 	expCfg.Metrics.HistConfig.Mode = "InvalidMode"
 
-	set := componenttest.NewNopExporterCreateSettings()
+	set := exportertest.NewNopCreateSettings()
 	_, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
@@ -52,7 +51,7 @@ func TestNewTracesExporter(t *testing.T) {
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()
 
-	set := componenttest.NewNopExporterCreateSettings()
+	set := exportertest.NewNopCreateSettings()
 	_, err := factory.CreateTracesExporter(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
@@ -61,7 +60,7 @@ func TestNewLogsExporter(t *testing.T) {
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()
 
-	set := componenttest.NewNopExporterCreateSettings()
+	set := exportertest.NewNopCreateSettings()
 	_, err := factory.CreateLogsExporter(context.Background(), set, cfg)
 	assert.Error(t, err)
 }

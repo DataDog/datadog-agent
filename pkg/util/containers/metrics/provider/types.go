@@ -22,9 +22,12 @@ type ContainerMemStats struct {
 	SwapLimit    *float64 // Memory+Swap Limit (>= Limit)
 
 	// Linux-only fields
-	RSS       *float64
-	Cache     *float64
-	OOMEvents *float64 // Number of events where memory allocation failed
+	WorkingSet       *float64 // Following cAdvisor/Kubernetes: defined as UsageTotal - InactiveFiles
+	RSS              *float64
+	Cache            *float64
+	OOMEvents        *float64 // Number of events where memory allocation failed
+	PartialStallTime *float64 // Correspond to PSI Some total
+	Peak             *float64
 
 	// Windows-only fields
 	PrivateWorkingSet *float64
@@ -35,16 +38,18 @@ type ContainerMemStats struct {
 // ContainerCPUStats stores CPU stats.
 type ContainerCPUStats struct {
 	// Common fields
-	Total  *float64
-	System *float64
-	User   *float64
-	Limit  *float64 // Percentage 0-100*numCPU
+	Total          *float64
+	System         *float64
+	User           *float64
+	Limit          *float64 // Percentage 0-100*numCPU
+	DefaultedLimit bool     // If Limit != nil, indicated if limit was explicit from container or defaulted to # of host CPUs
 
 	// Linux-only fields
 	Shares           *float64
 	ElapsedPeriods   *float64
 	ThrottledPeriods *float64
 	ThrottledTime    *float64
+	PartialStallTime *float64 // Correspond to PSI Some total
 }
 
 // DeviceIOStats stores Device IO stats.
@@ -63,6 +68,9 @@ type ContainerIOStats struct {
 	WriteBytes      *float64
 	ReadOperations  *float64
 	WriteOperations *float64
+
+	// Linux only
+	PartialStallTime *float64 // Correspond to PSI Some total
 
 	Devices map[string]DeviceIOStats
 }

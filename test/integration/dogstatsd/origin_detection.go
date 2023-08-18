@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dogstatsd
 
@@ -18,10 +17,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -34,7 +36,9 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
-	mockConfig := config.Mock(nil)
+	coreConfig.SetFeatures(t, coreConfig.Docker)
+
+	cfg := map[string]any{}
 
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
@@ -50,17 +54,19 @@ func testUDSOriginDetection(t *testing.T) {
 		composeFile = "mount_volume.compose"
 	}
 	socketPath := filepath.Join(dir, "dsd.socket")
-	mockConfig.Set("dogstatsd_socket", socketPath)
-	mockConfig.Set("dogstatsd_origin_detection", true)
+	cfg["dogstatsd_socket"] = socketPath
+	cfg["dogstatsd_origin_detection"] = true
 
-	// Env dectection
-	config.DetectFeatures()
+	confComponent := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule,
+		fx.Replace(config.MockParams{Overrides: cfg}),
+	))
 
 	// Start DSD
 	packetsChannel := make(chan packets.Packets)
 	sharedPacketPool := packets.NewPool(32)
 	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
-	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, nil)
+	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, confComponent, nil)
 	require.Nil(t, err)
 
 	go s.Listen()

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -70,10 +71,12 @@ func (c *collector) Pull(ctx context.Context) error {
 		Runtime: workloadmeta.ContainerRuntimeGarden,
 	}
 
-	containerEntity.CollectorTags = []string{
-		fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, c.nodeName),
-		fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, c.nodeName),
-	}
+	// init tags collection
+	containerTags := common.NewStringSet()
+
+	// add basic container tags
+	containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, c.nodeName))
+	containerTags.Add(fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, c.nodeName))
 
 	// read shared node tags file if it exists
 	sharedNodeTagsBytes, err := os.ReadFile(sharedNodeAgentTagsFile)
@@ -82,8 +85,13 @@ func (c *collector) Pull(ctx context.Context) error {
 	} else {
 		// TODO: handle json tags
 		sharedNodeTags := strings.Split(string(sharedNodeTagsBytes), ",")
-		containerEntity.CollectorTags = append(containerEntity.CollectorTags, sharedNodeTags...)
+		for _, s := range sharedNodeTags {
+			containerTags.Add(s)
+		}
 	}
+
+	// assign tags
+	containerEntity.CollectorTags = containerTags.GetAll()
 
 	events = append(events, workloadmeta.CollectorEvent{
 		Type:   workloadmeta.EventTypeSet,

@@ -4,16 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
 	"strings"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	corev1 "k8s.io/api/core/v1"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
 // ExtractPersistentVolume returns the protobuf model corresponding to a Kubernetes
@@ -73,7 +73,7 @@ func ExtractPersistentVolume(pv *corev1.PersistentVolume) *model.PersistentVolum
 		message.Spec.NodeAffinity = selectorTerms
 	}
 
-	message.Spec.PersistentVolumeType = extractVolumeSource(pv.Spec.PersistentVolumeSource)
+	addVolumeSource(message, pv.Spec.PersistentVolumeSource)
 
 	st := pv.Spec.Capacity.Storage()
 	if !st.IsZero() {
@@ -81,6 +81,8 @@ func ExtractPersistentVolume(pv *corev1.PersistentVolume) *model.PersistentVolum
 	}
 
 	addAdditionalPersistentVolumeTags(message)
+
+	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pv.ObjectMeta.Labels)...)
 
 	return message
 }
@@ -109,38 +111,135 @@ func extractPVSelector(ls []corev1.NodeSelectorRequirement) []*model.LabelSelect
 	return labelSelectors
 }
 
-func extractVolumeSource(volume corev1.PersistentVolumeSource) string {
+func addVolumeSource(pvModel *model.PersistentVolume, volume corev1.PersistentVolumeSource) {
 	switch {
+	case volume.Local != nil:
+		pvModel.Spec.PersistentVolumeType = "LocalVolume"
 	case volume.HostPath != nil:
-		return "HostPath"
+		pvModel.Spec.PersistentVolumeType = "HostPath"
 	case volume.GCEPersistentDisk != nil:
-		return "GCEPersistentDisk"
+		pvModel.Spec.PersistentVolumeType = "GCEPersistentDisk"
+		pvModel.Spec.PersistentVolumeSource = &model.PersistentVolumeSource{
+			GcePersistentDisk: extractGCEPersistentDiskVolumeSource(volume),
+		}
 	case volume.AWSElasticBlockStore != nil:
-		return "AWSElasticBlockStore"
+		pvModel.Spec.PersistentVolumeType = "AWSElasticBlockStore"
+		pvModel.Spec.PersistentVolumeSource = &model.PersistentVolumeSource{
+			AwsElasticBlockStore: extractAWSElasticBlockStoreVolumeSource(volume),
+		}
 	case volume.Quobyte != nil:
-		return "Quobyte"
+		pvModel.Spec.PersistentVolumeType = "Quobyte"
 	case volume.Cinder != nil:
-		return "Cinder"
+		pvModel.Spec.PersistentVolumeType = "Cinder"
 	case volume.PhotonPersistentDisk != nil:
-		return "PhotonPersistentDisk"
+		pvModel.Spec.PersistentVolumeType = "PhotonPersistentDisk"
 	case volume.PortworxVolume != nil:
-		return "PortworxVolume"
+		pvModel.Spec.PersistentVolumeType = "PortworxVolume"
 	case volume.ScaleIO != nil:
-		return "ScaleIO"
+		pvModel.Spec.PersistentVolumeType = "ScaleIO"
 	case volume.CephFS != nil:
-		return "CephFS"
+		pvModel.Spec.PersistentVolumeType = "CephFS"
 	case volume.StorageOS != nil:
-		return "StorageOS"
+		pvModel.Spec.PersistentVolumeType = "StorageOS"
 	case volume.FC != nil:
-		return "FC"
+		pvModel.Spec.PersistentVolumeType = "FC"
 	case volume.AzureFile != nil:
-		return "AzureFile"
+		pvModel.Spec.PersistentVolumeType = "AzureFile"
+		pvModel.Spec.PersistentVolumeSource = &model.PersistentVolumeSource{
+			AzureFile: extractAzureFilePersistentVolumeSource(volume),
+		}
+	case volume.AzureDisk != nil:
+		pvModel.Spec.PersistentVolumeType = "AzureDisk"
+		pvModel.Spec.PersistentVolumeSource = &model.PersistentVolumeSource{
+			AzureDisk: extractAzureDiskVolumeSource(volume),
+		}
 	case volume.FlexVolume != nil:
-		return "FlexVolume"
+		pvModel.Spec.PersistentVolumeType = "FlexVolume"
 	case volume.Flocker != nil:
-		return "Flocker"
+		pvModel.Spec.PersistentVolumeType = "Flocker"
 	case volume.CSI != nil:
-		return "CSI"
+		pvModel.Spec.PersistentVolumeType = "CSI"
+		pvModel.Spec.PersistentVolumeSource = &model.PersistentVolumeSource{
+			Csi: extractCSIVolumeSource(volume),
+		}
+	default:
+		pvModel.Spec.PersistentVolumeType = "<unknown>"
 	}
-	return "<unknown>"
+}
+
+func extractGCEPersistentDiskVolumeSource(volume corev1.PersistentVolumeSource) *model.GCEPersistentDiskVolumeSource {
+	return &model.GCEPersistentDiskVolumeSource{
+		PdName:    volume.GCEPersistentDisk.PDName,
+		FsType:    volume.GCEPersistentDisk.FSType,
+		Partition: volume.GCEPersistentDisk.Partition,
+		ReadOnly:  volume.GCEPersistentDisk.ReadOnly,
+	}
+}
+
+func extractAWSElasticBlockStoreVolumeSource(volume corev1.PersistentVolumeSource) *model.AWSElasticBlockStoreVolumeSource {
+	return &model.AWSElasticBlockStoreVolumeSource{
+		VolumeID:  volume.AWSElasticBlockStore.VolumeID,
+		FsType:    volume.AWSElasticBlockStore.FSType,
+		Partition: volume.AWSElasticBlockStore.Partition,
+		ReadOnly:  volume.AWSElasticBlockStore.ReadOnly,
+	}
+}
+
+func extractAzureFilePersistentVolumeSource(volume corev1.PersistentVolumeSource) *model.AzureFilePersistentVolumeSource {
+	m := &model.AzureFilePersistentVolumeSource{
+		SecretName: volume.AzureFile.SecretName,
+		ShareName:  volume.AzureFile.ShareName,
+		ReadOnly:   volume.AzureFile.ReadOnly,
+	}
+	if volume.AzureFile.SecretNamespace != nil {
+		m.SecretNamespace = *volume.AzureFile.SecretNamespace
+	}
+	return m
+}
+
+func extractAzureDiskVolumeSource(volume corev1.PersistentVolumeSource) *model.AzureDiskVolumeSource {
+	m := &model.AzureDiskVolumeSource{
+		DiskName: volume.AzureDisk.DiskName,
+		DiskURI:  volume.AzureDisk.DataDiskURI,
+	}
+	if volume.AzureDisk.CachingMode != nil {
+		m.CachingMode = string(*volume.AzureDisk.CachingMode)
+	}
+	if volume.AzureDisk.FSType != nil {
+		m.FsType = *volume.AzureDisk.FSType
+	}
+	if volume.AzureDisk.ReadOnly != nil {
+		m.ReadOnly = *volume.AzureDisk.ReadOnly
+	}
+	if volume.AzureDisk.Kind != nil {
+		m.Kind = string(*volume.AzureDisk.Kind)
+	}
+
+	return m
+}
+
+func extractCSIVolumeSource(volume corev1.PersistentVolumeSource) *model.CSIVolumeSource {
+	m := &model.CSIVolumeSource{
+		Driver:           volume.CSI.Driver,
+		VolumeHandle:     volume.CSI.VolumeHandle,
+		ReadOnly:         volume.CSI.ReadOnly,
+		FsType:           volume.CSI.FSType,
+		VolumeAttributes: volume.CSI.VolumeAttributes,
+	}
+
+	m.ControllerPublishSecretRef = extractSecretReference(volume.CSI.ControllerPublishSecretRef)
+	m.NodeStageSecretRef = extractSecretReference(volume.CSI.NodeStageSecretRef)
+	m.NodePublishSecretRef = extractSecretReference(volume.CSI.NodePublishSecretRef)
+	m.ControllerExpandSecretRef = extractSecretReference(volume.CSI.ControllerExpandSecretRef)
+	return m
+}
+
+func extractSecretReference(ref *corev1.SecretReference) *model.SecretReference {
+	if ref == nil {
+		return nil
+	}
+	return &model.SecretReference{
+		Name:      ref.Name,
+		Namespace: ref.Namespace,
+	}
 }

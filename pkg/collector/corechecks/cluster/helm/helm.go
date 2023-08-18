@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package helm
 
@@ -22,13 +21,13 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -97,10 +96,10 @@ func factory() check.Check {
 }
 
 // Configure configures the Helm check
-func (hc *HelmCheck) Configure(config, initConfig integration.Data, source string) error {
-	hc.BuildID(config, initConfig)
+func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	hc.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := hc.CommonConfigure(initConfig, config, source)
+	err := hc.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -175,19 +174,23 @@ func (hc *HelmCheck) Cancel() {
 
 func (hc *HelmCheck) setupInformers() error {
 	secretInformer := hc.informerFactory.Core().V1().Secrets()
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
 		UpdateFunc: hc.updateSecret,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
 	go secretInformer.Informer().Run(hc.informersStopCh)
 
 	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
-	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addConfigmap,
 		DeleteFunc: hc.deleteConfigmap,
 		UpdateFunc: hc.updateConfigmap,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to config map informer: %v", err)
+	}
 	go configmapInformer.Informer().Run(hc.informersStopCh)
 
 	return apiserver.SyncInformers(
@@ -466,15 +469,15 @@ func isLeader() (bool, error) {
 	return true, nil
 }
 
-func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
+func (hc *HelmCheck) sendServiceCheck(sender sender.Sender) {
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, taggedRel := range hc.store.getLatestRevisions(storageDriver) {
 			tags := taggedRel.commonTags
 
 			if taggedRel.release.Info != nil && taggedRel.release.Info.Status == "failed" {
-				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
+				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
 			} else {
-				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckOK, "", tags, "")
+				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, "", tags, "")
 			}
 		}
 	}

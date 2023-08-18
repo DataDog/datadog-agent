@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build zlib
-// +build zlib
 
 package compression
 
@@ -49,7 +48,9 @@ func Decompress(src []byte) ([]byte, error) {
 	return dst, nil
 }
 
-//  CompressBound returns the worst case size needed for a destination buffer
+// CompressBound returns the worst case size needed for a destination buffer
+// This is allowed to return a value _larger_ than 'sourceLen'.
+// Ref: https://refspecs.linuxbase.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/zlib-compressbound-1.html
 func CompressBound(sourceLen int) int {
 	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
 	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13

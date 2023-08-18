@@ -6,13 +6,13 @@
 package stats
 
 import (
+	"strings"
 	"sync"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -27,7 +27,7 @@ const defaultBufferLen = 2
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
 	In  chan Input
-	Out chan pb.StatsPayload
+	Out chan *pb.StatsPayload
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -38,18 +38,20 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen     int
-	exit          chan struct{}
-	exitWG        sync.WaitGroup
-	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu            sync.Mutex
-	agentEnv      string
-	agentHostname string
-	agentVersion  string
+	bufferLen              int
+	exit                   chan struct{}
+	exitWG                 sync.WaitGroup
+	buckets                map[int64]*RawBucket // buckets used to aggregate stats per timestamp
+	mu                     sync.Mutex
+	agentEnv               string
+	agentHostname          string
+	agentVersion           string
+	peerSvcAggregation     bool // flag to enable peer.service aggregation
+	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now time.Time) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -58,13 +60,15 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		// override buckets which could have been sent before an Agent restart.
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
-		bufferLen:     defaultBufferLen,
-		In:            make(chan Input, 100),
-		Out:           out,
-		exit:          make(chan struct{}),
-		agentEnv:      conf.DefaultEnv,
-		agentHostname: conf.Hostname,
-		agentVersion:  conf.AgentVersion,
+		bufferLen:              defaultBufferLen,
+		In:                     make(chan Input, 1),
+		Out:                    out,
+		exit:                   make(chan struct{}),
+		agentEnv:               conf.DefaultEnv,
+		agentHostname:          conf.Hostname,
+		agentVersion:           conf.AgentVersion,
+		peerSvcAggregation:     conf.PeerServiceAggregation,
+		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
 	return &c
 }
@@ -99,10 +103,10 @@ func (c *Concentrator) Run() {
 	for {
 		select {
 		case <-flushTicker.C:
-			c.Out <- c.Flush()
+			c.Out <- c.Flush(false)
 		case <-c.exit:
 			log.Info("Exiting concentrator, computing remaining stats")
-			c.Out <- c.Flush()
+			c.Out <- c.Flush(true)
 			return
 		}
 	}
@@ -112,6 +116,17 @@ func (c *Concentrator) Run() {
 func (c *Concentrator) Stop() {
 	close(c.exit)
 	c.exitWG.Wait()
+}
+
+// computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
+func computeStatsForSpanKind(s *pb.Span) bool {
+	k := strings.ToLower(s.Meta["span.kind"])
+	switch k {
+	case "server", "consumer", "client", "producer":
+		return true
+	default:
+		return false
+	}
 }
 
 // Input specifies a set of traces originating from a certain payload.
@@ -126,8 +141,10 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 		return Input{}
 	}
 	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	enableContainers := features.Has("enable_cid_stats") || (conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if enableContainers && !features.Has("disable_cid_stats") {
+	_, enabledCIDStats := conf.Features["enable_cid_stats"]
+	_, disabledCIDStats := conf.Features["disable_cid_stats"]
+	enableContainers := enabledCIDStats || (conf.FargateOrchestrator != config.OrchestratorUnknown)
+	if enableContainers && !disabledCIDStats {
 		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
 		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
 		in.ContainerID = containerID
@@ -164,7 +181,11 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		if !(isTop || traceutil.IsMeasured(s)) || traceutil.IsPartialSnapshot(s) {
+		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s)
+		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
+			continue
+		}
+		if traceutil.IsPartialSnapshot(s) {
 			continue
 		}
 		end := s.Start + s.Duration
@@ -180,27 +201,33 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
 	}
 }
 
-// Flush deletes and returns complete statistic buckets
-func (c *Concentrator) Flush() pb.StatsPayload {
-	return c.flushNow(time.Now().UnixNano())
+// Flush deletes and returns complete statistic buckets.
+// The force boolean guarantees flushing all buckets if set to true.
+func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
+	return c.flushNow(time.Now().UnixNano(), force)
 }
 
-func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
-	m := make(map[PayloadAggregationKey][]pb.ClientStatsBucket)
+func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
+	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
 		// Always keep `bufferLen` buckets (default is 2: current + previous one).
 		// This is a trade-off: we accept slightly late traces (clock skew and stuff)
 		// but we delay flushing by at most `bufferLen` buckets.
-		if ts > now-int64(c.bufferLen)*c.bsize {
+		//
+		// This delay might result in not flushing stats payload (data loss)
+		// if the agent stops while the latest buckets aren't old enough to be flushed.
+		// The "force" boolean skips the delay and flushes all buckets, typically on agent shutdown.
+		if !force && ts > now-int64(c.bufferLen)*c.bsize {
+			log.Tracef("Bucket %d is not old enough to be flushed, keeping it", ts)
 			continue
 		}
-		log.Debugf("flushing bucket %d", ts)
+		log.Debugf("Flushing bucket %d", ts)
 		for k, b := range srb.Export() {
 			m[k] = append(m[k], b)
 		}
@@ -210,13 +237,13 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 	// an already-flushed bucket.
 	newOldestTs := alignTs(now, c.bsize) - int64(c.bufferLen-1)*c.bsize
 	if newOldestTs > c.oldestTs {
-		log.Debugf("update oldestTs to %d", newOldestTs)
+		log.Debugf("Update oldestTs to %d", newOldestTs)
 		c.oldestTs = newOldestTs
 	}
 	c.mu.Unlock()
-	sb := make([]pb.ClientStatsPayload, 0, len(m))
+	sb := make([]*pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
-		p := pb.ClientStatsPayload{
+		p := &pb.ClientStatsPayload{
 			Env:         k.Env,
 			Hostname:    k.Hostname,
 			ContainerID: k.ContainerID,
@@ -225,7 +252,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 		}
 		sb = append(sb, p)
 	}
-	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
+	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.

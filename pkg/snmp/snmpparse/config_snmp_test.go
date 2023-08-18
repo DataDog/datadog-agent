@@ -6,11 +6,13 @@
 package snmpparse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestOneInstance(t *testing.T) {
@@ -29,6 +31,26 @@ func TestOneInstance(t *testing.T) {
 			Port:            161,
 			Timeout:         60,
 			Retries:         3,
+		},
+	}
+	assertSNMP(t, input, Exoutput)
+}
+
+func TestDefaultSet(t *testing.T) {
+	//define the input
+	type Data = integration.Data
+	input := integration.Config{
+		Name:      "snmp",
+		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\"}")},
+	}
+	//define the output
+	Exoutput := []SNMPConfig{
+		{
+			Version:   "",
+			IPAddress: "98.6.18.158",
+			Port:      161,
+			Timeout:   2,
+			Retries:   3,
 		},
 	}
 	assertSNMP(t, input, Exoutput)
@@ -227,13 +249,64 @@ func TestGetSNMPConfigNoAddress(t *testing.T) {
 func TestGetSNMPConfigEmpty(t *testing.T) {
 	//if the snmp configuration is empty
 	IPList := []SNMPConfig{}
-	input := "192.168.6.1"
+	input := "192.168.6.4"
 	Exoutput := SNMPConfig{}
 	assertIP(t, input, IPList, Exoutput)
 
 }
 
+func TestGetSNMPConfigDefault(t *testing.T) {
+	//check if the default setter is valid
+	input := SNMPConfig{}
+	SetDefault(&input)
+	Exoutput := SNMPConfig{
+		Version: "",
+		Port:    161,
+		Timeout: 2,
+		Retries: 3,
+	}
+	assert.Equal(t, Exoutput, input)
+
+}
 func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedOutput SNMPConfig) {
 	output := GetIPConfig(input, snmpConfigList)
 	assert.Equal(t, expectedOutput, output)
+}
+
+func TestParseConfigSnmpMain(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	// ReadConfig stores the Yaml in the config.Datadog object
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - network_address: 127.0.0.1/30
+     snmp_version: 1
+     community_string: public
+   - network_address: 127.0.0.2/30
+     snmp_version: 2
+     community_string: publicX
+   - network_address: 127.0.0.4/30
+     snmp_version: 3
+`))
+	assert.NoError(t, err)
+
+	Output, _ := parseConfigSnmpMain()
+	Exoutput := []SNMPConfig{
+		{
+			Version:         "1",
+			CommunityString: "public",
+			NetAddress:      "127.0.0.1/30",
+		},
+		{
+			Version:         "2",
+			CommunityString: "publicX",
+			NetAddress:      "127.0.0.2/30",
+		},
+		{
+			Version:    "3",
+			NetAddress: "127.0.0.4/30",
+		},
+	}
+	assert.Equal(t, Exoutput, Output)
+
 }

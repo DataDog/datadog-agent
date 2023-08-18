@@ -4,25 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package leaderelection
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/leaderelection"
-	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
-
-	"context"
-
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -30,6 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"golang.org/x/mod/semver"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
+	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/leaderelection"
+	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
 const (
@@ -37,9 +38,7 @@ const (
 	getLeaderTimeout           = 10 * time.Second
 )
 
-var (
-	globalLeaderEngine *LeaderEngine
-)
+var globalLeaderEngine *LeaderEngine
 
 // LeaderEngine is a structure for the LeaderEngine client to run leader election
 // on Kubernetes clusters
@@ -56,9 +55,11 @@ type LeaderEngine struct {
 	LeaseName           string
 	LeaderNamespace     string
 	coreClient          corev1.CoreV1Interface
+	coordClient         coordinationv1.CoordinationV1Interface
 	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
+	lockType            string
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
@@ -81,7 +82,7 @@ func newLeaderEngine() *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
-	telemetry.Reset()
+	telemetryComponent.GetCompatComponent().Reset()
 }
 
 // GetLeaderEngine returns a leader engine client with default parameters.
@@ -115,9 +116,9 @@ func (le *LeaderEngine) init() error {
 	var err error
 
 	if le.HolderIdentity == "" {
-		le.HolderIdentity, err = os.Hostname()
+		le.HolderIdentity, err = getSelfPodName()
 		if err != nil {
-			log.Debugf("cannot get hostname: %s", err)
+			log.Debugf("cannot get pod name: %s", err)
 			return err
 		}
 	}
@@ -138,15 +139,27 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	le.coreClient = apiClient.Cl.CoreV1().(*corev1.CoreV1Client)
-
-	// check if we can get ConfigMap.
-	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
-	if err != nil && errors.IsNotFound(err) == false {
-		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", le.LeaderNamespace, err)
-		return err
+	serverVersion, err := common.KubeServerVersion(apiClient.DiscoveryCl, 10*time.Second)
+	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
+		log.Warn("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
 	}
 
+	le.coreClient = apiClient.Cl.CoreV1()
+	le.coordClient = apiClient.Cl.CoordinationV1()
+
+	usingLease, err := CanUseLeases(apiClient.DiscoveryCl)
+	if err != nil {
+		log.Errorf("Unable to retrieve available resources: %v", err)
+		return err
+	}
+	if usingLease {
+		log.Debugf("leader election will use Leases to store the leader token")
+		le.lockType = rl.LeasesResourceLock
+	} else {
+		// for kubernetes <= 1.13
+		log.Debugf("leader election will use ConfigMaps to store the leader token")
+		le.lockType = configmaplock.ConfigMapsResourceLock
+	}
 	le.leaderElector, err = le.newElection()
 	if err != nil {
 		log.Errorf("Could not initialize the Leader Election process: %s", err)
@@ -252,18 +265,54 @@ func (le *LeaderEngine) Subscribe() <-chan struct{} {
 	return c
 }
 
-// GetLeaderElectionRecord is used in for the Flare and for the Status commands.
-func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error) {
-	var led rl.LeaderElectionRecord
-	client, err := apiserver.GetAPIClient()
+func detectLeases(client discovery.DiscoveryInterface) (bool, error) {
+	resourceList, err := client.ServerResourcesForGroupVersion("coordination.k8s.io/v1")
+	if kerrors.IsNotFound(err) {
+		return false, nil
+	}
 	if err != nil {
-		return led, err
+		return false, err
+	}
+	for _, actualResource := range resourceList.APIResources {
+		if actualResource.Name == "leases" {
+			return true, nil
+		}
 	}
 
-	c := client.Cl.CoreV1()
+	return false, nil
+}
 
-	leaderNamespace := common.GetResourcesNamespace()
-	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
+// CanUseLeases returns if leases can be used for leader election. If the resource is defined in the config
+// It uses it. Otherwise it uses the discovery client for leader election.
+func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
+	resourceType := config.Datadog.GetString("leader_election_default_resource")
+	if resourceType == "lease" || resourceType == "leases" {
+		return true, nil
+	} else if resourceType == "configmap" || resourceType == "configmaps" {
+		return false, nil
+	}
+
+	if resourceType != "" {
+		log.Warnf("Unknown resource lock for leader election [%s]. Using the discovery client to select the lock", resourceType)
+	}
+
+	return detectLeases(client)
+}
+
+func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
+	var empty rl.LeaderElectionRecord
+	lease, err := client.Leases(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
+	if err != nil {
+		return empty, err
+	}
+	log.Debugf("LeaderElection lease is %#v", lease)
+	record := rl.LeaseSpecToLeaderElectionRecord(&lease.Spec)
+	return *record, nil
+}
+
+func getConfigMapLeaderElectionRecord(client corev1.CoreV1Interface) (rl.LeaderElectionRecord, error) {
+	var led rl.LeaderElectionRecord
+	leaderElectionCM, err := client.ConfigMaps(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}
@@ -277,4 +326,21 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 		return led, err
 	}
 	return led, nil
+}
+
+// GetLeaderElectionRecord is used in for the Flare and for the Status commands.
+func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error) {
+	var led rl.LeaderElectionRecord
+	client, err := apiserver.GetAPIClient()
+	if err != nil {
+		return led, err
+	}
+	usingLease, err := CanUseLeases(client.DiscoveryCl)
+	if err != nil {
+		return led, err
+	}
+	if usingLease {
+		return getLeaseLeaderElectionRecord(client.Cl.CoordinationV1())
+	}
+	return getConfigMapLeaderElectionRecord(client.Cl.CoreV1())
 }

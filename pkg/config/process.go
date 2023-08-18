@@ -35,14 +35,23 @@ const (
 	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxPerMessage = 100
 
+	// ProcessMaxPerMessageLimit is the maximum allowed value for maximum number of processes, or containers per message.
+	ProcessMaxPerMessageLimit = 10000
+
 	// DefaultProcessMaxMessageBytes is the default max for size of a message containing processes or container data. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxMessageBytes = 1000000
+
+	// ProcessMaxMessageBytesLimit is the maximum allowed value for the maximum size of a message containing processes or container data.
+	ProcessMaxMessageBytesLimit = 4000000
 
 	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
 	DefaultProcessExpVarPort = 6062
 
 	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
 	DefaultProcessCmdPort = 6162
+
+	// DefaultProcessEntityStreamPort is the default port used by the process-agent to expose Process Entities
+	DefaultProcessEntityStreamPort = 6262
 
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com"
@@ -67,6 +76,9 @@ const (
 
 	// DefaultProcessEventsCheckInterval is the default interval used by the process_events check
 	DefaultProcessEventsCheckInterval = 10 * time.Second
+
+	// DefaultProcessDiscoveryHintFrequency is the default frequency in terms of number of checks which we send a process discovery hint
+	DefaultProcessDiscoveryHintFrequency = 60
 )
 
 // setupProcesses is meant to be called multiple times for different configs, but overrides apply to all configs, so
@@ -164,6 +176,7 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
+	procBindEnvAndSetDefault(config, "process_config.remote_workloadmeta", false) // This flag might change. It's still being tested.
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
 
 	// Process Discovery Check
@@ -175,6 +188,8 @@ func setupProcesses(config Config) {
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 
+	procBindEnvAndSetDefault(config, "process_config.process_discovery.hint_frequency", DefaultProcessDiscoveryHintFrequency)
+
 	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
 
 	// Process Lifecycle Events
@@ -184,6 +199,10 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.event_collection.store.stats_interval", DefaultProcessEventStoreStatsInterval)
 	procBindEnvAndSetDefault(config, "process_config.event_collection.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.event_collection.interval", DefaultProcessEventsCheckInterval)
+
+	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
+
+	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)

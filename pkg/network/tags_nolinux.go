@@ -4,11 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package network
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
 func GetStaticTags(staticTags uint64) (tags []string) {
 	return tags
+}
+
+func IsTLSTag(staticTags uint64) bool {
+	return false
 }

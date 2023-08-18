@@ -14,20 +14,13 @@ from invoke.exceptions import Exit
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    get_build_flags,
-    get_root,
-    get_version,
-    get_version_numeric_only,
-    load_release_versions,
-)
+from .utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 35 * 1024
+MAX_BINARY_SIZE = 37 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -58,19 +51,17 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-
-        ctx.run(
-            f"windmc --target {windres_target}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc"
-        )
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/dogstatsd/windows_resources/dogstatsd.rc --target {windres_target} -O coff -o cmd/dogstatsd/rsrc.syso"
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/dogstatsd/windows_resources/dogstatsd.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/dogstatsd/rsrc.syso",
         )
 
     if static:
@@ -216,9 +207,18 @@ def omnibus_build(
     if overrides:
         overrides_cmd = "--override=" + " ".join(overrides)
 
-    with ctx.cd("omnibus"):
-        env = load_release_versions(ctx, release_version)
+    env = load_release_versions(ctx, release_version)
 
+    env['PACKAGE_VERSION'] = get_version(
+        ctx,
+        include_git=True,
+        url_safe=True,
+        git_sha_length=7,
+        major_version=major_version,
+        include_pipeline_id=True,
+    )
+
+    with ctx.cd("omnibus"):
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
@@ -231,14 +231,6 @@ def omnibus_build(
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
 
-        env['PACKAGE_VERSION'] = get_version(
-            ctx,
-            include_git=True,
-            url_safe=True,
-            git_sha_length=7,
-            major_version=major_version,
-            include_pipeline_id=True,
-        )
         env['MAJOR_VERSION'] = major_version
 
         integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
@@ -294,7 +286,8 @@ def image_build(ctx, arch='amd64', skip_build=False):
 
     client = docker.from_env()
 
-    src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    binary_name = bin_name("dogstatsd")
+    src = os.path.join(STATIC_BIN_PATH, binary_name)
     dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
 
     if not skip_build:
@@ -305,11 +298,18 @@ def image_build(ctx, arch='amd64', skip_build=False):
     if not os.path.exists(dst):
         os.makedirs(dst)
 
-    shutil.copy(src, dst)
+    shutil.copy(src, os.path.join(dst, f"{binary_name}.{arch}"))
     build_context = "Dockerfiles/dogstatsd/alpine"
-    dockerfile_path = f"{arch}/Dockerfile"
+    dockerfile_path = "Dockerfile"
 
-    client.images.build(path=build_context, dockerfile=dockerfile_path, rm=True, tag=DOGSTATSD_TAG)
+    client.images.build(
+        path=build_context,
+        dockerfile=dockerfile_path,
+        rm=True,
+        tag=DOGSTATSD_TAG,
+        platform=f"linux/{arch}",
+        buildargs={"TARGETARCH": arch},
+    )
     ctx.run(f"rm -rf {build_context}/static")
 
 

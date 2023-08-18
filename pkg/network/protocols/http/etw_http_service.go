@@ -119,7 +119,6 @@
 //
 
 //go:build windows && npm
-// +build windows,npm
 
 package http
 
@@ -235,7 +234,7 @@ var (
 	servedFromCache           uint64
 	completedRequestCount     uint64
 	missedConnectionCount     uint64
-	missedCacheCount          uint64
+	missedCacheCount          uint64 //nolint:unused
 	parsingErrorCount         uint64
 	notHandledEventsCount     uint64
 	transferedETWBytesTotal   uint64
@@ -313,7 +312,7 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 	}
 
 	// Time
-	httpConnLink.http.Txn.ResponseLastSeen = etw.FileTimeToUnixTime(uint64(eventInfo.Event.TimeStamp))
+	httpConnLink.http.Txn.ResponseLastSeen = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 	// Clean it up related containers
 	cleanupActivityIdViaConnOpen(connOpen, eventInfo.Event.ActivityId)
@@ -389,7 +388,6 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 
 // -----------------------------------------------------------
 // HttpService ETW Event #21 (HTTPConnectionTraceTaskConnConn)
-//
 func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -454,7 +452,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 	}
 
 	var connOpen ConnOpen
-
+	// we're _always_ the server
 	if localAddrLength == 16 {
 		remoteAddrLength := binary.LittleEndian.Uint32(userData[28:32])
 		if remoteAddrLength != 16 {
@@ -464,10 +462,10 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 
 		// Local and remote ipaddress and port
 		connOpen.conn.tup.Family = binary.LittleEndian.Uint16(userData[12:14])
-		connOpen.conn.tup.SrvPort = binary.BigEndian.Uint16(userData[14:16])
-		copy(connOpen.conn.tup.SrvAddr[:], userData[16:20])
-		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[34:36])
-		copy(connOpen.conn.tup.CliAddr[:], userData[36:40])
+		connOpen.conn.tup.LocalPort = binary.BigEndian.Uint16(userData[14:16])
+		copy(connOpen.conn.tup.LocalAddr[:], userData[16:20])
+		connOpen.conn.tup.RemotePort = binary.BigEndian.Uint16(userData[34:36])
+		copy(connOpen.conn.tup.RemoteAddr[:], userData[36:40])
 	} else {
 		if eventInfo.Event.UserDataLength < 72 {
 			log.Errorf("*** Error: User data length for EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn is too small for IP6 %v\n\n", uintptr(eventInfo.Event.UserDataLength))
@@ -484,14 +482,14 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 		//  	46: uint16_t remotePort;
 		//  	52: uint16_t remoteIpAddress[8];
 		connOpen.conn.tup.Family = binary.LittleEndian.Uint16(userData[12:14])
-		connOpen.conn.tup.SrvPort = binary.BigEndian.Uint16(userData[14:16])
-		copy(connOpen.conn.tup.SrvAddr[:], userData[20:36])
-		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[36:48])
-		copy(connOpen.conn.tup.CliAddr[:], userData[52:68])
+		connOpen.conn.tup.LocalPort = binary.BigEndian.Uint16(userData[14:16])
+		copy(connOpen.conn.tup.LocalAddr[:], userData[20:36])
+		connOpen.conn.tup.RemotePort = binary.BigEndian.Uint16(userData[46:48])
+		copy(connOpen.conn.tup.RemoteAddr[:], userData[52:68])
 	}
 
 	// Time
-	connOpen.conn.connected = etw.FileTimeToUnixTime(uint64(eventInfo.Event.TimeStamp))
+	connOpen.conn.connected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 	// Http back links (to cleanup on closure)
 	connOpen.httpPendingBackLinks = make(map[etw.DDGUID]struct{}, 10)
@@ -512,7 +510,6 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 
 // -------------------------------------------------------------
 // HttpService ETW Event #23 (HTTPConnectionTraceTaskConnClose)
-//
 func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -527,7 +524,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInf
 		completedRequestCount++
 
 		// move it to close connection
-		connOpen.conn.disconnected = etw.FileTimeToUnixTime(uint64(eventInfo.Event.TimeStamp))
+		connOpen.conn.disconnected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 		// Clean pending http2openConn
 		for httpReqRespActivityId := range connOpen.httpPendingBackLinks {
@@ -554,7 +551,6 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInf
 
 // -----------------------------------------------------------
 // HttpService ETW Event #1 (HTTPRequestTraceTaskRecvReq)
-//
 func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -564,7 +560,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	// 	{
 	// 		0:  uint64_t requestId;
 	// 		8:  uint64_t connectionId;
-	//      16: uint32_t remoteAddrLength;
+	//      16: uint32_t remoteAddrLength; (or maybe uint16_t, see warning below)
 	//      20: uint16_t remoteSinFamily;
 	//      22: uint16_t remotePort;
 	// 		24: uint32_t remoteIpAddress;
@@ -574,12 +570,36 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	// userData := goBytes(unsafe.Pointer(eventInfo.Event.UserData), C.int(eventInfo.Event.UserDataLength))
 
 	// Check for size
-	if eventInfo.Event.UserDataLength < 36 {
-		parsingErrorCount++
-		log.Errorf("*** Error: ActivityId:%v. User data length for EVENT_PARAM_HttpService_HTTPRequestTraceTaskRecvReq_IP4 is too small %v\n\n",
-			etw.FormatGuid(eventInfo.Event.ActivityId), uintptr(eventInfo.Event.UserDataLength))
-		return
-	}
+	/*
+			 * WARNING
+			 *
+			 * the format of the UserData structure seemed to magically change for Server 2022
+			 * So the expected UserDataLength is 34 (or 44 for ipv6) for 22, and 36/46 for <= 2019
+			 *
+			 * since we don't use the UserData in this callback, it is safe to skip the previously
+			 * implemented length check.
+			 *
+			 * however, the _warning_ is that if you wish to _use_ the UserData structure, it must
+			 * be specially parsed depending on OS version to figure out which byte-packing MS used.
+			 *
+			 * Specifically, the remoteAddrLength member of the userdata structure went from
+			 * 32 bits to 16 bits.  Which is fine, because it's a small number (16 for ipv6).  But
+			 * the parsing becomes wonky.
+			 *
+			 * Suggested check
+			 remoteAddrLengthAs32 := binary.LittleEndian.Uint32(userData[16:20])
+			 var remoteAddrLengthAs16 uint16
+			 parseStart := 20
+			 if remoteAddrLengthAs32 > 16 {
+				// the remoteAddrLength is packed as a 16 bit int
+				remoteAddrLengthAs16 = binary.LittleEndian.Uint16((userData[16:18]))
+				parseStart = 18
+			 }
+		     remoteSinFamily := binary.LittleEndian.Uint16[parseStart:parseStart + 2]
+			 remoteSinPort := binary.LittleEndian.Uint16[parseStart + 2:parseStart + 4]
+
+			 * etc....
+	*/
 
 	// related activityid
 	if eventInfo.RelatedActivityId == nil {
@@ -598,7 +618,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	reqRespAndLink := &HttpConnLink{}
 	reqRespAndLink.connActivityId = eventInfo.Event.ActivityId
 	reqRespAndLink.http.Txn.Tup = connOpen.conn.tup
-	reqRespAndLink.http.Txn.RequestStarted = etw.FileTimeToUnixTime(uint64(eventInfo.Event.TimeStamp))
+	reqRespAndLink.http.Txn.RequestStarted = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 	// Save Req/Resp Conn Link and back reference to it
 	http2openConn[*eventInfo.RelatedActivityId] = reqRespAndLink
@@ -621,7 +641,6 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #2 (HTTPRequestTraceTaskParse)
-//
 func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -682,7 +701,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 		// whole thing
 		httpConnLink.http.RequestFragment = make([]byte, maxRequestFragmentBytes)
 		httpConnLink.http.Txn.MaxRequestFragment = uint16(maxRequestFragmentBytes)
-		httpConnLink.http.RequestFragment[0] = 32
+		httpConnLink.http.RequestFragment[0] = 32 // this is a leading space.
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
@@ -700,7 +719,6 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #3 (HTTPRequestTraceTaskDeliver)
-//
 func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -784,7 +802,6 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #4, #8 (HTTPRequestTraceTaskFastResp, HTTPRequestTraceTaskRecvResp)
-//
 func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -842,7 +859,6 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #16-17 (HTTPRequestTraceTaskSrvdFrmCache, HTTPRequestTraceTaskCachedNotModified)
-//
 func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -914,7 +930,6 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInf
 
 // -----------------------------------------------------------
 // HttpService ETW Event #25 (HTTPCacheTraceTaskAddedCacheEntry)
-//
 func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -995,7 +1010,6 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventIn
 
 // -----------------------------------------------------------
 // HttpService ETW Event #26 (HTTPCacheTraceTaskFlushedCache)
-//
 func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -1054,7 +1068,6 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo)
 
 // -----------------------------------------------------------
 // HttpService ETW Event #10-14 (HTTPRequestTraceTaskXXXSendXXX)
-//
 func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
 
 	// We probably should use this event as a last event for a particular activity and use
@@ -1074,7 +1087,6 @@ func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #34 (EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent)
-//
 func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -1158,7 +1170,7 @@ func etwHttpServiceSummary() {
 	*/
 }
 
-func (hei *httpEtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
+func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
 
 	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
 	transferedETWBytesTotal += (uint64(eventInfo.Event.UserDataLength) + 0x68)
@@ -1293,9 +1305,10 @@ func SetMaxRequestBytes(maxRequestBytes uint64) {
 }
 
 func SetEnabledProtocols(http, https bool) {
+	captureHTTP = http
 	captureHTTPS = https
 }
-func (hei *httpEtwInterface) OnStart() {
+func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
 	var err error
@@ -1312,7 +1325,7 @@ func (hei *httpEtwInterface) OnStart() {
 	}
 }
 
-func (hei *httpEtwInterface) OnStop() {
+func (hei *EtwInterface) OnStop() {
 	httpServiceSubscribed = false
 	initializeEtwHttpServiceSubscription()
 	if iisConfig != nil {

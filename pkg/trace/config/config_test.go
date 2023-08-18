@@ -6,17 +6,24 @@
 package config
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestInAzureAppServices(t *testing.T) {
-	isAzure := inAzureAppServices(func(s string) string { return "true" })
-	isNotAzure := inAzureAppServices(func(s string) string { return "false" })
-	isEmpty := inAzureAppServices(func(s string) string { return "" })
-	assert.True(t, isAzure)
-	assert.False(t, isNotAzure)
-	assert.False(t, isEmpty)
+	os.Setenv(RunZip, " ")
+	isLinuxAzure := InAzureAppServices()
+	os.Unsetenv(RunZip)
 
+	os.Setenv(AppLogsTrace, " ")
+	isWindowsAzure := InAzureAppServices()
+	os.Unsetenv(AppLogsTrace)
+
+	isNotAzure := InAzureAppServices()
+
+	assert.True(t, isLinuxAzure)
+	assert.True(t, isWindowsAzure)
+	assert.False(t, isNotAzure)
 }

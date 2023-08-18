@@ -4,11 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package checks
 
 import (
+	"math"
 	"runtime"
 
 	"github.com/DataDog/gopsutil/cpu"
@@ -23,7 +23,7 @@ var (
 	numCPU = runtime.NumCPU
 )
 
-func formatUser(fp *procutil.Process) *model.ProcessUser {
+func formatUser(fp *procutil.Process, _ *LookupIdProbe) *model.ProcessUser {
 	return &model.ProcessUser{
 		Name: fp.Username,
 	}
@@ -60,5 +60,10 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	if overalPct > (numCPU * 100) {
 		overalPct = numCPU * 100
 	}
+
+	// Clamp to 0 below if we get a negative value
+	// deltaTime is approximated using the system time on Windows, and can turn negative when NTP clock synchronization occurs or the system time is manually reset
+	// Avoid reporting negative CPU percentages when this occurs
+	overalPct = math.Max(overalPct, 0.0)
 	return float32(overalPct)
 }

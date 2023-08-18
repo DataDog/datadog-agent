@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package integrations
 
@@ -26,8 +25,19 @@ func TestInstallCommand(t *testing.T) {
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo==1.0"}, cliParams.args)
 			require.Equal(t, 1, cliParams.verbose)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
-			require.Equal(t, true, coreParams.ConfigMissingOK)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, coreParams.ConfigMissingOK())
+		})
+}
+
+func TestInstallSkipVerificationCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"integration", "install", "foo==1.0", "--unsafe-disable-verification"},
+		install,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, []string{"foo==1.0"}, cliParams.args)
+			require.Equal(t, true, cliParams.unsafeDisableVerification)
 		})
 }
 
@@ -39,8 +49,8 @@ func TestRemoveCommand(t *testing.T) {
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
-			require.Equal(t, true, coreParams.ConfigMissingOK)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
 }
 
@@ -52,8 +62,8 @@ func TestFreezeCommand(t *testing.T) {
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
-			require.Equal(t, true, coreParams.ConfigMissingOK)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
 }
 
@@ -65,7 +75,7 @@ func TestShowCommand(t *testing.T) {
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
-			require.Equal(t, true, coreParams.ConfigMissingOK)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
 }

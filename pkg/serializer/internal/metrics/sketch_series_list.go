@@ -12,12 +12,13 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/richardartoul/molecule"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // A SketchSeriesList implements marshaler.Marshaler
@@ -252,6 +253,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				// Unexpected error bail out
 				expvarsUnexpectedItemDrops.Add(1)
 				tlmUnexpectedItemDrops.Inc()
+				log.Debugf("Unexpected error trying to addItem to new payload after previous payload filled up: %v", err)
 				return nil, err
 			}
 			pointCount += len(ss.Points)
@@ -266,12 +268,14 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			// Unexpected error bail out
 			expvarsUnexpectedItemDrops.Add(1)
 			tlmUnexpectedItemDrops.Inc()
+			log.Debugf("Unexpected error: %v", err)
 			return nil, err
 		}
 	}
 
 	err = finishPayload()
 	if err != nil {
+		log.Debugf("Failed to finish payload with err %v", err)
 		return nil, err
 	}
 
@@ -319,6 +323,9 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	for sl.MoveNext() {
 		ss := sl.Current()
 		sketches = append(sketches, ss)
+	}
+	if len(sketches) == 0 {
+		return []marshaler.AbstractMarshaler{}, nil
 	}
 	return sketches.SplitPayload(times)
 }

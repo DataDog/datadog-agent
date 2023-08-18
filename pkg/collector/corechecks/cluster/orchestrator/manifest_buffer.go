@@ -4,23 +4,36 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package orchestrator
 
 import (
+	"expvar"
 	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var (
+	bufferExpVars      = expvar.NewMap("orchestrator-manifest-buffer")
+	bufferedManifest   = map[orchestrator.NodeType]*expvar.Int{}
+	manifestFlushed    = &expvar.Int{}
+	bufferFlushedTotal = &expvar.Int{}
+)
+
+func init() {
+	bufferExpVars.Set("ManifestsFlushedLastTime", manifestFlushed)
+	bufferExpVars.Set("BufferFlushed", bufferFlushedTotal)
+}
 
 // ManifestBufferConfig contains information about buffering manifests.
 type ManifestBufferConfig struct {
@@ -68,7 +81,7 @@ func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 }
 
 // flushManifest flushes manifests by chunking them first then sending them to the sender
-func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
+func (cb *ManifestBuffer) flushManifest(sender sender.Sender) {
 	manifests := cb.bufferedManifests
 	ctx := &processors.ProcessorContext{
 		ClusterID:  cb.Cfg.ClusterID,
@@ -79,14 +92,15 @@ func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 			MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
 		},
 	}
-	manifestMessages := processors.ChunkManifest(ctx, manifests)
+	manifestMessages := processors.ChunkManifest(ctx, k8s.BaseHandlers{}.BuildManifestMessageBody, manifests)
 	sender.OrchestratorManifest(manifestMessages, cb.Cfg.ClusterID)
+	setManifestStats(manifests)
 	cb.bufferedManifests = cb.bufferedManifests[:0]
 }
 
 // appendManifest appends manifest into the buffer
 // If buffer is full, it will flush the buffer first then append the manifest
-func (cb *ManifestBuffer) appendManifest(m interface{}, sender aggregator.Sender) {
+func (cb *ManifestBuffer) appendManifest(m interface{}, sender sender.Sender) {
 	if len(cb.bufferedManifests) >= cb.Cfg.MaxBufferedManifests {
 		cb.flushManifest(sender)
 	}
@@ -96,12 +110,15 @@ func (cb *ManifestBuffer) appendManifest(m interface{}, sender aggregator.Sender
 
 // Start is to start a thread to buffer manifest and send them
 // It flushes manifests every defaultFlushManifestTime
-func (cb *ManifestBuffer) Start(sender aggregator.Sender) {
-	ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
+func (cb *ManifestBuffer) Start(sender sender.Sender) {
 	cb.wg.Add(1)
 
 	go func() {
-		defer cb.wg.Done()
+		ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
+		defer func() {
+			ticker.Stop()
+			cb.wg.Done()
+		}()
 	loop:
 		for {
 			select {
@@ -134,5 +151,21 @@ func BufferManifestProcessResult(messages []model.MessageBody, buffer *ManifestB
 		for _, manifest := range m.Manifests {
 			buffer.ManifestChan <- manifest
 		}
+	}
+}
+
+func setManifestStats(manifests []interface{}) {
+	// Number of manifests flushed
+	manifestFlushed.Set(int64(len(manifests)))
+	// Number of times the buffer is flushed
+	bufferFlushedTotal.Add(1)
+	// Number of manifests flushed per resource in total
+	for _, m := range manifests {
+		nodeType := orchestrator.NodeType(m.(*model.Manifest).Type)
+		if _, ok := bufferedManifest[nodeType]; !ok {
+			bufferedManifest[nodeType] = &expvar.Int{}
+			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])
+		}
+		bufferedManifest[nodeType].Add(1)
 	}
 }

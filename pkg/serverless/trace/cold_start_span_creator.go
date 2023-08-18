@@ -8,12 +8,12 @@ package trace
 import (
 	"os"
 	"sync"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,45 +35,116 @@ const (
 var functionName = os.Getenv(functionNameEnvVar)
 
 type ColdStartSpanCreator struct {
-	executionContext *executioncontext.ExecutionContext
-	traceAgent       *ServerlessTraceAgent
-	createSpan       *sync.Once
+	TraceAgent            *ServerlessTraceAgent
+	createSpan            sync.Once
+	LambdaSpanChan        <-chan *pb.Span
+	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
+	syncSpanDurationMutex sync.Mutex
+	ColdStartSpanId       uint64
+	lambdaSpan            *pb.Span
+	initDuration          float64
+	StopChan              chan struct{}
+	initStartTime         time.Time
 }
 
-func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
-	// Prevent infinite loop from SpanModifier call
-	if lambdaSpan.Name == "aws.lambda.cold_start" {
+func (c *ColdStartSpanCreator) Run() {
+	go func() {
+		for {
+			select {
+			case traceAgentSpan := <-c.LambdaSpanChan:
+				c.handleLambdaSpan(traceAgentSpan)
+			case initMetric := <-c.LambdaInitMetricChan:
+				c.handleInitMetric(initMetric)
+
+			case <-c.StopChan:
+				log.Debugf("[ColdStartCreator] - shutting down")
+				return
+			}
+		}
+	}()
+}
+
+func (c *ColdStartSpanCreator) Stop() {
+	log.Debugf("[ColdStartCreator] - sending shutdown msg")
+	c.StopChan <- struct{}{}
+}
+
+func (c *ColdStartSpanCreator) handleLambdaSpan(traceAgentSpan *pb.Span) {
+	if traceAgentSpan.Name == spanName {
 		return
 	}
-	ecs := c.executionContext.GetCurrentState()
-	if !ecs.Coldstart || ecs.ColdstartDuration == 0 {
+	c.syncSpanDurationMutex.Lock()
+	defer c.syncSpanDurationMutex.Unlock()
 
-		log.Debugf("[ColdStartSpanCreator] Skipping span creation - no duration received")
+	c.lambdaSpan = traceAgentSpan
+	c.createIfReady()
+}
+
+func (c *ColdStartSpanCreator) handleInitMetric(initMetric *serverlessLog.LambdaInitMetric) {
+	c.syncSpanDurationMutex.Lock()
+	defer c.syncSpanDurationMutex.Unlock()
+	// Duration and start time come as two separate logs, so we expect this method to be called twice
+	if initMetric.InitDurationTelemetry != 0 {
+		c.initDuration = initMetric.InitDurationTelemetry
+	}
+	if !initMetric.InitStartTime.IsZero() {
+		c.initStartTime = initMetric.InitStartTime
+	}
+	c.createIfReady()
+}
+
+func (c *ColdStartSpanCreator) createIfReady() {
+
+	if c.initDuration == 0 {
+		log.Debug("[ColdStartCreator] No init duration, passing")
+		return
+	}
+	if c.lambdaSpan == nil {
+		log.Debug("[ColdStartCreator] No lambda span, passing")
+		return
+	}
+	if c.initStartTime.IsZero() {
+		log.Debug("[ColdStartCreator] No init start time, passing")
+		return
+	}
+	c.create()
+}
+
+func (c *ColdStartSpanCreator) create() {
+	// Prevent infinite loop from SpanModifier call
+	if c.lambdaSpan.Name == spanName {
 		return
 	}
 
 	// ColdStartDuration is given in milliseconds
 	// APM spans are in nanoseconds
 	// millis = nanos * 1e6
-	durationNs := ecs.ColdstartDuration * 1e6
+	durationNs := c.initDuration * 1e6
+	var spanStartTime int64
+	durationInt := int64(durationNs)
+	if (c.initStartTime.UnixNano() + durationInt) < c.lambdaSpan.Start {
+		spanStartTime = c.initStartTime.UnixNano()
+	} else {
+		spanStartTime = c.lambdaSpan.Start - durationInt
+	}
 
 	coldStartSpan := &pb.Span{
 		Service:  service,
 		Name:     spanName,
 		Resource: functionName,
-		SpanID:   random.Random.Uint64(),
-		TraceID:  lambdaSpan.TraceID,
-		ParentID: lambdaSpan.ParentID,
-		Start:    lambdaSpan.Start - int64(durationNs),
+		SpanID:   c.ColdStartSpanId,
+		TraceID:  c.lambdaSpan.TraceID,
+		ParentID: c.lambdaSpan.ParentID,
+		Start:    spanStartTime,
 		Duration: int64(durationNs),
+		Type:     "serverless",
 	}
 
-	log.Debugf("[ColdStartSpanCreator] Lambda span %v", lambdaSpan)
 	c.createSpan.Do(func() { c.processSpan(coldStartSpan) })
 }
 
 func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
-	log.Debugf("[ColdStartSpanCreator] Creating cold start span %v", coldStartSpan)
+	log.Debugf("[ColdStartCreator] Creating cold start span %v", coldStartSpan)
 
 	traceChunk := &pb.TraceChunk{
 		Origin:   "lambda",
@@ -85,7 +156,7 @@ func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	c.traceAgent.ta.Process(&api.Payload{
+	c.TraceAgent.ta.Process(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})

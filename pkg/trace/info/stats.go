@@ -256,6 +256,10 @@ type SpansMalformed struct {
 	ServiceTruncate atomic.Int64
 	// ServiceInvalid is when a span's Service doesn't conform to Datadog tag naming standards
 	ServiceInvalid atomic.Int64
+	// PeerServiceTruncate is when a span's peer.service is truncated for exceeding the max length
+	PeerServiceTruncate atomic.Int64
+	// PeerServiceInvalid is when a span's peer.service doesn't conform to Datadog tag naming standards
+	PeerServiceInvalid atomic.Int64
 	// SpanNameEmpty is when a span's Name is empty
 	SpanNameEmpty atomic.Int64
 	// SpanNameTruncate is when a span's Name is truncated for exceeding the max length
@@ -280,6 +284,8 @@ func (s *SpansMalformed) tagCounters() map[string]*atomic.Int64 {
 		"service_empty":            &s.ServiceEmpty,
 		"service_truncate":         &s.ServiceTruncate,
 		"service_invalid":          &s.ServiceInvalid,
+		"peer_service_truncate":    &s.PeerServiceTruncate,
+		"peer_service_invalid":     &s.PeerServiceInvalid,
 		"span_name_empty":          &s.SpanNameEmpty,
 		"span_name_truncate":       &s.SpanNameTruncate,
 		"span_name_invalid":        &s.SpanNameInvalid,
@@ -420,6 +426,8 @@ func (s *Stats) update(recent *Stats) {
 	s.SpansMalformed.ServiceEmpty.Add(recent.SpansMalformed.ServiceEmpty.Load())
 	s.SpansMalformed.ServiceTruncate.Add(recent.SpansMalformed.ServiceTruncate.Load())
 	s.SpansMalformed.ServiceInvalid.Add(recent.SpansMalformed.ServiceInvalid.Load())
+	s.SpansMalformed.PeerServiceTruncate.Add(recent.SpansMalformed.PeerServiceTruncate.Load())
+	s.SpansMalformed.PeerServiceInvalid.Add(recent.SpansMalformed.PeerServiceInvalid.Load())
 	s.SpansMalformed.SpanNameEmpty.Add(recent.SpansMalformed.SpanNameEmpty.Load())
 	s.SpansMalformed.SpanNameTruncate.Add(recent.SpansMalformed.SpanNameTruncate.Load())
 	s.SpansMalformed.SpanNameInvalid.Add(recent.SpansMalformed.SpanNameInvalid.Load())

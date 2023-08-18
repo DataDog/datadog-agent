@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build stresstests
-// +build stresstests
 
 package tests
 
@@ -17,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -53,9 +52,9 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
-	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetKernelLostCount("events", -1)
+	eventStreamMonitor := test.probe.GetMonitor().GetEventStreamMonitor()
+	eventStreamMonitor.GetAndResetLostCount("events", -1)
+	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 
 	fnc := func() error {
 		f, err := os.Create(testFile)
@@ -82,7 +81,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	events := 0
-	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+	test.RegisterRuleEventHandler(func(_ *model.Event, _ *rules.Rule) {
 		events++
 	})
 	defer test.RegisterRuleEventHandler(nil)
@@ -94,8 +93,8 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "kernel lost")
+	report.AddMetric("lost", float64(eventStreamMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -195,9 +194,9 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		t.Fatal(err)
 	}
 
-	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
-	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetKernelLostCount("events", -1)
+	eventStreamMonitor := test.probe.GetMonitor().GetEventStreamMonitor()
+	eventStreamMonitor.GetAndResetLostCount("events", -1)
+	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
@@ -214,13 +213,13 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	}
 
 	events := 0
-	test.RegisterRuleEventHandler(func(_ *sprobe.Event, _ *rules.Rule) {
+	test.RegisterRuleEventHandler(func(_ *model.Event, _ *rules.Rule) {
 		events++
 	})
 	defer test.RegisterRuleEventHandler(nil)
 
 	kevents := 0
-	test.RegisterProbeEventHandler(func(_ *sprobe.Event) {
+	test.RegisterProbeEventHandler(func(_ *model.Event) {
 		kevents++
 	})
 	defer test.RegisterProbeEventHandler(nil)
@@ -232,8 +231,8 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	time.Sleep(2 * time.Second)
 
-	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "kernel lost")
+	report.AddMetric("lost", float64(eventStreamMonitor.GetLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 	report.AddMetric("kevents", float64(kevents), "kevents")

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package utils
 
@@ -200,6 +199,23 @@ func TestConfigsForService(t *testing.T) {
 					ADIdentifiers: []string{"kube_service://ns/svc-foo"},
 				},
 			},
+		},
+		{
+			name:    "headless service is ignored",
+			check:   types.DefaultPrometheusCheck,
+			version: 1,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         k8stypes.UID("foo-uid"),
+					Name:        "svc-foo",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+					Namespace:   "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					ClusterIP: "None",
+				},
+			},
+			want: nil,
 		},
 	}
 	for _, tt := range tests {

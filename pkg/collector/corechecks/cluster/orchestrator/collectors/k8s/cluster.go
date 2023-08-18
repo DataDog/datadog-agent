@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -39,10 +38,13 @@ type ClusterCollector struct {
 func NewClusterCollector() *ClusterCollector {
 	return &ClusterCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "clusters",
-			NodeType:         orchestrator.K8sCluster,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "clusters",
+			NodeType:                  orchestrator.K8sCluster,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}
@@ -55,12 +57,9 @@ func (c *ClusterCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ClusterCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Nodes()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *ClusterCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ClusterCollector) Metadata() *collectors.CollectorMetadata {

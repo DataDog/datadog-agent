@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Adds the ``windows_counter_init_failure_limit`` option.
+    This option limits the number of times a check will attempt to initialize
+    a performance counter before ceasing attempts to initialize the counter.

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package custommetrics
 
@@ -37,9 +36,15 @@ func TestListAllExternalMetrics(t *testing.T) {
 		timestamp int64
 	}{
 		{
-			name:   "no metrics stored",
-			res:    []provider.ExternalMetricInfo{},
-			cached: nil,
+			name: "no metrics stored",
+			res: []provider.ExternalMetricInfo{
+				fakeExternalMetric,
+			},
+			cached: []externalMetric{
+				{
+					info: fakeExternalMetric,
+				},
+			},
 		},
 		{
 			name: "one nano metric stored",
@@ -48,28 +53,30 @@ func TestListAllExternalMetrics(t *testing.T) {
 					Metric: metricName,
 				},
 			},
-			cached: []externalMetric{{
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
+			cached: []externalMetric{
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
 				},
-			},
 			},
 		},
 		{
 			name: "multiple types",
-			cached: []externalMetric{{
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
+			cached: []externalMetric{
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+				}, {
+					info: provider.ExternalMetricInfo{
+						Metric: metric2Name,
+					},
+				}, {
+					info: provider.ExternalMetricInfo{
+						Metric: metric3Name,
+					},
 				},
-			}, {
-				info: provider.ExternalMetricInfo{
-					Metric: metric2Name,
-				},
-			}, {
-				info: provider.ExternalMetricInfo{
-					Metric: metric3Name,
-				},
-			},
 			},
 			res: []provider.ExternalMetricInfo{
 				{
@@ -97,7 +104,6 @@ func TestListAllExternalMetrics(t *testing.T) {
 }
 
 func TestGetExternalMetric(t *testing.T) {
-
 	metricName := "m1"
 	goodLabel := map[string]string{
 		"foo": "bar",
@@ -120,15 +126,16 @@ func TestGetExternalMetric(t *testing.T) {
 		},
 		{
 			"one matching metric stored",
-			[]externalMetric{{
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
+			[]externalMetric{
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: goodLabel,
+					},
 				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: goodLabel,
-				},
-			},
 			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
@@ -139,19 +146,21 @@ func TestGetExternalMetric(t *testing.T) {
 				{
 					MetricName:   metricName,
 					MetricLabels: goodLabel,
-				}},
+				},
+			},
 		},
 		{
 			"one non matching metric stored",
-			[]externalMetric{{
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
+			[]externalMetric{
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: goodLabel,
+					},
 				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: goodLabel,
-				},
-			},
 			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
@@ -162,23 +171,24 @@ func TestGetExternalMetric(t *testing.T) {
 		},
 		{
 			"one matching name metrics stored",
-			[]externalMetric{{
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
+			[]externalMetric{
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: goodLabel,
+					},
+				}, {
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: badLabel,
+					},
 				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: goodLabel,
-				},
-			}, {
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
-				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: badLabel,
-				},
-			},
 			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
@@ -194,23 +204,24 @@ func TestGetExternalMetric(t *testing.T) {
 		},
 		{
 			"one non matching labels metrics stored",
-			[]externalMetric{{
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
+			[]externalMetric{
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: goodLabel,
+					},
+				}, {
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: goodLabel,
+					},
 				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: goodLabel,
-				},
-			}, {
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
-				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: goodLabel,
-				},
-			},
 			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: metricName},
@@ -221,23 +232,24 @@ func TestGetExternalMetric(t *testing.T) {
 		},
 		{
 			"one matching metric with capital letter stored",
-			[]externalMetric{{
-				info: provider.ExternalMetricInfo{
-					Metric: "CapitalMetric",
+			[]externalMetric{
+				{
+					info: provider.ExternalMetricInfo{
+						Metric: "CapitalMetric",
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: goodLabel,
+					},
+				}, {
+					info: provider.ExternalMetricInfo{
+						Metric: metricName,
+					},
+					value: external_metrics.ExternalMetricValue{
+						MetricName:   metricName,
+						MetricLabels: badLabel,
+					},
 				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: goodLabel,
-				},
-			}, {
-				info: provider.ExternalMetricInfo{
-					Metric: metricName,
-				},
-				value: external_metrics.ExternalMetricValue{
-					MetricName:   metricName,
-					MetricLabels: badLabel,
-				},
-			},
 			},
 			metricCompare{
 				provider.ExternalMetricInfo{Metric: "capitalmetric"},

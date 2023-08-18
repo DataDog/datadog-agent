@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package fake
 
@@ -37,7 +36,7 @@ func (c *SystemAPIClient) RegistryLogin(ctx context.Context, auth types.AuthConf
 }
 
 // DiskUsage is a mock method
-func (c *SystemAPIClient) DiskUsage(ctx context.Context) (types.DiskUsage, error) {
+func (c *SystemAPIClient) DiskUsage(ctx context.Context, options types.DiskUsageOptions) (types.DiskUsage, error) {
 	return types.DiskUsage{}, nil
 }
 

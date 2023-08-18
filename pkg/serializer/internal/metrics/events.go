@@ -18,7 +18,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -39,7 +39,7 @@ var (
 )
 
 // Events represents a list of events ready to be serialize
-type Events []*metrics.Event
+type Events []*event.Event
 
 // Marshal serialize events using agent-payload definition
 func (events Events) Marshal() ([]byte, error) {
@@ -66,8 +66,8 @@ func (events Events) Marshal() ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
-func (events Events) getEventsBySourceType() map[string][]*metrics.Event {
-	eventsBySourceType := make(map[string][]*metrics.Event)
+func (events Events) getEventsBySourceType() map[string][]*event.Event {
+	eventsBySourceType := make(map[string][]*event.Event)
 	for _, e := range events {
 		sourceTypeName := e.SourceTypeName
 		if sourceTypeName == "" {
@@ -81,7 +81,7 @@ func (events Events) getEventsBySourceType() map[string][]*metrics.Event {
 
 // MarshalJSON serializes events to JSON so it can be sent to the Agent 5 intake
 // (we don't use the v1 event endpoint because it only supports 1 event per payload)
-//FIXME(olivier): to be removed when v2 endpoints are available
+// FIXME(olivier): to be removed when v2 endpoints are available
 func (events Events) MarshalJSON() ([]byte, error) {
 	// Regroup events by their source type name
 	eventsBySourceType := events.getEventsBySourceType()
@@ -133,7 +133,7 @@ func (events Events) SplitPayload(times int) ([]marshaler.AbstractMarshaler, err
 // Each item in StreamJSONMarshaler is composed of all events for a specific source type name.
 type eventsSourceType struct {
 	sourceType string
-	events     []*metrics.Event
+	events     []*event.Event
 }
 
 type eventsBySourceTypeMarshaler struct {
@@ -199,7 +199,7 @@ func (e *eventsBySourceTypeMarshaler) DescribeItem(i int) string {
 	return fmt.Sprintf("Source type: %s, events count: %d", e.eventsBySourceType[i].sourceType, len(e.eventsBySourceType[i].events))
 }
 
-func writeEvent(event *metrics.Event, writer *utiljson.RawObjectWriter) error {
+func writeEvent(event *event.Event, writer *utiljson.RawObjectWriter) error {
 	if err := writer.StartObject(); err != nil {
 		return err
 	}

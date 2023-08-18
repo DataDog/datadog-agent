@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests && linux_bpf
-// +build functionaltests,linux_bpf
 
 package tests
 
@@ -26,10 +25,20 @@ var BTFHubVsRcPossiblyMissingConstants = []string{
 
 var RCVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameIoKiocbStructCtx,
+	constantfetch.OffsetNameTaskStructPID,
+	constantfetch.OffsetNameTaskStructPIDLink,
 }
 
 var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameNFConnStructCTNet,
+	constantfetch.OffsetNameTaskStructPID,
+	constantfetch.OffsetNameTaskStructPIDLink,
+}
+
+var BTFVsFallbackPossiblyMissingConstants = []string{
+	constantfetch.OffsetNameIoKiocbStructCtx,
+	constantfetch.OffsetNameTaskStructPID,
+	constantfetch.OffsetNameTaskStructPIDLink,
 }
 
 func TestOctogonConstants(t *testing.T) {
@@ -48,25 +57,25 @@ func TestOctogonConstants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	config, err := genTestConfig(dir, testOpts{})
+	_, secconfig, err := genTestConfigs(dir, testOpts{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("rc-vs-fallback", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel()
+			return kv.IsSLESKernel() || (kv.IsAmazonLinux2023Kernel() && (testEnvironment == DockerEnvironment))
 		})
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 
 		assertConstantsEqual(t, rcFetcher, fallbackFetcher, kv, RCVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel()
+			return kv.IsSLESKernel() || (kv.IsAmazonLinux2023Kernel() && (testEnvironment == DockerEnvironment))
 		})
 
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
@@ -77,7 +86,7 @@ func TestOctogonConstants(t *testing.T) {
 			t.Skip("btfhub has no constant for this OS")
 		}
 
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 
 		assertConstantsEqual(t, rcFetcher, btfhubFetcher, kv, BTFHubVsRcPossiblyMissingConstants)
 	})
@@ -104,18 +113,18 @@ func TestOctogonConstants(t *testing.T) {
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 
-		assertConstantsEqual(t, btfFetcher, fallbackFetcher, kv, nil)
+		assertConstantContains(t, btfFetcher, fallbackFetcher, kv, BTFVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel()
+			return kv.IsSLESKernel() || (kv.IsAmazonLinux2023Kernel() && (testEnvironment == DockerEnvironment))
 		})
 
-		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&config.Config, nil)
-		ogFetcher := constantfetch.NewOffsetGuesserFetcher(config)
+		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
+		ogFetcher := constantfetch.NewOffsetGuesserFetcher(secconfig.Probe, kv)
 
-		assertConstantContains(t, rcFetcher, ogFetcher, kv)
+		assertConstantContains(t, rcFetcher, ogFetcher, kv, nil)
 	})
 }
 
@@ -167,11 +176,22 @@ func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.Const
 	}
 }
 
-func assertConstantContains(t *testing.T, champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version) {
+func assertConstantContains(t *testing.T, champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version, ignoreMissing []string) {
 	t.Helper()
 	championConstants, challengerConstants, err := getFighterConstants(champion, challenger, kv)
 	if err != nil {
 		t.Error(err)
+	}
+
+	if len(challengerConstants) == 0 {
+		t.Errorf("challenger %s has no constant\n", challenger)
+	}
+
+	// In the case where challenger is missing a constant, we set it to the error sentinel
+	for _, k := range ignoreMissing {
+		if _, championPresent := championConstants[k]; !championPresent {
+			championConstants[k] = constantfetch.ErrorSentinel
+		}
 	}
 
 	for k, v := range challengerConstants {
@@ -182,7 +202,7 @@ func assertConstantContains(t *testing.T, champion, challenger constantfetch.Con
 		expected, ok := championConstants[k]
 		if !ok {
 			t.Errorf("champion (`%s`) does not contain the expected constant `%s`", champion.String(), k)
-		} else if v != expected {
+		} else if v != expected && expected != constantfetch.ErrorSentinel {
 			t.Errorf("difference between fighters for `%s`: `%s`:%d and `%s`:%d", k, champion.String(), expected, challenger.String(), v)
 		}
 	}

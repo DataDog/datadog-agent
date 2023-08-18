@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package checks
 
@@ -19,11 +18,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api/mocks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/api/mocks"
 )
 
 type eventTestData struct {
@@ -219,19 +218,19 @@ func TestProcessEventsCheck(t *testing.T) {
 	// Initialize check with a mocked gRPC client
 	ctx := context.Background()
 
-	client := mocks.NewSecurityModuleClient(t)
-	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
-	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil)
+	client := mocks.NewEventMonitoringModuleClient(t)
+	stream := mocks.NewEventMonitoringModule_GetProcessEventsClient(t)
+	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{TimeoutSeconds: 1}).Return(stream, nil)
 
 	for _, test := range tests {
 		data, err := test.rawEvent.MarshalMsg(nil)
 		require.NoError(t, err)
 
-		stream.On("Recv").Once().Return(&api.SecurityProcessEventMessage{Data: data}, nil)
+		stream.On("Recv").Once().Return(&api.ProcessEventMessage{Data: data}, nil)
 	}
 	stream.On("Recv").Return(nil, io.EOF)
 
-	store, err := events.NewRingStore(&statsd.NoOpClient{})
+	store, err := events.NewRingStore(ddconfig.Mock(t), &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	listener, err := events.NewSysProbeListener(nil, client, func(e *model.ProcessEvent) {
@@ -243,17 +242,17 @@ func TestProcessEventsCheck(t *testing.T) {
 		maxBatchSize: 10,
 		listener:     listener,
 		store:        store,
+		hostInfo:     &HostInfo{},
 	}
 	check.start()
 
-	cfg := &config.AgentConfig{}
 	events := make([]*payload.ProcessEvent, 0)
 	assert.Eventually(t, func() bool {
 		// Run the process_events check until all expected events are collected
-		msgs, err := check.Run(cfg, 0)
+		msgs, err := check.Run(testGroupId(0), nil)
 		require.NoError(t, err)
 
-		for _, msg := range msgs {
+		for _, msg := range msgs.Payloads() {
 			collectorProc, ok := msg.(*payload.CollectorProcEvent)
 			require.True(t, ok)
 			events = append(events, collectorProc.Events...)

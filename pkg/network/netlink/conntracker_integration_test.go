@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package netlink
 
@@ -27,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -54,7 +54,7 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	testIno, err := util.GetInoForNs(testNs)
+	testIno, err := kernel.GetInoForNs(testNs)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second)
@@ -133,8 +133,10 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 	defer udpServer.Close()
 
 	for i := 0; i < 100; i++ {
-		nettestutil.PingTCP(t, clientIP, natPort)
-		nettestutil.PingUDP(t, clientIP, nonNatPort)
+		tc := nettestutil.PingTCP(t, clientIP, natPort)
+		tc.Close()
+		uc := nettestutil.PingUDP(t, clientIP, nonNatPort)
+		uc.Close()
 	}
 
 	time.Sleep(time.Second)

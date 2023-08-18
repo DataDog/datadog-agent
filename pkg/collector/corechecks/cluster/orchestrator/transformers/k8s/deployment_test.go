@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -14,6 +13,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -113,6 +114,24 @@ func TestExtractDeployment(t *testing.T) {
 				AvailableReplicas:   2,
 				UnavailableReplicas: 0,
 				ConditionMessage:    `ReplicaSet "orchestrator-intake-6d65b45d4d" has timed out progressing.`,
+				Conditions: []*model.DeploymentCondition{
+					{
+						Type:    string(appsv1.DeploymentAvailable),
+						Status:  string(corev1.ConditionFalse),
+						Reason:  "MinimumReplicasAvailable",
+						Message: "Deployment has minimum availability.",
+					},
+					{
+						Type:    string(appsv1.DeploymentProgressing),
+						Status:  string(corev1.ConditionFalse),
+						Reason:  "NewReplicaSetAvailable",
+						Message: `ReplicaSet "orchestrator-intake-6d65b45d4d" has timed out progressing.`,
+					},
+				},
+				Tags: []string{
+					"kube_condition_available:false",
+					"kube_condition_progressing:false",
+				},
 			},
 		},
 		"empty deploy": {input: appsv1.Deployment{}, expected: model.Deployment{Metadata: &model.Metadata{}, ReplicasDesired: 1}},
@@ -140,6 +159,30 @@ func TestExtractDeployment(t *testing.T) {
 			}, expected: model.Deployment{
 				ReplicasDesired: 1,
 				Metadata: &model.Metadata{
+					Name:      "deploy",
+					Namespace: "namespace",
+				},
+				DeploymentStrategy: "RollingUpdate",
+			},
+		},
+		"partial deploy with ust": {
+			input: appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:    map[string]string{kubernetes.VersionTagLabelKey: "some-version"},
+					Name:      "deploy",
+					Namespace: "namespace",
+				},
+				Spec: appsv1.DeploymentSpec{
+					MinReadySeconds: 600,
+					Strategy: appsv1.DeploymentStrategy{
+						Type: appsv1.DeploymentStrategyType("RollingUpdate"),
+					},
+				},
+			}, expected: model.Deployment{
+				Tags:            []string{"version:some-version"},
+				ReplicasDesired: 1,
+				Metadata: &model.Metadata{
+					Labels:    []string{"tags.datadoghq.com/version:some-version"},
 					Name:      "deploy",
 					Namespace: "namespace",
 				},

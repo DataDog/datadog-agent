@@ -8,7 +8,6 @@
 // which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
-// +build cgo,linux
 
 package ebpf
 
@@ -19,12 +18,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -68,11 +68,8 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *OOMKillCheck) Configure(config, initConfig integration.Data, source string) error {
-	// TODO: Remove that hard-code and put it somewhere else
-	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
-
-	err := m.CommonConfigure(initConfig, config, source)
+func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -86,7 +83,8 @@ func (m *OOMKillCheck) Run() error {
 		return nil
 	}
 
-	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil()
+	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
+		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}
@@ -111,7 +109,7 @@ func (m *OOMKillCheck) Run() error {
 	for _, line := range oomkillStats {
 		containerID, err := cgroups.ContainerFilter("", line.CgroupName)
 		if err != nil || containerID == "" {
-			log.Warnf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
+			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
 		}
 
 		entityID := containers.BuildTaggerEntityName(containerID)
@@ -139,8 +137,8 @@ func (m *OOMKillCheck) Run() error {
 		sender.Count("oom_kill.oom_process.count", 1, "", tags)
 
 		// submit event with a few more details
-		event := metrics.Event{
-			Priority:       metrics.EventPriorityNormal,
+		event := event.Event{
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: oomKillCheckName,
 			EventType:      oomKillCheckName,
 			AggregationKey: containerID,

@@ -1,11 +1,7 @@
 #include "bpf_helpers.h"
 
-#define bpf_printk(fmt, ...)                       \
-    ({                                             \
-        char ____fmt[] = fmt;                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), \
-            ##__VA_ARGS__);                        \
-    })
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 struct bpf_map_def SEC("maps/cache") cache = {
     .type = BPF_MAP_TYPE_HASH,
@@ -13,6 +9,15 @@ struct bpf_map_def SEC("maps/cache") cache = {
     .value_size = sizeof(u32),
     .max_entries = 10,
 };
+
+struct bpf_map_def SEC("maps/is_discarded_by_inode_gen") is_discarded_by_inode_gen = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+};
+
+#pragma clang diagnostic pop
 
 SEC("kprobe/vfs_open")
 int kprobe_vfs_open(void *ctx) {

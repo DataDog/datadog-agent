@@ -65,9 +65,29 @@ func NormalizeService(svc string, lang string) (string, error) {
 		svc = TruncateUTF8(svc, MaxServiceLen)
 		err = ErrTooLong
 	}
-	s := NormalizeTag(svc)
+	// We are normalizing just the tag value.
+	s := NormalizeTagValue(svc)
 	if s == "" {
 		return fallbackService(lang), ErrInvalid
+	}
+	return s, err
+}
+
+// NormalizePeerService normalizes a span's peer.service and returns an error describing the reason
+// (if any) why the name was modified.
+func NormalizePeerService(svc string) (string, error) {
+	if svc == "" {
+		return "", nil
+	}
+	var err error
+	if len(svc) > MaxServiceLen {
+		svc = TruncateUTF8(svc, MaxServiceLen)
+		err = ErrTooLong
+	}
+	// We are normalizing just the tag value.
+	s := NormalizeTagValue(svc)
+	if s == "" {
+		return "", ErrInvalid
 	}
 	return s, err
 }
@@ -95,8 +115,23 @@ func fallbackService(lang string) string {
 
 const maxTagLength = 200
 
-// NormalizeTag applies some normalization to ensure the tags match the backend requirements.
+// NormalizeTag applies some normalization to ensure the full tag_key:tag_value string matches the backend requirements.
 func NormalizeTag(v string) string {
+	return normalize(v, true)
+}
+
+// NormalizeTagValue applies some normalization to ensure the tag value matches the backend requirements.
+// It should be used for cases where we have just the tag_value as the input (instead of tag_key:tag_value).
+func NormalizeTagValue(v string) string {
+	return normalize(v, false)
+}
+
+func normalize(v string, allowDigitStartChar bool) string {
+	// Fast path: Check if the tag is valid and only contains ASCII characters,
+	// if yes return it as-is right away. For most use-cases this reduces CPU usage.
+	if isNormalizedASCIITag(v, allowDigitStartChar) {
+		return v
+	}
 	// the algorithm works by creating a set of cuts marking start and end offsets in v
 	// that have to be replaced with underscore (_)
 	if len(v) == 0 {
@@ -146,8 +181,9 @@ func NormalizeTag(v string) string {
 		switch {
 		case unicode.IsLetter(r):
 			chars++
-		case chars == 0:
-			// this character can not start the string, trim
+		// If it's not a unicode letter, and it's the first char, and digits are allowed for the start char,
+		// we should goto end because the remaining cases are not valid for a start char.
+		case allowDigitStartChar && chars == 0:
 			trim = i + jump
 			goto end
 		case unicode.IsDigit(r) || r == '.' || r == '/' || r == '-':
@@ -272,4 +308,45 @@ func normMetricNameParse(name string) (string, bool) {
 	}
 
 	return string(res), true
+}
+
+func isNormalizedASCIITag(tag string, checkValidStartChar bool) bool {
+	if len(tag) == 0 {
+		return true
+	}
+	if len(tag) > maxTagLength {
+		return false
+	}
+	i := 0
+	if checkValidStartChar {
+		if !isValidASCIIStartChar(tag[0]) {
+			return false
+		}
+		i++
+	}
+	for ; i < len(tag); i++ {
+		b := tag[i]
+		// TODO: Attempt to optimize this check using SIMD/vectorization.
+		if isValidASCIITagChar(b) {
+			continue
+		}
+		if b == '_' {
+			// an underscore is only okay if followed by a valid non-underscore character
+			i++
+			if i == len(tag) || !isValidASCIITagChar(tag[i]) {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
+func isValidASCIIStartChar(c byte) bool {
+	return ('a' <= c && c <= 'z') || c == ':'
+}
+
+func isValidASCIITagChar(c byte) bool {
+	return isValidASCIIStartChar(c) || ('0' <= c && c <= '9') || c == '.' || c == '/' || c == '-'
 }

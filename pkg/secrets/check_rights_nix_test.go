@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build secrets && !windows
-// +build secrets,!windows
 
 package secrets
 
@@ -19,6 +18,10 @@ import (
 
 func setCorrectRight(path string) {
 	os.Chmod(path, 0700)
+}
+
+// testCheckRightsStub is a dummy checkRights stub for *nix
+func testCheckRightsStub() {
 }
 
 func TestWrongPath(t *testing.T) {

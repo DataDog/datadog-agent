@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package listeners
 
@@ -107,11 +106,13 @@ func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Servic
 	l.newService = newSvc
 	l.delService = delSvc
 
-	l.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := l.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.added,
 		UpdateFunc: l.updated,
 		DeleteFunc: l.deleted,
-	})
+	}); err != nil {
+		log.Errorf("Cannot add event handler to kube service informer: %s", err)
+	}
 
 	// Initial fill
 	services, err := l.informer.Lister().List(labels.Everything())

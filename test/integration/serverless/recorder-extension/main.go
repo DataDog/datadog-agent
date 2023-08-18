@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -207,17 +206,10 @@ func startHTTPServer(port string) {
 			return
 		}
 
-		for _, sketch := range pl.Sketches {
-			sort.Strings(sketch.Tags)
-			sketch.Dogsketches = make([]gogen.SketchPayload_Sketch_Dogsketch, 0)
-			outputSketches = append(outputSketches, sketch)
-		}
+		outputSketches = append(outputSketches, pl.Sketches...)
 
 		if nbHitMetrics == 3 {
 			// two calls + shutdown
-			sort.SliceStable(outputSketches, func(i, j int) bool {
-				return outputSketches[i].Metric < outputSketches[j].Metric
-			})
 			jsonSketch, err := json.Marshal(outputSketches)
 			if err != nil {
 				fmt.Printf("Error while JSON encoding the sketch")
@@ -241,19 +233,14 @@ func startHTTPServer(port string) {
 		}
 
 		for _, log := range messages {
-			if !strings.Contains(log.Message.Message, "BEGINLOG") && !strings.Contains(log.Message.Message, "BEGINTRACE") {
-				if strings.HasPrefix(log.Message.Message, "REPORT RequestId:") {
-					log.Message.Message = "REPORT" // avoid dealing with stripping out init duration, duration, memory used etc.
-					nbReport++
-				}
-				sortedTags := strings.Split(log.Tags, ",")
-				sort.Strings(sortedTags)
-				log.Tags = strings.Join(sortedTags, ",")
-				if !strings.Contains(log.Message.Message, "DATADOG TRACER CONFIGURATION") {
-					// skip dd-trace-go tracer configuration output
-					outputLogs = append(outputLogs, log)
-				}
+			msg := log.Message.Message
+			if strings.Contains(msg, "BEGINMETRIC") || strings.Contains(msg, "BEGINLOG") || strings.Contains(msg, "BEGINTRACE") {
+				continue
 			}
+			if strings.HasPrefix(msg, "REPORT RequestId:") {
+				nbReport++
+			}
+			outputLogs = append(outputLogs, log)
 		}
 
 		if nbReport == 2 && !hasBeenOutput {

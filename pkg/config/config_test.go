@@ -6,11 +6,9 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
-	"log"
 	"os"
-	"strings"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -20,37 +18,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupConf() Config {
-	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	InitConfig(conf)
-	return conf
-}
-
-func setupConfFromYAML(yamlConfig string) Config {
-	conf := setupConf()
-	conf.SetConfigType("yaml")
-	e := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
-	if e != nil {
-		log.Println(e)
-	}
-	return conf
-}
-
-func unsetEnvForTest(env string) (reset func()) {
+func unsetEnvForTest(t *testing.T, env string) {
 	oldValue, ok := os.LookupEnv(env)
 	os.Unsetenv(env)
 
-	return func() {
+	t.Cleanup(func() {
 		if !ok {
 			os.Unsetenv(env)
 		} else {
 			os.Setenv(env, oldValue)
 		}
-	}
+	})
 }
 
 func TestDefaults(t *testing.T) {
-	config := setupConf()
+	config := SetupConf()
 
 	// Testing viper's handling of defaults
 	assert.False(t, config.IsSet("site"))
@@ -61,57 +43,17 @@ func TestDefaults(t *testing.T) {
 
 	// Testing process-agent defaults
 	assert.Equal(t, map[string]interface{}{
-		"enabled":  true,
-		"interval": 4 * time.Hour,
+		"enabled":        true,
+		"hint_frequency": 60,
+		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
-}
-
-func TestDefaultSite(t *testing.T) {
-	datadogYaml := `
-api_key: fakeapikey
-`
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
-}
-
-func TestSite(t *testing.T) {
-	datadogYaml := `
-site: datadoghq.eu
-api_key: fakeapikey
-`
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.eu": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
 	keyYaml := "api_\u202akey: fakeapikey\n"
 	valueYaml := "api_key: fa\u202akeapikey\n"
 
-	testConfig := setupConfFromYAML(keyYaml)
+	testConfig := SetupConfFromYAML(keyYaml)
 
 	warnings := findUnexpectedUnicode(testConfig)
 	require.Len(t, warnings, 1)
@@ -119,7 +61,7 @@ func TestUnexpectedUnicode(t *testing.T) {
 	assert.Contains(t, warnings[0], "Configuration key string")
 	assert.Contains(t, warnings[0], "U+202A")
 
-	testConfig = setupConfFromYAML(valueYaml)
+	testConfig = SetupConfFromYAML(valueYaml)
 
 	warnings = findUnexpectedUnicode(testConfig)
 
@@ -130,7 +72,7 @@ func TestUnexpectedUnicode(t *testing.T) {
 
 func TestUnexpectedNestedUnicode(t *testing.T) {
 	yaml := "runtime_security_config:\n  activity_dump:\n    remote_storage:\n      endpoints:\n        logs_dd_url: \"http://\u202adatadawg.com\""
-	testConfig := setupConfFromYAML(yaml)
+	testConfig := SetupConfFromYAML(yaml)
 
 	warnings := findUnexpectedUnicode(testConfig)
 	require.Len(t, warnings, 1)
@@ -162,7 +104,7 @@ func TestUnexpectedWhitespace(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		testConfig := setupConfFromYAML(tc.yaml)
+		testConfig := SetupConfFromYAML(tc.yaml)
 		warnings := findUnexpectedUnicode(testConfig)
 		require.Len(t, warnings, 1)
 
@@ -175,14 +117,14 @@ func TestUnknownKeysWarning(t *testing.T) {
 	yamlBase := `
 site: datadoghq.eu
 `
-	confBase := setupConfFromYAML(yamlBase)
+	confBase := SetupConfFromYAML(yamlBase)
 	assert.Len(t, findUnknownKeys(confBase), 0)
 
 	yamlWithUnknownKeys := `
 site: datadoghq.eu
 unknown_key.unknown_subkey: true
 `
-	confWithUnknownKeys := setupConfFromYAML(yamlWithUnknownKeys)
+	confWithUnknownKeys := SetupConfFromYAML(yamlWithUnknownKeys)
 	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 1)
 
 	confWithUnknownKeys.SetKnown("unknown_key.*")
@@ -190,450 +132,121 @@ unknown_key.unknown_subkey: true
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
-	test := func(v string, unknown bool) func(*testing.T) {
+	test := func(v string, unknown bool, additional []string) func(*testing.T) {
 		return func(t *testing.T) {
 			env := []string{fmt.Sprintf("%s=foo", v)}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env))
+			assert.Equal(t, exp, findUnknownEnvVars(Mock(t), env, additional))
 		}
 	}
-	t.Run("DD_API_KEY", test("DD_API_KEY", false))
-	t.Run("DD_SITE", test("DD_SITE", false))
-	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
-	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
-	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
-	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
-	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
-	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
+	t.Run("DD_API_KEY", test("DD_API_KEY", false, nil))
+	t.Run("DD_SITE", test("DD_SITE", false, nil))
+	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true, nil))
+	t.Run("UNKNOWN", test("UNKNOWN", false, nil)) // no DD_ prefix
+	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false, nil))
+	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false, nil))
+	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false, nil))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false, nil))
+	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", false, []string{"DD_SYSTEM_PROBE_EXTRA"}))
 }
 
-func TestSiteEnvVar(t *testing.T) {
-	t.Setenv("DD_API_KEY", "fakeapikey")
-	t.Setenv("DD_SITE", "datadoghq.eu")
-	testConfig := setupConfFromYAML("")
+func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	assert.Equal(t, true, testConfig.Get("serverless.trace_managed_services"))
+}
 
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.eu": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
+func TestExplicitFalseTraceManagedServicesEnvVar(t *testing.T) {
+	t.Setenv("DD_TRACE_MANAGED_SERVICES", "false")
+	testConfig := SetupConfFromYAML("")
+	assert.Equal(t, false, testConfig.Get("serverless.trace_managed_services"))
 }
 
 func TestDDHostnameFileEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_HOSTNAME_FILE", "somefile")
-	testConfig := setupConfFromYAML("")
+	testConfig := SetupConfFromYAML("")
 
 	assert.Equal(t, "somefile", testConfig.Get("hostname_file"))
 }
 
-func TestDDURLEnvVar(t *testing.T) {
-	t.Setenv("DD_API_KEY", "fakeapikey")
-	t.Setenv("DD_URL", "https://app.datadoghq.eu")
-	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
-	testConfig := setupConfFromYAML("")
-	testConfig.BindEnv("external_config.external_agent_dd_url")
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.eu": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
-}
-
-func TestDDDDURLEnvVar(t *testing.T) {
-	t.Setenv("DD_API_KEY", "fakeapikey")
-	t.Setenv("DD_DD_URL", "https://app.datadoghq.eu")
-	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
-	testConfig := setupConfFromYAML("")
-	testConfig.BindEnv("external_config.external_agent_dd_url")
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.eu": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
-}
-
-func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
-	t.Setenv("DD_API_KEY", "fakeapikey")
-
-	// If DD_DD_URL and DD_URL are set, the value of DD_DD_URL is used
-	t.Setenv("DD_DD_URL", "https://app.datadoghq.dd_dd_url.eu")
-	t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
-
-	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
-	testConfig := setupConfFromYAML("")
-	testConfig.BindEnv("external_config.external_agent_dd_url")
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.dd_dd_url.eu": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
-}
-
-func TestDDURLOverridesSite(t *testing.T) {
-	datadogYaml := `
-site: datadoghq.eu
-dd_url: "https://app.datadoghq.com"
-api_key: fakeapikey
-
-external_config:
-  external_agent_dd_url: "https://external-agent.datadoghq.com"
-`
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
-}
-
-func TestDDURLNoSite(t *testing.T) {
-	datadogYaml := `
-dd_url: "https://app.datadoghq.eu"
-api_key: fakeapikey
-
-external_config:
-  external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
-`
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-	externalAgentURL := GetMainEndpointWithConfig(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.eu": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-	assert.Equal(t, "https://custom.external-agent.datadoghq.eu", externalAgentURL)
-}
-
-func TestGetMultipleEndpointsDefault(t *testing.T) {
-	datadogYaml := `
-api_key: fakeapikey
-
-additional_endpoints:
-  "https://app.datadoghq.com":
-  - fakeapikey2
-  - fakeapikey3
-  "https://foo.datadoghq.com":
-  - someapikey
-`
-
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://foo.datadoghq.com": {
-			"someapikey",
-		},
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-			"fakeapikey2",
-			"fakeapikey3",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-}
-
-func TestGetMultipleEndpointsEnvVar(t *testing.T) {
-	t.Setenv("DD_API_KEY", "fakeapikey")
-	t.Setenv("DD_ADDITIONAL_ENDPOINTS", "{\"https://foo.datadoghq.com\": [\"someapikey\"]}")
-
-	testConfig := setupConf()
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://foo.datadoghq.com": {
-			"someapikey",
-		},
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-}
-
-func TestGetMultipleEndpointsSite(t *testing.T) {
-	datadogYaml := `
-site: datadoghq.eu
-api_key: fakeapikey
-
-additional_endpoints:
-  "https://app.datadoghq.com":
-  - fakeapikey2
-  - fakeapikey3
-  "https://foo.datadoghq.com":
-  - someapikey
-`
-
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.eu": {
-			"fakeapikey",
-		},
-		"https://foo.datadoghq.com": {
-			"someapikey",
-		},
-		"https://app.datadoghq.com": {
-			"fakeapikey2",
-			"fakeapikey3",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-}
-
-func TestGetMultipleEndpointsDDURL(t *testing.T) {
-	datadogYaml := `
-dd_url: "https://app.datadoghq.com"
-api_key: fakeapikey
-
-additional_endpoints:
-  "https://app.datadoghq.com":
-  - fakeapikey2
-  - fakeapikey3
-  "https://foo.datadoghq.com":
-  - someapikey
-`
-
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://foo.datadoghq.com": {
-			"someapikey",
-		},
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-			"fakeapikey2",
-			"fakeapikey3",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-}
-
-func TestGetMultipleEndpointsWithNoAdditionalEndpoints(t *testing.T) {
-	datadogYaml := `
-dd_url: "https://app.datadoghq.com"
-api_key: fakeapikey
-`
-
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-}
-
-func TestGetMultipleEndpointseIgnoresDomainWithoutApiKey(t *testing.T) {
-	datadogYaml := `
-dd_url: "https://app.datadoghq.com"
-api_key: fakeapikey
-
-additional_endpoints:
-  "https://app.datadoghq.com":
-  - fakeapikey2
-  "https://foo.datadoghq.com":
-  - someapikey
-  "https://bar.datadoghq.com":
-  - ""
-`
-
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-			"fakeapikey2",
-		},
-		"https://foo.datadoghq.com": {
-			"someapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-}
-
-func TestGetMultipleEndpointsApiKeyDeduping(t *testing.T) {
-	datadogYaml := `
-dd_url: "https://app.datadoghq.com"
-api_key: fakeapikey
-
-additional_endpoints:
-  "https://app.datadoghq.com":
-  - fakeapikey2
-  - fakeapikey
-  "https://foo.datadoghq.com":
-  - someapikey
-  - someotherapikey
-  - someapikey
-`
-
-	testConfig := setupConfFromYAML(datadogYaml)
-
-	multipleEndpoints, err := getMultipleEndpointsWithConfig(testConfig)
-
-	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
-			"fakeapikey",
-			"fakeapikey2",
-		},
-		"https://foo.datadoghq.com": {
-			"someapikey",
-			"someotherapikey",
-		},
-	}
-
-	assert.Nil(t, err)
-	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
-}
-
 func TestAddAgentVersionToDomain(t *testing.T) {
-	// US
-	newURL, err := AddAgentVersionToDomain("https://app.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.com", newURL)
+	appVersionPrefix := getDomainPrefix("app")
+	flareVersionPrefix := getDomainPrefix("flare")
 
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.com", newURL)
+	versionURLTests := []struct {
+		url                 string
+		expectedURL         string
+		shouldAppendVersion bool
+	}{
+		{ // US
+			"https://app.datadoghq.com",
+			".datadoghq.com",
+			true,
+		},
+		{ // EU
+			"https://app.datadoghq.eu",
+			".datadoghq.eu",
+			true,
+		},
+		{ // Gov
+			"https://app.ddog-gov.com",
+			".ddog-gov.com",
+			true,
+		},
+		{ // Additional site
+			"https://app.us2.datadoghq.com",
+			".us2.datadoghq.com",
+			true,
+		},
+		{ // arbitrary site
+			"https://app.xx9.datadoghq.com",
+			".xx9.datadoghq.com",
+			true,
+		},
+		{ // Custom DD URL: leave unchanged
+			"https://custom.datadoghq.com",
+			"custom.datadoghq.com",
+			false,
+		},
+		{ // Custom DD URL with 'agent' subdomain: leave unchanged
+			"https://custom.agent.datadoghq.com",
+			"custom.agent.datadoghq.com",
+			false,
+		},
+		{ // Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
+			"https://app.custom.datadoghq.com",
+			"app.custom.datadoghq.com",
+			false,
+		},
+		{ // Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
+			"https://app.datadoghq.internal",
+			"app.datadoghq.internal",
+			false,
+		},
+		{ // DD URL set to proxy, leave unchanged
+			"https://app.myproxy.com",
+			"app.myproxy.com",
+			false,
+		},
+	}
 
-	// EU
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.eu", newURL)
+	for _, testCase := range versionURLTests {
+		appURL, err := AddAgentVersionToDomain(testCase.url, "app")
+		require.Nil(t, err)
+		flareURL, err := AddAgentVersionToDomain(testCase.url, "flare")
+		require.Nil(t, err)
 
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.eu", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.eu", newURL)
-
-	// Gov
-	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".ddog-gov.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.ddog-gov.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".ddog-gov.com", newURL)
-
-	// Additional site
-	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("app")+".us2.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.us2.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://"+getDomainPrefix("flare")+".us2.datadoghq.com", newURL)
-
-	// Custom DD URL: leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://custom.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.datadoghq.com", newURL)
-
-	// Custom DD URL with 'agent' subdomain: leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://custom.agent.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://custom.agent.datadoghq.com", newURL)
-
-	// Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.custom.datadoghq.com", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.custom.datadoghq.com", newURL)
-
-	// Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.datadoghq.internal", newURL)
-
-	newURL, err = AddAgentVersionToDomain("https://app.datadoghq.internal", "flare")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.datadoghq.internal", newURL)
-
-	// DD URL set to proxy, leave unchanged
-	newURL, err = AddAgentVersionToDomain("https://app.myproxy.com", "app")
-	require.Nil(t, err)
-	assert.Equal(t, "https://app.myproxy.com", newURL)
+		if testCase.shouldAppendVersion {
+			assert.Equal(t, "https://"+appVersionPrefix+testCase.expectedURL, appURL)
+			assert.Equal(t, "https://"+flareVersionPrefix+testCase.expectedURL, flareURL)
+		} else {
+			assert.Equal(t, "https://"+testCase.expectedURL, appURL)
+			assert.Equal(t, "https://"+testCase.expectedURL, flareURL)
+		}
+	}
 }
 
 func TestIsCloudProviderEnabled(t *testing.T) {
@@ -670,218 +283,236 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 }
 
 func TestEnvNestedConfig(t *testing.T) {
-	config := setupConf()
+	config := SetupConf()
 	config.BindEnv("foo.bar.nested")
 	t.Setenv("DD_FOO_BAR_NESTED", "baz")
 
 	assert.Equal(t, "baz", config.GetString("foo.bar.nested"))
 }
 
-func TestLoadProxyFromStdEnvNoValue(t *testing.T) {
-	config := setupConf()
+func TestProxy(t *testing.T) {
+	type testCase struct {
+		name                  string
+		setup                 func(t *testing.T, config Config)
+		tests                 func(t *testing.T, config Config)
+		proxyForCloudMetadata bool
+	}
 
-	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	defer resetEnv()
+	expectedProxy := &Proxy{
+		HTTP:    "http_url",
+		HTTPS:   "https_url",
+		NoProxy: []string{"a", "b", "c"}}
 
-	LoadProxyFromEnv(config)
-	assert.Nil(t, config.Get("proxy"))
-
-	proxies := GetProxies()
-	require.Nil(t, proxies)
-}
-
-func TestLoadProxyConfOnly(t *testing.T) {
-	config := setupConf()
-
-	// check value loaded before aren't overwrite when no env variables are set
-	p := &Proxy{HTTP: "test", HTTPS: "test2", NoProxy: []string{"a", "b", "c"}}
-	config.Set("proxy", p)
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	resetEnv := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	defer resetEnv()
-
-	LoadProxyFromEnv(config)
-	proxies := GetProxies()
-	assert.Equal(t, p, proxies)
-}
-
-func TestLoadProxyStdEnvOnly(t *testing.T) {
-	config := setupConf()
-
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	// uppercase
-	t.Setenv("HTTP_PROXY", "http_url")
-	t.Setenv("HTTPS_PROXY", "https_url")
-	t.Setenv("NO_PROXY", "a,b,c") // comma-separated list
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_url",
-			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-
-	os.Unsetenv("NO_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
-	os.Unsetenv("HTTP_PROXY")
-	config.Set("proxy", nil)
-
-	// lowercase
-	t.Setenv("http_proxy", "http_url2")
-	t.Setenv("https_proxy", "https_url2")
-	t.Setenv("no_proxy", "1,2,3") // comma-separated list
-
-	LoadProxyFromEnv(config)
-	proxies = GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_url2",
-			HTTPS:   "https_url2",
-			NoProxy: []string{"1", "2", "3"}},
-		proxies)
-}
-
-func TestLoadProxyDDSpecificEnvOnly(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "http_url")
-	t.Setenv("DD_PROXY_HTTPS", "https_url")
-	t.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_url",
-			HTTPS:   "https_url",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-}
-
-func TestLoadProxyDDSpecificEnvPrecedenceOverStdEnv(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "dd_http_url")
-	t.Setenv("DD_PROXY_HTTPS", "dd_https_url")
-	t.Setenv("DD_PROXY_NO_PROXY", "a b c")
-	t.Setenv("HTTP_PROXY", "env_http_url")
-	t.Setenv("HTTPS_PROXY", "env_https_url")
-	t.Setenv("NO_PROXY", "d,e,f")
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "dd_http_url",
-			HTTPS:   "dd_https_url",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-}
-
-func TestLoadProxyStdEnvAndConf(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("HTTP_PROXY", "http_env")
-	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-	config.Set("proxy.http", "http_conf")
-	defer resetNoProxy()
-
-	LoadProxyFromEnv(config)
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_env",
-			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
-		proxies)
-}
-
-func TestLoadProxyDDSpecificEnvAndConf(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "http_env")
-	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-	config.Set("proxy.http", "http_conf")
-	defer resetNoProxy()
-
-	LoadProxyFromEnv(config)
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "http_env",
-			HTTPS:   "",
-			NoProxy: []string{"d", "e", "f"}},
-		proxies)
-}
-
-func TestLoadProxyEmptyValuePrecedence(t *testing.T) {
-	config := setupConf()
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "")
-	t.Setenv("DD_PROXY_NO_PROXY", "a b c")
-	t.Setenv("HTTP_PROXY", "env_http_url")
-	t.Setenv("HTTPS_PROXY", "")
-	t.Setenv("NO_PROXY", "")
-	config.Set("proxy.https", "https_conf")
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:    "",
-			HTTPS:   "",
-			NoProxy: []string{"a", "b", "c"}},
-		proxies)
-}
-
-func TestLoadProxyWithoutNoProxy(t *testing.T) {
-	config := setupConf()
-
-	// Don't include cloud metadata URL's in no_proxy
-	config.Set("use_proxy_for_cloud_metadata", true)
-
-	t.Setenv("DD_PROXY_HTTP", "http_url")
-	t.Setenv("DD_PROXY_HTTPS", "https_url")
-	resetNoProxy := unsetEnvForTest("NO_PROXY") // CircleCI sets NO_PROXY, so unset it for this test
-	defer resetNoProxy()
-
-	LoadProxyFromEnv(config)
-
-	proxies := GetProxies()
-	assert.Equal(t,
-		&Proxy{
-			HTTP:  "http_url",
-			HTTPS: "https_url",
+	cases := []testCase{
+		{
+			name: "no values",
+			tests: func(t *testing.T, config Config) {
+				assert.Nil(t, config.Get("proxy"))
+				assert.Nil(t, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
 		},
-		proxies)
+		{
+			name: "from configuration",
+			setup: func(t *testing.T, config Config) {
+				config.Set("proxy", expectedProxy)
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from UNIX env only upper case",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("HTTP_PROXY", "http_url")
+				t.Setenv("HTTPS_PROXY", "https_url")
+				t.Setenv("NO_PROXY", "a,b,c") // comma-separated list
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from env only lower case",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("http_proxy", "http_url")
+				t.Setenv("https_proxy", "https_url")
+				t.Setenv("no_proxy", "a,b,c") // comma-separated list
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars only",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars precedence over UNIX env vars",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "dd_http_url")
+				t.Setenv("DD_PROXY_HTTPS", "dd_https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
+				t.Setenv("HTTP_PROXY", "env_http_url")
+				t.Setenv("HTTPS_PROXY", "env_https_url")
+				t.Setenv("NO_PROXY", "d,e,f")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "dd_http_url",
+						HTTPS:   "dd_https_url",
+						NoProxy: []string{"a", "b", "c"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from UNIX env vars and conf",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("HTTP_PROXY", "http_env")
+				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
+				config.Set("proxy.http", "http_conf")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "http_env",
+						HTTPS:   "",
+						NoProxy: []string{"d", "e", "f"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars and conf",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_env")
+				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
+				config.Set("proxy.http", "http_conf")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "http_env",
+						HTTPS:   "",
+						NoProxy: []string{"d", "e", "f"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "empty values precedence",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
+				t.Setenv("HTTP_PROXY", "env_http_url")
+				t.Setenv("HTTPS_PROXY", "")
+				t.Setenv("NO_PROXY", "")
+				config.Set("proxy.https", "https_conf")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "",
+						HTTPS:   "",
+						NoProxy: []string{"a", "b", "c"}},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "proxy withou no_proxy",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:  "http_url",
+						HTTPS: "https_url",
+					},
+					config.GetProxies())
+				assert.Equal(t, []interface{}{}, config.Get("proxy.no_proxy"))
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name:  "empty config with use_proxy_for_cloud_metadata",
+			setup: func(t *testing.T, config Config) {},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "",
+						HTTPS:   "",
+						NoProxy: []string{"169.254.169.254", "100.100.100.200"},
+					},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: false,
+		},
+		{
+			name: "use proxy for cloud metadata",
+			setup: func(t *testing.T, config Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
+			},
+			tests: func(t *testing.T, config Config) {
+				assert.Equal(t,
+					&Proxy{
+						HTTP:    "http_url",
+						HTTPS:   "https_url",
+						NoProxy: []string{"a", "b", "c", "169.254.169.254", "100.100.100.200"},
+					},
+					config.GetProxies())
+			},
+			proxyForCloudMetadata: false,
+		},
+	}
 
-	assert.Equal(t, []interface{}{}, config.Get("proxy.no_proxy"))
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+
+			// CircleCI sets NO_PROXY, so unset it for this test
+			unsetEnvForTest(t, "NO_PROXY")
+
+			config := SetupConf()
+			config.Set("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
+
+			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
+			// config file is never set.
+			path := t.TempDir()
+			configPath := filepath.Join(path, "empty_conf.yaml")
+			os.WriteFile(configPath, nil, 0600)
+			config.SetConfigFile(configPath)
+
+			if c.setup != nil {
+				c.setup(t, config)
+			}
+
+			_, err := LoadCustom(config, "unit_test", true, nil)
+			require.NoError(t, err)
+
+			c.tests(t, config)
+		})
+	}
 }
 
 func TestSanitizeAPIKeyConfig(t *testing.T) {
-	config := setupConf()
+	config := SetupConf()
 
 	config.Set("api_key", "foo")
 	SanitizeAPIKeyConfig(config, "api_key")
@@ -900,27 +531,8 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
 
-// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
-// key includes the key delimiter. Affects the config package when both secrets and multiple
-// endpoints are configured.
-// Refer to https://github.com/DataDog/viper/pull/2 for more details.
-func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
-	conf := setupConf()
-	conf.SetConfigFile("./tests/datadog_secrets.yaml")
-	// load the configuration
-	_, err := load(conf, "datadog_secrets.yaml", true)
-	assert.NoError(t, err)
-
-	expectedKeysPerDomain := map[string][]string{
-		"https://app.datadoghq.com": {"someapikey", "someotherapikey"},
-	}
-	keysPerDomain, err := getMultipleEndpointsWithConfig(conf)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
-}
-
 func TestNumWorkers(t *testing.T) {
-	config := setupConf()
+	config := SetupConf()
 
 	config.Set("python_version", "2")
 	config.Set("tracemalloc_debug", true)
@@ -961,7 +573,7 @@ external_config:
 		"api_key": "overrided",
 	})
 
-	config := setupConfFromYAML(datadogYaml)
+	config := SetupConfFromYAML(datadogYaml)
 	applyOverrideFuncs(config)
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
@@ -1001,7 +613,7 @@ dogstatsd_mapper_profiles:
         tags:
           foo: "$1"
 `
-	testConfig := setupConfFromYAML(datadogYaml)
+	testConfig := SetupConfFromYAML(datadogYaml)
 
 	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
 
@@ -1036,7 +648,7 @@ dogstatsd_mapper_profiles:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedProfiles, profiles)
 }
 
@@ -1044,13 +656,13 @@ func TestDogstatsdMappingProfilesEmpty(t *testing.T) {
 	datadogYaml := `
 dogstatsd_mapper_profiles:
 `
-	testConfig := setupConfFromYAML(datadogYaml)
+	testConfig := SetupConfFromYAML(datadogYaml)
 
 	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
 
 	var expectedProfiles []MappingProfile
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedProfiles, profiles)
 }
 
@@ -1059,7 +671,7 @@ func TestDogstatsdMappingProfilesError(t *testing.T) {
 dogstatsd_mapper_profiles:
   - abc
 `
-	testConfig := setupConfFromYAML(datadogYaml)
+	testConfig := SetupConfFromYAML(datadogYaml)
 	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
 
 	expectedErrorMsg := "Could not parse dogstatsd_mapper_profiles"
@@ -1084,7 +696,7 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 }
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
-	config := setupConfFromYAML(`host_aliases: ["foo", "-bar"]`)
+	config := SetupConfFromYAML(`host_aliases: ["foo", "-bar"]`)
 	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
 }
 
@@ -1092,14 +704,14 @@ func TestNetworkDevicesNamespace(t *testing.T) {
 	datadogYaml := `
 network_devices:
 `
-	config := setupConfFromYAML(datadogYaml)
+	config := SetupConfFromYAML(datadogYaml)
 	assert.Equal(t, "default", config.GetString("network_devices.namespace"))
 
 	datadogYaml = `
 network_devices:
   namespace: dev
 `
-	config = setupConfFromYAML(datadogYaml)
+	config = SetupConfFromYAML(datadogYaml)
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
 }
 
@@ -1123,7 +735,7 @@ logs_config:
   docker_path_override: "/custom/path"
 `
 
-	config := setupConfFromYAML(datadogYaml)
+	config := SetupConfFromYAML(datadogYaml)
 	err := checkConflictingOptions(config)
 
 	assert.NotNil(t, err)
@@ -1161,13 +773,20 @@ network_devices:
   metadata:
     dd_url: somehost:1234
 
+orchestrator_explorer:
+    orchestrator_dd_url: https://somehost:1234
+
+runtime_security_config:
+    endpoints:
+        logs_dd_url: somehost:1234
+
 proxy:
   http: http://localhost:1234
   https: https://localhost:1234
 `
 	expectedURL := "somehost:1234"
 	expectedHTTPURL := "https://" + expectedURL
-	testConfig := setupConfFromYAML(datadogYaml)
+	testConfig := SetupConfFromYAML(datadogYaml)
 	LoadProxyFromEnv(testConfig)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -1175,9 +794,9 @@ proxy:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, false, testConfig)
 	assert.Equal(t, false, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.NotNil(t, GetProxies())
-	// reseting proxies
-	proxies = nil
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
+	assert.NotNil(t, testConfig.GetProxies())
 
 	datadogYamlFips := datadogYaml + `
 fips:
@@ -1189,7 +808,7 @@ fips:
 
 	expectedURL = "localhost:50"
 	expectedHTTPURL = "http://" + expectedURL
-	testConfig = setupConfFromYAML(datadogYamlFips)
+	testConfig = SetupConfFromYAML(datadogYamlFips)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -1197,7 +816,9 @@ fips:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Nil(t, GetProxies())
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
+	assert.Nil(t, testConfig.GetProxies())
 
 	datadogYamlFips = datadogYaml + `
 fips:
@@ -1209,7 +830,7 @@ fips:
 `
 
 	expectedHTTPURL = "https://" + expectedURL
-	testConfig = setupConfFromYAML(datadogYamlFips)
+	testConfig = SetupConfFromYAML(datadogYamlFips)
 	testConfig.Set("skip_ssl_validation", false) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
@@ -1218,8 +839,10 @@ fips:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
+	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 
 	testConfig.Set("skip_ssl_validation", true) // should be overridden by fips.tls_verify
 	testConfig.Set("fips.tls_verify", true)
@@ -1228,14 +851,14 @@ fips:
 	require.NoError(t, err)
 
 	assert.Equal(t, false, testConfig.GetBool("skip_ssl_validation"))
-	assert.Nil(t, GetProxies())
+	assert.Nil(t, testConfig.GetProxies())
 }
 
 func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBaseURL string, rng bool, c Config) {
 	if rng {
 		assert.Equal(t, expectedBaseHTTPURL+"01", c.GetString("dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"02", c.GetString("apm_config.apm_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL+"03", c.GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"03"+"/api/v2/profile", c.GetString("apm_config.profiling_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"10", c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"04", c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL+"05", c.GetString("logs_config.logs_dd_url"))
@@ -1243,10 +866,13 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.dd_url"))
 		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.dd_url"))
 		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
+		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+
 	} else {
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.apm_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.profiling_dd_url")) // Omitting "/api/v2/profile" as the config is not overwritten
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("logs_config.logs_dd_url"))
@@ -1254,6 +880,8 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
 	}
 }
 
@@ -1265,7 +893,90 @@ fips:
   port_range_start: 5000
 `
 
-	testConfig := setupConfFromYAML(datadogYaml)
+	testConfig := SetupConfFromYAML(datadogYaml)
 	err := setupFipsEndpoints(testConfig)
 	require.Error(t, err)
+}
+
+func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  peer_service_aggregation: true
+`
+	testConfig := SetupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+
+	datadogYaml = `
+apm_config:
+  peer_service_aggregation: false
+`
+	testConfig = SetupConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+}
+
+func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
+	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "true")
+	testConfig := SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "false")
+	testConfig = SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+}
+
+func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  compute_stats_by_span_kind: false
+`
+	testConfig := SetupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+	datadogYaml = `
+apm_config:
+  compute_stats_by_span_kind: true
+`
+	testConfig = SetupConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+
+}
+
+func TestComputeStatsBySpanKindEnv(t *testing.T) {
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
+	testConfig := SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
+	testConfig = SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+}
+
+func TestIsRemoteConfigEnabled(t *testing.T) {
+	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+	testConfig := SetupConfFromYAML("")
+	require.True(t, IsRemoteConfigEnabled(testConfig))
+
+	t.Setenv("DD_FIPS_ENABLED", "true")
+	testConfig = SetupConfFromYAML("")
+	require.False(t, IsRemoteConfigEnabled(testConfig))
+
+	t.Setenv("DD_FIPS_ENABLED", "false")
+	t.Setenv("DD_SITE", "ddog-gov.com")
+	testConfig = SetupConfFromYAML("")
+	require.False(t, IsRemoteConfigEnabled(testConfig))
+}
+
+func TestLanguageDetectionSettings(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("language_detection.enabled"))
+
+	t.Setenv("DD_LANGUAGE_DETECTION_ENABLED", "true")
+	testConfig = SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("language_detection.enabled"))
 }

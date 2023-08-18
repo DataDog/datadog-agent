@@ -7,11 +7,19 @@
 package command
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+)
+
+const (
+	ConfigName = "datadog"
+	LoggerName = "CORE"
 )
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -31,13 +39,26 @@ type GlobalParams struct {
 // SubcommandFactory is a callable that will return a slice of subcommands.
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
+// GetDefaultCoreBundleParams returns the default params for the Core Bundle (config loaded from the "datadog" file,
+// without secrets and logger disabled).
+func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
+	return core.BundleParams{
+		ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+		LogParams:    log.LogForOneShot(LoggerName, "off", true)}
+}
+
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 	globalParams := GlobalParams{}
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		// cobra will tokenize the "Use" string by space, and take the first one so there's no need to pass anything
+		// besides the filename of the executable.
+		// Not even '[command]' is respected - try using their example "add [-F file | -D dir]... [-f format] profile"
+		// and it will still come out as "add [command]" in the help output.
+		// If the file name contains a space, this will break - but this is not the case for the Agent executable.
+		Use:   filepath.Base(os.Args[0]),
 		Short: "Datadog Agent at your service.",
 		Long: `
 The Datadog Agent faithfully collects events and metrics and brings them

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,7 +65,6 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) (func(), error
 	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, host, port, crtPath, keyPath)
 	scriptFile, err := writeTempFile("python_openssl_script", pythonSSLServer)
 	require.NoError(t, err)
-	defer scriptFile.Close()
 
 	cmd := exec.Command("python3", scriptFile.Name(), strconv.FormatBool(options.EnableTLS))
 	go require.NoError(t, cmd.Start())
@@ -86,7 +86,11 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Warnf("failed closing file: %v\n", err)
+		}
+	}()
 
 	if _, err := f.WriteString(content); err != nil {
 		return nil, err

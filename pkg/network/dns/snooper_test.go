@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package dns
 
@@ -36,24 +35,26 @@ func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dns
 	}, 1*time.Second, 10*time.Millisecond)
 
 	// Verify that the IP from the connections above maps to the right name
-	payload := []util.Address{srcAddr, destAddr}
+	payload := map[util.Address]struct{}{srcAddr: {}, destAddr: {}}
 	names := reverseDNS.Resolve(payload)
 	require.Len(t, names, 1)
 	assert.Contains(t, names[destAddr], ToHostname(destName))
 
 	// Verify telemetry
-	stats := reverseDNS.GetStats()
-	assert.True(t, stats["ips"] >= 1)
-
+	assert.True(t, cacheTelemetry.length.Load() >= 1)
+	lookups := cacheTelemetry.lookups.Load()
 	if srcIP != destIP {
-		assert.Equal(t, int64(2), stats["lookups"])
+		assert.Equal(t, int64(2), lookups)
 	} else {
-		assert.Equal(t, int64(1), stats["lookups"])
+		assert.Equal(t, int64(1), lookups)
 	}
-	assert.Equal(t, int64(1), stats["resolved"])
+	assert.Equal(t, int64(1), cacheTelemetry.resolved.Load())
 }
 
 func TestDNSOverUDPSnooping(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -73,6 +74,9 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 }
 
 func TestDNSOverTCPSnooping(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
@@ -405,6 +409,8 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	snooperTelemetry.decodingErrors.Delete()
 	cfg := testConfig()
 	cfg.CollectDNSStats = false
 	cfg.CollectLocalDNS = false
@@ -418,9 +424,8 @@ func TestParsingError(t *testing.T) {
 	// Pass a byte array of size 1 which should result in parsing error
 	err = reverseDNS.processPacket(make([]byte, 1), time.Now())
 	require.NoError(t, err)
-	stats := reverseDNS.GetStats()
-	assert.True(t, stats["ips"] == 0)
-	assert.True(t, stats["decoding_errors"] == 1)
+	assert.True(t, cacheTelemetry.length.Load() == 0)
+	assert.True(t, snooperTelemetry.decodingErrors.Load() == 1)
 }
 
 func TestDNSOverIPv6(t *testing.T) {
@@ -449,6 +454,9 @@ func TestDNSOverIPv6(t *testing.T) {
 }
 
 func TestDNSNestedCNAME(t *testing.T) {
+	cacheTelemetry.length.Set(0)
+	cacheTelemetry.lookups.Delete()
+	cacheTelemetry.resolved.Delete()
 	reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper

@@ -11,13 +11,14 @@ import (
 	"sync"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +40,10 @@ type Daemon struct {
 	MetricAgent *metrics.ServerlessMetricAgent
 
 	TraceAgent *trace.ServerlessTraceAgent
+
+	ColdStartCreator *trace.ColdStartSpanCreator
+
+	OTLPAgent *otlp.ServerlessOTLPAgent
 
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
@@ -65,8 +70,8 @@ type Daemon struct {
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
 	RuntimeWg *sync.WaitGroup
 
-	// FlushWg is used to keep track of whether there is currently a flush in progress
-	FlushWg *sync.WaitGroup
+	// FlushLock is used to keep track of whether there is currently a flush in progress
+	FlushLock sync.Mutex
 
 	ExtraTags *serverlessLog.Tags
 
@@ -104,7 +109,7 @@ func StartDaemon(addr string) *Daemon {
 		httpServer:        &http.Server{Addr: addr, Handler: mux},
 		mux:               mux,
 		RuntimeWg:         &sync.WaitGroup{},
-		FlushWg:           &sync.WaitGroup{},
+		FlushLock:         sync.Mutex{},
 		lastInvocations:   make([]time.Time, 0),
 		useAdaptiveFlush:  true,
 		flushStrategy:     &flush.AtTheEnd{},
@@ -115,10 +120,10 @@ func StartDaemon(addr string) *Daemon {
 		logsFlushMutex:    sync.Mutex{},
 	}
 
-	mux.Handle("/lambda/hello", &Hello{daemon})
+	mux.Handle("/lambda/hello", wrapOtlpError(&Hello{daemon}))
 	mux.Handle("/lambda/flush", &Flush{daemon})
-	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
-	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
+	mux.Handle("/lambda/start-invocation", wrapOtlpError(&StartInvocation{daemon}))
+	mux.Handle("/lambda/end-invocation", wrapOtlpError(&EndInvocation{daemon}))
 	mux.Handle("/trace-context", &TraceContext{daemon})
 
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
@@ -127,6 +132,18 @@ func StartDaemon(addr string) *Daemon {
 	}()
 
 	return daemon
+}
+
+func wrapOtlpError(handle http.Handler) http.Handler {
+	if otlp.IsEnabled() {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The Datadog tracer should not be used when OTLP is enabled.
+			// Doing so can lead to double creation of traces and over billing.
+			log.Error("Datadog tracing layer detected when OTLP is enabled!  These features are mutually exclusive.")
+			handle.ServeHTTP(w, r)
+		})
+	}
+	return handle
 }
 
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
@@ -164,10 +181,10 @@ func (d *Daemon) GetFlushStrategy() string {
 }
 
 // SetupLogCollectionHandler configures the log collection route handler
-func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
+func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, lambdaInitMetricChan chan<- *serverlessLog.LambdaInitMetric) {
 
 	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
-		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone)
+		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, lambdaInitMetricChan)
 	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
 
 	d.mux.Handle(route, &server)
@@ -182,6 +199,14 @@ func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 // SetTraceAgent sets the Agent instance for submitting traces
 func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
+}
+
+func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
+	d.OTLPAgent = otlpAgent
+}
+
+func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
+	d.ColdStartCreator = creator
 }
 
 // SetFlushStrategy sets the flush strategy to use.
@@ -201,8 +226,8 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // flush may be continued on the next invocation.
 // In some circumstances, it may switch to another flush strategy after the flush.
 func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
-	d.FlushWg.Add(1)
-	defer d.FlushWg.Done()
+	d.FlushLock.Lock()
+	defer d.FlushLock.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
 
@@ -215,7 +240,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 
 	timedOut := waitWithTimeout(&wg, FlushTimeout)
 	if timedOut {
-		log.Debug("Timed out while flushing, flush may be continued on next invocation")
+		log.Debug("Timed out while flushing")
 	} else {
 		log.Debug("Finished flushing")
 	}
@@ -305,6 +330,15 @@ func (d *Daemon) Stop() {
 	if d.MetricAgent != nil {
 		d.MetricAgent.Stop()
 	}
+
+	if d.ColdStartCreator != nil {
+		d.ColdStartCreator.Stop()
+	}
+
+	if d.OTLPAgent != nil {
+		d.OTLPAgent.Stop()
+	}
+
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
 }
@@ -340,7 +374,8 @@ func (d *Daemon) TellDaemonRuntimeDone() {
 // WaitForDaemon waits until the daemon has finished handling the current invocation
 func (d *Daemon) WaitForDaemon() {
 	// We always want to wait for any in-progress flush to complete
-	d.FlushWg.Wait()
+	d.FlushLock.Lock()
+	d.FlushLock.Unlock() //nolint:staticcheck
 
 	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
 	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
@@ -355,6 +390,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		ecs := d.ExecutionContext.GetCurrentState()
 		tagMap := tags.BuildTagMap(ecs.ARN, configTags)
+		d.ExecutionContext.UpdateRuntime(tagMap[tags.RuntimeKey])
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)

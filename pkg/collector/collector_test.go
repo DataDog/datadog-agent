@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package collector
 
@@ -16,15 +15,18 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 )
 
 // FIXTURE
 type TestCheck struct {
-	check.StubCheck
+	stub.StubCheck
 	mock.Mock
-	uniqueID check.ID
+	uniqueID checkid.ID
 	name     string
 	stop     chan bool
 }
@@ -33,11 +35,11 @@ func (c *TestCheck) Stop()                   { c.stop <- true }
 func (c *TestCheck) Cancel()                 { c.Called() }
 func (c *TestCheck) Interval() time.Duration { return 1 * time.Minute }
 func (c *TestCheck) Run() error              { <-c.stop; return nil }
-func (c *TestCheck) ID() check.ID {
+func (c *TestCheck) ID() checkid.ID {
 	if c.uniqueID != "" {
 		return c.uniqueID
 	}
-	return check.ID(c.String())
+	return checkid.ID(c.String())
 }
 func (c *TestCheck) String() string {
 	if c.name != "" {
@@ -54,7 +56,7 @@ func NewCheck() *TestCheck {
 	return c
 }
 
-func NewCheckUnique(id check.ID, name string) *TestCheck {
+func NewCheckUnique(id checkid.ID, name string) *TestCheck {
 	c := NewCheck()
 	c.uniqueID = id
 	c.name = name
@@ -70,7 +72,7 @@ func NewCheckSlowCancel(after time.Duration) *TestCheck {
 }
 
 // ChecksList is a sort.Interface so we can use the Sort function
-type ChecksList []check.ID
+type ChecksList []checkid.ID
 
 func (p ChecksList) Len() int           { return len(p) }
 func (p ChecksList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
@@ -82,7 +84,7 @@ type CollectorTestSuite struct {
 }
 
 func (suite *CollectorTestSuite) SetupTest() {
-	suite.c = NewCollector()
+	suite.c = NewCollector(aggregator.GetSenderManager())
 	suite.c.Start()
 }
 
@@ -150,7 +152,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck())
+	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck(), aggregator.GetSenderManager())
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")
@@ -197,7 +199,7 @@ func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
 	ids := suite.c.GetAllInstanceIDs("TestCheck1")
 	assert.Equal(suite.T(), 2, len(ids))
 	sort.Sort(ChecksList(ids))
-	expected := []check.ID{"bar", "foo"}
+	expected := []checkid.ID{"bar", "foo"}
 	for i := range expected {
 		assert.Equal(suite.T(), ids[i], expected[i])
 	}
@@ -220,7 +222,7 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	killed, err := suite.c.ReloadAllCheckInstances("TestCheck", []check.Check{ch3, ch4})
 	assert.Nil(suite.T(), err)
 	sort.Sort(ChecksList(killed))
-	assert.Equal(suite.T(), killed, []check.ID{"bar", "foo"})
+	assert.Equal(suite.T(), killed, []checkid.ID{"bar", "foo"})
 
 	_, found := suite.c.get("foo")
 	assert.False(suite.T(), found)
@@ -235,7 +237,7 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	killed, err = suite.c.ReloadAllCheckInstances("TestCheck", []check.Check{})
 	assert.Nil(suite.T(), err)
 	sort.Sort(ChecksList(killed))
-	assert.Equal(suite.T(), killed, []check.ID{"baz", "qux"})
+	assert.Equal(suite.T(), killed, []checkid.ID{"baz", "qux"})
 
 	assert.Zero(suite.T(), len(suite.c.checks))
 }

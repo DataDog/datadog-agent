@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add support for XCCDF benchmarks in CSPM.
+    A new configuration option, 'compliance_config.xccdf.enabled',
+    disabled by default, has been added for enabling XCCDF benchmarks.

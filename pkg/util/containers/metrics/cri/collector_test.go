@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
 package cri
 
@@ -37,6 +36,12 @@ func TestGetContainerStats(t *testing.T) {
 				WorkingSetBytes: &pb.UInt64Value{
 					Value: 1024,
 				},
+				UsageBytes: &pb.UInt64Value{
+					Value: 2048,
+				},
+				RssBytes: &pb.UInt64Value{
+					Value: 512,
+				},
 			},
 		},
 		nil,
@@ -49,8 +54,10 @@ func TestGetContainerStats(t *testing.T) {
 	stats, err := collector.GetContainerStats("", containerID, 10*time.Second)
 	assert.NoError(t, err)
 
-	assert.Equal(t, pointer.UIntToFloatPtr(1000), stats.CPU.Total)
-	assert.Equal(t, pointer.UIntToFloatPtr(1024), stats.Memory.UsageTotal)
+	assert.Equal(t, pointer.Ptr(1000.0), stats.CPU.Total)
+	assert.Equal(t, pointer.Ptr(1024.0), stats.Memory.WorkingSet)
+	assert.Equal(t, pointer.Ptr(2048.0), stats.Memory.UsageTotal)
+	assert.Equal(t, pointer.Ptr(512.0), stats.Memory.RSS)
 }
 
 func TestGetContainerNetworkStats(t *testing.T) {

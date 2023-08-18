@@ -4,15 +4,17 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package ebpf
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // ProbeLoader defines an eBPF ProbeLoader
@@ -20,14 +22,18 @@ type ProbeLoader struct {
 	config            *config.Config
 	bytecodeReader    bytecode.AssetReader
 	useSyscallWrapper bool
+	useRingBuffer     bool
+	useFentry         bool
 	statsdClient      statsd.ClientInterface
 }
 
 // NewProbeLoader returns a new Loader
-func NewProbeLoader(config *config.Config, useSyscallWrapper bool, statsdClient statsd.ClientInterface) *ProbeLoader {
+func NewProbeLoader(config *config.Config, useSyscallWrapper, useRingBuffer bool, useFentry bool, statsdClient statsd.ClientInterface) *ProbeLoader {
 	return &ProbeLoader{
 		config:            config,
 		useSyscallWrapper: useSyscallWrapper,
+		useRingBuffer:     useRingBuffer,
+		useFentry:         useFentry,
 		statsdClient:      statsdClient,
 	}
 }
@@ -45,7 +51,7 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	var err error
 	var runtimeCompiled bool
 	if l.config.RuntimeCompilationEnabled {
-		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.statsdClient)
+		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.useFentry, l.useRingBuffer, l.statsdClient)
 		if err != nil {
 			seclog.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
 		} else {
@@ -57,7 +63,9 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	// fallback to pre-compiled version
 	if l.bytecodeReader == nil {
 		asset := "runtime-security"
-		if l.useSyscallWrapper {
+		if l.useFentry {
+			asset += "-fentry"
+		} else if l.useSyscallWrapper {
 			asset += "-syscall-wrapper"
 		}
 
@@ -94,4 +102,14 @@ func (l *OffsetGuesserLoader) Close() error {
 // Load eBPF programs
 func (l *OffsetGuesserLoader) Load() (bytecode.AssetReader, error) {
 	return bytecode.GetReader(l.config.BPFDir, "runtime-security-offset-guesser.o")
+}
+
+// IsSyscallWrapperRequired checks whether the wrapper is required
+func IsSyscallWrapperRequired() (bool, error) {
+	openSyscall, err := manager.GetSyscallFnName("open")
+	if err != nil {
+		return false, err
+	}
+
+	return !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_"), nil
 }

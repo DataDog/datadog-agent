@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 /*
-
 Package standalone provides utility functions for Agent CLI commands that set up
 a new in-process Agent runtime (ex: check, jmx commands), as opposed to CLI commands
 that query a running Agent's IPC API.

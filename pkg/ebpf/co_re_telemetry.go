@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package ebpf
 
@@ -22,6 +21,7 @@ const (
 	btfNotFound
 	AssetReadError
 	VerifierError
+	LoaderError
 )
 
 // coreTelemetryByAsset is a global object which is responsible for storing CO-RE telemetry for all ebpf assets

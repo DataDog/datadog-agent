@@ -12,136 +12,41 @@ import (
 )
 
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
-func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container, maxChunkSize, maxChunkWeight int, chunker *collectorProcChunker) {
+func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container, maxChunkSize, maxChunkWeight int, chunker *util.ChunkAllocator[model.CollectorProc, *model.Process]) {
 	if ctr != nil && len(procs) == 0 {
 		// can happen in two scenarios, and we still need to report the container
 		// a) if a process is skipped (e.g. disallowlisted)
 		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows)
-		chunker.appendContainerWithoutProcesses(ctr)
+		appendContainerWithoutProcesses(ctr, chunker.GetChunks())
 		return
 	}
 
 	// Use the last available chunk as it may have some space for payloads
-	chunker.setLastChunk()
+	chunker.SetLastChunk()
 
 	// Processes that have a related container will add this container to every chunk they are split across
 	// This may result in the same container being sent in multiple payloads from the agent
 	// Note that this is necessary because container process tags (sent within `model.Container`) are only resolved from
 	// containers seen within the same `model.ContainerProc` as processes.
-	chunker.container = ctr
-	list := &processList{
-		procs:   procs,
-		chunker: chunker,
+	chunker.OnAccept = func(t *model.CollectorProc) {
+		if ctr != nil {
+			t.Containers = append(t.Containers, ctr)
+		}
 	}
-	util.ChunkPayloadsBySizeAndWeight(list, chunker, maxChunkSize, maxChunkWeight)
-}
-
-// processList is a payload list of `model.Process` payloads
-type processList struct {
-	procs   []*model.Process
-	chunker processChunker
-}
-
-// processChunker abstracts chunking of `model.Process` payloads
-type processChunker interface {
-	// Accept takes a slice of `model.Process` and allocates them to the current chunk
-	Accept(procs []*model.Process, weight int)
-}
-
-func (l *processList) Len() int {
-	return len(l.procs)
-}
-
-func (l *processList) WeightAt(idx int) int {
-	if idx >= len(l.procs) {
-		return 0
+	list := &util.PayloadList[*model.Process]{
+		Items: procs,
+		WeightAt: func(i int) int {
+			return weighProcess(procs[i])
+		},
 	}
-	return weighProcess(l.procs[idx])
+	util.ChunkPayloadsBySizeAndWeight[model.CollectorProc, *model.Process](list, chunker, maxChunkSize, maxChunkWeight)
 }
 
-func (l *processList) ToChunk(start, end int, weight int) {
-	l.chunker.Accept(l.procs[start:end], weight)
-}
-
-// chunkProps is used to track weight and size of chunks
-type chunkProps struct {
-	weight int
-	size   int
-}
-
-// chunkPropsTracker tracks weight and size of chunked payloads
-type chunkPropsTracker struct {
-	props []chunkProps
-	idx   int
-}
-
-// TakenSize returns the size allocated to the current chunk
-func (c *chunkPropsTracker) TakenSize() int {
-	if c.idx < len(c.props) {
-		return c.props[c.idx].size
+func appendContainerWithoutProcesses(ctr *model.Container, collectorProcs *[]model.CollectorProc) {
+	if len(*collectorProcs) == 0 {
+		*collectorProcs = append(*collectorProcs, model.CollectorProc{})
 	}
-	return 0
-}
-
-// TakenWeight returns the weight allocated to the current chunk
-func (c *chunkPropsTracker) TakenWeight() int {
-	if c.idx < len(c.props) {
-		return c.props[c.idx].weight
-	}
-	return 0
-}
-
-// Append creates a new chunk at the end (cases when it is known any previously allocated chunks cannot fit the payload)
-func (c *chunkPropsTracker) Append() {
-	c.idx = len(c.props)
-}
-
-// Next moves to the next chunk or allocates a new chunk if the current chunk is the last
-func (c *chunkPropsTracker) Next() {
-	c.idx++
-}
-
-// collectorProcChunker implements allocation of chunks to `model.CollectorProc`
-type collectorProcChunker struct {
-	chunkPropsTracker
-	container      *model.Container
-	collectorProcs []*model.CollectorProc
-}
-
-// collectprProcChunker implements both `chunkAllocator` and `processChunker`
-var _ processChunker = &collectorProcChunker{}
-var _ util.ChunkAllocator = &collectorProcChunker{}
-
-func (c *collectorProcChunker) Accept(procs []*model.Process, weight int) {
-	if c.idx >= len(c.collectorProcs) {
-		// If we are outside of the range of allocated chunks, allocate a new one
-		c.collectorProcs = append(c.collectorProcs, &model.CollectorProc{})
-		c.props = append(c.props, chunkProps{})
-	}
-
-	collectorProc := c.collectorProcs[c.idx]
-
-	// Note that we are currently not accounting for the container size/weight in calculations
-	if c.container != nil {
-		collectorProc.Containers = append(collectorProc.Containers, c.container)
-	}
-	collectorProc.Processes = append(collectorProc.Processes, procs...)
-	c.props[c.idx].size += len(procs)
-	c.props[c.idx].weight += weight
-}
-
-func (c *collectorProcChunker) setLastChunk() {
-	c.idx = 0
-	if len(c.collectorProcs) > 1 {
-		c.idx = len(c.collectorProcs) - 1
-	}
-}
-
-func (c *collectorProcChunker) appendContainerWithoutProcesses(ctr *model.Container) {
-	if len(c.collectorProcs) == 0 {
-		c.collectorProcs = append(c.collectorProcs, &model.CollectorProc{})
-	}
-	collectorProc := c.collectorProcs[len(c.collectorProcs)-1]
+	collectorProc := &(*collectorProcs)[len(*collectorProcs)-1]
 	collectorProc.Containers = append(collectorProc.Containers, ctr)
 }
 

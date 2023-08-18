@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -21,6 +20,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // DockerUtil wraps interactions with a local docker API.
@@ -129,6 +130,11 @@ func (d *DockerUtil) CountVolumes(ctx context.Context) (int, int, error) {
 	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil
 }
 
+// RawClient returns the underlying docker client being used by this object.
+func (d *DockerUtil) RawClient() *client.Client {
+	return d.cli
+}
+
 // RawContainerList wraps around the docker client's ContainerList method.
 // Value validation and error handling are the caller's responsibility.
 func (d *DockerUtil) RawContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
@@ -149,8 +155,12 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options typ
 	}
 
 	isExcluded := func(container types.Container) bool {
+		var annotations map[string]string
+		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
 		for _, name := range container.Names {
-			if filter.IsExcluded(name, container.Image, "") {
+			if filter.IsExcluded(annotations, name, container.Image, "") {
 				log.Tracef("Container with name %q and image %q is filtered-out", name, container.Image)
 				return true
 			}
@@ -251,6 +261,32 @@ func (d *DockerUtil) GetPreferredImageName(imageID string, repoTags []string, re
 
 	d.imageNameBySha[imageID] = preferredName
 	return preferredName
+}
+
+// ImageInspect returns an image inspect object for a given image ID
+func (d *DockerUtil) ImageInspect(ctx context.Context, imageID string) (types.ImageInspect, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+
+	imageInspect, _, err := d.cli.ImageInspectWithRaw(ctx, imageID)
+	if err != nil {
+		return imageInspect, fmt.Errorf("error inspecting image: %w", err)
+	}
+
+	return imageInspect, nil
+}
+
+// ImageHistory returns the history for a given image ID
+func (d *DockerUtil) ImageHistory(ctx context.Context, imageID string) ([]image.HistoryResponseItem, error) {
+	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
+	defer cancel()
+
+	history, err := d.cli.ImageHistory(ctx, imageID)
+	if err != nil {
+		return history, fmt.Errorf("error getting image history: %w", err)
+	}
+
+	return history, nil
 }
 
 // ResolveImageNameFromContainer will resolve the container sha image name to their user-friendly name.

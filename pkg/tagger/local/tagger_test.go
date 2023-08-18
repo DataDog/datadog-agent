@@ -17,7 +17,7 @@ import (
 )
 
 func TestTagBuilder(t *testing.T) {
-	tagger := NewTagger(workloadmeta.GetGlobalStore())
+	tagger := NewTagger(workloadmeta.NewStore(nil))
 	tagger.Init(context.Background())
 	defer tagger.Stop()
 

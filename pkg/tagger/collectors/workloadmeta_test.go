@@ -336,6 +336,36 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
+			name: "pod with admission + remote config annotations",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"admission.datadoghq.com/rc.id":  "id",
+						"admission.datadoghq.com/rc.rev": "123",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"dd_remote_config_id:id",
+						"dd_remote_config_rev:123",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "static tags",
 			staticTags: map[string]string{
 				"eks_fargate_node": "foobar",
@@ -358,6 +388,35 @@ func TestHandleKubePod(t *testing.T) {
 					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
 						"eks_fargate_node:foobar",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "disable kube_service",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"tags.datadoghq.com/disable": "kube_service",
+					},
+				},
+				// kube_service tags
+				KubeServices: []string{"service1", "service2"},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
 					},
 					StandardTags: []string{},
 				},
@@ -479,6 +538,7 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
+				AvailabilityZone: "us-east-1c",
 			},
 			expected: []*TagInfo{
 				{
@@ -495,6 +555,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},
@@ -511,6 +573,8 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"availability_zone:us-east-1c",
+						"availability-zone:us-east-1c",
 					},
 					StandardTags: []string{},
 				},
@@ -964,6 +1028,89 @@ func TestHandleContainer(t *testing.T) {
 			actual := collector.handleContainer(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &tt.container,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleContainerImage(t *testing.T) {
+	entityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainerImageMetadata,
+		ID:   "sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+	}
+
+	taggerEntityID := fmt.Sprintf("container_image_metadata://%s", entityID.ID)
+
+	tests := []struct {
+		name     string
+		image    workloadmeta.ContainerImageMetadata
+		expected []*TagInfo
+	}{
+		{
+			name: "basic",
+			image: workloadmeta.ContainerImageMetadata{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+					Labels: map[string]string{
+						"com.datadoghq.tags.env":     "production",
+						"com.datadoghq.tags.service": "datadog-agent",
+						"com.datadoghq.tags.version": "8.0.0",
+					},
+				},
+				RepoTags: []string{
+					"datadog/agent:7.41.1-rc.1",
+					"gcr.io/datadoghq/agent:7-rc",
+					"gcr.io/datadoghq/agent:7.41.1-rc.1",
+					"public.ecr.aws/datadog/agent:7-rc",
+					"public.ecr.aws/datadog/agent:7.41.1-rc.1",
+				},
+				RepoDigests: []string{
+					"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+					"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+				},
+				OS:           "DOS",
+				OSVersion:    "6.22",
+				Architecture: "80486DX",
+			},
+			expected: []*TagInfo{
+				{
+					Source:               containerImageSource,
+					Entity:               taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"architecture:80486DX",
+						"env:production",
+						"image_name:sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
+						"image_tag:7-rc",
+						"image_tag:7.41.1-rc.1",
+						"os_name:DOS",
+						"os_version:6.22",
+						"service:datadog-agent",
+						"short_image:agent",
+						"version:8.0.0",
+					},
+					StandardTags: []string{
+						"env:production",
+						"service:datadog-agent",
+						"version:8.0.0",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := &WorkloadMetaCollector{}
+
+			actual := collector.handleContainerImage(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.image,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build linux
+
 package tests
 
 import (
@@ -21,11 +23,11 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
-const tracePipeFile = "/sys/kernel/debug/tracing/trace_pipe"
-
-// TracePipe to read from /sys/kernel/debug/tracing/trace_pipe
+// TracePipe to read from /sys/kernel/[debug/]tracing/trace_pipe
 // Note that data can be read only once, i.e. if you have more than
 // one tracer / channel, only one will receive an event:
 // "Once data is read from this file, it is consumed, and will not be
@@ -53,7 +55,7 @@ type TraceEvent struct {
 
 // NewTracePipe instantiates a new trace pipe
 func NewTracePipe() (*TracePipe, error) {
-	f, err := os.Open(tracePipeFile)
+	f, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +67,8 @@ func NewTracePipe() (*TracePipe, error) {
 }
 
 // A line from trace_pipe looks like (leading spaces included):
-// `        chromium-15581 [000] d... 92783.722567: : Hello, World!`
-var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4}) +(\d+\.\d+)\: (.*?)\: (.*)`)
+// `        chromium-15581 [000] d...1 92783.722567: : Hello, World!`
+var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4,5}) +(\d+\.\d+)\: (.*?)\: (.*)`)
 
 func parseTraceLine(raw string) (*TraceEvent, error) {
 	fields := traceLineRegexp.FindStringSubmatch(raw)

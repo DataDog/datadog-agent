@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -85,11 +84,13 @@ func NewKubeEndpointsFileConfigProvider(*config.ConfigurationProviders) (ConfigP
 	}
 
 	provider.epLister = epInformer.Lister()
-	epInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := epInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    provider.addHandler,
 		UpdateFunc: provider.updateHandler,
 		DeleteFunc: provider.deleteHandler,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
+	}
 
 	return provider, nil
 }

@@ -10,10 +10,10 @@ import (
 	"io"
 	"testing"
 
+	"github.com/DataDog/go-tuf/client"
 	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/client"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func generateUpdate(baseVersion uint64) *pbgo.LatestConfigsResponse {

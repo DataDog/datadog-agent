@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmx
 
@@ -13,6 +12,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -34,7 +34,7 @@ func (jl *JMXCheckLoader) Name() string {
 }
 
 // Load returns a JMX check
-func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.Data) (check.Check, error) {
+func (jl *JMXCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 
 	if !check.IsJMXInstance(config.Name, instance, config.InitConfig) {
@@ -63,7 +63,7 @@ func (jl *JMXCheckLoader) Load(config integration.Config, instance integration.D
 		Name:          config.Name,
 		Provider:      config.Provider,
 	}
-	c = newJMXCheck(cf, config.Source)
+	c = newJMXCheck(senderManager, cf, config.Source)
 
 	return c, err
 }

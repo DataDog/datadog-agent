@@ -6,8 +6,9 @@
 package event
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Processor is responsible for all the logic surrounding extraction and sampling of APM events from processed traces.
@@ -22,11 +23,11 @@ type Processor struct {
 // will be tried in the provided order, with the first one returning an event stopping the chain.
 //
 // All extracted APM events are then submitted to sampling. This sampling is 2-fold:
-// * A first sampling step is done based on the extraction sampling rate returned by an Extractor. If an Extractor
-//   returns an event accompanied with a 0.1 extraction rate, then there's a 90% chance that this event will get
-//   discarded.
-// * A max events per second maxEPSSampler is applied to all non-PriorityUserKeep events that survived the first step
-//   and will ensure that, in average, the total rate of events returned by the processor is not bigger than maxEPS.
+//   - A first sampling step is done based on the extraction sampling rate returned by an Extractor. If an Extractor
+//     returns an event accompanied with a 0.1 extraction rate, then there's a 90% chance that this event will get
+//     discarded.
+//   - A max events per second maxEPSSampler is applied to all non-PriorityUserKeep events that survived the first step
+//     and will ensure that, in average, the total rate of events returned by the processor is not bigger than maxEPS.
 func NewProcessor(extractors []Extractor, maxEPS float64) *Processor {
 	return newProcessor(extractors, newMaxEPSSampler(maxEPS))
 }
@@ -50,13 +51,13 @@ func (p *Processor) Stop() {
 
 // Process takes a processed trace, extracts events from it and samples them, returning a collection of
 // sampled events along with the total count of extracted events.
-func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtracted int64) {
-	clientSampleRate := sampler.GetClientRate(root)
-	preSampleRate := sampler.GetPreSampleRate(root)
-	priority := sampler.SamplingPriority(t.Priority)
+func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numEvents, numExtracted int64) {
+	clientSampleRate := sampler.GetClientRate(pt.Root)
+	preSampleRate := sampler.GetPreSampleRate(pt.Root)
+	priority := sampler.SamplingPriority(pt.TraceChunk.Priority)
 	events := []*pb.Span{}
 
-	for _, span := range t.Spans {
+	for _, span := range pt.TraceChunk.Spans {
 		extractionRate, ok := p.extract(span, priority)
 		if !ok {
 			continue
@@ -77,14 +78,14 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		sampler.SetPreSampleRate(span, preSampleRate)
 		sampler.SetEventExtractionRate(span, extractionRate)
 		sampler.SetAnalyzedSpan(span)
-		if t.DroppedTrace {
+		if pt.TraceChunk.DroppedTrace {
 			events = append(events, span)
 		}
 		numEvents++
 	}
-	if t.DroppedTrace {
+	if pt.TraceChunk.DroppedTrace {
 		// we are not keeping anything out of this trace, except the events
-		t.Spans = events
+		pt.TraceChunk.Spans = events
 	}
 	return numEvents, numExtracted
 }

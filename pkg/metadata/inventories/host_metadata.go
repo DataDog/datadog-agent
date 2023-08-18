@@ -6,21 +6,21 @@
 package inventories
 
 import (
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/memory"
-	"github.com/DataDog/gohai/network"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
+	"github.com/DataDog/datadog-agent/pkg/gohai/network"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // for testing purpose
 var (
-	cpuGet                         = cpu.Get
-	memoryGet                      = memory.Get
-	networkGet                     = network.Get
-	platformGet                    = platform.Get
-	systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
+	cpuGet      = cpu.CollectInfo
+	memoryGet   = memory.CollectInfo
+	networkGet  = network.CollectInfo
+	platformGet = platform.CollectInfo
 )
 
 // HostMetadata contains metadata about the host
@@ -53,9 +53,12 @@ type HostMetadata struct {
 	MacAddress  string `json:"mac_address"`
 
 	// from the agent itself
-	AgentVersion  string `json:"agent_version"`
-	CloudProvider string `json:"cloud_provider"`
-	OsVersion     string `json:"os_version"`
+	AgentVersion           string `json:"agent_version"`
+	CloudProvider          string `json:"cloud_provider"`
+	CloudProviderSource    string `json:"cloud_provider_source"`
+	CloudProviderAccountID string `json:"cloud_provider_account_id"`
+	CloudProviderHostID    string `json:"cloud_provider_host_id"`
+	OsVersion              string `json:"os_version"`
 
 	// From file system
 	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
@@ -71,84 +74,94 @@ func logWarnings(warnings []string) {
 	}
 }
 
+func fetchFromMetadata(key AgentMetadataName, metadata AgentMetadata) string {
+	if value, ok := metadata[key]; ok {
+		if stringValue, ok := value.(string); ok {
+			return stringValue
+		}
+		logErrorf("'%s' is not a string in metadata cache", key) //nolint:errcheck
+		return ""
+	}
+	logInfof("'%s' not found in metadata cache", key)
+	return ""
+}
+
 // getHostMetadata returns the metadata show in the 'host' table
 func getHostMetadata() *HostMetadata {
 	metadata := &HostMetadata{}
 
-	cpuInfo, warnings, err := cpuGet()
+	cpuInfo := cpuGet()
+	_, warnings, err := cpuInfo.AsJSON()
 	if err != nil {
 		logErrorf("Failed to retrieve cpu metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.CPUCores = cpuInfo.CpuCores
-		metadata.CPULogicalProcessors = cpuInfo.CpuLogicalProcessors
-		metadata.CPUVendor = cpuInfo.VendorId
-		metadata.CPUModel = cpuInfo.ModelName
-		metadata.CPUModelID = cpuInfo.Model
-		metadata.CPUFamily = cpuInfo.Family
-		metadata.CPUStepping = cpuInfo.Stepping
-		metadata.CPUFrequency = cpuInfo.Mhz
-		metadata.CPUCacheSize = cpuInfo.CacheSizeBytes
+		metadata.CPUCores = cpuInfo.CPUCores.ValueOrDefault()
+		metadata.CPULogicalProcessors = cpuInfo.CPULogicalProcessors.ValueOrDefault()
+		metadata.CPUVendor = cpuInfo.VendorID.ValueOrDefault()
+		metadata.CPUModel = cpuInfo.ModelName.ValueOrDefault()
+		metadata.CPUModelID = cpuInfo.Model.ValueOrDefault()
+		metadata.CPUFamily = cpuInfo.Family.ValueOrDefault()
+		metadata.CPUStepping = cpuInfo.Stepping.ValueOrDefault()
+		metadata.CPUFrequency = cpuInfo.Mhz.ValueOrDefault()
+		cpuCacheSize := cpuInfo.CacheSizeKB.ValueOrDefault()
+		metadata.CPUCacheSize = cpuCacheSize * 1024
 	}
 
-	platformInfo, warnings, err := platformGet()
+	platformInfo := platformGet()
+	_, warnings, err = platformInfo.AsJSON()
 	if err != nil {
 		logErrorf("failed to retrieve host platform metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.KernelName = platformInfo.KernelName
-		metadata.KernelRelease = platformInfo.KernelRelease
-		metadata.KernelVersion = platformInfo.KernelVersion
-		metadata.OS = platformInfo.OS
-		metadata.CPUArchitecture = platformInfo.HardwarePlatform
+		metadata.KernelName, _ = platformInfo.KernelName.Value()
+		metadata.KernelRelease, _ = platformInfo.KernelRelease.Value()
+		metadata.KernelVersion, _ = platformInfo.KernelVersion.Value()
+		metadata.OS, _ = platformInfo.OS.Value()
+		metadata.CPUArchitecture, _ = platformInfo.HardwarePlatform.Value()
 	}
 
-	memoryInfo, warnings, err := memoryGet()
+	memoryInfo := memoryGet()
+	_, warnings, err = memoryInfo.AsJSON()
 	if err != nil {
 		logErrorf("failed to retrieve host memory metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.MemoryTotalKb = memoryInfo.TotalBytes / 1024
-		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalBytes / 1024
+		memoryTotalKb := memoryInfo.TotalBytes.ValueOrDefault()
+		metadata.MemoryTotalKb = memoryTotalKb / 1024
+		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
-	networkInfo, warnings, err := networkGet()
+	networkInfo, err := networkGet()
+	if err == nil {
+		_, warnings, err = networkInfo.AsJSON()
+	}
 	if err != nil {
 		logErrorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.IPAddress = networkInfo.IpAddress
-		metadata.IPv6Address = networkInfo.IpAddressv6
+		metadata.IPAddress = networkInfo.IPAddress
+		metadata.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
 		metadata.MacAddress = networkInfo.MacAddress
 	}
 
 	metadata.AgentVersion = version.AgentVersion
 
-	if value, ok := agentMetadata[string(AgentCloudProvider)]; ok {
-		if stringValue, ok := value.(string); ok {
-			metadata.CloudProvider = stringValue
-		} else {
-			logErrorf("cloud provider is not a string in agent metadata cache") //nolint:errcheck
-		}
-	} else {
-		logInfof("cloud provider not found in agent metadata cache")
-	}
+	metadata.CloudProvider = fetchFromMetadata(HostCloudProvider, agentMetadata)
+	metadata.CloudProviderSource = fetchFromMetadata(HostCloudProviderSource, hostMetadata)
+	metadata.CloudProviderHostID = fetchFromMetadata(HostCloudProviderHostID, hostMetadata)
+	metadata.OsVersion = fetchFromMetadata(HostOSVersion, hostMetadata)
 
-	if value, ok := hostMetadata[string(HostOSVersion)]; ok {
-		if stringValue, ok := value.(string); ok {
-			metadata.OsVersion = stringValue
-		} else {
-			logErrorf("OS version is not a string in host metadata cache") //nolint:errcheck
-		}
-	} else {
-		logErrorf("OS version not found in agent metadata cache") //nolint:errcheck
-	}
+	metadata.CloudProviderAccountID = fetchFromMetadata(HostCloudProviderAccountID, hostMetadata)
 
-	systemSpecificHosttMetadataGet(metadata)
+	metadata.HypervisorGuestUUID = dmi.GetHypervisorUUID()
+	metadata.DmiProductUUID = dmi.GetProductUUID()
+	metadata.DmiBoardAssetTag = dmi.GetBoardAssetTag()
+	metadata.DmiBoardVendor = dmi.GetBoardVendor()
 
 	return metadata
 }

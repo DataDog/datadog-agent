@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package aggregator
 
@@ -16,37 +15,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type senderWithChans struct {
 	itemChan                 chan senderItem
-	serviceCheckChan         chan metrics.ServiceCheck
-	eventChan                chan metrics.Event
+	serviceCheckChan         chan servicecheck.ServiceCheck
+	eventChan                chan event.Event
 	orchestratorChan         chan senderOrchestratorMetadata
 	orchestratorManifestChan chan senderOrchestratorManifest
 	eventPlatformEventChan   chan senderEventPlatformEvent
-	contlcycleOut            chan senderContainerLifecycleEvent
 	sender                   *checkSender
 }
 
-func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
+func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
 	s.itemChan = make(chan senderItem, 10)
-	s.serviceCheckChan = make(chan metrics.ServiceCheck, 10)
-	s.eventChan = make(chan metrics.Event, 10)
+	s.serviceCheckChan = make(chan servicecheck.ServiceCheck, 10)
+	s.eventChan = make(chan event.Event, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
 	s.orchestratorManifestChan = make(chan senderOrchestratorManifest, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
-	s.contlcycleOut = make(chan senderContainerLifecycleEvent, 10)
-	s.sender = newCheckSender(id, defaultHostname, s.itemChan, s.serviceCheckChan, s.eventChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan, s.contlcycleOut)
+	s.sender = newCheckSender(id, defaultHostname, s.itemChan, s.serviceCheckChan, s.eventChan, s.orchestratorChan, s.orchestratorManifestChan, s.eventPlatformEventChan)
 	return s
 }
 
-func testDemux() *AgentDemultiplexer {
-	opts := DefaultAgentDemultiplexerOptions(nil)
+func testDemux(log log.Component) *AgentDemultiplexer {
+	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := initAgentDemultiplexer(opts, defaultHostname)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, defaultHostname)
 	return demux
 }
 
@@ -66,8 +67,8 @@ func assertAggSamplersLen(t *testing.T, agg *BufferedAggregator, n int) {
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
-
-	demux := testDemux()
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -86,8 +87,9 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test not using anything global
 	// -
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := testDemux(log)
 
-	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -115,7 +117,8 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	demux := testDemux()
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -137,7 +140,8 @@ func TestDestroySender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	demux := testDemux()
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 	defer aggregatorInstance.Stop()
@@ -166,16 +170,16 @@ func TestGetAndSetSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	demux := testDemux()
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := testDemux(log)
 
 	itemChan := make(chan senderItem, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	serviceCheckChan := make(chan servicecheck.ServiceCheck, 10)
+	eventChan := make(chan event.Event, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
 	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
-	contlcycleChan := make(chan senderContainerLifecycleEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan)
+	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan)
 
 	err := demux.SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)
@@ -189,7 +193,8 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	demux := testDemux()
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 
@@ -239,7 +244,7 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	// only tags added by the check
 	s.sender.SetCheckService("")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc := <-s.serviceCheckChan
 	assert.Equal(t, checkTags, sc.Tags)
 
@@ -247,7 +252,7 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	s.sender.SetCheckService("service1")
 	s.sender.SetCheckService("service2")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, append(checkTags, "service:service2"), sc.Tags)
 }
@@ -259,7 +264,7 @@ func TestGetSenderServiceTagEvent(t *testing.T) {
 	s := initSender(checkID1, "")
 	checkTags := []string{"check:tag1", "check:tag2"}
 
-	event := metrics.Event{
+	event := event.Event{
 		Title: "title",
 		Host:  "testhostname",
 		Ts:    time.Now().Unix(),
@@ -323,13 +328,13 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	s := initSender(checkID1, "")
 
 	// no custom tags
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
 	sc := <-s.serviceCheckChan
 	assert.Nil(t, sc.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, checkTags, sc.Tags)
 
@@ -339,12 +344,12 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, customTags, sc.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, append(checkTags, customTags...), sc.Tags)
 }
@@ -355,7 +360,7 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 
 	s := initSender(checkID1, "")
 
-	event := metrics.Event{
+	event := event.Event{
 		Title: "title",
 		Host:  "testhostname",
 		Ts:    time.Now().Unix(),
@@ -440,16 +445,16 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Commit()
-	s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
-	s.sender.EventPlatformEvent("raw-event", "dbm-sample")
-	submittedEvent := metrics.Event{
+	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
+	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
+	submittedEvent := event.Event{
 		Title:          "Something happened",
 		Text:           "Description of the event",
 		Ts:             12,
-		Priority:       metrics.EventPriorityLow,
+		Priority:       event.EventPriorityLow,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar"},
-		AlertType:      metrics.EventAlertTypeInfo,
+		AlertType:      event.EventAlertTypeInfo,
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
@@ -508,7 +513,7 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	serviceCheck := <-s.serviceCheckChan
 	assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-	assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, serviceCheck.Status)
 	assert.Equal(t, "my-hostname", serviceCheck.Host)
 	assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
 	assert.Equal(t, "message", serviceCheck.Message)
@@ -518,7 +523,7 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	eventPlatformEvent := <-s.eventPlatformEventChan
 	assert.Equal(t, checkID1, eventPlatformEvent.id)
-	assert.Equal(t, "raw-event", eventPlatformEvent.rawEvent)
+	assert.Equal(t, []byte("raw-event"), eventPlatformEvent.rawEvent)
 	assert.Equal(t, "dbm-sample", eventPlatformEvent.eventType)
 }
 
@@ -560,15 +565,15 @@ func TestCheckSenderHostname(t *testing.T) {
 
 			s.sender.Gauge("my.metric", 1.0, tc.submittedHostname, []string{"foo", "bar"})
 			s.sender.Commit()
-			s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
-			submittedEvent := metrics.Event{
+			s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
+			submittedEvent := event.Event{
 				Title:          "Something happened",
 				Text:           "Description of the event",
 				Ts:             12,
-				Priority:       metrics.EventPriorityLow,
+				Priority:       event.EventPriorityLow,
 				Host:           tc.submittedHostname,
 				Tags:           []string{"foo", "bar"},
-				AlertType:      metrics.EventAlertTypeInfo,
+				AlertType:      event.EventAlertTypeInfo,
 				AggregationKey: "event_agg_key",
 				SourceTypeName: "docker",
 			}
@@ -582,7 +587,7 @@ func TestCheckSenderHostname(t *testing.T) {
 
 			serviceCheck := <-s.serviceCheckChan
 			assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-			assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+			assert.Equal(t, servicecheck.ServiceCheckOK, serviceCheck.Status)
 			assert.Equal(t, tc.expectedHostname, serviceCheck.Host)
 			assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
 			assert.Equal(t, "message", serviceCheck.Message)

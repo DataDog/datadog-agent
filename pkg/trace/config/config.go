@@ -13,14 +13,15 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
+
+// ServiceName specifies the service name used in the operating system.
+const ServiceName = "datadog-trace-agent"
 
 // ErrMissingAPIKey is returned when the config could not be validated due to missing API key.
 var ErrMissingAPIKey = errors.New("you must specify an API Key, either via a configuration file or the DD_API_KEY env var")
@@ -38,17 +39,14 @@ type Endpoint struct {
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
-// App Services env var
-const azureAppServices = "DD_AZURE_APP_SERVICES"
+// App Services env vars
+const RunZip = "APPSVC_RUN_ZIP"
+const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
 	BindHost string `mapstructure:"-"`
-
-	// HTTPPort specifies the port to use for the plain HTTP receiver.
-	// If unset (or 0), the receiver will be off.
-	HTTPPort int `mapstructure:"http_port"`
 
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
@@ -72,11 +70,11 @@ type OTLP struct {
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
 
-	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
-	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature flag.
-	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
-	// one sent by Datadog cloud integrations.
-	UsePreviewHostnameLogic bool `mapstructure:"-"`
+	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
+	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
+	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
+	// decision is followed.
+	ProbabilisticSampling float64
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -104,7 +102,7 @@ type ObfuscationConfig struct {
 
 	// Redis holds the configuration for obfuscating the "redis.raw_command" tag
 	// for spans of type "redis".
-	Redis Enablable `mapstructure:"redis"`
+	Redis RedisObfuscationConfig `mapstructure:"redis"`
 
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
@@ -115,14 +113,14 @@ type ObfuscationConfig struct {
 }
 
 // Export returns an obfuscate.Config matching o.
-func (o *ObfuscationConfig) Export() obfuscate.Config {
+func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
 		SQL: obfuscate.SQLConfig{
-			TableNames:       features.Has("table_names"),
-			ReplaceDigits:    features.Has("quantize_sql_tables") || features.Has("replace_sql_digits"),
-			KeepSQLAlias:     features.Has("keep_sql_alias"),
-			DollarQuotedFunc: features.Has("dollar_quoted_func"),
-			Cache:            features.Has("sql_cache"),
+			TableNames:       conf.HasFeature("table_names"),
+			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
+			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
+			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
+			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES: obfuscate.JSONConfig{
 			Enabled:            o.ES.Enabled,
@@ -147,6 +145,10 @@ func (o *ObfuscationConfig) Export() obfuscate.Config {
 		HTTP: obfuscate.HTTPConfig{
 			RemoveQueryString: o.HTTP.RemoveQueryString,
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
+		},
+		Redis: obfuscate.RedisConfig{
+			Enabled:       o.Redis.Enabled,
+			RemoveAllArgs: o.Redis.RemoveAllArgs,
 		},
 		Logger: new(debugLogger),
 	}
@@ -182,6 +184,16 @@ type HTTPObfuscationConfig struct {
 // Enablable can represent any option that has an "enabled" boolean sub-field.
 type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
+}
+
+// RedisObfuscationConfig holds the configuration settings for Redis obfuscation
+type RedisObfuscationConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
@@ -265,9 +277,9 @@ type EVPProxy struct {
 	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
 	// ApplicationKey to be used for requests with the X-Datadog-NeedsAppKey set (defaults to the top-level Application Key).
-	ApplicationKey string
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -279,7 +291,19 @@ type DebuggerProxyConfig struct {
 	// DDURL ...
 	DDURL string
 	// APIKey ...
-	APIKey string
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
+}
+
+// SymDBProxyConfig ...
+type SymDBProxyConfig struct {
+	// DDURL ...
+	DDURL string
+	// APIKey ...
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog endpoints to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
@@ -288,6 +312,8 @@ type DebuggerProxyConfig struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
+	Features map[string]struct{}
+
 	Enabled      bool
 	AgentVersion string
 	GitCommit    string
@@ -308,8 +334,10 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval   time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators []string
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -331,6 +359,10 @@ type AgentConfig struct {
 	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
+	Decoders        int   // specifies the number of traces that can be concurrently decoded.
+	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -343,6 +375,12 @@ type AgentConfig struct {
 	StatsWriter             *WriterConfig
 	TraceWriter             *WriterConfig
 	ConnectionResetInterval time.Duration // frequency at which outgoing connections are reset. 0 means no reset is performed
+	// MaxSenderRetries is the maximum number of retries that a sender will perform
+	// before giving up. Note that the sender may not perform all MaxSenderRetries if
+	// the agent is under load and the outgoing payload queue is full. In that
+	// case, the sender will drop failed payloads when it is unable to enqueue
+	// them for another retry.
+	MaxSenderRetries int
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -384,6 +422,9 @@ type AgentConfig struct {
 	// Obfuscation holds sensitive data obufscator's configuration.
 	Obfuscation *ObfuscationConfig
 
+	// MaxResourceLen the maximum length the resource can have
+	MaxResourceLen int
+
 	// RequireTags specifies a list of tags which must be present on the root span in order for a trace to be accepted.
 	RequireTags []*Tag
 
@@ -405,6 +446,9 @@ type AgentConfig struct {
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
+	// SymDBProxy contains the settings for the Symbol Database proxy.
+	SymDBProxy SymDBProxyConfig
+
 	// Proxy specifies a function to return a proxy for a given Request.
 	// See (net/http.Transport).Proxy for more details.
 	Proxy func(*http.Request) (*url.URL, error) `json:"-"`
@@ -413,8 +457,8 @@ type AgentConfig struct {
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
-	// RemoteSamplingClient retrieves sampling updates from the remote config backend
-	RemoteSamplingClient RemoteClient
+	// RemoteConfigClient retrieves sampling updates from the remote config backend
+	RemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -424,6 +468,9 @@ type AgentConfig struct {
 
 	// Azure App Services
 	InAzureAppServices bool
+
+	// DebugServerPort defines the port used by the debug server
+	DebugServerPort int
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -431,7 +478,8 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	RegisterAPMUpdate(func(update map[string]state.APMSamplingConfig))
+	Subscribe(string, func(update map[string]state.RawConfig))
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 // Tag represents a key/value pair.
@@ -464,7 +512,7 @@ func New() *AgentConfig {
 
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
-		MaxRequestBytes:        50 * 1024 * 1024, // 50MB
+		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
@@ -487,6 +535,7 @@ func New() *AgentConfig {
 		AnalyzedRateByServiceLegacy: make(map[string]float64),
 		AnalyzedSpansByService:      make(map[string]map[string]float64),
 		Obfuscation:                 &ObfuscationConfig{},
+		MaxResourceLen:              5000,
 
 		GlobalTags: make(map[string]string),
 
@@ -501,7 +550,9 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: inAzureAppServices(os.Getenv),
+		InAzureAppServices: InAzureAppServices(),
+
+		Features: make(map[string]struct{}),
 	}
 }
 
@@ -548,11 +599,21 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
-func inAzureAppServices(getenv func(string) string) bool {
-	str := getenv(azureAppServices)
-	if val, err := strconv.ParseBool(str); err == nil {
-		return val
-	} else {
-		return false
+func (c *AgentConfig) HasFeature(feat string) bool {
+	_, ok := c.Features[feat]
+	return ok
+}
+
+func (c *AgentConfig) AllFeatures() []string {
+	feats := []string{}
+	for feat := range c.Features {
+		feats = append(feats, feat)
 	}
+	return feats
+}
+
+func InAzureAppServices() bool {
+	_, existsLinux := os.LookupEnv(RunZip)
+	_, existsWin := os.LookupEnv(AppLogsTrace)
+	return existsLinux || existsWin
 }

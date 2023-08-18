@@ -4,11 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	netv1 "k8s.io/api/networking/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -42,6 +42,8 @@ func ExtractIngress(in *netv1.Ingress) *model.Ingress {
 	if len(in.Status.LoadBalancer.Ingress) > 0 {
 		ingress.Status = extractIngressStatus(in.Status)
 	}
+
+	ingress.Tags = append(ingress.Tags, transformers.RetrieveUnifiedServiceTags(in.ObjectMeta.Labels)...)
 
 	return &ingress
 }

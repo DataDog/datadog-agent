@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const (
@@ -73,8 +73,12 @@ func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env 
 	return s.applySampleRate(root, rate)
 }
 
-func (e *ErrorsSampler) UpdateTargetTPS(targetTPS float64) {
-	e.ScoreSampler.Sampler.updateTargetTPS(targetTPS)
+func (s *ScoreSampler) UpdateTargetTPS(targetTPS float64) {
+	s.Sampler.updateTargetTPS(targetTPS)
+}
+
+func (s *ScoreSampler) GetTargetTPS() float64 {
+	return s.Sampler.targetTPS.Load()
 }
 
 func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {

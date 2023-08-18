@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 // Package integrations implements 'agent integration'.
 package integrations
@@ -42,11 +41,18 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	integrationVersionScript = `
+	integrationVersionScriptPy2 = `
 import pkg_resources
 try:
 	print(pkg_resources.get_distribution('%s').version)
 except pkg_resources.DistributionNotFound:
+	pass
+`
+	integrationVersionScriptPy3 = `
+from importlib.metadata import version, PackageNotFoundError
+try:
+	print(version('%s'))
+except PackageNotFoundError:
 	pass
 `
 )
@@ -72,13 +78,14 @@ type cliParams struct {
 	// args are the positional command-line arguments
 	args []string
 
-	allowRoot          bool
-	verbose            int
-	useSysPython       bool
-	versionOnly        bool
-	localWheel         bool
-	thirdParty         bool
-	pythonMajorVersion string
+	allowRoot                 bool
+	verbose                   int
+	useSysPython              bool
+	versionOnly               bool
+	localWheel                bool
+	thirdParty                bool
+	pythonMajorVersion        string
+	unsafeDisableVerification bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -103,7 +110,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runOneShot := func(callback interface{}) error {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
-			fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithConfigMissingOK(true))),
+			fx.Supply(core.BundleParams{
+				ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigMissingOK(true))}),
 			core.Bundle,
 		)
 	}
@@ -126,6 +134,10 @@ You must specify a version of the package to install using the syntax: <package>
 	installCmd.Flags().BoolVarP(
 		&cliParams.thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
 	)
+	installCmd.Flags().BoolVar(
+		&cliParams.unsafeDisableVerification, "unsafe-disable-verification", false, "Disable trust and safety checks (only in case of unanticipated issues and when advised by customer support)",
+	)
+
 	integrationCmd.AddCommand(installCmd)
 
 	removeCmd := &cobra.Command{
@@ -510,6 +522,10 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
 	}
 
+	if cliParams.unsafeDisableVerification {
+		args = append(args, "--unsafe-disable-verification")
+	}
+
 	downloaderCmd := exec.Command(pyPath, args...)
 
 	// We do all of the following so that when we call our downloader, which will
@@ -537,7 +553,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	proxies := pkgconfig.GetProxies()
+	proxies := pkgconfig.Datadog.GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
@@ -720,6 +736,11 @@ func installedVersion(cliParams *cliParams, integration string) (*semver.Version
 	}
 	if !validName {
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
+	}
+
+	integrationVersionScript := integrationVersionScriptPy3
+	if cliParams.pythonMajorVersion == "2" {
+		integrationVersionScript = integrationVersionScriptPy2
 	}
 
 	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))

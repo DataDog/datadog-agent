@@ -15,8 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -63,34 +61,27 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 func modelConnections(conns *network.Connections) *model.Connections {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
-			NpmEnabled: config.Datadog.GetBool("network_config.enabled"),
-			TsmEnabled: config.Datadog.GetBool("service_monitoring_config.enabled"),
+			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
+			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
+			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
 		}
 	})
 
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
-	httpEncoder := newHTTPEncoder(conns)
+	httpEncoder := newHTTPEncoder(conns.HTTP)
+	defer httpEncoder.Close()
+	kafkaEncoder := newKafkaEncoder(conns.Kafka)
+	defer kafkaEncoder.Close()
+	http2Encoder := newHTTP2Encoder(conns.HTTP2)
+	defer http2Encoder.Close()
+
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
 	tagsSet := network.NewTagsSet()
 
 	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, dnsFormatter, ipc, tagsSet)
-	}
-
-	if httpEncoder != nil && httpEncoder.orphanEntries > 0 {
-		log.Debugf(
-			"detected orphan http aggreggations. this can be either caused by conntrack sampling or missed tcp close events. count=%d",
-			httpEncoder.orphanEntries,
-		)
-
-		telemetry.NewMetric(
-			"usm.http.orphan_aggregations",
-			telemetry.OptMonotonic,
-			telemetry.OptExpvar,
-			telemetry.OptStatsd,
-		).Add(int64(httpEncoder.orphanEntries))
+		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
@@ -107,6 +98,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
 	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
+	payload.PrebuiltEBPFAssets = conns.PrebuiltAssets
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 

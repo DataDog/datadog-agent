@@ -50,6 +50,32 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	assert.Equal(t, trimmedOutput, trimmedCleaned)
 }
 
+func TestConfigScrubbedYaml(t *testing.T) {
+	wd, _ := os.Getwd()
+
+	inputConf := filepath.Join(wd, "test", "conf_multiline.yaml")
+	inputConfData, err := os.ReadFile(inputConf)
+	require.NoError(t, err)
+
+	outputConf := filepath.Join(wd, "test", "conf_multiline_scrubbed.yaml")
+	outputConfData, err := os.ReadFile(outputConf)
+	require.NoError(t, err)
+
+	cleaned, err := ScrubYaml([]byte(inputConfData))
+	require.Nil(t, err)
+
+	// First test that the a scrubbed yaml is still a valid yaml
+	var out interface{}
+	err = yaml.Unmarshal(cleaned, &out)
+	assert.NoError(t, err, "Could not load YAML configuration after being scrubbed")
+
+	// We replace windows line break by linux so the tests pass on every OS
+	trimmedOutput := strings.TrimSpace(strings.Replace(string(outputConfData), "\r\n", "\n", -1))
+	trimmedCleaned := strings.TrimSpace(strings.Replace(string(cleaned), "\r\n", "\n", -1))
+
+	assert.Equal(t, trimmedOutput, trimmedCleaned)
+}
+
 func TestConfigStripApiKey(t *testing.T) {
 	assertClean(t,
 		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
@@ -127,6 +153,12 @@ func TestConfigAppKey(t *testing.T) {
 		`   app_key:   '***********************************abbbb'   `)
 }
 
+func TestConfigRCAppKey(t *testing.T) {
+	assertClean(t,
+		`key: "DDRCM_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCDE"`,
+		`key: "***********************************ABCDE"`)
+}
+
 func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`random_url_key: http://user:password@host:port`,
@@ -177,6 +209,14 @@ func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`   random_url_key:   'http://user-with-hyphen:pass@abc.example.com/database'   `,
 		`   random_url_key:   'http://user-with-hyphen:********@abc.example.com/database'   `)
+
+	assertClean(t,
+		`flushing serie: {"metric":"kubeproxy","tags":["image_id":"foobar/foobaz@sha256:e8dabc7d398d25ecc8a3e33e3153e988e79952f8783b81663feb299ca2d0abdd"]}`,
+		`flushing serie: {"metric":"kubeproxy","tags":["image_id":"foobar/foobaz@sha256:e8dabc7d398d25ecc8a3e33e3153e988e79952f8783b81663feb299ca2d0abdd"]}`)
+
+	assertClean(t,
+		`"simple.metric:44|g|@1.00000"`,
+		`"simple.metric:44|g|@1.00000"`)
 }
 
 func TestTextStripApiKey(t *testing.T) {
@@ -400,18 +440,29 @@ other_config_with_list: [abc]
 		`privacy_key: "********"`)
 }
 
-func TestYamlConfig(t *testing.T) {
+func TestAddStrippedKeys(t *testing.T) {
 	contents := `foobar: baz`
 	cleaned, err := ScrubBytes([]byte(contents))
-	assert.Nil(t, err)
-	cleanedString := string(cleaned)
+	require.Nil(t, err)
 
 	// Sanity check
-	assert.Equal(t, contents, cleanedString)
+	assert.Equal(t, contents, string(cleaned))
 
 	AddStrippedKeys([]string{"foobar"})
 
 	assertClean(t, contents, `foobar: "********"`)
+}
+
+func TestAddStrippedKeysNewReplacer(t *testing.T) {
+	contents := `foobar: baz`
+	AddStrippedKeys([]string{"foobar"})
+
+	newScrubber := New()
+	AddDefaultReplacers(newScrubber)
+
+	cleaned, err := newScrubber.ScrubBytes([]byte(contents))
+	require.Nil(t, err)
+	assert.Equal(t, strings.TrimSpace(`foobar: "********"`), strings.TrimSpace(string(cleaned)))
 }
 
 func TestCertConfig(t *testing.T) {

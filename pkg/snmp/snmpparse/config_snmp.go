@@ -12,6 +12,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
+
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -43,12 +45,22 @@ type SNMPConfig struct {
 	NetAddress string `yaml:"network_address"`
 }
 
+// set default values used by the agent
+func SetDefault(sc *SNMPConfig) {
+	sc.Port = 161
+	sc.Version = ""
+	sc.Timeout = 2
+	sc.Retries = 3
+
+}
+
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	//an array containing all the snmp instances
 	snmpconfigs := []SNMPConfig{}
 
 	for _, inst := range c.Instances {
 		instance := SNMPConfig{}
+		SetDefault(&instance)
 		err := yaml.Unmarshal(inst, &instance)
 		if err != nil {
 			fmt.Printf("unable to get snmp config: %v", err)
@@ -58,6 +70,40 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	}
 
 	return snmpconfigs
+}
+func parseConfigSnmpMain() ([]SNMPConfig, error) {
+	snmpconfigs := []SNMPConfig{}
+	configs := []snmplistener.Config{}
+	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
+	//so for each result of the Unmarshal key we storre the result in a tmp SNMPConfig{} object
+	err := config.Datadog.UnmarshalKey("snmp_listener.configs", &configs)
+	if err != nil {
+		fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
+		return nil, err
+	}
+	for c := range configs {
+		snmpconfig := SNMPConfig{}
+		SetDefault(&snmpconfig)
+
+		snmpconfig.NetAddress = configs[c].Network
+		snmpconfig.Port = configs[c].Port
+		snmpconfig.Version = configs[c].Version
+		snmpconfig.Timeout = configs[c].Timeout
+		snmpconfig.Retries = configs[c].Retries
+		snmpconfig.CommunityString = configs[c].Community
+		snmpconfig.Username = configs[c].User
+		snmpconfig.AuthProtocol = configs[c].AuthProtocol
+		snmpconfig.AuthKey = configs[c].AuthKey
+		snmpconfig.PrivProtocol = configs[c].PrivProtocol
+		snmpconfig.PrivKey = configs[c].PrivKey
+		snmpconfig.Context = configs[c].ContextName
+
+		snmpconfigs = append(snmpconfigs, snmpconfig)
+
+	}
+
+	return snmpconfigs, nil
+
 }
 
 func GetConfigCheckSnmp() ([]SNMPConfig, error) {
@@ -91,6 +137,8 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 			snmpconfigs = append(snmpconfigs, ParseConfigSnmp(c)...)
 		}
 	}
+	snmpconfigMain, _ := parseConfigSnmpMain()
+	snmpconfigs = append(snmpconfigs, snmpconfigMain...)
 
 	return snmpconfigs, nil
 

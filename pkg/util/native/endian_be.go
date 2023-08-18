@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build armbe || arm64be || mips || mips64 || mips64p32 || ppc64 || s390 || s390x || sparc || sparc64
-// +build armbe arm64be mips mips64 mips64p32 ppc64 s390 s390x sparc sparc64
 
 package native
 

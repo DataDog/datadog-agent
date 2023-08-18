@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -35,42 +34,6 @@ func (c *cgroupV1) Identifier() string {
 func (c *cgroupV1) GetParent() (Cgroup, error) {
 	parentPath := filepath.Join(c.path, "/..")
 	return newCgroupV1(filepath.Base(parentPath), parentPath, c.mountPoints, c.pidMapper), nil
-}
-
-func (c *cgroupV1) GetStats(stats *Stats) error {
-	if stats == nil {
-		return &InvalidInputError{Desc: "input stats cannot be nil"}
-	}
-
-	cpuStats := CPUStats{}
-	err := c.GetCPUStats(&cpuStats)
-	if err != nil {
-		return err
-	}
-	stats.CPU = &cpuStats
-
-	memoryStats := MemoryStats{}
-	err = c.GetMemoryStats(&memoryStats)
-	if err != nil {
-		return err
-	}
-	stats.Memory = &memoryStats
-
-	ioStats := IOStats{}
-	err = c.GetIOStats(&ioStats)
-	if err != nil {
-		return err
-	}
-	stats.IO = &ioStats
-
-	pidStats := PIDStats{}
-	err = c.GetPIDStats(&pidStats)
-	if err != nil {
-		return err
-	}
-	stats.PID = &pidStats
-
-	return nil
 }
 
 func (c *cgroupV1) controllerMounted(controller string) bool {

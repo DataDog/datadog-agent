@@ -1,10 +1,12 @@
 import datetime
 import errno
 import glob
+import json
 import os
 import re
 import shutil
 import sys
+import tarfile
 import tempfile
 from subprocess import check_output
 
@@ -16,9 +18,9 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
+    SBOM_TAG,
     build_cws_object_files,
     check_for_ninja,
-    generate_runtime_files,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -33,16 +35,20 @@ from .utils import (
     get_go_version,
     get_gopath,
     get_version,
-    get_version_numeric_only,
 )
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
+CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
+KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
+KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
+STRESS_TEST_SUITE = "stresssuite"
 
 
-@task
+@task(iterable=["build_tags"])
 def build(
     ctx,
+    build_tags,
     race=False,
     incremental_build=True,
     major_version='7',
@@ -51,28 +57,12 @@ def build(
     arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
+    static=False,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3')
-
-    # generate windows resources
-    if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
-        if arch == "x86":
-            env["GOARCH"] = "386"
-            windres_target = "pe-i386"
-
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-
-        ctx.run(
-            f"windmc --target {windres_target}  -r cmd/security-agent/windows_resources cmd/security-agent/windows_resources/security-agent-msg.mc"
-        )
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/security-agent/windows_resources/security-agent.rc --target {windres_target} -O coff -o cmd/security-agent/rsrc.syso"
-        )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
     # TODO use pkg/version for this
     main = "main."
@@ -85,7 +75,7 @@ def build(
     }
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(
+    build_tags += get_default_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
 
@@ -119,35 +109,15 @@ def gen_mocks(ctx):
     """
     Generate mocks.
     """
-
-    interfaces = {
-        "./pkg/compliance": [
-            "AuditClient",
-            "Builder",
-            "Clients",
-            "Configuration",
-            "DockerClient",
-            "Env",
-            "Evaluatable",
-            "Iterator",
-            "KubeClient",
-            "RegoConfiguration",
-            "Reporter",
-            "Scheduler",
-        ],
-        "./pkg/security/api": ["SecurityModuleServer", "SecurityModuleClient", "SecurityModule_GetProcessEventsClient"],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
+    ctx.run("mockery")
 
 
 @task
-def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=False):
     cmd = '{testsuite} {verbose_opt} {testflags}'
+    if fentry:
+        cmd = "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY=true " + cmd
+
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -173,7 +143,7 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
         rule="ebpfclang",
         variables={
             "target": "-target bpf",
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
+            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu", "-DBPF_NO_GLOBAL_DATA"],
         },
     )
 
@@ -297,25 +267,24 @@ def build_functional_tests(
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
-    nikos_embedded_path=None,
     bundle_ebpf=True,
     static=False,
     skip_linters=False,
     race=False,
     kernel_release=None,
+    debug=False,
 ):
     build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
+        debug=debug,
     )
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
@@ -323,6 +292,9 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("linux_bpf")
+    build_tags.append(SBOM_TAG)
+    build_tags.append("containerd")
+
     if bundle_ebpf:
         build_tags.append("ebpf_bindata")
 
@@ -332,10 +304,6 @@ def build_functional_tests(
     if not skip_linters:
         targets = ['./pkg/security/tests']
         golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
-
-    # linters have a hard time with dnf, so we add the build tag after running them
-    if nikos_embedded_path:
-        build_tags.append("dnf")
 
     if race:
         build_flags += " -race"
@@ -359,7 +327,7 @@ def build_functional_tests(
 @task
 def build_stress_tests(
     ctx,
-    output='pkg/security/tests/stresssuite',
+    output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
     arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
@@ -385,7 +353,7 @@ def stress_tests(
     verbose=False,
     arch=CURRENT_ARCH,
     major_version='7',
-    output='pkg/security/tests/stresssuite',
+    output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
     bundle_ebpf=True,
     testflags='',
     skip_linters=False,
@@ -421,6 +389,7 @@ def functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
+    fentry=False,
 ):
     build_functional_tests(
         ctx,
@@ -438,6 +407,7 @@ def functional_tests(
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
+        fentry=fentry,
     )
 
 
@@ -580,9 +550,45 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
-    ctx.run("cp ./pkg/security/probe/serializers_easyjson.mock ./pkg/security/probe/serializers_easyjson.go")
-    ctx.run("cp ./pkg/security/probe/activity_dump_easyjson.mock ./pkg/security/probe/activity_dump_easyjson.go")
+
+    # skip generation of serializer for windows
+    if sys.platform == "win32":
+        return
+
+    shutil.copy(
+        "./pkg/security/serializers/serializers_easyjson.mock", "./pkg/security/serializers/serializers_easyjson.go"
+    )
+    shutil.copy(
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
+    )
+
     ctx.run("go generate ./pkg/security/...")
+
+
+@task
+def generate_syscall_table(ctx):
+    def single_run(ctx, table_url, output_file, output_string_file, abis=None):
+        if abis:
+            abis = f"-abis {abis}"
+        ctx.run(
+            f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
+        )
+
+    linux_version = "v6.1"
+    single_run(
+        ctx,
+        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
+        "pkg/security/secl/model/syscalls_linux_amd64.go",
+        "pkg/security/secl/model/syscalls_string_linux_amd64.go",
+        abis="common,64",
+    )
+    single_run(
+        ctx,
+        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
+        "pkg/security/secl/model/syscalls_linux_arm64.go",
+        "pkg/security/secl/model/syscalls_string_linux_arm64.go",
+    )
 
 
 @task
@@ -596,23 +602,10 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 
 @task
 def generate_cws_proto(ctx):
-    # The general view of which structures to pool is to currently pool the big ones.
-    # During testing/benchmarks we saw that enabling pooling for small/leaf nodes had a negative effect
-    # on both performance and memory.
-    # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
-    # child nodes. The maximum depth difference between nodes become a very important metric.
-    ad_pool_structs = [
-        "ActivityDump",
-        "ProcessActivityNode",
-        "FileActivityNode",
-        "FileInfo",
-        "ProcessInfo",
-    ]
-
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.3.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
 
             plugin_opts = " ".join(
@@ -623,17 +616,9 @@ def generate_cws_proto(ctx):
                 ]
             )
 
-            # Activity Dumps
-            ad_pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in ad_pool_structs
-            )
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/adproto/v1/activity_dump.proto"
-            )
-
             # API
             ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/api/api.proto"
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
             )
 
     for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
@@ -673,7 +658,6 @@ def go_generate_check(ctx):
         [cws_go_generate],
         [generate_cws_documentation],
         [gen_mocks],
-        [generate_runtime_files],
     ]
     failing_tasks = []
 
@@ -698,31 +682,107 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx):
-    ci_project_dir = os.environ.get("CI_PROJECT_DIR", ".")
+def kitchen_prepare(ctx, skip_linters=False):
+    """
+    Compile test suite for kitchen
+    """
 
-    nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-    cookbook_files_dir = os.path.join(
-        ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files"
-    )
+    # Clean up previous build
+    if os.path.exists(KITCHEN_ARTIFACT_DIR):
+        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
 
-    testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
+    testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "testsuite")
     build_functional_tests(
-        ctx, bundle_ebpf=False, race=True, output=testsuite_out_path, nikos_embedded_path=nikos_embedded_path
+        ctx,
+        bundle_ebpf=False,
+        race=True,
+        debug=True,
+        output=testsuite_out_path,
+        skip_linters=skip_linters,
     )
-    stresssuite_out_path = os.path.join(cookbook_files_dir, "stresssuite")
-    build_stress_tests(ctx, output=stresssuite_out_path)
+    stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
+    build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
 
     # Copy clang binaries
     for bin in ["clang-bpf", "llc-bpf"]:
-        ctx.run(f"cp /tmp/{bin} {cookbook_files_dir}/{bin}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
 
-    ctx.run(f"cp /tmp/nikos.tar.gz {cookbook_files_dir}/")
+    # Copy gotestsum binary
+    gopath = get_gopath(ctx)
+    ctx.run(f"cp {gopath}/bin/gotestsum {KITCHEN_ARTIFACT_DIR}/")
 
-    ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
+    # Build test2json binary
+    ctx.run(f"go build -o {KITCHEN_ARTIFACT_DIR}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
+
+    ebpf_bytecode_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    bytecode_build_dir = os.path.join(ci_project_dir, "pkg", "ebpf", "bytecode", "build")
+    bytecode_build_dir = os.path.join(CI_PROJECT_DIR, "pkg", "ebpf", "bytecode", "build")
 
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")
+
+
+@task
+def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
+    build_cws_object_files(
+        ctx,
+        major_version='7',
+        arch=CURRENT_ARCH,
+        kernel_release=None,
+        with_unit_test=True,
+    )
+
+    flags = '-tags ebpf_bindata'
+    if verbose:
+        flags += " -test.v"
+
+    args = '-args'
+    if trace:
+        args += " -trace"
+
+    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
+
+
+# TODO: this task does the same thing as system-probe.print-failed-tests.
+# They could be refactored to have the logic in only one place.
+@task
+def print_failed_tests(_, output_dir):
+    """
+    print_failed_tests is run at the end of the platform functional test Gitlab job to print failed tests
+    """
+    fail_count = 0
+    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
+        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
+
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            with tarfile.open(testjson_tgz) as tgz:
+                tgz.extractall(path=unpack_dir)
+
+            for test_json in glob.glob(f"{unpack_dir}/*.json"):
+                bundle, _ = os.path.splitext(os.path.basename(test_json))
+                with open(test_json) as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        if 'Test' in json_test:
+                            name = json_test['Test']
+                            action = json_test["Action"]
+
+                            if action == "fail":
+                                print(f"FAIL: [{test_platform}] [{bundle}] {name}")
+                                fail_count += 1
+
+    if fail_count > 0:
+        raise Exit(code=1)
+
+
+@task
+def print_fentry_stats(ctx):
+    fentry_o_path = "pkg/ebpf/bytecode/build/runtime-security-fentry.o"
+
+    for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
+        ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -25,6 +24,7 @@ import (
 
 // GetSubprocessOutput runs the subprocess and returns the output
 // Indirectly used by the C function `get_subprocess_output` that's mapped to `_util.get_subprocess_output`.
+//
 //export GetSubprocessOutput
 func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr **C.char, cRetCode *C.int, exception **C.char) {
 	subprocessArgs := cStringArrayToSlice(argv)

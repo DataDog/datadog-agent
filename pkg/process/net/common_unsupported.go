@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux && !windows
-// +build !linux,!windows
 
 package net
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}
@@ -19,18 +18,13 @@ var _ SysProbeUtil = &RemoteSysProbeUtil{}
 // RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}
 
-// SetSystemProbePath is not supported
-func SetSystemProbePath(_ string) {
-	// no-op
-}
-
 // CheckPath is not supported
-func CheckPath() error {
+func CheckPath(path string) error {
 	return ebpf.ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
-func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
+func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
 	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
 }
 
@@ -52,4 +46,9 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 // Register is not supported
 func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return ebpf.ErrNotImplemented
+}
+
+// DetectLanguage is not supported
+func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
+	return nil, ebpf.ErrNotImplemented
 }

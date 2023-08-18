@@ -46,6 +46,20 @@ const (
 	MaxTracedCgroupsCount = 128
 )
 
+const (
+	// EventFlagsAsync async event
+	EventFlagsAsync = 1 << iota
+
+	// EventFlagsSavedByAD saved by ad
+	EventFlagsSavedByAD
+
+	// EventFlagsActivityDumpSample an AD sample
+	EventFlagsActivityDumpSample
+
+	// InProfile true if the event was found in a profile
+	EventFlagsSecurityProfileInProfile
+)
+
 var (
 	// vmConstants is the list of protection flags for a virtual memory segment
 	// generate_constants:Virtual Memory flags,Virtual Memory flags define the protection of a virtual memory segment.
@@ -669,7 +683,8 @@ var (
 
 var (
 	openFlagsStrings          = map[int]string{}
-	chmodModeStrings          = map[int]string{}
+	fileModeStrings           = map[int]string{}
+	inodeModeStrings          = map[int]string{}
 	unlinkFlagsStrings        = map[int]string{}
 	kernelCapabilitiesStrings = map[uint64]string{}
 	bpfCmdStrings             = map[uint32]string{}
@@ -707,10 +722,17 @@ func initOpenConstants() {
 	}
 }
 
-func initChmodConstants() {
-	for k, v := range chmodModeConstants {
+func initFileModeConstants() {
+	for k, v := range fileModeConstants {
 		SECLConstants[k] = &eval.IntEvaluator{Value: v}
-		chmodModeStrings[v] = k
+		fileModeStrings[v] = k
+	}
+}
+
+func initInodeModeConstants() {
+	for k, v := range inodeModeConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		inodeModeStrings[v] = k
 	}
 }
 
@@ -881,10 +903,15 @@ func initExitCauseConstants() {
 	}
 }
 
+func initBPFMapNamesConstants() {
+	SECLConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
-	initChmodConstants()
+	initFileModeConstants()
+	initInodeModeConstants()
 	initUnlinkConstanst()
 	initKernelCapabilityConstants()
 	initBPFCmdConstants()
@@ -904,6 +931,7 @@ func initConstants() {
 	initL4ProtocolConstants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
+	initBPFMapNamesConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -978,11 +1006,18 @@ func (f OpenFlags) StringArray() []string {
 	return bitmaskToStringArray(int(f), openFlagsStrings)
 }
 
-// ChmodMode represent a chmod mode bitmask value
-type ChmodMode int
+// FileMode represents a file mode bitmask value
+type FileMode int
 
-func (m ChmodMode) String() string {
-	return bitmaskToString(int(m), chmodModeStrings)
+func (m FileMode) String() string {
+	return bitmaskToString(int(m), fileModeStrings)
+}
+
+// InodeMode represents an inode mode bitmask value
+type InodeMode int
+
+func (m InodeMode) String() string {
+	return bitmaskToString(int(m), inodeModeStrings)
 }
 
 // UnlinkFlags represents an unlink flags bitmask value
@@ -1024,6 +1059,9 @@ func (kc KernelCapability) String() string {
 
 // StringArray returns the kernel capabilities as an array of strings
 func (kc KernelCapability) StringArray() []string {
+	if kc == 0 {
+		return nil
+	}
 	if value, ok := capsStringArrayCache.Get(kc); ok {
 		return value
 	}

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -39,11 +38,14 @@ type NodeCollector struct {
 func NewNodeCollector() *NodeCollector {
 	return &NodeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "nodes",
-			NodeType:         orchestrator.K8sNode,
-			Version:          "v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "nodes",
+			NodeType:                  orchestrator.K8sNode,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers)),
 	}
@@ -56,12 +58,9 @@ func (c *NodeCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *NodeCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Nodes()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *NodeCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *NodeCollector) Metadata() *collectors.CollectorMetadata {

@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build docker && linux
-// +build docker,linux
 
 package docker
 
@@ -34,34 +33,34 @@ func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 
 func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 	return &provider.ContainerCPUStats{
-		Total:            pointer.UIntToFloatPtr(cpuStats.CPUUsage.TotalUsage),
-		System:           pointer.UIntToFloatPtr(cpuStats.CPUUsage.UsageInKernelmode),
-		User:             pointer.UIntToFloatPtr(cpuStats.CPUUsage.UsageInUsermode),
-		ThrottledPeriods: pointer.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledPeriods),
-		ThrottledTime:    pointer.UIntToFloatPtr(cpuStats.ThrottlingData.ThrottledTime),
+		Total:            pointer.Ptr(float64(cpuStats.CPUUsage.TotalUsage)),
+		System:           pointer.Ptr(float64(cpuStats.CPUUsage.UsageInKernelmode)),
+		User:             pointer.Ptr(float64(cpuStats.CPUUsage.UsageInUsermode)),
+		ThrottledPeriods: pointer.Ptr(float64(cpuStats.ThrottlingData.ThrottledPeriods)),
+		ThrottledTime:    pointer.Ptr(float64(cpuStats.ThrottlingData.ThrottledTime)),
 	}
 }
 
 func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
 	containerMemStats := &provider.ContainerMemStats{
-		UsageTotal: pointer.UIntToFloatPtr(memStats.Usage),
-		Limit:      pointer.UIntToFloatPtr(memStats.Limit),
-		OOMEvents:  pointer.UIntToFloatPtr(memStats.Failcnt),
+		UsageTotal: pointer.Ptr(float64(memStats.Usage)),
+		Limit:      pointer.Ptr(float64(memStats.Limit)),
+		OOMEvents:  pointer.Ptr(float64(memStats.Failcnt)),
+		// keys are cgroupv1, cgroupv2
+		RSS:   getFieldFromMap(memStats.Stats, "total_rss", "anon"),
+		Cache: getFieldFromMap(memStats.Stats, "total_cache", "file"),
 	}
 
-	if rss, found := memStats.Stats["rss"]; found {
-		containerMemStats.RSS = pointer.UIntToFloatPtr(rss)
-	}
-
-	if cache, found := memStats.Stats["cache"]; found {
-		containerMemStats.Cache = pointer.UIntToFloatPtr(cache)
+	inactive_file := getFieldFromMap(memStats.Stats, "total_inactive_file", "inactive_file")
+	if inactive_file != nil {
+		containerMemStats.WorkingSet = pointer.Ptr(*containerMemStats.UsageTotal - *inactive_file)
 	}
 
 	// `kernel_stack` and `slab`, which are used to compute `KernelMemory` are available only with cgroup v2
-	if kernelStack, found := memStats.Stats["kernel_stack"]; found {
-		if slab, found := memStats.Stats["slab"]; found {
-			containerMemStats.KernelMemory = pointer.UIntToFloatPtr(kernelStack + slab)
-		}
+	kernelStack := getFieldFromMap(memStats.Stats, "", "kernel_stack")
+	slab := getFieldFromMap(memStats.Stats, "", "slab")
+	if kernelStack != nil && slab != nil {
+		containerMemStats.KernelMemory = pointer.Ptr(*kernelStack + *slab)
 	}
 
 	return containerMemStats
@@ -69,10 +68,10 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 
 func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 	containerIOStats := provider.ContainerIOStats{
-		ReadBytes:       pointer.Float64Ptr(0),
-		WriteBytes:      pointer.Float64Ptr(0),
-		ReadOperations:  pointer.Float64Ptr(0),
-		WriteOperations: pointer.Float64Ptr(0),
+		ReadBytes:       pointer.Ptr(0.0),
+		WriteBytes:      pointer.Ptr(0.0),
+		ReadOperations:  pointer.Ptr(0.0),
+		WriteOperations: pointer.Ptr(0.0),
 		Devices:         make(map[string]provider.DeviceIOStats),
 	}
 
@@ -92,10 +91,10 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadBytes = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.ReadBytes = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.ReadBytes += *device.ReadBytes
 		case "Write":
-			device.WriteBytes = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.WriteBytes = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.WriteBytes += *device.WriteBytes
 		}
 
@@ -114,10 +113,10 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 		switch blkioStatEntry.Op {
 		case "Read":
-			device.ReadOperations = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.ReadOperations = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.ReadOperations += *device.ReadOperations
 		case "Write":
-			device.WriteOperations = pointer.UIntToFloatPtr(blkioStatEntry.Value)
+			device.WriteOperations = pointer.Ptr(float64(blkioStatEntry.Value))
 			*containerIOStats.WriteOperations += *device.WriteOperations
 		}
 
@@ -131,8 +130,8 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 
 func convertPIDStats(pidStats *types.PidsStats) *provider.ContainerPIDStats {
 	return &provider.ContainerPIDStats{
-		ThreadCount: pointer.UIntToFloatPtr(pidStats.Current),
-		ThreadLimit: pointer.UIntToFloatPtr(pidStats.Limit),
+		ThreadCount: pointer.Ptr(float64(pidStats.Current)),
+		ThreadLimit: pointer.Ptr(float64(pidStats.Limit)),
 	}
 }
 
@@ -157,7 +156,28 @@ func computeCPULimit(containerStats *provider.ContainerStats, spec *types.Contai
 		// If no limit is available, setting the limit to number of CPUs.
 		// Always reporting a limit allows to compute CPU % accurately.
 		cpuLimit = 100 * float64(systemutils.HostCPUCount())
+		containerStats.CPU.DefaultedLimit = true
 	}
 
 	containerStats.CPU.Limit = &cpuLimit
+}
+
+// keyV1 is key name from cgroup V1
+// keyV2 is key name from cgroup V2
+func getFieldFromMap(stats map[string]uint64, keys ...string) *float64 {
+	var val uint64
+	var found bool
+
+	for _, key := range keys {
+		val, found = stats[key]
+		if found {
+			break
+		}
+	}
+
+	if !found {
+		return nil
+	}
+
+	return pointer.Ptr(float64(val))
 }

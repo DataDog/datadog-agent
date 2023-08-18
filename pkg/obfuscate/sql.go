@@ -216,8 +216,8 @@ type groupingFilter struct {
 
 // Filter the given token so that it will be discarded if a grouping pattern
 // has been recognized. A grouping is composed by items like:
-//   * '( ?, ?, ? )'
-//   * '( ?, ? ), ( ?, ? )'
+//   - '( ?, ?, ? )'
+//   - '( ?, ? ), ( ?, ? )'
 func (f *groupingFilter) Filter(token, lastToken TokenKind, buffer []byte) (tokenType TokenKind, tokenBytes []byte, err error) {
 	// increasing the number of groups means that we're filtering an entire group
 	// because it can be represented with a single '( ? )'

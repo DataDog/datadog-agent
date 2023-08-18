@@ -44,6 +44,10 @@ func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
 	packetsIn := make(PacketsChannel)
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()
+
+	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "default"}
+	Configure(t, config)
+
 	forwarder, err = NewTrapForwarder(&DummyFormatter{}, mockSender, packetsIn)
 	if err != nil {
 		return nil, err
@@ -59,7 +63,7 @@ func makeSnmpPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 		Variables: trap.Variables,
 		SnmpTrap:  trap,
 	}
-	return &SnmpPacket{gosnmpPacket, simpleUDPAddr, time.Now().UnixMilli()}
+	return &SnmpPacket{gosnmpPacket, simpleUDPAddr, "totoro", time.Now().UnixMilli()}
 }
 
 func TestV1GenericTrapAreForwarder(t *testing.T) {
@@ -72,7 +76,7 @@ func TestV1GenericTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 
 func TestV1SpecificTrapAreForwarder(t *testing.T) {
@@ -85,7 +89,7 @@ func TestV1SpecificTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 func TestV2TrapAreForwarder(t *testing.T) {
 	forwarder, err := createForwarder(t)
@@ -94,5 +98,15 @@ func TestV2TrapAreForwarder(t *testing.T) {
 	require.True(t, ok)
 	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, "0dee7422f503d972db97b711e39a5003d1995c0d2f718542813acc4c46053ef0", epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, []byte("0dee7422f503d972db97b711e39a5003d1995c0d2f718542813acc4c46053ef0"), epforwarder.EventTypeSnmpTraps)
+}
+
+func TestForwarderTelemetry(t *testing.T) {
+	forwarder, err := createForwarder(t)
+	require.NoError(t, err)
+	sender, ok := forwarder.sender.(*mocksender.MockSender)
+	require.True(t, ok)
+	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
+	forwarder.Stop()
+	sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "device_namespace:totoro", "snmp_version:2"})
 }

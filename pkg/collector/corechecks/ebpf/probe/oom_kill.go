@@ -4,25 +4,23 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
-//go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/oom-kill-kern.c ../../../../ebpf/bytecode/build/runtime/oom-kill.c ../../../../ebpf/c
-//go:generate go run ../../../../ebpf/bytecode/runtime/integrity.go ../../../../ebpf/bytecode/build/runtime/oom-kill.c ../../../../ebpf/bytecode/runtime/oom-kill.go runtime
+//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern.c pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/bytecode/runtime/oom-kill.go runtime
 
 package probe
 
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -34,6 +32,7 @@ import (
 /*
 #include <string.h>
 #include "../c/runtime/oom-kill-kern-user.h"
+#cgo CFLAGS: -I "${SRCDIR}/../../../../ebpf/c"
 */
 import "C"
 
@@ -46,51 +45,35 @@ type OOMKillProbe struct {
 
 func NewOOMKillProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	if cfg.EnableCORE {
-		probe, err := loadCOREProbe(cfg)
+		probe, err := loadOOMKillCOREProbe(cfg)
 		if err == nil {
-			return probe, err
+			return probe, nil
 		}
 
 		if !cfg.AllowRuntimeCompiledFallback {
-			return nil, fmt.Errorf("error loading CO-RE oom-kill probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation.", err)
+			return nil, fmt.Errorf("error loading CO-RE oom-kill probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
 		}
 		log.Warnf("error loading CO-RE oom-kill probe: %s. falling back to runtime compiled probe", err)
 	}
 
-	return loadRuntimeCompiledProbe(cfg)
+	return loadOOMKillRuntimeCompiledProbe(cfg)
 }
 
-func loadCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
 	}
 	if kv < kernel.VersionCode(4, 9, 0) {
-		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0.", kv)
+		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0", kv)
 	}
 
-	var telemetry ebpf.COREResult
-	defer func() {
-		ebpf.StoreCORETelemetryForAsset("oomKill", telemetry)
-	}()
-
-	var btfData *btf.Spec
-	btfData, telemetry = ebpf.GetBTF(cfg.BTFPath, cfg.BPFDir)
-
-	if btfData == nil {
-		return nil, fmt.Errorf("could not find BTF data on host")
-	}
-
-	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), "oom-kill.o")
+	var probe *OOMKillProbe
+	err = ebpf.LoadCOREAsset(cfg, "oom-kill.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		probe, err = startOOMKillProbe(buf, opts)
+		return err
+	})
 	if err != nil {
-		telemetry = ebpf.AssetReadError
-		return nil, fmt.Errorf("error reading oom-kill.o file: %s", err)
-	}
-	defer buf.Close()
-
-	probe, err := startOOMKillProbe(buf, btfData)
-	if err != nil {
-		telemetry = ebpf.VerifierError
 		return nil, err
 	}
 
@@ -98,42 +81,37 @@ func loadCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	return probe, nil
 }
 
-func loadRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	buf, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
+func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
+	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
 	if err != nil {
 		return nil, err
 	}
 	defer buf.Close()
 
-	return startOOMKillProbe(buf, nil)
+	return startOOMKillProbe(buf, manager.Options{})
 }
 
-func startOOMKillProbe(buf bytecode.AssetReader, btfData *btf.Spec) (*OOMKillProbe, error) {
-	probes := []*manager.Probe{
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"},
-		},
+func getCFlags(config *ebpf.Config) []string {
+	cflags := []string{"-g"}
+	if config.BPFDebug {
+		cflags = append(cflags, "-DDEBUG=1")
 	}
+	return cflags
+}
 
-	maps := []*manager.Map{
-		{Name: "oom_stats"},
-	}
-
+func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*OOMKillProbe, error) {
 	m := &manager.Manager{
-		Probes: probes,
-		Maps:   maps,
+		Probes: []*manager.Probe{
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"}},
+		},
+		Maps: []*manager.Map{
+			{Name: "oom_stats"},
+		},
 	}
 
-	managerOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		VerifierOptions: bpflib.CollectionOptions{
-			Programs: bpflib.ProgramOptions{
-				KernelTypes: btfData,
-			},
-		},
+	managerOptions.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
 	}
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
@@ -150,6 +128,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, btfData *btf.Spec) (*OOMKillPro
 	} else if !ok {
 		return nil, fmt.Errorf("failed to get map '%s'", oomMapName)
 	}
+	ebpfcheck.AddNameMappings(m, "oom_kill")
 
 	return &OOMKillProbe{
 		m:      m,
@@ -158,6 +137,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, btfData *btf.Spec) (*OOMKillPro
 }
 
 func (k *OOMKillProbe) Close() {
+	ebpfcheck.RemoveNameMappings(k.m)
 	if err := k.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping OOM Kill: %s", err)
 	}
@@ -169,14 +149,16 @@ func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
 	it := k.oomMap.Iterate()
 	for it.Next(unsafe.Pointer(&pid), unsafe.Pointer(&stat)) {
 		results = append(results, convertStats(stat))
-
-		if err := k.oomMap.Delete(unsafe.Pointer(&pid)); err != nil {
-			log.Warnf("failed to delete stat: %s", err)
-		}
 	}
 
 	if err := it.Err(); err != nil {
 		log.Warnf("failed to iterate on OOM stats while flushing: %s", err)
+	}
+
+	for _, r := range results {
+		if err := k.oomMap.Delete(unsafe.Pointer(&r.Pid)); err != nil {
+			log.Warnf("failed to delete stat: %s", err)
+		}
 	}
 
 	return results

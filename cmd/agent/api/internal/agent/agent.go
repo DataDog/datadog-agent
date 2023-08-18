@@ -24,11 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
@@ -37,28 +40,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-type contextKey struct {
-	key string
-}
-
-// ConnContextKey key to reference the http connection from the request context
-var ConnContextKey = &contextKey{"http-connection"}
-
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router) *mux.Router {
+func SetupHandlers(
+	r *mux.Router,
+	flareComp flare.Component,
+	server dogstatsdServer.Component,
+	serverDebug dogstatsdDebug.Component,
+	logsAgent util.Optional[logsAgent.Component],
+) *mux.Router {
+
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
-	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
+	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -66,15 +70,23 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
+	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/workload-list/short", getShortWorkloadList).Methods("GET")
-	r.HandleFunc("/workload-list/verbose", getVerboseWorkloadList).Methods("GET")
+	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
+
+	// Some agent subcommands do not provide these dependencies (such as JMX)
+	if server != nil && serverDebug != nil {
+		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
+	}
+
+	if logsAgent, ok := logsAgent.Get(); ok {
+		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
+	}
 
 	return r
 }
@@ -103,7 +115,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request) {
+func makeFlare(w http.ResponseWriter, r *http.Request, flareComp flare.Component) {
 	var profile flare.ProfileData
 
 	if r.Body != http.NoBody {
@@ -123,16 +135,11 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	conn := GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = common.DefaultLogFile
-	}
-	jmxLogFile := config.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = common.DefaultJmxLogFile
-	}
+	var filePath string
+	var err error
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	filePath, err = flareComp.Create(profile, nil)
+
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -179,7 +186,8 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the status. Making status.")
-	s, err := status.GetStatus()
+	verbose := r.URL.Query().Get("verbose") == "true"
+	s, err := status.GetStatus(verbose)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
@@ -195,73 +203,83 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-func streamLogs(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got a request for stream logs.")
-	w.Header().Set("Transfer-Encoding", "chunked")
+func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(logsAgent.GetMessageReceiver, "logs", "logs agent")
+}
 
-	logMessageReceiver := logs.GetMessageReceiver()
+func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(epforwarder.GetGlobalReceiver, "event platform payloads", "agent")
+}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		log.Errorf("Expected a Flusher type, got: %v", w)
-		return
-	}
+func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("Got a request to stream %s.", streamType)
+		w.Header().Set("Transfer-Encoding", "chunked")
 
-	if logMessageReceiver == nil {
-		http.Error(w, "The logs agent is not running", 405)
-		flusher.Flush()
-		log.Info("Logs agent is not running - can't stream logs")
-		return
-	}
+		messageReceiver := messageReceiverFunc()
 
-	if !logMessageReceiver.SetEnabled(true) {
-		http.Error(w, "Another client is already streaming logs.", 405)
-		flusher.Flush()
-		log.Info("Logs are already streaming. Dropping connection.")
-		return
-	}
-	defer logMessageReceiver.SetEnabled(false)
-
-	var filters diagnostic.Filters
-
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			log.Errorf("Expected a Flusher type, got: %v", w)
 			return
 		}
 
-		if err := json.Unmarshal(body, &filters); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-	conn := GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
-
-	done := make(chan struct{})
-	defer close(done)
-	logChan := logMessageReceiver.Filter(&filters, done)
-	flushTimer := time.NewTicker(time.Second)
-	for {
-		// Handlers for detecting a closed connection (from either the server or client)
-		select {
-		case <-w.(http.CloseNotifier).CloseNotify(): //nolint
-			return
-		case <-r.Context().Done():
-			return
-		case line := <-logChan:
-			fmt.Fprint(w, line)
-		case <-flushTimer.C:
-			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+		if messageReceiver == nil {
+			http.Error(w, fmt.Sprintf("The %s is not running", agentType), 405)
 			flusher.Flush()
+			log.Infof("The %s is not running - can't stream %s", agentType, streamType)
+			return
+		}
+
+		if !messageReceiver.SetEnabled(true) {
+			http.Error(w, fmt.Sprintf("Another client is already streaming %s.", streamType), 405)
+			flusher.Flush()
+			log.Infof("%s are already streaming. Dropping connection.", streamType)
+			return
+		}
+		defer messageReceiver.SetEnabled(false)
+
+		var filters diagnostic.Filters
+
+		if r.Body != http.NoBody {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+				return
+			}
+
+			if err := json.Unmarshal(body, &filters); err != nil {
+				http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+				return
+			}
+		}
+
+		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
+		conn := GetConnection(r)
+		_ = conn.SetDeadline(time.Time{})
+
+		done := make(chan struct{})
+		defer close(done)
+		logChan := messageReceiver.Filter(&filters, done)
+		flushTimer := time.NewTicker(time.Second)
+		for {
+			// Handlers for detecting a closed connection (from either the server or client)
+			select {
+			case <-w.(http.CloseNotifier).CloseNotify(): //nolint
+				return
+			case <-r.Context().Done():
+				return
+			case line := <-logChan:
+				fmt.Fprint(w, line)
+			case <-flushTimer.C:
+				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+				flusher.Flush()
+			}
 		}
 	}
 }
 
-func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
+func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) {
 	log.Info("Got a request for the Dogstatsd stats.")
 
 	if !config.Datadog.GetBool("use_dogstatsd") {
@@ -289,13 +307,13 @@ func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
 	// Weird state that should not happen: dogstatsd is enabled
 	// but the server has not been successfully initialized.
 	// Return no data.
-	if common.DSD == nil {
+	if !dogstatsdServer.IsRunning() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{}`))
 		return
 	}
 
-	jsonStats, err := common.DSD.GetJSONDebugStats()
+	jsonStats, err := serverDebug.GetJSONDebugStats()
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
 		return
@@ -376,15 +394,15 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonTags)
 }
 
-func getVerboseWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, true)
-}
+func getWorkloadList(w http.ResponseWriter, r *http.Request) {
+	verbose := false
+	params := r.URL.Query()
+	if v, ok := params["verbose"]; ok {
+		if len(v) >= 1 && v[0] == "true" {
+			verbose = true
+		}
+	}
 
-func getShortWorkloadList(w http.ResponseWriter, r *http.Request) {
-	workloadList(w, false)
-}
-
-func workloadList(w http.ResponseWriter, verbose bool) {
 	response := workloadmeta.GetGlobalStore().Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
@@ -396,18 +414,7 @@ func workloadList(w http.ResponseWriter, verbose bool) {
 }
 
 func secretInfo(w http.ResponseWriter, r *http.Request) {
-	info, err := secrets.GetDebugInfo()
-	if err != nil {
-		setJSONError(w, err, 500)
-		return
-	}
-
-	jsonInfo, err := json.Marshal(info)
-	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal secrets info response: %s", err), 500)
-		return
-	}
-	w.Write(jsonInfo)
+	secrets.GetDebugInfo(w)
 }
 
 func metadataPayload(w http.ResponseWriter, r *http.Request) {
@@ -463,5 +470,5 @@ func max(a, b int) int {
 
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
-	return r.Context().Value(ConnContextKey).(net.Conn)
+	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }

@@ -22,9 +22,10 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,14 +33,14 @@ import (
 
 var (
 	configPaths = []string{
-		config.Datadog.GetString("confd_path"),        // Custom checks
-		filepath.Join(common.GetDistPath(), "conf.d"), // Default check configs
+		config.Datadog.GetString("confd_path"),      // Custom checks
+		filepath.Join(path.GetDistPath(), "conf.d"), // Default check configs
 	}
 
 	checkPaths = []string{
-		filepath.Join(common.GetDistPath(), "checks.d"), // Custom checks
-		config.Datadog.GetString("additional_checksd"),  // Custom checks
-		common.PyChecksPath,                             // Integrations-core checks
+		filepath.Join(path.GetDistPath(), "checks.d"),  // Custom checks
+		config.Datadog.GetString("additional_checksd"), // Custom checks
+		path.PyChecksPath, // Integrations-core checks
 	}
 )
 
@@ -104,9 +105,9 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run the check intance(s) once, as a test
-	stats := []*check.Stats{}
+	stats := []*checkstats.Stats{}
 	for _, ch := range instances {
-		s := check.NewStats(ch)
+		s := checkstats.NewStats(ch)
 
 		t0 := time.Now()
 		err := ch.Run()
@@ -234,10 +235,10 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 
 	if checkFolder != "" {
 		checkConfFolderPath = filepath.Join(config.Datadog.GetString("confd_path"), checkFolder)
-		defaultCheckConfFolderPath = filepath.Join(common.GetDistPath(), "conf.d", checkFolder)
+		defaultCheckConfFolderPath = filepath.Join(path.GetDistPath(), "conf.d", checkFolder)
 	} else {
 		checkConfFolderPath = config.Datadog.GetString("confd_path")
-		defaultCheckConfFolderPath = filepath.Join(common.GetDistPath(), "conf.d")
+		defaultCheckConfFolderPath = filepath.Join(path.GetDistPath(), "conf.d")
 	}
 
 	if r.Method == "POST" {

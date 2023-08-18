@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/memory"
-	"github.com/DataDog/gohai/network"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
+	"github.com/DataDog/datadog-agent/pkg/gohai/network"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
+	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -42,123 +44,116 @@ var (
 		AgentVersion:         version.AgentVersion,
 		CloudProvider:        "some_cloud_provider",
 		OsVersion:            "testOS",
-		HypervisorGuestUUID:  "",
-		DmiProductUUID:       "",
-		DmiBoardAssetTag:     "",
-		DmiBoardVendor:       "",
+		HypervisorGuestUUID:  "hypervisorUUID",
+		DmiProductUUID:       "dmiUUID",
+		DmiBoardAssetTag:     "boardTag",
+		DmiBoardVendor:       "boardVendor",
 	}
 )
 
-func cpuMock() (*cpu.Cpu, []string, error) {
-	return &cpu.Cpu{
-		CpuCores:             6,
-		CpuLogicalProcessors: 6,
-		VendorId:             "GenuineIntel",
-		ModelName:            "Intel_i7-8750H",
-		Model:                "158",
-		Family:               "6",
-		Stepping:             "10",
-		Mhz:                  2208.006,
-		CacheSizeBytes:       9437184,
-		CpuPkgs:              6,
-		CpuNumaNodes:         6,
-		CacheSizeL1Bytes:     1234,
-		CacheSizeL2Bytes:     1234,
-		CacheSizeL3Bytes:     1234,
-	}, nil, nil
+func cpuMock() *cpu.Info {
+	return &cpu.Info{
+		CPUCores:             gohaiutils.NewValue[uint64](6),
+		CPULogicalProcessors: gohaiutils.NewValue[uint64](6),
+		VendorID:             gohaiutils.NewValue("GenuineIntel"),
+		ModelName:            gohaiutils.NewValue("Intel_i7-8750H"),
+		Model:                gohaiutils.NewValue("158"),
+		Family:               gohaiutils.NewValue("6"),
+		Stepping:             gohaiutils.NewValue("10"),
+		Mhz:                  gohaiutils.NewValue(2208.006),
+		CacheSizeKB:          gohaiutils.NewValue[uint64](9216),
+		CPUPkgs:              gohaiutils.NewValue[uint64](6),
+		CPUNumaNodes:         gohaiutils.NewValue[uint64](6),
+		CacheSizeL1Bytes:     gohaiutils.NewValue[uint64](1234),
+		CacheSizeL2Bytes:     gohaiutils.NewValue[uint64](1234),
+		CacheSizeL3Bytes:     gohaiutils.NewValue[uint64](1234),
+	}
 }
 
-func memoryMock() (*memory.Memory, []string, error) {
-	return &memory.Memory{
-		TotalBytes:     1234567890,
-		SwapTotalBytes: 1234567890,
-	}, nil, nil
+func memoryMock() *memory.Info {
+	return &memory.Info{
+		TotalBytes:  gohaiutils.NewValue[uint64](1234567890),
+		SwapTotalKb: gohaiutils.NewValue[uint64](1205632),
+	}
 }
 
-func networkMock() (*network.Network, []string, error) {
-	return &network.Network{
-		IpAddress:   "192.168.24.138",
-		IpAddressv6: "fe80::20c:29ff:feb6:d232",
+func networkMock() (*network.Info, error) {
+	return &network.Info{
+		IPAddress:   "192.168.24.138",
+		IPAddressV6: gohaiutils.NewValue("fe80::20c:29ff:feb6:d232"),
 		MacAddress:  "00:0c:29:b6:d2:32",
-	}, nil, nil
+	}, nil
 }
 
-func platformMock() (*platform.Platform, []string, error) {
-	return &platform.Platform{
-		KernelName:       "Linux",
-		KernelRelease:    "5.17.0-1-amd64",
-		KernelVersion:    "Debian_5.17.3-1",
-		OS:               "GNU/Linux",
-		HardwarePlatform: "unknown",
-		GoVersion:        "1.17.7",
-		GoOS:             "linux",
-		GoArch:           "amd64",
-		Hostname:         "debdev",
-		Machine:          "x86_64",
-		Family:           "",
-		Processor:        "unknown",
-	}, nil, nil
+func platformMock() *platform.Info {
+	return &platform.Info{
+		KernelName:       gohaiutils.NewValue("Linux"),
+		KernelRelease:    gohaiutils.NewValue("5.17.0-1-amd64"),
+		KernelVersion:    gohaiutils.NewValue("Debian_5.17.3-1"),
+		OS:               gohaiutils.NewValue("GNU/Linux"),
+		HardwarePlatform: gohaiutils.NewValue("unknown"),
+		GoVersion:        gohaiutils.NewValue("1.17.7"),
+		GoOS:             gohaiutils.NewValue("linux"),
+		GoArch:           gohaiutils.NewValue("amd64"),
+		Hostname:         gohaiutils.NewValue("debdev"),
+		Machine:          gohaiutils.NewValue("x86_64"),
+		Family:           gohaiutils.NewErrorValue[string](gohaiutils.ErrNotCollectable),
+		Processor:        gohaiutils.NewValue("unknown"),
+	}
 }
 
-func setupHostMetadataMock() func() {
-	reset := func() {
-		cpuGet = cpu.Get
-		memoryGet = memory.Get
-		networkGet = network.Get
-		platformGet = platform.Get
-		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
+func setupHostMetadataMock(t *testing.T) {
+	t.Cleanup(func() {
+		cpuGet = cpu.CollectInfo
+		memoryGet = memory.CollectInfo
+		networkGet = network.CollectInfo
+		platformGet = platform.CollectInfo
 
 		inventoryMutex.Lock()
-		delete(agentMetadata, string(AgentCloudProvider))
-		delete(hostMetadata, string(HostOSVersion))
+		delete(agentMetadata, HostCloudProvider)
+		delete(hostMetadata, HostOSVersion)
 		inventoryMutex.Unlock()
-	}
+	})
 
 	cpuGet = cpuMock
 	memoryGet = memoryMock
 	networkGet = networkMock
 	platformGet = platformMock
-	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
+	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
 
-	SetAgentMetadata(AgentCloudProvider, "some_cloud_provider")
+	SetAgentMetadata(HostCloudProvider, "some_cloud_provider")
 	SetHostMetadata(HostOSVersion, "testOS")
-
-	return reset
 }
 
 func TestGetHostMetadata(t *testing.T) {
-	resetFunc := setupHostMetadataMock()
-	defer resetFunc()
+	setupHostMetadataMock(t)
 
 	m := getHostMetadata()
 	assert.Equal(t, expectedMetadata, m)
 }
 
-func cpuErrorMock() (*cpu.Cpu, []string, error)                { return nil, nil, fmt.Errorf("err") }
-func memoryErrorMock() (*memory.Memory, []string, error)       { return nil, nil, fmt.Errorf("err") }
-func networkErrorMock() (*network.Network, []string, error)    { return nil, nil, fmt.Errorf("err") }
-func platformErrorMock() (*platform.Platform, []string, error) { return nil, nil, fmt.Errorf("err") }
+func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
+func memoryErrorMock() *memory.Info            { return &memory.Info{} }
+func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
+func platformErrorMock() *platform.Info        { return &platform.Info{} }
 
-func setupHostMetadataErrorMock() func() {
-	reset := func() {
-		cpuGet = cpu.Get
-		memoryGet = memory.Get
-		networkGet = network.Get
-		platformGet = platform.Get
-		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
-	}
+func setupHostMetadataErrorMock(t *testing.T) {
+	t.Cleanup(func() {
+		cpuGet = cpu.CollectInfo
+		memoryGet = memory.CollectInfo
+		networkGet = network.CollectInfo
+		platformGet = platform.CollectInfo
+	})
 
 	cpuGet = cpuErrorMock
 	memoryGet = memoryErrorMock
 	networkGet = networkErrorMock
 	platformGet = platformErrorMock
-	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
-	return reset
+	dmi.SetupMock(t, "", "", "", "")
 }
 
 func TestGetHostMetadataError(t *testing.T) {
-	resetFunc := setupHostMetadataErrorMock()
-	defer resetFunc()
+	setupHostMetadataErrorMock(t)
 
 	m := getHostMetadata()
 	expected := &HostMetadata{AgentVersion: version.AgentVersion}

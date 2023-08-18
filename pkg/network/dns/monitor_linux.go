@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package dns
 
@@ -18,10 +17,10 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +58,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 			return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 		}
 
-		filter, _ = p.GetProbe(manager.ProbeIdentificationPair{EBPFSection: string(probes.SocketDNSFilter), EBPFFuncName: funcName, UID: probeUID})
+		filter, _ = p.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: probes.SocketDNSFilter, UID: probeUID})
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
@@ -76,7 +75,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 	}
 	defer ns.Close()
 
-	err = util.WithNS(ns, func() error {
+	err = kernel.WithNS(ns, func() error {
 		packetSrc, srcErr = filterpkg.NewPacketSource(filter, bpfFilter)
 		return srcErr
 	})
@@ -106,6 +105,7 @@ func (m *dnsMonitor) Start() error {
 func (m *dnsMonitor) Close() {
 	m.socketFilterSnooper.Close()
 	if m.p != nil {
+		ebpfcheck.RemoveNameMappings(m.p.Manager)
 		_ = m.p.Stop(manager.CleanAll)
 	}
 }

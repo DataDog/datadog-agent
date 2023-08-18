@@ -11,20 +11,28 @@ import (
 )
 
 // RuntimeBlockProfileRate wraps runtime.SetBlockProfileRate setting
-type RuntimeBlockProfileRate (string)
+type RuntimeBlockProfileRate struct {
+	Config       config.ConfigReaderWriter
+	ConfigPrefix string
+	source       Source
+}
+
+func NewRuntimeBlockProfileRate() *RuntimeBlockProfileRate {
+	return &RuntimeBlockProfileRate{source: SourceDefault}
+}
 
 // Name returns the name of the runtime setting
-func (r RuntimeBlockProfileRate) Name() string {
-	return string(r)
+func (r *RuntimeBlockProfileRate) Name() string {
+	return "runtime_block_profile_rate"
 }
 
 // Description returns the runtime setting's description
-func (r RuntimeBlockProfileRate) Description() string {
+func (r *RuntimeBlockProfileRate) Description() string {
 	return "This setting controls the fraction of goroutine blocking events that are reported in the internal blocking profile"
 }
 
-// Hidden returns whether or not this setting is hidden from the list of runtime settings
-func (r RuntimeBlockProfileRate) Hidden() bool {
+// Hidden returns whether this setting is hidden from the list of runtime settings
+func (r *RuntimeBlockProfileRate) Hidden() bool {
 	// Go runtime will start accumulating profile data as soon as this option is set to a
 	// non-zero value. There is a risk that left on over a prolonged period of time, it
 	// may negatively impact agent performance.
@@ -32,12 +40,12 @@ func (r RuntimeBlockProfileRate) Hidden() bool {
 }
 
 // Get returns the current value of the runtime setting
-func (r RuntimeBlockProfileRate) Get() (interface{}, error) {
+func (r *RuntimeBlockProfileRate) Get() (interface{}, error) {
 	return profiling.GetBlockProfileRate(), nil
 }
 
 // Set changes the value of the runtime setting
-func (r RuntimeBlockProfileRate) Set(value interface{}) error {
+func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
 	rate, err := GetInt(value)
 	if err != nil {
 		return err
@@ -46,7 +54,16 @@ func (r RuntimeBlockProfileRate) Set(value interface{}) error {
 	err = checkProfilingNeedsRestart(profiling.GetBlockProfileRate(), rate)
 
 	profiling.SetBlockProfileRate(rate)
-	config.Datadog.Set("internal_profiling.block_profile_rate", rate)
+	var cfg config.ConfigReaderWriter = config.Datadog
+	if r.Config != nil {
+		cfg = r.Config
+	}
+	cfg.Set(r.ConfigPrefix+"internal_profiling.block_profile_rate", rate)
 
+	r.source = source
 	return err
+}
+
+func (r *RuntimeBlockProfileRate) GetSource() Source {
+	return r.source
 }

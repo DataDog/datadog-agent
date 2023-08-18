@@ -8,11 +8,14 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
@@ -20,10 +23,12 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	forwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
-	options := DefaultAgentDemultiplexerOptions(forwarderOpts)
+	log := fxutil.Test[log.Component](b, log.MockModule)
+	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	demux := InitAndStartAgentDemultiplexer(options, "hostname")
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarderOpts)
+	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))

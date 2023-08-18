@@ -4,12 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
 import (
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -60,6 +61,7 @@ thp_collapse_alloc 0`
 	sampleCgroupV2MemoryLow         = "0"
 	sampleCgroupV2MemoryHigh        = "max"
 	sampleCgroupV2MemoryMax         = "max"
+	sampleCgroupV2MemoryPeak        = "7000000"
 	sampleCgroupV2MemorySwapCurrent = "0"
 	sampleCgroupV2MemorySwapHigh    = "max"
 	sampleCgroupV2MemorySwapMax     = "max"
@@ -79,6 +81,7 @@ func createCgroupV2FakeMemoryFiles(cfs *cgroupMemoryFS, cg *cgroupV2) {
 	cfs.setCgroupV2File(cg, "memory.low", sampleCgroupV2MemoryLow)
 	cfs.setCgroupV2File(cg, "memory.high", sampleCgroupV2MemoryHigh)
 	cfs.setCgroupV2File(cg, "memory.max", sampleCgroupV2MemoryMax)
+	cfs.setCgroupV2File(cg, "memory.peak", sampleCgroupV2MemoryPeak)
 	cfs.setCgroupV2File(cg, "memory.swap.current", sampleCgroupV2MemorySwapCurrent)
 	cfs.setCgroupV2File(cg, "memory.swap.high", sampleCgroupV2MemorySwapHigh)
 	cfs.setCgroupV2File(cg, "memory.swap.max", sampleCgroupV2MemorySwapMax)
@@ -103,7 +106,7 @@ func TestCgroupV2MemoryStats(t *testing.T) {
 	cfs.enableControllers("memory")
 	err = cgFoo1.GetMemoryStats(stats)
 	assert.NoError(t, err)
-	assert.Equal(t, len(tr.errors), 11)
+	assert.Equal(t, len(tr.errors), 12)
 	assert.Empty(t, cmp.Diff(MemoryStats{}, *stats))
 
 	// Test reading files in memory controllers, all files present
@@ -113,33 +116,34 @@ func TestCgroupV2MemoryStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(MemoryStats{
-		UsageTotal:    uint64Ptr(6193152),
-		Cache:         uint64Ptr(2297856),
-		Swap:          uint64Ptr(0),
-		RSS:           uint64Ptr(3108864),
-		RSSHuge:       uint64Ptr(0),
-		MappedFile:    uint64Ptr(2297856),
-		Pgfault:       uint64Ptr(2706),
-		Pgmajfault:    uint64Ptr(0),
-		InactiveAnon:  uint64Ptr(5541888),
-		ActiveAnon:    uint64Ptr(0),
-		InactiveFile:  uint64Ptr(0),
-		ActiveFile:    uint64Ptr(0),
-		Unevictable:   uint64Ptr(0),
-		KernelMemory:  uint64Ptr(49152),
-		OOMEvents:     uint64Ptr(3),
-		OOMKiilEvents: uint64Ptr(0),
+		UsageTotal:    pointer.Ptr(uint64(6193152)),
+		Cache:         pointer.Ptr(uint64(2297856)),
+		Swap:          pointer.Ptr(uint64(0)),
+		RSS:           pointer.Ptr(uint64(3108864)),
+		RSSHuge:       pointer.Ptr(uint64(0)),
+		MappedFile:    pointer.Ptr(uint64(2297856)),
+		Pgfault:       pointer.Ptr(uint64(2706)),
+		Pgmajfault:    pointer.Ptr(uint64(0)),
+		InactiveAnon:  pointer.Ptr(uint64(5541888)),
+		ActiveAnon:    pointer.Ptr(uint64(0)),
+		InactiveFile:  pointer.Ptr(uint64(0)),
+		ActiveFile:    pointer.Ptr(uint64(0)),
+		Unevictable:   pointer.Ptr(uint64(0)),
+		KernelMemory:  pointer.Ptr(uint64(49152)),
+		OOMEvents:     pointer.Ptr(uint64(3)),
+		OOMKiilEvents: pointer.Ptr(uint64(0)),
+		Peak:          pointer.Ptr(uint64(7000000)),
 		PSISome: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 		PSIFull: PSIStats{
-			Avg10:  float64Ptr(0),
-			Avg60:  float64Ptr(0),
-			Avg300: float64Ptr(0),
-			Total:  uint64Ptr(0),
+			Avg10:  pointer.Ptr(0.0),
+			Avg60:  pointer.Ptr(0.0),
+			Avg300: pointer.Ptr(0.0),
+			Total:  pointer.Ptr(uint64(0)),
 		},
 	}, *stats))
 }

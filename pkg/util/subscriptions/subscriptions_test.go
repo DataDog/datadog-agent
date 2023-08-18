@@ -77,34 +77,32 @@ func (tx *tx) SendMessage(message string) {
 func TestReceiving(t *testing.T) {
 	var rx RxComponent
 	var tx TxComponent
-	fxutil.Test(t,
+	_ = fxutil.Test[fxutil.NoDependencies](t,
 		fx.Options(
 			fx.Supply(params{shouldReceive: true}),
 			fx.Provide(newRx),
 			fx.Provide(newTx),
 			fx.Populate(&rx),
 			fx.Populate(&tx),
-		), func() {
-			tx.SendMessage("hello")
-			require.Equal(t, "hello", rx.GetMessage())
-		})
+		))
+	tx.SendMessage("hello")
+	require.Equal(t, "hello", rx.GetMessage())
 }
 
 func TestNotReceiving(t *testing.T) {
 	var rx RxComponent
 	var tx TxComponent
-	fxutil.Test(t,
+	_ = fxutil.Test[fxutil.NoDependencies](t,
 		fx.Options(
 			fx.Supply(params{shouldReceive: false}),
 			fx.Provide(newRx),
 			fx.Provide(newTx),
 			fx.Populate(&rx),
 			fx.Populate(&tx),
-		), func() {
-			// send three messages to ensure any buffered channels fill
-			// up and block (there shouldn't be any channels!)
-			tx.SendMessage("hello")
-			tx.SendMessage("cruel")
-			tx.SendMessage("world")
-		})
+		))
+	// send three messages to ensure any buffered channels fill
+	// up and block (there shouldn't be any channels!)
+	tx.SendMessage("hello")
+	tx.SendMessage("cruel")
+	tx.SendMessage("world")
 }

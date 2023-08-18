@@ -5,6 +5,8 @@
 
 package cloudservice
 
+import "github.com/DataDog/datadog-agent/pkg/trace/config"
+
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
 	// GetTags returns a map of tags for a given cloud service. These tags are then attached to
@@ -20,13 +22,45 @@ type CloudService interface {
 	// gcp.run.{metric_name}. In this example, `gcp.run` is the
 	// prefix.
 	GetPrefix() string
+
+	// Init bootstraps the CloudService.
+	Init() error
+}
+
+type LocalService struct{}
+
+// GetTags is a default implementation that returns a local empty tag set
+func (l *LocalService) GetTags() map[string]string {
+	return map[string]string{}
+}
+
+// GetOrigin is a default implementation that returns a local empty origin
+func (l *LocalService) GetOrigin() string {
+	return "local"
+}
+
+// GetPrefix is a default implementation that returns a local prefix
+func (l *LocalService) GetPrefix() string {
+	return "datadog.serverless_agent"
+}
+
+// Init is not necessary for LocalService
+func (l *LocalService) Init() error {
+	return nil
 }
 
 func GetCloudServiceType() CloudService {
-	if isContainerAppService() {
-		return &ContainerApp{}
+	if isCloudRunService() {
+		return &CloudRun{}
 	}
 
-	// By default, we're in CloudRun
-	return &CloudRun{}
+	if isContainerAppService() {
+		return NewContainerApp()
+	}
+
+	if config.InAzureAppServices() {
+		return &AppService{}
+	}
+
+	return &LocalService{}
 }

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix an issue where ``agent status`` would show incorrect system-probe status for 15 seconds as the system-probe started up.

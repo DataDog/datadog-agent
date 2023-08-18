@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package helm
 
@@ -20,14 +19,16 @@ import (
 // returns an error if the provided key is "incomplete", meaning that there's a
 // value associated for the key, but it is a map. For example, if the input map
 // is:
-// map[string]interface{}{
-//   "agents": map[string]interface{}{
-//     "image": map[string]string{
-//	     "tag": "7.39.0",
-//       "pullPolicy": "IfNotPresent",
-//	   },
-//	  },
-// }
+//
+//	map[string]interface{}{
+//	  "agents": map[string]interface{}{
+//	    "image": map[string]string{
+//		     "tag": "7.39.0",
+//	      "pullPolicy": "IfNotPresent",
+//		   },
+//		  },
+//	}
+//
 // "agents.image.tag" and "agents.image.pullPolicy" are valid keys, but
 // "agents.image" is not.
 func getValue(m map[string]interface{}, dotSeparatedKey string) (string, error) {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroups
 
@@ -12,6 +11,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func (c *cgroupV2) GetIOStats(stats *IOStats) error {
@@ -24,10 +25,10 @@ func (c *cgroupV2) GetIOStats(stats *IOStats) error {
 	}
 
 	stats.Devices = make(map[string]DeviceIOStats)
-	stats.ReadBytes = uint64Ptr(0)
-	stats.WriteBytes = uint64Ptr(0)
-	stats.ReadOperations = uint64Ptr(0)
-	stats.WriteOperations = uint64Ptr(0)
+	stats.ReadBytes = pointer.Ptr(uint64(0))
+	stats.WriteBytes = pointer.Ptr(uint64(0))
+	stats.ReadOperations = pointer.Ptr(uint64(0))
+	stats.WriteOperations = pointer.Ptr(uint64(0))
 
 	if err := parseColumnStats(c.fr, c.pathFor("io.stat"), parseV2IOFn(stats)); err != nil {
 		reportError(err)
@@ -85,19 +86,19 @@ func parseV2IOFn(stats *IOStats) func([]string) error {
 			switch parts[0] {
 			case "rbytes":
 				written = true
-				stats.ReadBytes = uint64Ptr(*stats.ReadBytes + val)
+				stats.ReadBytes = pointer.Ptr(*stats.ReadBytes + val)
 				device.ReadBytes = &val
 			case "wbytes":
 				written = true
-				stats.WriteBytes = uint64Ptr(*stats.WriteBytes + val)
+				stats.WriteBytes = pointer.Ptr(*stats.WriteBytes + val)
 				device.WriteBytes = &val
 			case "rios":
 				written = true
-				stats.ReadOperations = uint64Ptr(*stats.ReadOperations + val)
+				stats.ReadOperations = pointer.Ptr(*stats.ReadOperations + val)
 				device.ReadOperations = &val
 			case "wios":
 				written = true
-				stats.WriteOperations = uint64Ptr(*stats.WriteOperations + val)
+				stats.WriteOperations = pointer.Ptr(*stats.WriteOperations + val)
 				device.WriteOperations = &val
 			case "rbps":
 				written = true

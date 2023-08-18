@@ -10,8 +10,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -20,38 +20,55 @@ const (
 	cacheValidityRT = 500 * time.Millisecond
 )
 
-// RTContainer is a singleton RTContainerCheck.
-var RTContainer = &RTContainerCheck{}
+// NewRTContainerCheck returns an instance of the RTContainerCheck.
+func NewRTContainerCheck(config ddconfig.ConfigReader) *RTContainerCheck {
+	return &RTContainerCheck{
+		config: config,
+	}
+}
 
 // RTContainerCheck collects numeric statistics about live ctrList.
 type RTContainerCheck struct {
 	maxBatchSize      int
-	sysInfo           *model.SystemInfo
-	containerProvider util.ContainerProvider
-	lastRates         map[string]*util.ContainerRateMetrics
+	hostInfo          *HostInfo
+	containerProvider proccontainers.ContainerProvider
+	lastRates         map[string]*proccontainers.ContainerRateMetrics
+	config            ddconfig.ConfigReader
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
-	r.maxBatchSize = getMaxBatchSize()
-	r.sysInfo = sysInfo
-	r.containerProvider = util.GetSharedContainerProvider()
+func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
+	r.maxBatchSize = getMaxBatchSize(r.config)
+	r.hostInfo = hostInfo
+	r.containerProvider = proccontainers.GetSharedContainerProvider()
+	return nil
+}
+
+// IsEnabled returns true if the check is enabled by configuration
+func (r *RTContainerCheck) IsEnabled() bool {
+	rtChecksEnabled := !r.config.GetBool("process_config.disable_realtime_checks")
+	return canEnableContainerChecks(r.config, false) && rtChecksEnabled
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (r *RTContainerCheck) SupportsRunOptions() bool {
+	return false
 }
 
 // Name returns the name of the RTContainerCheck.
-func (r *RTContainerCheck) Name() string { return config.RTContainerCheckName }
+func (r *RTContainerCheck) Name() string { return RTContainerCheckName }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (r *RTContainerCheck) RealTime() bool { return true }
+// Realtime indicates if this check only runs in real-time mode.
+func (r *RTContainerCheck) Realtime() bool { return true }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (r *RTContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
-func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (r *RTContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	var err error
 	var containers []*model.Container
-	var lastRates map[string]*util.ContainerRateMetrics
+	var lastRates map[string]*proccontainers.ContainerRateMetrics
 	containers, lastRates, _, err = r.containerProvider.GetContainers(cacheValidityRT, r.lastRates)
 	if err == nil {
 		r.lastRates = lastRates
@@ -70,19 +87,20 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 	chunked := convertAndChunkContainers(containers, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
+	groupID := nextGroupID()
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainerRealTime{
-			HostName:          cfg.HostName,
+			HostName:          r.hostInfo.HostName,
 			Stats:             chunked[i],
 			NumCpus:           int32(system.HostCPUCount()),
-			TotalMemory:       r.sysInfo.TotalMemory,
+			TotalMemory:       r.hostInfo.SystemInfo.TotalMemory,
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
-			ContainerHostType: cfg.ContainerHostType,
+			ContainerHostType: r.hostInfo.ContainerHostType,
 		})
 	}
 
-	return messages, nil
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the RTContainerCheck before the agent exits
@@ -110,24 +128,27 @@ func convertAndChunkContainers(containers []*model.Container, chunks int) [][]*m
 
 func convertToContainerStat(container *model.Container) *model.ContainerStat {
 	return &model.ContainerStat{
-		Id:          container.Id,
-		UserPct:     container.UserPct,
-		SystemPct:   container.SystemPct,
-		TotalPct:    container.TotalPct,
-		CpuLimit:    container.CpuLimit,
-		MemRss:      container.MemRss,
-		MemCache:    container.MemCache,
-		MemLimit:    container.MemoryLimit,
-		Rbps:        container.Rbps,
-		Wbps:        container.Wbps,
-		NetRcvdPs:   container.NetRcvdPs,
-		NetSentPs:   container.NetSentPs,
-		NetRcvdBps:  container.NetRcvdBps,
-		NetSentBps:  container.NetSentBps,
-		State:       container.State,
-		Health:      container.Health,
-		Started:     container.Started,
-		ThreadCount: container.ThreadCount,
-		ThreadLimit: container.ThreadLimit,
+		Id:           container.Id,
+		UserPct:      container.UserPct,
+		SystemPct:    container.SystemPct,
+		TotalPct:     container.TotalPct,
+		CpuUsageNs:   container.CpuUsageNs,
+		CpuLimit:     container.CpuLimit,
+		MemUsage:     container.MemUsage,
+		MemRss:       container.MemRss,
+		MemCache:     container.MemCache,
+		MemLimit:     container.MemoryLimit,
+		MemAccounted: container.MemAccounted,
+		Rbps:         container.Rbps,
+		Wbps:         container.Wbps,
+		NetRcvdPs:    container.NetRcvdPs,
+		NetSentPs:    container.NetSentPs,
+		NetRcvdBps:   container.NetRcvdBps,
+		NetSentBps:   container.NetSentBps,
+		State:        container.State,
+		Health:       container.Health,
+		Started:      container.Started,
+		ThreadCount:  container.ThreadCount,
+		ThreadLimit:  container.ThreadLimit,
 	}
 }

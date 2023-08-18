@@ -4,7 +4,6 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package util
 
@@ -18,8 +17,8 @@ import (
 )
 
 // SetupCoreDump enables core dumps and sets the core dump size limit based on configuration
-func SetupCoreDump() error {
-	if config.Datadog.GetBool("go_core_dump") {
+func SetupCoreDump(cfg config.ConfigReader) error {
+	if cfg.GetBool("go_core_dump") {
 		debug.SetTraceback("crash")
 
 		err := unix.Setrlimit(unix.RLIMIT_CORE, &unix.Rlimit{

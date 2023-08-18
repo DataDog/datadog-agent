@@ -4,16 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package http
 
 import (
 	"bytes"
 	"encoding/binary"
-
-	//"encoding/hex"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -21,19 +17,12 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-// errLostBatch isn't a valid error in windows
-var errLostBatch = errors.New("invalid error")
-
-// StatusClass returns an integer representing the status code class
-// Example: a 404 would return 400
-func statusClass(statusCode uint16) int {
-	return (int(statusCode) / 100) * 100
-}
-
 func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
-	return nsTimestampToFloat(uint64(responseLastSeen - requestStarted))
+	return protocols.NSTimestampToFloat(uint64(responseLastSeen - requestStarted))
 }
 
 func isIPV4(tup *driver.ConnTupleType) bool {
@@ -57,19 +46,19 @@ func ipHigh(isIp4 bool, addr [16]uint8) uint64 {
 }
 
 func srcIPLow(tup *driver.ConnTupleType) uint64 {
-	return ipLow(isIPV4(tup), tup.CliAddr)
+	return ipLow(isIPV4(tup), tup.LocalAddr)
 }
 
 func srcIPHigh(tup *driver.ConnTupleType) uint64 {
-	return ipHigh(isIPV4(tup), tup.CliAddr)
+	return ipHigh(isIPV4(tup), tup.LocalAddr)
 }
 
 func dstIPLow(tup *driver.ConnTupleType) uint64 {
-	return ipLow(isIPV4(tup), tup.SrvAddr)
+	return ipLow(isIPV4(tup), tup.RemoteAddr)
 }
 
 func dstIPHigh(tup *driver.ConnTupleType) uint64 {
-	return ipHigh(isIPV4(tup), tup.SrvAddr)
+	return ipHigh(isIPV4(tup), tup.RemoteAddr)
 }
 
 // --------------------------
@@ -77,45 +66,19 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 // driverHttpTX interface
 //
 
-// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
-func (tx *WinHttpTransaction) ReqFragment() []byte {
-	return tx.RequestFragment[:]
-}
-
-func (tx *WinHttpTransaction) StatusClass() int {
-	return statusClass(tx.Txn.ResponseStatusCode)
-}
-
 func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }
 
-func (tx *WinHttpTransaction) isIPV4() bool {
-	return isIPV4(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcIPLow() uint64 {
-	return srcIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcIPHigh() uint64 {
-	return srcIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) SrcPort() uint16 {
-	return tx.Txn.Tup.CliPort
-}
-
-func (tx *WinHttpTransaction) DstIPLow() uint64 {
-	return dstIPLow(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstIPHigh() uint64 {
-	return dstIPHigh(&tx.Txn.Tup)
-}
-
-func (tx *WinHttpTransaction) DstPort() uint16 {
-	return tx.Txn.Tup.SrvPort
+func (tx *WinHttpTransaction) ConnTuple() types.ConnectionKey {
+	return types.ConnectionKey{
+		SrcIPHigh: srcIPHigh(&tx.Txn.Tup),
+		SrcIPLow:  srcIPLow(&tx.Txn.Tup),
+		DstIPHigh: dstIPHigh(&tx.Txn.Tup),
+		DstIPLow:  dstIPLow(&tx.Txn.Tup),
+		SrcPort:   tx.Txn.Tup.LocalPort,
+		DstPort:   tx.Txn.Tup.RemotePort,
+	}
 }
 
 func (tx *WinHttpTransaction) Method() Method {
@@ -138,7 +101,6 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 			fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
 			fmt.Sprintf("http.iis.site:%v", tx.SiteID),
 			fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
-			fmt.Sprintf("service:%v", tx.AppPool),
 		}
 	}
 	return nil
@@ -183,7 +145,7 @@ func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	}
 	n := copy(buffer, b[:j])
 	// indicate if we knowingly captured the entire path
-	fullPath := n < len(b)
+	fullPath := n <= len(b)
 	return buffer[:n], fullPath
 
 }
@@ -203,24 +165,6 @@ func (tx *WinHttpTransaction) RequestStarted() uint64 {
 	return tx.Txn.RequestStarted
 }
 
-func (tx *WinHttpTransaction) RequestMethod() uint32 {
-	return tx.Txn.RequestMethod
-}
-
-func (tx *WinHttpTransaction) SetRequestMethod(m uint32) {
-	tx.Txn.RequestMethod = m
-}
-
-// below is copied from pkg/trace/stats/statsraw.go
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask uint64 = 1 << 10
-
-// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
-func nsTimestampToFloat(ns uint64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
+func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
+	tx.Txn.RequestMethod = uint32(m)
 }

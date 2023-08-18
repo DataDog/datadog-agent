@@ -9,8 +9,9 @@ package metrics
 // Samples that have a lower value than the previous sample are ignored (since it usually
 // means that the underlying raw counter has been reset).
 // Example:
-//  submitting samples 2, 3, 6, 7 returns 5 (i.e. 7-2) on flush ;
-//  then submitting samples 10, 11 on the same MonotonicCount returns 4 (i.e. 11-7) on flush
+//
+//	submitting samples 2, 3, 6, 7 returns 5 (i.e. 7-2) on flush ;
+//	then submitting samples 10, 11 on the same MonotonicCount returns 4 (i.e. 11-7) on flush
 type MonotonicCount struct {
 	previousSample        float64
 	currentSample         float64

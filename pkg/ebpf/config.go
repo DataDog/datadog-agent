@@ -8,8 +8,9 @@ package ebpf
 import (
 	"strings"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -23,6 +24,9 @@ type Config struct {
 
 	// BPFDir is the directory to load the eBPF program from
 	BPFDir string
+
+	// JavaDir is the directory to load the java agent program from
+	JavaDir string
 
 	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
 	ExcludedBPFLinuxVersions []string
@@ -79,15 +83,16 @@ func key(pieces ...string) string {
 
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
-	cfg := aconfig.Datadog
-	aconfig.InitSystemProbeConfig(cfg)
+	cfg := aconfig.SystemProbe
+	sysconfig.Adjust(cfg)
 
 	return &Config{
 		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
 		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),
+		JavaDir:                  cfg.GetString(key(spNS, "java_dir")),
 		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
-		ProcRoot:                 util.GetProcRoot(),
+		ProcRoot:                 kernel.ProcFSRoot(),
 
 		EnableCORE: cfg.GetBool(key(spNS, "enable_co_re")),
 		BTFPath:    cfg.GetString(key(spNS, "btf_path")),

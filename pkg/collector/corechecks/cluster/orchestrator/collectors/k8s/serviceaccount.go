@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -40,11 +39,14 @@ type ServiceAccountCollector struct {
 func NewServiceAccountCollector() *ServiceAccountCollector {
 	return &ServiceAccountCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "serviceaccounts",
-			NodeType:         orchestrator.K8sServiceAccount,
-			Version:          "v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "serviceaccounts",
+			NodeType:                  orchestrator.K8sServiceAccount,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),
 	}
@@ -57,12 +59,9 @@ func (c *ServiceAccountCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ServiceAccountCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().ServiceAccounts()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().ServiceAccounts()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *ServiceAccountCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ServiceAccountCollector) Metadata() *collectors.CollectorMetadata {

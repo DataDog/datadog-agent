@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -16,12 +15,14 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -116,7 +117,7 @@ void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
 void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 void SubmitEvent(char *, event_t *);
 void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
-void SubmitEventPlatformEvent(char *, char *, char *);
+void SubmitEventPlatformEvent(char *, char *, int, char *);
 
 void initAggregatorModule(rtloader_t *rtloader) {
 	set_submit_metric_cb(rtloader, SubmitMetric);
@@ -357,6 +358,17 @@ func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
 
+	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
+	// in integrations, which causes a 10MB memory increase.
+	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
+	// (https://github.com/pypa/setuptools/issues/3625),
+	// and Python 3.12 removes distutils from the standard library.
+	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
+	// which means we will get the memory increase again if integrations still use distutils.
+	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
+		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
+	}
+
 	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
@@ -403,6 +415,10 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+		initPymemTelemetry()
+	}
+
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
 		// bounded but never released allocations with CString
@@ -439,8 +455,7 @@ func Initialize(paths ...string) error {
 	if pyInfo != nil {
 		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
 		// Set python version in the cache
-		key := cache.BuildAgentKey("pythonVersion")
-		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
+		cache.Cache.Set(pythonInfoCacheKey, PythonVersion, cache.NoExpiration)
 
 		PythonPath = C.GoString(pyInfo.path)
 		C.free_py_info(rtloader, pyInfo)
@@ -457,4 +472,25 @@ func Initialize(paths ...string) error {
 // tooling, use the rtloader_t struct at your own risk
 func GetRtLoader() *C.rtloader_t {
 	return rtloader
+}
+
+func initPymemTelemetry() {
+	C.init_pymem_stats(rtloader)
+
+	// "alloc" for consistency with go memstats and mallochook metrics.
+	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated by the python interpreter since the start of the agent.")
+	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
+
+	go func() {
+		t := time.NewTicker(1 * time.Second)
+		var prevAlloc C.size_t
+
+		for range t.C {
+			var s C.pymem_stats_t
+			C.get_pymem_stats(rtloader, &s)
+			inuse.Set(float64(s.inuse))
+			alloc.Add(float64(s.alloc - prevAlloc))
+			prevAlloc = s.alloc
+		}
+	}()
 }

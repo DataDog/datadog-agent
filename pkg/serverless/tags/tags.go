@@ -25,6 +25,7 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
+	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
@@ -45,6 +46,9 @@ const (
 	VersionKey = "version"
 	// ServiceKey is the tag key for a function's service environment variable
 	ServiceKey = "service"
+
+	// SnapStartValue is the Lambda init type env var value indicating SnapStart initialized the function
+	SnapStartValue = "snap-start"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
@@ -87,12 +91,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
 
-	for _, tag := range configTags {
-		splitTags := strings.Split(tag, ",")
-		for _, singleTag := range splitTags {
-			tags = addTag(tags, singleTag)
-		}
-	}
+	tags = MergeWithOverwrite(tags, ArrayToMap(configTags))
 
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
@@ -121,16 +120,18 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
-// BuildTagsFromMap builds an array of tag based on map of tags
-func BuildTagsFromMap(tags map[string]string) []string {
-	tagsMap := make(map[string]string)
-	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
-	for k, v := range tags {
-		tagsMap[k] = v
+func ArrayToMap(tagArray []string) map[string]string {
+	tagMap := make(map[string]string)
+	for _, tag := range tagArray {
+		splitTags := strings.Split(tag, ",")
+		for _, singleTag := range splitTags {
+			tagMap = addTag(tagMap, singleTag)
+		}
 	}
-	for _, blackListKey := range tagBlackList {
-		delete(tagsMap, blackListKey)
-	}
+	return tagMap
+}
+
+func MapToArray(tagsMap map[string]string) []string {
 	tagsArray := make([]string, 0, len(tagsMap))
 	for key, value := range tagsMap {
 		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
@@ -138,22 +139,56 @@ func BuildTagsFromMap(tags map[string]string) []string {
 	return tagsArray
 }
 
+func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
+	merged := make(map[string]string)
+	for k, v := range tags {
+		merged[k] = v
+	}
+	for k, v := range overwritingTags {
+		merged[k] = v
+	}
+	return merged
+}
+
+// BuildTagsFromMap builds an array of tag based on map of tags
+func BuildTagsFromMap(tags map[string]string) []string {
+	tagsMap := buildTags(tags, []string{traceOriginMetadataKey, computeStatsKey})
+	return MapToArray(tagsMap)
+}
+
 // BuildTracerTags builds a map of tag from an existing map of tag removing useless tags for traces
 func BuildTracerTags(tags map[string]string) map[string]string {
+	return buildTags(tags, []string{resourceKey})
+}
+
+func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 	tagsMap := make(map[string]string)
-	tagBlackList := []string{resourceKey}
 	for k, v := range tags {
 		tagsMap[k] = v
 	}
-	for _, blackListKey := range tagBlackList {
+	for _, blackListKey := range tagsToSkip {
 		delete(tagsMap, blackListKey)
 	}
 	return tagsMap
 }
 
 // AddColdStartTag appends the cold_start tag to existing tags
-func AddColdStartTag(tags []string, coldStart bool) []string {
-	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+func AddColdStartTag(tags []string, coldStart bool, proactiveInit bool) []string {
+	if proactiveInit {
+		tags = append(tags, "cold_start:false")
+		tags = append(tags, "proactive_initialization:true")
+	} else {
+		tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	}
+	return tags
+}
+
+// AddInitTypeTag appends the init_type tag to existing tags
+func AddInitTypeTag(tags []string) []string {
+	initType := os.Getenv(InitType)
+	if initType != "" {
+		tags = append(tags, fmt.Sprintf("init_type:%v", initType))
+	}
 	return tags
 }
 
@@ -170,9 +205,11 @@ func setIfNotEmpty(tagMap map[string]string, key string, value string) map[strin
 }
 
 func addTag(tagMap map[string]string, tag string) map[string]string {
-	extract := strings.Split(tag, ":")
+	extract := strings.SplitN(tag, ":", 2)
 	if len(extract) == 2 {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
+	} else {
+		log.Warn("Tag" + tag + " has not expected format")
 	}
 	return tagMap
 }

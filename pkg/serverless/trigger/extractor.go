@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// getAWSPartitionByRegion parses an AWS region and returns an AWS partition
-func getAWSPartitionByRegion(region string) string {
+// GetAWSPartitionByRegion parses an AWS region and returns an AWS partition
+func GetAWSPartitionByRegion(region string) string {
 	if strings.HasPrefix(region, "us-gov-") {
 		return "aws-us-gov"
 	} else if strings.HasPrefix(region, "cn-") {
@@ -28,19 +28,19 @@ func getAWSPartitionByRegion(region string) string {
 // ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
 func ExtractAPIGatewayEventARN(event events.APIGatewayProxyRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayV2EventARN returns an ARN from an APIGatewayV2HTTPRequest
 func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayWebSocketEventARN returns an ARN from an APIGatewayWebsocketProxyRequest
 func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
@@ -59,7 +59,7 @@ func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region stri
 	if err != nil {
 		return "", fmt.Errorf("Couldn't decode Cloudwatch Logs event: %v", err)
 	}
-	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", getAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
+	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", GetAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
 }
 
 // ExtractDynamoDBStreamEventARN returns an ARN from a DynamoDBEvent
@@ -100,6 +100,9 @@ func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
@@ -115,6 +118,9 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["user-agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
@@ -128,6 +134,9 @@ func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[st
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
 		}
 	}
 	return httpTags
@@ -146,34 +155,37 @@ func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) 
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
 
 // GetStatusCodeFromHTTPResponse parses a generic payload and returns
-// a status code, if it contains one. Returns an empty string if it does not.
-// Ignore parsing errors silentlys
+// a status code, if it contains one. Returns an empty string if it does not,
+// or an error in case of json parsing error.
 func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
-	var response map[string]interface{}
+	var response struct {
+		StatusCode interface{} `json:"statusCode"`
+	}
 	err := json.Unmarshal(rawPayload, &response)
 	if err != nil {
 		return "", err
 	}
 
-	// datadog-lambda-js checks if 'result' is undefined
-	// so this is presumably the equivalent
-	if len(rawPayload) == 0 {
+	statusCode := response.StatusCode
+	if statusCode == nil {
 		return "", nil
 	}
 
-	statusCode := response["statusCode"]
-	switch statusCode.(type) {
+	switch actual := statusCode.(type) {
 	case float64:
-		return strconv.FormatFloat(statusCode.(float64), 'f', -1, 64), nil
+		return strconv.FormatFloat(actual, 'f', -1, 64), nil
 	case string:
-		return statusCode.(string), nil
+		return actual, nil
 	default:
-		return "", fmt.Errorf("Received unknown type for statusCode")
+		return "", fmt.Errorf("Received unknown type %T for statusCode", statusCode)
 	}
 }
 

@@ -11,62 +11,40 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Sender allows sending metrics from checks/a check
-type Sender interface {
-	Commit()
-	Gauge(metric string, value float64, hostname string, tags []string)
-	GaugeNoIndex(metric string, value float64, hostname string, tags []string)
-	Rate(metric string, value float64, hostname string, tags []string)
-	Count(metric string, value float64, hostname string, tags []string)
-	MonotonicCount(metric string, value float64, hostname string, tags []string)
-	MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool)
-	Counter(metric string, value float64, hostname string, tags []string)
-	Histogram(metric string, value float64, hostname string, tags []string)
-	Historate(metric string, value float64, hostname string, tags []string)
-	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
-	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
-	Event(e metrics.Event)
-	EventPlatformEvent(rawEvent string, eventType string)
-	GetSenderStats() check.SenderStats
-	DisableDefaultHostname(disable bool)
-	SetCheckCustomTags(tags []string)
-	SetCheckService(service string)
-	FinalizeCheckServiceTag()
-	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
-	OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string)
-	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
-}
 
 // RawSender interface to submit samples to aggregator directly
 type RawSender interface {
 	SendRawMetricSample(sample *metrics.MetricSample)
-	SendRawServiceCheck(sc *metrics.ServiceCheck)
-	Event(e metrics.Event)
+	SendRawServiceCheck(sc *servicecheck.ServiceCheck)
+	Event(e event.Event)
 }
 
 // checkSender implements Sender
 type checkSender struct {
-	id                      check.ID
+	id                      checkid.ID
 	defaultHostname         string
 	defaultHostnameDisabled bool
-	metricStats             check.SenderStats
-	priormetricStats        check.SenderStats
+	metricStats             stats.SenderStats
+	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
 	itemsOut                chan<- senderItem
-	serviceCheckOut         chan<- metrics.ServiceCheck
-	eventOut                chan<- metrics.Event
+	serviceCheckOut         chan<- servicecheck.ServiceCheck
+	eventOut                chan<- event.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
-	contlcycleOut           chan<- senderContainerLifecycleEvent
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
+	noIndex                 bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -75,7 +53,7 @@ type senderItem interface {
 }
 
 type senderMetricSample struct {
-	id           check.ID
+	id           checkid.ID
 	metricSample *metrics.MetricSample
 	commit       bool
 }
@@ -85,7 +63,7 @@ func (s *senderMetricSample) handle(agg *BufferedAggregator) {
 }
 
 type senderHistogramBucket struct {
-	id     check.ID
+	id     checkid.ID
 	bucket *metrics.HistogramBucket
 }
 
@@ -94,42 +72,37 @@ func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
 }
 
 type senderEventPlatformEvent struct {
-	id        check.ID
-	rawEvent  string
+	id        checkid.ID
+	rawEvent  []byte
 	eventType string
 }
 
 type senderOrchestratorMetadata struct {
-	msgs        []serializer.ProcessMessageBody
+	msgs        []types.ProcessMessageBody
 	clusterID   string
 	payloadType int
 }
 
-type senderContainerLifecycleEvent struct {
-	msgs []serializer.ContainerLifecycleMessage
-}
-
 type senderOrchestratorManifest struct {
-	msgs      []serializer.ProcessMessageBody
+	msgs      []types.ProcessMessageBody
 	clusterID string
 }
 
 type checkSenderPool struct {
 	agg     *BufferedAggregator
-	senders map[check.ID]Sender
+	senders map[checkid.ID]sender.Sender
 	m       sync.Mutex
 }
 
 func newCheckSender(
-	id check.ID,
+	id checkid.ID,
 	defaultHostname string,
 	itemsOut chan<- senderItem,
-	serviceCheckOut chan<- metrics.ServiceCheck,
-	eventOut chan<- metrics.Event,
+	serviceCheckOut chan<- servicecheck.ServiceCheck,
+	eventOut chan<- event.Event,
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata,
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
-	contlcycleOut chan<- senderContainerLifecycleEvent,
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
@@ -137,50 +110,22 @@ func newCheckSender(
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
-		metricStats:             check.NewSenderStats(),
-		priormetricStats:        check.NewSenderStats(),
+		metricStats:             stats.NewSenderStats(),
+		priormetricStats:        stats.NewSenderStats(),
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
-		contlcycleOut:           contlcycleOut,
 	}
 }
 
 // GetSender returns a Sender with passed ID, properly registered with the aggregator
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
-func GetSender(id check.ID) (Sender, error) {
+func GetSender(id checkid.ID) (sender.Sender, error) {
 	if demultiplexerInstance == nil {
 		return nil, errors.New("Demultiplexer was not initialized")
 	}
 	return demultiplexerInstance.GetSender(id)
-}
-
-// DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
-// Should be called when no sender with this ID is used anymore
-// The metrics of this (these) sender(s) that haven't been flushed yet will be lost
-func DestroySender(id check.ID) {
-	if demultiplexerInstance == nil {
-		return
-	}
-	demultiplexerInstance.DestroySender(id)
-}
-
-// SetSender returns the passed sender with the passed ID.
-// This is largely for testing purposes
-func SetSender(sender Sender, id check.ID) error {
-	if demultiplexerInstance == nil {
-		return errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.SetSender(sender, id)
-}
-
-// GetDefaultSender returns the default sender
-func GetDefaultSender() (Sender, error) {
-	if demultiplexerInstance == nil {
-		return nil, errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.GetDefaultSender()
 }
 
 // DisableDefaultHostname allows check to override the default hostname that will be injected
@@ -208,6 +153,10 @@ func (s *checkSender) FinalizeCheckServiceTag() {
 	}
 }
 
+func (s *checkSender) SetNoIndex(noIndex bool) {
+	s.noIndex = noIndex
+}
+
 // Commit commits the metric samples & histogram buckets that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
@@ -216,7 +165,7 @@ func (s *checkSender) Commit() {
 	s.cyclemetricStats()
 }
 
-func (s *checkSender) GetSenderStats() (metricStats check.SenderStats) {
+func (s *checkSender) GetSenderStats() (metricStats stats.SenderStats) {
 	s.statsLock.RLock()
 	defer s.statsLock.RUnlock()
 	return s.priormetricStats.Copy()
@@ -226,7 +175,7 @@ func (s *checkSender) cyclemetricStats() {
 	s.statsLock.Lock()
 	defer s.statsLock.Unlock()
 	s.priormetricStats = s.metricStats.Copy()
-	s.metricStats = check.NewSenderStats()
+	s.metricStats = stats.NewSenderStats()
 }
 
 // SendRawMetricSample sends the raw sample
@@ -256,7 +205,7 @@ func (s *checkSender) sendMetricSample(
 		SampleRate:      1,
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
-		NoIndex:         noIndex,
+		NoIndex:         s.noIndex || noIndex,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
@@ -361,14 +310,14 @@ func (s *checkSender) Historate(metric string, value float64, hostname string, t
 
 // SendRawServiceCheck sends the raw service check
 // Useful for testing - submitting precomputed service check.
-func (s *checkSender) SendRawServiceCheck(sc *metrics.ServiceCheck) {
+func (s *checkSender) SendRawServiceCheck(sc *servicecheck.ServiceCheck) {
 	s.serviceCheckOut <- *sc
 }
 
 // ServiceCheck submits a service check
-func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (s *checkSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
 	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
-	serviceCheck := metrics.ServiceCheck{
+	serviceCheck := servicecheck.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
 		Host:      hostname,
@@ -389,7 +338,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 }
 
 // Event submits an event
-func (s *checkSender) Event(e metrics.Event) {
+func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
 
 	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
@@ -406,7 +355,7 @@ func (s *checkSender) Event(e metrics.Event) {
 }
 
 // Event submits an event
-func (s *checkSender) EventPlatformEvent(rawEvent string, eventType string) {
+func (s *checkSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 	s.eventPlatformOut <- senderEventPlatformEvent{
 		id:        s.id,
 		rawEvent:  rawEvent,
@@ -418,7 +367,7 @@ func (s *checkSender) EventPlatformEvent(rawEvent string, eventType string) {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
+func (s *checkSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
 	om := senderOrchestratorMetadata{
 		msgs:        msgs,
 		clusterID:   clusterID,
@@ -427,18 +376,15 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 	s.orchestratorMetadataOut <- om
 }
 
-func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string) {
+func (s *checkSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
 	om := senderOrchestratorManifest{
 		msgs:      msgs,
 		clusterID: clusterID,
 	}
 	s.orchestratorManifestOut <- om
 }
-func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
-	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
-}
 
-func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
+func (sp *checkSenderPool) getSender(id checkid.ID) (sender.Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -448,7 +394,7 @@ func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
 	return nil, fmt.Errorf("Sender not found")
 }
 
-func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
+func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -462,13 +408,12 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 		sp.agg.orchestratorMetadataIn,
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
-		sp.agg.contLcycleIn,
 	)
 	sp.senders[id] = sender
 	return sender, err
 }
 
-func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
+func (sp *checkSenderPool) setSender(sender sender.Sender, id checkid.ID) error {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -481,7 +426,7 @@ func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
 	return err
 }
 
-func (sp *checkSenderPool) removeSender(id check.ID) {
+func (sp *checkSenderPool) removeSender(id checkid.ID) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 

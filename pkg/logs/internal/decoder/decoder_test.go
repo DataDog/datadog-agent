@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
@@ -24,7 +25,8 @@ import (
 )
 
 func InitializeDecoderForTest(source *sources.LogSource, parser parsers.Parser) *Decoder {
-	return InitializeDecoder(sources.NewReplaceableSource(source), parser)
+	info := status.NewInfoRegistry()
+	return InitializeDecoder(sources.NewReplaceableSource(source), parser, info)
 }
 
 func TestDecoderWithDockerHeader(t *testing.T) {
@@ -37,7 +39,7 @@ func TestDecoderWithDockerHeader(t *testing.T) {
 	input = append(input, []byte("2018-06-14T18:27:03.246999277Z app logs\n")...)
 	d.InputChan <- NewInput(input)
 
-	var output *Message
+	var output *message.Message
 	output = <-d.OutputChan
 	assert.Equal(t, "hello", string(output.Content))
 	assert.Equal(t, len("hello")+1, output.RawDataLen)
@@ -56,7 +58,7 @@ func TestDecoderWithDockerHeader(t *testing.T) {
 }
 
 func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -72,7 +74,7 @@ func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
 	assert.Equal(t, []byte("message"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.ParsingExtra.Timestamp)
 
 	line = []byte("wrong message\n")
 	lineLen = len(line)
@@ -94,12 +96,12 @@ func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
 	assert.Equal(t, []byte("message"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "wrong", output.Timestamp)
+	assert.Equal(t, "wrong", output.ParsingExtra.Timestamp)
 
 }
 
 func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -131,7 +133,7 @@ func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
 	assert.Equal(t, []byte("1234 hello\\nworld"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 
 	lineLen = len(line)
 
@@ -139,11 +141,11 @@ func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
 	assert.Equal(t, []byte("1234 bye"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDockerJSONSingleline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -159,7 +161,7 @@ func TestDecoderWithDockerJSONSingleline(t *testing.T) {
 	assert.Equal(t, []byte("message"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.ParsingExtra.Timestamp)
 
 	line = []byte("wrong message\n")
 	lineLen = len(line)
@@ -169,11 +171,11 @@ func TestDecoderWithDockerJSONSingleline(t *testing.T) {
 	assert.Equal(t, []byte("wrong message"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "", output.Timestamp)
+	assert.Equal(t, "", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDockerJSONMultiline(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -205,7 +207,7 @@ func TestDecoderWithDockerJSONMultiline(t *testing.T) {
 	assert.Equal(t, []byte("1234 hello\\nworld"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 
 	lineLen = len(line)
 
@@ -213,11 +215,11 @@ func TestDecoderWithDockerJSONMultiline(t *testing.T) {
 	assert.Equal(t, []byte("1234 bye"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 
 	d := InitializeDecoderForTest(sources.NewLogSource("", &config.LogsConfig{}), dockerfile.New())
@@ -238,19 +240,20 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 	assert.Equal(t, []byte("part1part2"), output.Content)
 	assert.Equal(t, rawLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithDecodingParser(t *testing.T) {
 	source := sources.NewLogSource("config", &config.LogsConfig{})
 
-	d := NewDecoderWithFraming(sources.NewReplaceableSource(source), encodedtext.New(encodedtext.UTF16LE), framer.UTF16LENewline, nil)
+	info := status.NewInfoRegistry()
+	d := NewDecoderWithFraming(sources.NewReplaceableSource(source), encodedtext.New(encodedtext.UTF16LE), framer.UTF16LENewline, nil, info)
 	d.Start()
 
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
 	d.InputChan <- NewInput(input)
 
-	var output *Message
+	var output *message.Message
 	output = <-d.OutputChan
 	assert.Equal(t, "hello", string(output.Content))
 	assert.Equal(t, len(input), output.RawDataLen)
@@ -267,7 +270,7 @@ func TestDecoderWithDecodingParser(t *testing.T) {
 }
 
 func TestDecoderWithSinglelineKubernetes(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -283,7 +286,7 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	assert.Equal(t, []byte("message"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", output.ParsingExtra.Timestamp)
 
 	line = []byte("wrong message\n")
 	lineLen = len(line)
@@ -293,11 +296,11 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	assert.Equal(t, []byte("wrong message"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "", output.Timestamp)
+	assert.Equal(t, "", output.ParsingExtra.Timestamp)
 }
 
 func TestDecoderWithMultilineKubernetes(t *testing.T) {
-	var output *Message
+	var output *message.Message
 	var line []byte
 	var lineLen int
 
@@ -328,7 +331,7 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 	assert.Equal(t, []byte("1234 hello\\nworld"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusInfo, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", output.ParsingExtra.Timestamp)
 
 	lineLen = len(line)
 
@@ -336,5 +339,5 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 	assert.Equal(t, []byte("1234 bye"), output.Content)
 	assert.Equal(t, lineLen, output.RawDataLen)
 	assert.Equal(t, message.StatusError, output.Status)
-	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.Timestamp)
+	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", output.ParsingExtra.Timestamp)
 }

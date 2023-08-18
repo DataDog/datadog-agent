@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -27,8 +26,8 @@ import (
 // Limitations:
 //   - Host /proc needs to be mounted.
 //   - If the container exposes multiple IPs, this function just returns one of
-//   them. That means that if a container is attached to multiple networks this
-//   might not work as expected.
+//     them. That means that if a container is attached to multiple networks this
+//     might not work as expected.
 func extractIP(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
 	if !config.IsHostProcAvailable() {
 		return "", nil

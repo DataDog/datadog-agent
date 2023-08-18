@@ -201,7 +201,7 @@ func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	assert.True(t, tagMap["runtime"] == "unknown" || tagMap["runtime"] == "provided.al2")
 }
 
-func TestAddTagInvalid(t *testing.T) {
+func TestAddTagInvalidNoValue(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
 		"key_b": "value_b",
@@ -212,17 +212,7 @@ func TestAddTagInvalid(t *testing.T) {
 	assert.Equal(t, "value_b", tagMap["key_b"])
 }
 
-func TestAddTagInvalid2(t *testing.T) {
-	tagMap := map[string]string{
-		"key_a": "value_a",
-		"key_b": "value_b",
-	}
-	addTag(tagMap, "invalidTag:invalid:invalid")
-	assert.Equal(t, 2, len(tagMap))
-	assert.Equal(t, "value_a", tagMap["key_a"])
-	assert.Equal(t, "value_b", tagMap["key_b"])
-}
-func TestAddTagInvalid3(t *testing.T) {
+func TestAddTagInvalidEmpty(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
 		"key_b": "value_b",
@@ -233,7 +223,7 @@ func TestAddTagInvalid3(t *testing.T) {
 	assert.Equal(t, "value_b", tagMap["key_b"])
 }
 
-func TestAddTag(t *testing.T) {
+func TestAddTagValid(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",
 		"key_b": "value_b",
@@ -245,11 +235,23 @@ func TestAddTag(t *testing.T) {
 	assert.Equal(t, "tag", tagMap["valid"])
 }
 
+func TestAddTagValidWithColumnInValue(t *testing.T) {
+	tagMap := map[string]string{
+		"key_a": "value_a",
+		"key_b": "value_b",
+	}
+	addTag(tagMap, "VaLiD:TaG:Val")
+	assert.Equal(t, 3, len(tagMap))
+	assert.Equal(t, "value_a", tagMap["key_a"])
+	assert.Equal(t, "value_b", tagMap["key_b"])
+	assert.Equal(t, "tag:val", tagMap["valid"])
+}
+
 func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 	generatedTags := AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	}, false)
+	}, false, false)
 
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
@@ -262,12 +264,50 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	generatedTags := AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	}, true)
+	}, true, false)
 
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 		"cold_start:true",
+	})
+}
+
+func TestAddColdStartTagWithColdStartAndProactiveInit(t *testing.T) {
+	generatedTags := AddColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, true, true)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"cold_start:false",
+		"proactive_initialization:true",
+	})
+}
+
+func TestAddInitTypeTagWithoutInitType(t *testing.T) {
+	generatedTags := AddInitTypeTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+}
+
+func TestAddInitTypeTagWithInitType(t *testing.T) {
+	t.Setenv(InitType, SnapStartValue)
+	generatedTags := AddInitTypeTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"init_type:snap-start",
 	})
 }
 

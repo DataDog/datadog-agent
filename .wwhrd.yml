@@ -21,6 +21,8 @@ overrides:
   "github.com/bmizerany/pat": MIT
   # https://github.com/xi2/xz/blob/master/LICENSE
   "github.com/xi2/xz": Public Domain
+  # https://github.com/acomagu/bufpipe/blob/master/LICENSE
+  "github.com/acomagu/bufpipe": MIT
 
 exceptions:
   - "golang.org/x/mobile/..."

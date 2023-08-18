@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package hostname
 
@@ -71,9 +70,9 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 		setupHostnameFile(t, "hostname-from-file")
 	}
 	if tc.fargate {
-		isFargateInstance = func(context.Context) bool { return true }
+		isFargateInstance = func() bool { return true }
 	} else {
-		isFargateInstance = func(context.Context) bool { return false }
+		isFargateInstance = func() bool { return false }
 	}
 
 	if tc.GCE {

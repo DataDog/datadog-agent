@@ -9,17 +9,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ServerlessDemultiplexer is a simple demultiplexer used by the serverless flavor of the Agent
 type ServerlessDemultiplexer struct {
+	log log.Component
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
 
@@ -38,16 +39,18 @@ type ServerlessDemultiplexer struct {
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
 func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
-	serializer := serializer.NewSerializer(forwarder, nil, nil)
+	log := log.NewTemporaryLoggerWithoutInit()
+	forwarder := forwarder.NewSyncForwarder(config.Datadog, log, domainResolvers, forwarderTimeout)
+	serializer := serializer.NewSerializer(forwarder, nil)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
-	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore)
+	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, nil, nil, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
+		log:              log,
 		forwarder:        forwarder,
 		statsdSampler:    statsdSampler,
 		statsdWorker:     statsdWorker,
@@ -72,12 +75,12 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 func (d *ServerlessDemultiplexer) Run() {
 	if d.forwarder != nil {
 		d.forwarder.Start() //nolint:errcheck
-		log.Debug("Forwarder started")
+		d.log.Debug("Forwarder started")
 	} else {
-		log.Debug("not starting the forwarder")
+		d.log.Debug("not starting the forwarder")
 	}
 
-	log.Debug("Demultiplexer started")
+	d.log.Debug("Demultiplexer started")
 	d.statsdWorker.run()
 }
 

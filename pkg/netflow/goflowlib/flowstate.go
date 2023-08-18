@@ -6,8 +6,11 @@
 package goflowlib
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/netsampler/goflow2/decoders/netflow/templates"
+	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,23 +44,31 @@ func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, wo
 
 	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace)
 	logger := GetLogrusLevel()
+	ctx := context.Background()
 
 	switch flowType {
 	case common.TypeNetFlow9, common.TypeIPFIX:
-		flowState = &utils.StateNetFlow{
-			Format: formatDriver,
-			Logger: logger,
+		templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
+		if err != nil {
+			return nil, fmt.Errorf("goflow template system error flow type: %w", err)
 		}
+		defer templateSystem.Close(ctx)
+
+		state := utils.NewStateNetFlow()
+		state.Format = formatDriver
+		state.Logger = logger
+		state.TemplateSystem = templateSystem
+		flowState = state
 	case common.TypeSFlow5:
-		flowState = &utils.StateSFlow{
-			Format: formatDriver,
-			Logger: logger,
-		}
+		state := utils.NewStateSFlow()
+		state.Format = formatDriver
+		state.Logger = logger
+		flowState = state
 	case common.TypeNetFlow5:
-		flowState = &utils.StateNFLegacy{
-			Format: formatDriver,
-			Logger: logger,
-		}
+		state := utils.NewStateNFLegacy()
+		state.Format = formatDriver
+		state.Logger = logger
+		flowState = state
 	default:
 		return nil, fmt.Errorf("unknown flow type: %s", flowType)
 	}

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
-// +build !windows
 
 package cpu
 
@@ -11,12 +10,13 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/mock"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 var (
@@ -81,7 +81,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	times = CPUTimes
 	cpuInfo = CPUInfo
 	cpuCheck := new(Check)
-	cpuCheck.Configure(nil, nil, "test")
+	cpuCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -40,11 +39,14 @@ type RoleBindingCollector struct {
 func NewRoleBindingCollector() *RoleBindingCollector {
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "rolebindings",
-			NodeType:         orchestrator.K8sRoleBinding,
-			Version:          "rbac.authorization.k8s.io/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "rolebindings",
+			NodeType:                  orchestrator.K8sRoleBinding,
+			Version:                   "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
 	}
@@ -57,12 +59,9 @@ func (c *RoleBindingCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *RoleBindingCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().RoleBindings()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Rbac().V1().RoleBindings()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *RoleBindingCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *RoleBindingCollector) Metadata() *collectors.CollectorMetadata {

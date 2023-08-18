@@ -1,13 +1,13 @@
 name "python3"
 
 if ohai["platform"] != "windows"
-  default_version "3.8.14"
+  default_version "3.9.17"
 
   dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
-  dependency "openssl"
+  dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
   dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
@@ -15,21 +15,23 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "41f959c480c59211feb55d5a28851a56c7e22d02ef91035606ebb21011723c31"
+         :sha256 => "8ead58f669f7e19d777c3556b62fae29a81d7f06a7122ff9bc57f7dd82d7e014"
 
   relative_path "Python-#{version}"
 
   python_configure = ["./configure",
                       "--prefix=#{install_dir}/embedded",
                       "--with-ssl=#{install_dir}/embedded",
-                      "--with-ensurepip=no"] # pip is installed separately by its own software def
+                      "--with-ensurepip=yes"] # We upgrade pip later, in the pip3 software definition
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
                           "--with-universal-archs=intel",
-                          "--enable-shared")
+                          "--enable-shared",
+                          "--disable-static")
   elsif linux?
     python_configure.push("--enable-shared",
+                          "--disable-static",
                           "--enable-ipv6")
   elsif aix?
     # something here...
@@ -55,7 +57,7 @@ if ohai["platform"] != "windows"
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    delete "#{install_dir}/embedded/lib/python3.8/test"
+    delete "#{install_dir}/embedded/lib/python3.9/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
@@ -66,19 +68,19 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.8.14-4e8b020"
+  default_version "3.9.17-26e6052"
   dependency "vc_redist_14"
 
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-            :sha256 => "5234E8506BCD00C99B044845298B8E8AE23078D9A69650D373053E9ADB006612".downcase
+            :sha256 => "007FC4DB517599FB4DFF4D68FFA7C6B3BE9674F584AA513600A2539AF7CDD07B".downcase
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-         :sha256 => "ADE9A2CFD7EF66BB3488350A80C8EBFE1C322784CDC17E5A6783216F8EA89181".downcase
+           :sha256 => "E6E38E5A6B768E9EF6E2F3F31448873657251B32B6CEB99B99D76BF47279A36D".downcase
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
@@ -88,5 +90,9 @@ else
 
     command "XCOPY /YEHIR *.* \"#{windows_safe_path(python_3_embedded)}\""
     command "copy /y \"#{windows_safe_path(vcrt140_root)}\\*.dll\" \"#{windows_safe_path(python_3_embedded)}\""
+
+    # Install pip
+    python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
+    command "#{python} -m ensurepip"
   end
 end

@@ -60,7 +60,7 @@ class GithubWorkflows(RemoteAPI):
         """
         path = f"/repos/{self.repository}/actions/artifacts/{artifact_id}/zip"
         content = self.make_request(path, method="GET", raw_output=True)
-
+        print("Downloaded artifact with id: ", artifact_id, "content length is: ", len(content))
         zip_target_path = os.path.join(destination_dir, f"{artifact_id}.zip")
         with open(zip_target_path, "wb") as f:
             f.write(content)
@@ -96,24 +96,20 @@ class GithubWorkflows(RemoteAPI):
         Adds "Authorization: token {self.api_token}" and "Accept: application/vnd.github.v3+json"
         to the headers to be able to authenticate ourselves to GitHub.
         """
-        url = self.BASE_URL + path
-
         headers = dict(headers or [])
         headers["Authorization"] = f"token {self.api_token}"
         headers["Accept"] = "application/vnd.github.v3+json"
 
-        for _ in range(5):  # Retry up to 5 times
-            return self.request(
-                path=path,
-                headers=headers,
-                data=data,
-                json_input=False,
-                json_output=json_output,
-                raw_output=raw_output,
-                stream_output=False,
-                method=method,
-            )
-        raise GithubException(f"Failed while making HTTP request: {method} {url}")
+        return self.request(
+            path=path,
+            headers=headers,
+            data=data,
+            json_input=False,
+            json_output=json_output,
+            raw_output=raw_output,
+            stream_output=False,
+            method=method,
+        )
 
 
 def get_github_app_token():

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -17,11 +16,11 @@ import (
 
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -30,7 +29,7 @@ import (
 )
 
 // computeEvents converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *containers.Filter) {
+func computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -39,7 +38,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *cont
 			continue
 		}
 
-		if split[1] == "images" && fil.IsExcluded("", e.ID, "") {
+		if split[1] == "images" && fil.IsExcluded(nil, "", e.ID, "") {
 			continue
 		}
 
@@ -50,7 +49,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *cont
 			}
 		}
 
-		alertType := metrics.EventAlertTypeInfo
+		alertType := event.EventAlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
 			t, err := tagger.Tag(containers.BuildTaggerEntityName(e.ID), collectors.HighCardinality)
@@ -66,13 +65,13 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *cont
 			}
 
 			if split[2] == "oom" {
-				alertType = metrics.EventAlertTypeError
+				alertType = event.EventAlertTypeError
 			}
 		}
 
-		output := metrics.Event{
+		output := event.Event{
 			Title:          fmt.Sprintf("Event on %s from Containerd", split[1]),
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: containerdCheckName,
 			EventType:      containerdCheckName,
 			AlertType:      alertType,
@@ -204,7 +203,7 @@ func (s *subscriber) run(ctx context.Context) error {
 			switch message.Topic {
 			case "/containers/create":
 				create := &events.ContainerCreate{}
-				err := proto.Unmarshal(message.Event.Value, create)
+				err := proto.Unmarshal(message.Event.GetValue(), create)
 				if err != nil {
 					log.Errorf("Could not process create event from Containerd: %v", err)
 					continue
@@ -237,7 +236,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/containers/delete":
 				ctnDelete := &events.ContainerDelete{}
-				err := proto.Unmarshal(message.Event.Value, ctnDelete)
+				err := proto.Unmarshal(message.Event.GetValue(), ctnDelete)
 				if err != nil {
 					log.Errorf("Could not process delete event from Containerd: %v", err)
 					continue
@@ -253,7 +252,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/containers/update":
 				updated := &events.ContainerUpdate{}
-				err := proto.Unmarshal(message.Event.Value, updated)
+				err := proto.Unmarshal(message.Event.GetValue(), updated)
 				if err != nil {
 					log.Errorf("Could not process update event from Containerd: %v", err)
 					continue
@@ -269,7 +268,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/images/update":
 				updated := &events.ImageUpdate{}
-				err := proto.Unmarshal(message.Event.Value, updated)
+				err := proto.Unmarshal(message.Event.GetValue(), updated)
 				if err != nil {
 					log.Errorf("Could not process update event from Containerd: %v", err)
 					continue
@@ -280,7 +279,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/images/create":
 				created := &events.ImageCreate{}
-				err := proto.Unmarshal(message.Event.Value, created)
+				err := proto.Unmarshal(message.Event.GetValue(), created)
 				if err != nil {
 					log.Errorf("Could not process create event from Containerd: %v", err)
 					continue
@@ -292,7 +291,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/images/delete":
 				deleted := &events.ImageDelete{}
-				err := proto.Unmarshal(message.Event.Value, deleted)
+				err := proto.Unmarshal(message.Event.GetValue(), deleted)
 				if err != nil {
 					log.Errorf("Could not process delete event from Containerd: %v", err)
 					continue
@@ -302,7 +301,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/tasks/create":
 				created := &events.TaskCreate{}
-				err := proto.Unmarshal(message.Event.Value, created)
+				err := proto.Unmarshal(message.Event.GetValue(), created)
 				if err != nil {
 					log.Errorf("Could not process create event from Containerd: %v", err)
 					continue
@@ -317,7 +316,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/tasks/delete":
 				deleted := &events.TaskDelete{}
-				err := proto.Unmarshal(message.Event.Value, deleted)
+				err := proto.Unmarshal(message.Event.GetValue(), deleted)
 				if err != nil {
 					log.Errorf("Could not process delete event from Containerd: %v", err)
 					continue
@@ -332,7 +331,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/tasks/exit":
 				exited := &events.TaskExit{}
-				err := proto.Unmarshal(message.Event.Value, exited)
+				err := proto.Unmarshal(message.Event.GetValue(), exited)
 				if err != nil {
 					log.Errorf("Could not process exit event from Containerd: %v", err)
 					continue
@@ -347,7 +346,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/tasks/oom":
 				oomed := &events.TaskOOM{}
-				err := proto.Unmarshal(message.Event.Value, oomed)
+				err := proto.Unmarshal(message.Event.GetValue(), oomed)
 				if err != nil {
 					log.Errorf("Could not process create event from Containerd: %v", err)
 					continue
@@ -362,7 +361,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/tasks/paused":
 				paused := &events.TaskPaused{}
-				err := proto.Unmarshal(message.Event.Value, paused)
+				err := proto.Unmarshal(message.Event.GetValue(), paused)
 				if err != nil {
 					log.Errorf("Could not process create event from Containerd: %v", err)
 					continue
@@ -377,7 +376,7 @@ func (s *subscriber) run(ctx context.Context) error {
 				s.addEvents(event)
 			case "/tasks/resumed":
 				resumed := &events.TaskResumed{}
-				err := proto.Unmarshal(message.Event.Value, resumed)
+				err := proto.Unmarshal(message.Event.GetValue(), resumed)
 				if err != nil {
 					log.Errorf("Could not process create event from Containerd: %v", err)
 					continue

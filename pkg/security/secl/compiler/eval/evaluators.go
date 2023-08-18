@@ -60,8 +60,9 @@ type IntEvaluator struct {
 	OpOverrides *OpOverrides
 
 	// used during compilation of partial
-	isDeterministic bool
-	isDuration      bool
+	isDeterministic           bool
+	isDuration                bool
+	isFromArithmeticOperation bool
 }
 
 // Eval returns the result of the evaluation
@@ -207,13 +208,6 @@ func (s *StringValuesEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
 
-// AppendFieldValues append field values
-func (s *StringValuesEvaluator) AppendFieldValues(values ...FieldValue) {
-	for _, value := range values {
-		s.Values.AppendFieldValue(value)
-	}
-}
-
 // Compile the underlying StringValues
 func (s *StringValuesEvaluator) Compile(opts StringCmpOpts) error {
 	return s.Values.Compile(opts)
@@ -226,10 +220,8 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 
 // AppendMembers add members to the evaluator
 func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
-	values := make([]FieldValue, 0, len(members))
-	var value FieldValue
-
 	for _, member := range members {
+		var value FieldValue
 		if member.Pattern != nil {
 			value = FieldValue{
 				Value: *member.Pattern,
@@ -246,10 +238,8 @@ func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
 				Type:  ScalarValueType,
 			}
 		}
-		values = append(values, value)
+		s.Values.AppendFieldValue(value)
 	}
-
-	s.AppendFieldValues(values...)
 }
 
 // IntArrayEvaluator returns an array of int

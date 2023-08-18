@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package net
 
@@ -20,11 +19,14 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -43,9 +45,8 @@ const (
 )
 
 var (
-	globalUtil       *RemoteSysProbeUtil
-	globalUtilOnce   sync.Once
-	globalSocketPath string
+	globalUtil     *RemoteSysProbeUtil
+	globalUtilOnce sync.Once
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}
@@ -59,21 +60,15 @@ type RemoteSysProbeUtil struct {
 	httpClient http.Client
 }
 
-// SetSystemProbePath sets where the System probe is listening for connections
-// This needs to be called before GetRemoteSystemProbeUtil.
-func SetSystemProbePath(path string) {
-	globalSocketPath = path
-}
-
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
-func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
-	err := CheckPath()
+func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
+	err := CheckPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up remote system probe util, %v", err)
 	}
 
 	globalUtilOnce.Do(func() {
-		globalUtil = newSystemProbe()
+		globalUtil = newSystemProbe(path)
 		globalUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:          "system-probe-util",
 			AttemptMethod: globalUtil.init,
@@ -215,16 +210,16 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return nil
 }
 
-func newSystemProbe() *RemoteSysProbeUtil {
+func newSystemProbe(path string) *RemoteSysProbeUtil {
 	return &RemoteSysProbeUtil{
-		path: globalSocketPath,
+		path: path,
 		httpClient: http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, globalSocketPath)
+					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
 				ResponseHeaderTimeout: 5 * time.Second,
@@ -232,6 +227,48 @@ func newSystemProbe() *RemoteSysProbeUtil {
 			},
 		},
 	}
+}
+
+func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
+	procs := make([]*languagepb.Process, len(pids))
+	for i, pid := range pids {
+		procs[i] = &languagepb.Process{Pid: pid}
+	}
+	reqBytes, err := proto.Marshal(&languagepb.DetectLanguageRequest{Processes: procs})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, languageDetectionURL, bytes.NewBuffer(reqBytes))
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var resProto languagepb.DetectLanguageResponse
+	err = proto.Unmarshal(resBody, &resProto)
+	if err != nil {
+		return nil, err
+	}
+
+	langs := make([]languagemodels.Language, len(pids))
+	for i, lang := range resProto.Languages {
+		langs[i] = languagemodels.Language{
+			Name:    languagemodels.LanguageName(lang.Name),
+			Version: lang.Version,
+		}
+	}
+	return langs, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

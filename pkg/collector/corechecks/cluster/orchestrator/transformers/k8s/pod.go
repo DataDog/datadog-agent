@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -19,6 +18,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -56,6 +56,21 @@ func ExtractPod(p *corev1.Pod) *model.Pod {
 	podModel.ConditionMessage = getConditionMessage(p)
 
 	podModel.ResourceRequirements = extractPodResourceRequirements(p.Spec.Containers, p.Spec.InitContainers)
+
+	if len(p.Status.Conditions) > 0 {
+		podConditions, conditionTags := extractPodConditions(p)
+		podModel.Conditions = podConditions
+		podModel.Tags = append(podModel.Tags, conditionTags...)
+	}
+
+	if p.Status.StartTime != nil {
+		podModel.StartTime = p.Status.StartTime.Unix()
+	}
+	for _, c := range p.Status.Conditions {
+		if c.Type == corev1.PodScheduled && c.Status == corev1.ConditionTrue {
+			podModel.ScheduledTime = c.LastTransitionTime.Unix()
+		}
+	}
 
 	return &podModel
 }
@@ -216,34 +231,35 @@ func convertContainerStatus(cs corev1.ContainerStatus) model.ContainerStatus {
 	return cStatus
 }
 
-// resourceRequirements calculations: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#:~:text=Resource%20units%20in%20Kubernetes&text=Limits%20and%20requests%20for%20CPU,A%20Container%20with%20spec.
-// CPU: 1/10 of a single core, would represent that as 100m.
-// Memory: Memory is measured in bytes. In addition, it may be used with SI suffices (E, P, T, G, M, K, m) or their power-of-two-equivalents (Ei, Pi, Ti, Gi, Mi, Ki).
+// convertResourceRequirements converts resource requirements to the payload
+// format. Various forms are accepted for resource quantities and this is
+// transparently abstracted by Kubernetes APIs.
+//
+// Documentation: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 func convertResourceRequirements(rq corev1.ResourceRequirements, containerName string, resourceType model.ResourceRequirementsType) *model.ResourceRequirements {
-	requests := map[string]int64{}
-	setRequests := false
-	setLimits := false
-	limits := map[string]int64{}
+	var (
+		limits   = make(map[string]int64)
+		requests = make(map[string]int64)
+	)
 
-	for t, v := range rq.Limits {
-		if t == corev1.ResourceCPU {
-			limits[t.String()] = v.MilliValue()
-		} else {
-			limits[t.String()] = v.Value()
-		}
-		setLimits = true
-	}
-	for t, v := range rq.Requests {
-		if t == corev1.ResourceCPU {
-			requests[t.String()] = v.MilliValue()
-		} else {
-			requests[t.String()] = v.Value()
-		}
-		setRequests = true
+	// mapping between resource lists and payload structures
+	quantityHolders := map[*corev1.ResourceList]map[string]int64{
+		&rq.Limits:   limits,
+		&rq.Requests: requests,
 	}
 
-	if !setRequests && !setLimits {
-		return nil
+	// mapping between resource names and payload quantity handlers
+	quantityHandlers := map[corev1.ResourceName]func(resource.Quantity) int64{
+		corev1.ResourceCPU:    func(q resource.Quantity) int64 { return q.MilliValue() },
+		corev1.ResourceMemory: func(q resource.Quantity) int64 { return q.Value() },
+	}
+
+	for resourceName, handler := range quantityHandlers {
+		for resourceList, holder := range quantityHolders {
+			if quantity, found := (*resourceList)[resourceName]; found {
+				holder[resourceName.String()] = handler(quantity)
+			}
+		}
 	}
 
 	return &model.ResourceRequirements{
@@ -252,6 +268,36 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 		Name:     containerName,
 		Type:     resourceType,
 	}
+}
+
+// extractPodConditions iterates over pod conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractPodConditions(p *corev1.Pod) ([]*model.PodCondition, []string) {
+	conditions := make([]*model.PodCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
+
+	for _, condition := range p.Status.Conditions {
+		c := &model.PodCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastProbeTime.IsZero() {
+			c.LastProbeTime = condition.LastProbeTime.Unix()
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }
 
 // getConditionMessage loops through the pod conditions, and reports the message of the first one

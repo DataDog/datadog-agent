@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package aggregator
 
@@ -14,30 +13,35 @@ import (
 	"expvar"
 	"fmt"
 	"sort"
-
 	"testing"
 	"time"
 
 	// 3p
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
-var checkID1 check.ID = "1"
-var checkID2 check.ID = "2"
+var (
+	checkID1 checkid.ID = "1"
+	checkID2 checkid.ID = "2"
+)
 
 const defaultHostname = "hostname"
-const altDefaultHostname = "althostname"
 
 func init() {
 	initF()
@@ -45,10 +49,12 @@ func init() {
 
 func initF() {
 	demultiplexerInstance = nil
-	opts := DefaultAgentDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	log := log.NewTemporaryLoggerWithoutInit()
+	forwarder := defaultforwarder.NewDefaultForwarder(pkgconfig.Datadog, log, defaultforwarder.NewOptions(pkgconfig.Datadog, log, nil))
+	demux := InitAndStartAgentDemultiplexer(log, forwarder, opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	recurrentSeries = metrics.Series{}
@@ -82,7 +88,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 	// -
 
 	agg := getAggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
 
 	lenSenders := func(n int) bool {
 		agg.mu.Lock()
@@ -105,11 +111,13 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	// -
 
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, defaultHostname)
+
 	defer demux.Stop(false)
 
 	agg := demux.Aggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
 
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
@@ -146,16 +154,16 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
 		CheckName: "my_service.can_connect",
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Tags:      []string{"bar", "foo", "bar"},
 		Message:   "message",
 	})
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		CheckName: "my_service.can_connect",
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Host:      "my-hostname",
 		Tags:      []string{"foo", "foo", "bar"},
 		Ts:        12345,
@@ -178,20 +186,20 @@ func TestAddEventDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
-	agg.addEvent(metrics.Event{
+	agg.addEvent(event.Event{
 		// only populate required fields
 		Title: "An event occurred",
 		Text:  "Event description",
 	})
-	agg.addEvent(metrics.Event{
+	agg.addEvent(event.Event{
 		// populate all fields
 		Title:          "Another event occurred",
 		Text:           "Other event description",
 		Ts:             12345,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar", "foo"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      event.EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	})
@@ -213,9 +221,9 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "Another event occurred", event2.Title)
 	assert.Equal(t, "my-hostname", event2.Host)
 	assert.Equal(t, int64(12345), event2.Ts)
-	assert.Equal(t, metrics.EventPriorityNormal, event2.Priority)
+	assert.Equal(t, event.EventPriorityNormal, event2.Priority)
 	assert.ElementsMatch(t, []string{"foo", "bar"}, event2.Tags)
-	assert.Equal(t, metrics.EventAlertTypeError, event2.AlertType)
+	assert.Equal(t, event.EventAlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }
@@ -229,10 +237,10 @@ func TestDefaultData(t *testing.T) {
 	start := time.Now()
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, agg.hostname, m[0].Host)
 
@@ -254,6 +262,7 @@ func TestDefaultData(t *testing.T) {
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	}}
 
 	s.On("SendSeries", series).Return(nil).Times(1)
@@ -282,7 +291,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			demux := InitAndStartAgentDemultiplexer(opts, "")
+			deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+			demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+
 			demux.sharedSerializer = s
 			demux.aggregator.serializer = s
 
@@ -345,7 +356,9 @@ func TestDistributionsTooManyTags(t *testing.T) {
 		return func(t *testing.T) {
 			s := &MockSerializerIterableSerie{}
 			opts := demuxTestOptions()
-			demux := InitAndStartAgentDemultiplexer(opts, "")
+			deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+			demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+
 			demux.sharedSerializer = s
 			demux.aggregator.serializer = s
 
@@ -399,7 +412,9 @@ func TestRecurrentSeries(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s
 
@@ -449,13 +464,14 @@ func TestRecurrentSeries(t *testing.T) {
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
+		NoIndex:        true,
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, demux.Aggregator().hostname, m[0].Host)
 
@@ -491,72 +507,104 @@ func TestTags(t *testing.T) {
 
 	tests := []struct {
 		name                    string
+		hostname                string
 		tlmContainerTagsEnabled bool
 		agentTags               func(collectors.TagCardinality) ([]string, error)
+		globalTags              func(collectors.TagCardinality) ([]string, error)
 		withVersion             bool
 		want                    []string
 	}{
 		{
 			name:                    "tags disabled, with version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
 		},
 		{
 			name:                    "tags disabled, without version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: false,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{},
 		},
 		{
 			name:                    "tags enabled, with version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
 		},
 		{
 			name:                    "tags enabled, without version",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             false,
 			want:                    []string{"container_name:agent"},
 		},
 		{
 			name:                    "tags enabled, with version, tagger error",
+			hostname:                "hostname",
 			tlmContainerTagsEnabled: true,
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("no tags") },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return nil, errors.New("disabled") },
 			withVersion:             true,
 			want:                    []string{"version:" + version.AgentVersion},
+		},
+		{
+			name:                    "tags enabled, with version, with global tags (no hostname)",
+			hostname:                "",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			withVersion:             true,
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
+		},
+		{
+			name:                    "tags enabled, with version, with global tags (hostname present)",
+			hostname:                "hostname",
+			tlmContainerTagsEnabled: true,
+			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
+			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
+			withVersion:             true,
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer config.Datadog.Set("basic_telemetry_add_container_tags", nil)
-			config.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, nil, "hostname", time.Second)
+			defer pkgconfig.Datadog.Set("basic_telemetry_add_container_tags", nil)
+			pkgconfig.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
+			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
 		})
 	}
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := config.Datadog.GetInt("dogstatsd_pipeline_count")
-	config.Datadog.Set("dogstatsd_pipeline_count", 1)
-	defer config.Datadog.Set("dogstatsd_pipeline_count", pc)
+	pc := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_count")
+	pkgconfig.Datadog.Set("dogstatsd_pipeline_count", 1)
+	defer pkgconfig.Datadog.Set("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
 	opts := demuxTestOptions()
-	demux := InitAndStartAgentDemultiplexer(opts, "")
+	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s
 	expectedSeries := flushSomeSamples(demux)
 	assertSeriesEqual(t, s.series, expectedSeries)
-	s.AssertExpectations(t)
 }
 
 // The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.

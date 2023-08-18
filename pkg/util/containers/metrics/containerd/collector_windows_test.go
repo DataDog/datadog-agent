@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && windows
-// +build containerd,windows
 
 package containerd
 
@@ -23,9 +22,10 @@ import (
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestGetContainerStats_Containerd(t *testing.T) {
@@ -65,26 +65,29 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Windows metrics",
 			containerdMetrics: &types.Metric{
-				Data: windowsMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: windowsMetricsAny.GetTypeUrl(),
+					Value:   windowsMetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
 				CPU: &provider.ContainerCPUStats{
-					Total:  pointer.Float64Ptr(1000),
-					System: pointer.Float64Ptr(600),
-					User:   pointer.Float64Ptr(400),
+					Total:  pointer.Ptr(1000.0),
+					System: pointer.Ptr(600.0),
+					User:   pointer.Ptr(400.0),
 				},
 				Memory: &provider.ContainerMemStats{
-					UsageTotal:        pointer.Float64Ptr(1000),
-					PrivateWorkingSet: pointer.Float64Ptr(100),
-					CommitBytes:       pointer.Float64Ptr(1000),
-					CommitPeakBytes:   pointer.Float64Ptr(1500),
+					UsageTotal:        pointer.Ptr(1000.0),
+					PrivateWorkingSet: pointer.Ptr(100.0),
+					CommitBytes:       pointer.Ptr(1000.0),
+					CommitPeakBytes:   pointer.Ptr(1500.0),
 				},
 				IO: &provider.ContainerIOStats{
-					ReadBytes:       pointer.Float64Ptr(20),
-					WriteBytes:      pointer.Float64Ptr(10),
-					ReadOperations:  pointer.Float64Ptr(2),
-					WriteOperations: pointer.Float64Ptr(1),
+					ReadBytes:       pointer.Ptr(20.0),
+					WriteBytes:      pointer.Ptr(10.0),
+					ReadOperations:  pointer.Ptr(2.0),
+					WriteOperations: pointer.Ptr(1.0),
 				},
 			},
 		},
@@ -142,7 +145,10 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		{
 			name: "Windows",
 			containerdMetrics: &types.Metric{
-				Data: windowsMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: windowsMetricsAny.GetTypeUrl(),
+					Value:   windowsMetricsAny.GetValue(),
+				},
 			},
 			expectedNetworkStats: nil, // Does not return anything on Windows
 		},
@@ -191,14 +197,14 @@ func Test_fillStatsFromSpec(t *testing.T) {
 				Windows: &specs.Windows{
 					Resources: &specs.WindowsResources{
 						CPU: &specs.WindowsCPUResources{
-							Count: pointer.UInt64Ptr(5),
+							Count: pointer.Ptr(uint64(5)),
 						},
 					},
 				},
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(500),
+					Limit: pointer.Ptr(500.0),
 				},
 				Memory: &provider.ContainerMemStats{},
 			},
@@ -209,14 +215,14 @@ func Test_fillStatsFromSpec(t *testing.T) {
 				Windows: &specs.Windows{
 					Resources: &specs.WindowsResources{
 						CPU: &specs.WindowsCPUResources{
-							Maximum: pointer.UInt16Ptr(5000),
+							Maximum: pointer.Ptr(uint16(5000)),
 						},
 					},
 				},
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(50 * float64(system.HostCPUCount())),
+					Limit: pointer.Ptr(50 * float64(system.HostCPUCount())),
 				},
 				Memory: &provider.ContainerMemStats{},
 			},
@@ -227,17 +233,18 @@ func Test_fillStatsFromSpec(t *testing.T) {
 				Windows: &specs.Windows{
 					Resources: &specs.WindowsResources{
 						Memory: &specs.WindowsMemoryResources{
-							Limit: pointer.UInt64Ptr(500),
+							Limit: pointer.Ptr(uint64(500)),
 						},
 					},
 				},
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Float64Ptr(100 * float64(system.HostCPUCount())),
+					Limit:          pointer.Ptr(100 * float64(system.HostCPUCount())),
+					DefaultedLimit: true,
 				},
 				Memory: &provider.ContainerMemStats{
-					Limit: pointer.Float64Ptr(500),
+					Limit: pointer.Ptr(500.0),
 				},
 			},
 		},

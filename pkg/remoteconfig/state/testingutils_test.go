@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
+	"github.com/DataDog/go-tuf/pkg/keys"
+	"github.com/DataDog/go-tuf/sign"
+	"github.com/DataDog/go-tuf/util"
 	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/data"
-	"github.com/theupdateframework/go-tuf/pkg/keys"
-	"github.com/theupdateframework/go-tuf/sign"
-	"github.com/theupdateframework/go-tuf/util"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 )
@@ -158,7 +158,7 @@ func generateRCTargetFileMeta(data []byte, version int64) data.TargetFileMeta {
 		panic(err)
 	}
 	custom := generateFileMetaCustom(version)
-	tfm.FileMeta.Custom = &custom
+	tfm.Custom = &custom
 
 	return tfm
 }

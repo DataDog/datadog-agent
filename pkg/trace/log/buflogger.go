@@ -8,18 +8,26 @@ package log
 import (
 	"bytes"
 	"fmt"
+	"sync"
 )
 
 var _ Logger = (*buflogger)(nil)
 
 // NewBufferLogger creates a new Logger which outputs everything to the given buffer.
+// It is synchronised for concurrent use; as such, it is not optimal for use outside
+// testing environments.
 func NewBufferLogger(out *bytes.Buffer) Logger {
-	return &buflogger{out}
+	return &buflogger{buf: out}
 }
 
-type buflogger struct{ buf *bytes.Buffer }
+type buflogger struct {
+	mu  sync.Mutex
+	buf *bytes.Buffer
+}
 
 func (b *buflogger) logWithLevel(lvl string, msg string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.buf.WriteString(fmt.Sprintf("[%s] %s", lvl, msg))
 }
 

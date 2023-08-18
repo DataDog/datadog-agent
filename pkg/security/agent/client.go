@@ -14,13 +14,34 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
 // RuntimeSecurityClient is used to send request to security module
 type RuntimeSecurityClient struct {
 	apiClient api.SecurityModuleClient
 	conn      *grpc.ClientConn
+}
+
+// SecurityModuleClientWrapper represents a security module client
+type SecurityModuleClientWrapper interface {
+	DumpDiscarders() (string, error)
+	DumpProcessCache(withArgs bool) (string, error)
+	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
+	ListActivityDumps() (*api.ActivityDumpListMessage, error)
+	StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error)
+	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
+	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
+	GetConfig() (*api.SecurityConfigMessage, error)
+	GetStatus() (*api.Status, error)
+	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
+	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
+	GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error)
+	GetEvents() (api.SecurityModule_GetEventsClient, error)
+	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
+	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
+	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
+	Close()
 }
 
 // DumpDiscarders sends a request to dump discarders
@@ -105,6 +126,15 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 	return response, nil
 }
 
+// GetRuleSetReport gets the currently loaded policies from the system probe
+func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
+	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 // GetEvents returns a stream of events
 func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
 	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
@@ -123,6 +153,23 @@ func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetA
 	return stream, nil
 }
 
+// ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
+func (c *RuntimeSecurityClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
+	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{
+		IncludeCache: includeCache,
+	})
+}
+
+// SaveSecurityProfile saves the requested security profile to disk
+func (c *RuntimeSecurityClient) SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error) {
+	return c.apiClient.SaveSecurityProfile(context.Background(), &api.SecurityProfileSaveParams{
+		Selector: &api.WorkloadSelectorMessage{
+			Name: name,
+			Tag:  tag,
+		},
+	})
+}
+
 // Close closes the connection
 func (c *RuntimeSecurityClient) Close() {
 	c.conn.Close()
@@ -135,9 +182,14 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
-		return net.Dial("unix", url)
-	}))
+	conn, err := grpc.Dial(
+		socketPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
+		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+			return net.Dial("unix", url)
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}

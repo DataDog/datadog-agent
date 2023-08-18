@@ -7,10 +7,19 @@ package remoteconfighandler
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/cihub/seelog"
+	"github.com/davecgh/go-spew/spew"
 )
 
 type prioritySampler interface {
@@ -27,24 +36,38 @@ type rareSampler interface {
 
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
-	remoteClient    config.RemoteClient
-	prioritySampler prioritySampler
-	errorsSampler   errorsSampler
-	rareSampler     rareSampler
-	agentConfig     *config.AgentConfig
+	remoteClient                  config.RemoteClient
+	prioritySampler               prioritySampler
+	errorsSampler                 errorsSampler
+	rareSampler                   rareSampler
+	agentConfig                   *config.AgentConfig
+	configState                   *state.AgentConfigState
+	configSetEndpointFormatString string
 }
 
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
-	if conf.RemoteSamplingClient == nil {
+	if conf.RemoteConfigClient == nil {
+		return nil
+	}
+
+	level, err := pkglog.GetLogLevel()
+	if err != nil {
+		log.Errorf("couldn't get the default log level: %s", err)
 		return nil
 	}
 
 	return &RemoteConfigHandler{
-		remoteClient:    conf.RemoteSamplingClient,
+		remoteClient:    conf.RemoteConfigClient,
 		prioritySampler: prioritySampler,
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
 		agentConfig:     conf,
+		configState: &state.AgentConfigState{
+			FallbackLogLevel: level.String(),
+		},
+		configSetEndpointFormatString: fmt.Sprintf(
+			"http://%s/config/set?log_level=%%s", net.JoinHostPort(conf.ReceiverHost, strconv.Itoa(conf.ReceiverPort)),
+		),
 	}
 }
 
@@ -54,10 +77,62 @@ func (h *RemoteConfigHandler) Start() {
 	}
 
 	h.remoteClient.Start()
-	h.remoteClient.RegisterAPMUpdate(h.onUpdate)
+	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
+	h.remoteClient.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
 }
 
-func (h *RemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig) {
+func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig) {
+	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
+	if err != nil {
+		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
+		return
+	}
+
+	if len(mergedConfig.LogLevel) > 0 {
+		// Get the current log level
+		var newFallback seelog.LogLevel
+		newFallback, err = pkglog.GetLogLevel()
+		if err == nil {
+			h.configState.FallbackLogLevel = newFallback.String()
+			var resp *http.Response
+			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), "", nil)
+			if err == nil {
+				resp.Body.Close()
+				h.configState.LatestLogLevel = mergedConfig.LogLevel
+				pkglog.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
+			}
+		}
+	} else {
+		var currentLogLevel seelog.LogLevel
+		currentLogLevel, err = pkglog.GetLogLevel()
+		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
+			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
+			var resp *http.Response
+			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
+			if err == nil {
+				resp.Body.Close()
+			}
+		}
+	}
+
+	if err != nil {
+		log.Errorf("couldn't apply the remote configuration agent config: %s", err)
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			h.remoteClient.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			h.remoteClient.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
+}
+
+func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig) {
 	if len(update) == 0 {
 		log.Debugf("no samplers configuration in remote config update payload")
 		return
@@ -77,7 +152,7 @@ func (h *RemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig
 		}
 	}
 
-	log.Debugf("updating samplers with remote configuration: %v", samplerconfigPayload)
+	log.Debugf("updating samplers with remote configuration: %v", spew.Sdump(samplerconfigPayload))
 	h.updateSamplers(samplerconfigPayload)
 }
 

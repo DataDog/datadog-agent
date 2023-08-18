@@ -18,6 +18,8 @@ import (
 )
 
 func TestEmptyProxy(t *testing.T) {
+	setupTest(t)
+
 	r, err := http.NewRequest("GET", "https://test.com", nil)
 	require.Nil(t, err)
 
@@ -30,6 +32,8 @@ func TestEmptyProxy(t *testing.T) {
 }
 
 func TestHTTPProxy(t *testing.T) {
+	setupTest(t)
+
 	rHTTP, _ := http.NewRequest("GET", "http://test.com/api/v1?arg=21", nil)
 	rHTTPS, _ := http.NewRequest("GET", "https://test.com/api/v1?arg=21", nil)
 
@@ -48,6 +52,8 @@ func TestHTTPProxy(t *testing.T) {
 }
 
 func TestNoProxy(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
 	r3, _ := http.NewRequest("GET", "https://test_https.com/api/v1?arg=21", nil)
@@ -79,6 +85,8 @@ func TestNoProxy(t *testing.T) {
 }
 
 func TestNoProxyNonexactMatch(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 	r2, _ := http.NewRequest("GET", "http://test_http.com/api/v1?arg=21", nil)
 	r3, _ := http.NewRequest("GET", "https://test_https.com/api/v1?arg=21", nil)
@@ -124,6 +132,8 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 }
 
 func TestErrorParse(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://test_no_proxy.com/api/v1?arg=21", nil)
 
 	proxies := &config.Proxy{
@@ -137,6 +147,8 @@ func TestErrorParse(t *testing.T) {
 }
 
 func TestBadScheme(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "ftp://test.com", nil)
 
 	proxies := &config.Proxy{
@@ -150,11 +162,9 @@ func TestBadScheme(t *testing.T) {
 }
 
 func TestCreateHTTPTransport(t *testing.T) {
+	setupTest(t)
+
 	mockConfig := config.Mock(t)
-
-	skipSSL := config.Datadog.GetBool("skip_ssl_validation")
-	defer mockConfig.Set("skip_ssl_validation", skipSSL)
-
 	mockConfig.Set("skip_ssl_validation", false)
 	transport := CreateHTTPTransport()
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
@@ -171,6 +181,8 @@ func TestCreateHTTPTransport(t *testing.T) {
 }
 
 func TestNoProxyWarningMap(t *testing.T) {
+	setupTest(t)
+
 	r1, _ := http.NewRequest("GET", "http://api.test_http.com/api/v1?arg=21", nil)
 
 	proxies := &config.Proxy{
@@ -184,10 +196,12 @@ func TestNoProxyWarningMap(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 
-	assert.Equal(t, NoProxyIgnoredWarningMap["http://api.test_http.com"], true)
+	assert.True(t, noProxyIgnoredWarningMap["http://api.test_http.com"])
 }
 
 func TestMinTLSVersionFromConfig(t *testing.T) {
+	setupTest(t)
+
 	tests := []struct {
 		minTLSVersion string
 		expect        uint16

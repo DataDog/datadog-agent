@@ -5,13 +5,11 @@
 
 package model
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-
 // EventType describes the type of an event sent from the kernel
 type EventType uint32
 
 const (
-	// UnknownEventType unknow event
+	// UnknownEventType unknown event
 	UnknownEventType EventType = iota
 	// FileOpenEventType File open event
 	FileOpenEventType
@@ -45,7 +43,7 @@ const (
 	ExecEventType
 	// ExitEventType Exit event
 	ExitEventType
-	// InvalidateDentryEventType Dentry invalidated event
+	// InvalidateDentryEventType Dentry invalidated event (DEPRECATED)
 	InvalidateDentryEventType
 	// SetuidEventType setuid event
 	SetuidEventType
@@ -85,10 +83,20 @@ const (
 	VethPairEventType
 	// BindEventType Bind event
 	BindEventType
+	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
+	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
+	// AnomalyDetectionSyscallEventType Anomaly Detection Syscall event
+	AnomalyDetectionSyscallEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
+
+	// FirstEventType is the first valid event type
+	FirstEventType = FileOpenEventType
+
+	// LastEventType is the last valid event type
+	LastEventType = SyscallsEventType
 
 	// FirstDiscarderEventType first event that accepts discarders
 	FirstDiscarderEventType = FileOpenEventType
@@ -96,14 +104,15 @@ const (
 	// LastDiscarderEventType last event that accepts discarders
 	LastDiscarderEventType = FileRemoveXAttrEventType
 
+	// LastApproverEventType is the last event that accepts approvers
+	LastApproverEventType = SpliceEventType
+
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
 	CustomLostReadEventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
 	CustomRulesetLoadedEventType
-	// CustomNoisyProcessEventType is the custom event used to report the detection of a noisy process
-	CustomNoisyProcessEventType
 	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
@@ -188,8 +197,12 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case UnshareMountNsEventType:
+		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
+	case AnomalyDetectionSyscallEventType:
+		return "anomaly_detection_syscall"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -197,8 +210,6 @@ func (t EventType) String() string {
 		return "lost_events_write"
 	case CustomRulesetLoadedEventType:
 		return "ruleset_loaded"
-	case CustomNoisyProcessEventType:
-		return "noisy_process"
 	case CustomForkBombEventType:
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:
@@ -208,40 +219,4 @@ func (t EventType) String() string {
 	default:
 		return "unknown"
 	}
-}
-
-// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
-// the current algorithm is not efficient but allows us to reduce the number of conversion functions
-//nolint:deadcode,unused
-func ParseEvalEventType(eventType eval.EventType) EventType {
-	for i := uint64(0); i != uint64(MaxAllEventType); i++ {
-		if EventType(i).String() == eventType {
-			return EventType(i)
-		}
-	}
-
-	return UnknownEventType
-}
-
-var (
-	eventTypeStrings = map[string]EventType{}
-)
-
-func init() {
-	var eventType EventType
-	for i := uint64(0); i != uint64(MaxKernelEventType); i++ {
-		eventType = EventType(i)
-		eventTypeStrings[eventType.String()] = eventType
-	}
-}
-
-// ParseEventTypeStringSlice converts a list
-func ParseEventTypeStringSlice(eventTypes []string) []EventType {
-	var output []EventType
-	for _, eventTypeStr := range eventTypes {
-		if eventType := eventTypeStrings[eventTypeStr]; eventType != UnknownEventType {
-			output = append(output, eventType)
-		}
-	}
-	return output
 }
