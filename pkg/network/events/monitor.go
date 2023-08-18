@@ -17,11 +17,20 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var theMonitor atomic.Value
 var once sync.Once
 var initErr error
+
+type Process struct {
+	Pid         uint32
+	Envs        []string
+	ContainerID string
+	StartTime   int64
+	Expiry      int64
+}
 
 // Init initializes the events package
 func Init() error {
@@ -37,7 +46,7 @@ func Init() error {
 }
 
 type ProcessEventHandler interface {
-	HandleProcessEvent(*model.ProcessContext)
+	HandleProcessEvent(*Process)
 }
 
 // RegisterHandler registers a handler function for getting process events
@@ -54,11 +63,41 @@ func UnregisterHandler(handler ProcessEventHandler) {
 
 type eventHandlerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev *model.Event) {
+func (h *eventHandlerWrapper) HandleEvent(ev interface{}) {
+	if ev == nil {
+		log.Errorf("Received nil event")
+		return
+	}
+
+	evProcess, ok := ev.(*Process)
+	if !ok {
+		log.Errorf("Event is not a process")
+		return
+	}
+
 	m := theMonitor.Load()
 	if m != nil {
-		m.(*eventMonitor).HandleEvent(ev)
+		m.(*eventMonitor).HandleEvent(evProcess)
 	}
+}
+
+func (h *eventHandlerWrapper) Copy(ev *model.Event) interface{} {
+	m := theMonitor.Load()
+	if m != nil {
+		ev.ResolveFields()
+
+		var envCopy []string
+		copy(envCopy, ev.ProcessContext.EnvsEntry.Values)
+
+		return &Process{
+			Pid:         ev.ProcessContext.Pid,
+			ContainerID: ev.ProcessContext.ContainerID,
+			StartTime:   ev.ProcessContext.ExecTime.UnixNano(),
+			Envs:        envCopy,
+		}
+	}
+
+	return nil
 }
 
 func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
@@ -85,14 +124,12 @@ func newEventMonitor() (*eventMonitor, error) {
 	return &eventMonitor{}, nil
 }
 
-func (e *eventMonitor) HandleEvent(ev *model.Event) {
-	ev.ResolveFields()
-
+func (e *eventMonitor) HandleEvent(ev *Process) {
 	e.Lock()
 	defer e.Unlock()
 
 	for _, h := range e.handlers {
-		h.HandleProcessEvent(ev.ProcessContext)
+		h.HandleProcessEvent(ev)
 	}
 }
 

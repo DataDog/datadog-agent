@@ -16,7 +16,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
 
-	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -125,7 +125,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	return pc, nil
 }
 
-func (pc *processCache) HandleProcessEvent(entry *smodel.ProcessContext) {
+func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 
 	select {
 	case <-pc.stopped:
@@ -147,25 +147,23 @@ func (pc *processCache) HandleProcessEvent(entry *smodel.ProcessContext) {
 	}
 }
 
-func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
+func (pc *processCache) processEvent(entry *events.Process) *process {
 	var envs map[string]string
-	if entry.EnvsEntry != nil {
-		for _, v := range entry.EnvsEntry.Values {
-			k, v, _ := strings.Cut(v, "=")
-			if len(pc.filteredEnvs) > 0 {
-				if _, found := pc.filteredEnvs[k]; !found {
-					continue
-				}
+	for _, v := range entry.Envs {
+		k, v, _ := strings.Cut(v, "=")
+		if len(pc.filteredEnvs) > 0 {
+			if _, found := pc.filteredEnvs[k]; !found {
+				continue
 			}
+		}
 
-			if envs == nil {
-				envs = make(map[string]string)
-			}
-			envs[k] = v
+		if envs == nil {
+			envs = make(map[string]string)
+		}
+		envs[k] = v
 
-			if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
-				break
-			}
+		if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
+			break
 		}
 	}
 
@@ -177,7 +175,7 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 		Pid:         entry.Pid,
 		Envs:        envs,
 		ContainerID: entry.ContainerID,
-		StartTime:   entry.ExecTime.UnixNano(),
+		StartTime:   entry.StartTime,
 	}
 }
 
