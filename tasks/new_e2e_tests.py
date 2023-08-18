@@ -45,6 +45,7 @@ def run(
     skip="",
     cache=False,
     junit_tar="",
+    coverage=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -75,9 +76,13 @@ def run(
         envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
-
+    coverage_opt = ""
+    coverage_path = "coverage.out"
+    if coverage:
+        coverage_opt = f"-cover -covermode=count -coverprofile={coverage_path} -coverpkg=./...,github.com/DataDog/test-infra-definitions/..."
+    
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",
@@ -87,6 +92,7 @@ def run(
         "commit": get_git_commit(),
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
+        "coverage_opt": coverage_opt,
     }
 
     test_res = test_flavor(
@@ -114,6 +120,8 @@ def run(
         some_test_failed = some_test_failed or failed
         if failed:
             print(failure_string)
+    if coverage:
+        print(f"In folder `test/new-e2e`, run `go tool cover -html={coverage_path}` to generate HTML coverage report")
 
     if some_test_failed:
         # Exit if any of the modules failed
