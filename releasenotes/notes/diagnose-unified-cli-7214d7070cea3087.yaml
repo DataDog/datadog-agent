@@ -9,7 +9,7 @@
 enhancements:
   - |
     Unified ``agent diagnose`` command CLI by removing ``all``,
-    ``datadog-connectivity`` and ``metadata-availability`` subcommands.
+    ``datadog-connectivity``, and ``metadata-availability`` subcommands.
     These separate subcommands became one of the diagnose suites. The
     ``all`` subcommand became unnecessary.
 
