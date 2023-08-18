@@ -191,7 +191,7 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
         raise Exit(f"failed to copy kernel headers to shared dir {kernel_headers_dir}")
 
 
-def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, backup):
+def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, no_backup):
     arch = archs_mapping[platform.machine()]
     kernel_packages_sum = f"kernel-packages-{arch}.sum"
     kernel_packages_tar = f"kernel-packages-{arch}.tar"
@@ -206,7 +206,7 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
         return
 
     # backup kernel-packges
-    if backup:
+    if not no_backup:
         karch = karch_mapping[archs_mapping[platform.machine()]]
         ctx.run(
             f"find {kernel_packages_dir} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
@@ -228,9 +228,9 @@ def revert_rootfs(ctx, rootfs_dir, backup_dir):
     ctx.run(f"find {backup_dir} -name *qcow2 -type f -exec mv {{}} {rootfs_dir}/ \\;")
 
 
-def update_rootfs(ctx, rootfs_dir, backup_dir, backup):
+def update_rootfs(ctx, rootfs_dir, backup_dir, no_backup):
     # backup rootfs
-    if backup:
+    if not no_backup:
         ctx.run(f"find {rootfs_dir} -name *qcow2 -type f -exec cp {{}} {backup_dir}/ \\;")
         info("[+] Backed up rootfs")
 

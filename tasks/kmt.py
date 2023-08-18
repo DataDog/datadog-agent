@@ -89,7 +89,7 @@ def init(ctx, lite=False):
 
 
 @task
-def update_resources(ctx, backup=True):
+def update_resources(ctx, no_backup=False):
     warn("Updating resource dependencies will delete all running stacks.")
     if ask("are you sure you want to continue? (Y/n)") != "Y":
         raise Exit("[-] Update aborted")
@@ -97,8 +97,8 @@ def update_resources(ctx, backup=True):
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack), force=True)
 
-    update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR, backup)
-    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR, not backup)
+    update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR, no_backup)
+    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR, no_backup)
 
 
 @task
