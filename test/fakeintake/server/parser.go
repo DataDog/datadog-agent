@@ -62,8 +62,9 @@ func (fi *PayloadParser) parse(payload api.Payload, route string) error {
 		Data:      "",
 		Encoding:  payload.Encoding,
 	}
-	var err error
+
 	if payloadFunc, ok := fi.parserMap[route]; ok {
+		var err error
 		parsedPayload.Data, err = payloadFunc(payload)
 		if err != nil {
 			return err
