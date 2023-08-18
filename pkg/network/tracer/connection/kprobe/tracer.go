@@ -182,15 +182,6 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, perfHandlerTCP *dde
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func perCPUSupported() bool {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return false
-	}
-
-	return kv >= kernel.VersionCode(4, 7, 0)
-}
-
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
 	m := &manager.Manager{}
 	if err := initManager(m, config, perfHandlerTCP, runtimeTracer); err != nil {
