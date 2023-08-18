@@ -10,6 +10,7 @@ package usm
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -52,6 +53,9 @@ type ebpfProgram struct {
 	disabledProtocols []*protocols.ProtocolSpec
 
 	buildMode protocols.BuildMode
+
+	// Used for connection_protocol data expiration
+	mapCleaner *ddebpf.MapCleaner
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
@@ -143,10 +147,18 @@ func (e *ebpfProgram) Init() error {
 }
 
 func (e *ebpfProgram) Start() error {
+	mapCleaner, err := e.setupMapCleaner()
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+	} else {
+		e.mapCleaner = mapCleaner
+	}
+
 	return e.Manager.Start()
 }
 
 func (e *ebpfProgram) Close() error {
+	e.mapCleaner.Stop()
 	return e.Stop(manager.CleanAll)
 }
 
@@ -266,6 +278,29 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return e.InitWithOptions(buf, options)
+}
+
+const connProtoTTL = 3 * time.Minute
+const connProtoCleaningInterval = 5 * time.Minute
+
+func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
+	mapCleaner, err := ddebpf.NewMapCleaner(e.connectionProtocolMap, new(netebpf.ConnTuple), new(netebpf.ProtocolStackWrapper))
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := connProtoTTL.Nanoseconds()
+	mapCleaner.Clean(connProtoCleaningInterval, func(now int64, key, val interface{}) bool {
+		protoStack, ok := val.(*netebpf.ProtocolStackWrapper)
+		if !ok {
+			return false
+		}
+
+		updated := int64(protoStack.Updated)
+		return (now - updated) > ttl
+	})
+
+	return mapCleaner, nil
 }
 
 func getAssetName(module string, debug bool) string {
