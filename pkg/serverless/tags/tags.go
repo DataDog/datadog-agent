@@ -234,7 +234,7 @@ func getRuntime(procPath string, osReleasePath string, varName string) string {
 	runtime := ""
 	counter := 0
 	start := time.Now()
-	for len(runtime) == 0 && counter < 5 {
+	for len(runtime) == 0 && counter < 10 {
 		if counter > 0 {
 			time.Sleep(5 * time.Millisecond)
 		}
