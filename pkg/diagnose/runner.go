@@ -332,27 +332,6 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config) error {
 
 	if err != nil {
 		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-		return
-	}
-	for _, ds := range diagnoses {
-		suiteAlreadyReported := false
-		for _, d := range ds.SuiteDiagnoses {
-			c.increment(d.Result)
-
-			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
-				outputDot(w, &lastDot)
-				continue
-			}
-
-			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
-
-		// attempt to do so locally
-		diagCfg.RunLocal = true
-		diagnoses, err = Run(diagCfg)
-	}
-
-	if err != nil {
-		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
 		return err
 	}
 
