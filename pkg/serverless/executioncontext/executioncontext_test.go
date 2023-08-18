@@ -63,6 +63,17 @@ func TestSetFromInvocationWarmStart(t *testing.T) {
 	assert.Equal(false, coldStartTags.IsColdStart)
 }
 
+func TestSetArnFromExtensionResponse(t *testing.T) {
+	assert := assert.New(t)
+
+	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
+
+	ec := ExecutionContext{}
+	ec.SetArnFromExtensionResponse(testArn)
+
+	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
+}
+
 func TestUpdateFromStartLog(t *testing.T) {
 	assert := assert.New(t)
 

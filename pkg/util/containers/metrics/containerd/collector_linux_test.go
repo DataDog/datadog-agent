@@ -15,10 +15,12 @@ import (
 	v2 "github.com/containerd/cgroups/v2/stats"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/oci"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	"github.com/google/go-cmp/cmp"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -165,7 +167,10 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Linux cgroup v1 metrics",
 			containerdMetrics: &types.Metric{
-				Data: linuxCgroupV1MetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxCgroupV1MetricsAny.GetTypeUrl(),
+					Value:   linuxCgroupV1MetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
@@ -210,7 +215,10 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 		{
 			name: "Linux cgroup v2 metrics",
 			containerdMetrics: &types.Metric{
-				Data: linuxCgroupV2MetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxCgroupV2MetricsAny.GetTypeUrl(),
+					Value:   linuxCgroupV2MetricsAny.GetValue(),
+				},
 			},
 			expectedContainerStats: &provider.ContainerStats{
 				Timestamp: currentTime,
@@ -319,7 +327,10 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		{
 			name: "Linux with no interface mapping",
 			containerdMetrics: &types.Metric{
-				Data: linuxMetricsAny,
+				Data: &anypb.Any{
+					TypeUrl: linuxMetricsAny.GetTypeUrl(),
+					Value:   linuxMetricsAny.GetValue(),
+				},
 			},
 			expectedNetworkStats: &provider.ContainerNetworkStats{
 				BytesSent:   pointer.Ptr(220.0),
@@ -368,9 +379,8 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// ID and cache TTL not relevant for these tests
 			result, err := collector.GetContainerNetworkStats("", containerID, 10*time.Second)
+			require.NoError(t, err)
 			result.Timestamp = time.Time{} // We have no control over it, so set it to avoid checking it.
-
-			assert.NoError(t, err)
 			assert.Empty(t, cmp.Diff(test.expectedNetworkStats, result))
 		})
 	}

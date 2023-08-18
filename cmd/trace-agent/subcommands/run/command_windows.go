@@ -9,22 +9,14 @@ package run
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/runtime"
-	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-
-	"golang.org/x/sys/windows/svc"
-	"golang.org/x/sys/windows/svc/debug"
-	"golang.org/x/sys/windows/svc/eventlog"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 
 	"github.com/spf13/cobra"
 )
-
-var elog debug.Log
 
 type RunParams struct {
 	*subcommands.GlobalParams
@@ -48,24 +40,22 @@ func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 		"runs the trace-agent in debug mode.")
 }
 
-func Start(cliParams *RunParams, config config.Component) error {
-	// Entrypoint here
-
+func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
 	if !cliParams.Foreground {
-		isIntSess, err := svc.IsAnInteractiveSession()
-		if err != nil {
-			fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
-		}
-		if !isIntSess {
-			runService(cliParams, config)
+		if servicemain.RunningAsWindowsService() {
+			servicemain.Run(&service{cliParams: cliParams, defaultConfPath: defaultConfPath})
 			return nil
 		}
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	return runFx(ctx, cliParams, defaultConfPath)
+}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+func Run(cs *contextSupplier, cliParams *RunParams, config config.Component) error {
+	// Entrypoint here
 
-	// prepare go runtime
-	runtime.SetMaxProcs()
+	ctx, cancelFunc := context.WithCancel(cs.ctx)
 
 	// Handle stops properly
 	go func() {
@@ -75,32 +65,4 @@ func Start(cliParams *RunParams, config config.Component) error {
 
 	// Invoke the Agent
 	return runAgent(ctx, cliParams, config)
-}
-
-func runService(cliParams *RunParams, config config.Component) {
-	var err error
-	if cliParams.Debug {
-		elog = debug.New(tracecfg.ServiceName)
-	} else {
-		elog, err = eventlog.Open(tracecfg.ServiceName)
-		if err != nil {
-			return
-		}
-	}
-	defer elog.Close()
-
-	run := svc.Run
-	if cliParams.Debug {
-		run = debug.Run
-	}
-	elog.Info(0x40000007, tracecfg.ServiceName)
-	err = run(tracecfg.ServiceName, &myservice{
-		cliParams: cliParams,
-		config:    config,
-	})
-	if err != nil {
-		elog.Error(0xc0000008, err.Error())
-		return
-	}
-	elog.Info(0x40000004, tracecfg.ServiceName)
 }

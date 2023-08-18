@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -147,7 +147,7 @@ func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 		tracerJarPath:       javaUSMAgentJarPath,
 		injectionAllowRegex: buildRegex(c.JavaAgentAllowRegex, "allow"),
 		injectionBlockRegex: buildRegex(c.JavaAgentBlockRegex, "block"),
-		procRoot:            util.GetProcRoot(),
+		procRoot:            kernel.ProcFSRoot(),
 	}, nil
 }
 
@@ -216,7 +216,7 @@ func (p *javaTLSProgram) isAttachmentAllowed(pid uint32) bool {
 		return true
 	}
 
-	procCmdline := fmt.Sprintf("%s/%d/cmdline", util.HostProc(), pid)
+	procCmdline := fmt.Sprintf("%s/%d/cmdline", p.procRoot, pid)
 	cmd, err := os.ReadFile(procCmdline)
 	if err != nil {
 		log.Debugf("injection filter can't open commandline %q : %s", procCmdline, err)
@@ -255,7 +255,7 @@ func (p *javaTLSProgram) newJavaProcess(pid uint32) {
 	}
 }
 
-func (p *javaTLSProgram) PreStart(*manager.Manager) error {
+func (p *javaTLSProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
 	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
 	return nil
 }

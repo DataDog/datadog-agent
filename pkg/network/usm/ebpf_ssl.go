@@ -435,7 +435,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
-func (o *sslProgram) PreStart(*manager.Manager) error {
+func (o *sslProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
 	o.watcher.Start()
 	return nil
 }
@@ -532,7 +532,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.Fi
 					HookFuncName:            symbol,
 				}
 				if err := m.AddHook("", newProbe); err == nil {
-					ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, identifier.UID), "usm_tls")
+					ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
 				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {

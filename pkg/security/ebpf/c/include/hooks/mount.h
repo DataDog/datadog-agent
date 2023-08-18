@@ -107,13 +107,11 @@ int hook_mnt_want_write_file(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
-#ifndef USE_FENTRY
 // mnt_want_write_file_path was used on old kernels (RHEL 7)
 HOOK_ENTRY("mnt_want_write_file_path")
 int hook_mnt_want_write_file_path(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
-#endif
 
 HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
@@ -456,7 +454,7 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
     syscall->resolver.key = path_key;
     syscall->resolver.dentry = dentry;
     syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MOUNT_CALLBACK_KPROBE_KEY : DR_MOUNT_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.callback = select_dr_key(dr_type, DR_MOUNT_CALLBACK_KPROBE_KEY, DR_MOUNT_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
     syscall->resolver.sysretval = retval;
