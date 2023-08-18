@@ -8,8 +8,8 @@
 package cgroups
 
 import (
-	"bytes"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -22,28 +22,20 @@ const (
 // So "0,1,5-8" represents processors 0, 1, 5, 6, 7, 8.
 // The function returns the count of CPUs, in this case 6.
 func ParseCPUSetFormat(line string) uint64 {
-	lineRaw := []byte(line)
 	var numCPUs uint64
 
-	var currentSegment []byte
-	for len(lineRaw) != 0 {
-		nextStart := bytes.IndexByte(lineRaw, ',')
-		if nextStart == -1 {
-			currentSegment = lineRaw
-			lineRaw = nil
-		} else {
-			currentSegment = lineRaw[:nextStart]
-			lineRaw = lineRaw[nextStart+1:]
-		}
-
-		if split := bytes.IndexByte(currentSegment, '-'); split != -1 {
-			p0, _ := strconv.Atoi(string(currentSegment[:split]))
-			p1, _ := strconv.Atoi(string(currentSegment[split+1:]))
+	lineSlice := strings.Split(line, ",")
+	for _, l := range lineSlice {
+		lineParts := strings.Split(l, "-")
+		if len(lineParts) == 2 {
+			p0, _ := strconv.Atoi(lineParts[0])
+			p1, _ := strconv.Atoi(lineParts[1])
 			numCPUs += uint64(p1 - p0 + 1)
-		} else {
-			numCPUs += 1
+		} else if len(lineParts) == 1 {
+			numCPUs++
 		}
 	}
+
 	return numCPUs
 }
 

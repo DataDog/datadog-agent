@@ -24,10 +24,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 
 	var kernelStack, slab *uint64
 
-	if err := parse2ColumnStats(c.fr, c.pathFor("memory.stat"), 0, 1, func(keyRaw, valueRaw []byte) error {
-		key := string(keyRaw)
-		value := string(valueRaw)
-
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory.stat"), 0, 1, func(key, value string) error {
 		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			reportError(newValueError(value, err))
@@ -116,11 +113,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 	nilIfZero(&stats.SwapLimit)
 
-	if err := parse2ColumnStats(c.fr, c.pathFor("memory.events"), 0, 1, func(keyRaw, valueRaw []byte) error {
-		// the go compiler will avoid a copy here
-		key := string(keyRaw)
-		value := string(valueRaw)
-
+	if err := parse2ColumnStats(c.fr, c.pathFor("memory.events"), 0, 1, func(key, value string) error {
 		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			reportError(newValueError(value, err))
