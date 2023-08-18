@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// createDiagnoseTrace creates a httptrace.ClientTrace containing functions that display
+// createDiagnoseTraces creates a httptrace.ClientTrace containing functions that collects
 // additional information when a http.Client is sending requests
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
@@ -53,9 +53,8 @@ func createDiagnoseTraces(httpTraces []string) *httptrace.ClientTrace {
 	}
 }
 
-// writeWrapper is used to pass slice a io.Writer variable to the hooks so that they
-// can output into a terminal if the command is used via CLI or into a buffer
-// when requesting a flare
+// httpTraceContext collect reported HTTP traces into its holding array
+// to be retrieved later by client
 type httpTraceContext struct {
 	httpTraces []string
 	iter       int
@@ -69,7 +68,7 @@ func (c *httpTraceContext) connectStartHook(network, addr string) {
 }
 
 // connectDoneHook is called when the new connection to 'addr' completes
-// It displays the error message if there is one and indicates if this step was successful
+// It collects the error message if there is one and indicates if this step was successful
 func (c *httpTraceContext) connectDoneHook(network, addr string, err error) {
 	c.iter++
 	if err != nil {
@@ -94,7 +93,7 @@ func (c *httpTraceContext) getConnHook(hostPort string) {
 //   - New connection created 		: connectDoneHook ---> gotDoneHook
 //   - Previous connection retrieved : getConnHook     ---> gotConnHook
 //
-// This function only displays when a connection is retrieved.
+// This function only collects information when a connection is retrieved.
 // Information about new connection are reported by connectDoneHook
 func (c *httpTraceContext) gotConnHook(gci httptrace.GotConnInfo) {
 	if gci.Reused {
@@ -110,7 +109,7 @@ func (c *httpTraceContext) dnsStartHook(di httptrace.DNSStartInfo) {
 }
 
 // dnsDoneHook is called after the DNS lookup
-// It displays the error message if there is one and indicates if this step was successful
+// It collects the error message if there is one and indicates if this step was successful
 func (c *httpTraceContext) dnsDoneHook(di httptrace.DNSDoneInfo) {
 	c.iter++
 	if di.Err != nil {
@@ -128,7 +127,7 @@ func (c *httpTraceContext) tlsHandshakeStartHook() {
 }
 
 // tlsHandshakeDoneHook is called after the TLS Handshake
-// It displays the error message if there is one and indicates if this step was successful
+// It collects the error message if there is one and indicates if this step was successful
 func (c *httpTraceContext) tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
 	c.iter++
 	if err != nil {
@@ -141,7 +140,7 @@ func (c *httpTraceContext) tlsHandshakeDoneHook(cs tls.ConnectionState, err erro
 }
 
 // getTLSHandshakeHints is called when the TLS handshake fails.
-// It aims to give more context on why the handshake failed when the error displayed is not clear enough.
+// It aims to give more context on why the handshake failed when the error is not clear enough.
 func (c *httpTraceContext) getTLSHandshakeHints(err error) {
 	if strings.Contains(err.Error(), "first record does not look like a TLS handshake") {
 		c.iter++

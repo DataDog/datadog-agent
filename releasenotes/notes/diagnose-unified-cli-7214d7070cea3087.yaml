@@ -8,5 +8,20 @@
 ---
 enhancements:
   - |
-    Unified `agent diagnose` command CLI which includes "traditional"
-    and more recently added behavior.
+    Unified ``agent diagnose`` command CLI by removing ``all``,
+    ``datadog-connectivity`` and ``metadata-availability`` subcommands.
+    These separate subcommands became one of the diagnose suites. The
+    ``all`` subcommand became unnecessary.
+
+upgrade:
+  - |
+    ``datadog-connectivity`` and ``metadata-availability`` subcommands
+    do not exist anymore and their diagnoses are reported in a more
+    general and structured way.
+
+    Diagnostics previously reported via``datadog-connectivity``
+    subcommand will be reported now as part of
+    ``connectivity-datadog-core-endpoints``suite. Correspondingly,
+    diagnostics previously reported via``metadata-availability``
+    subcommand will be reported now as part of
+    ``connectivity-datadog-autodiscovery``suite.
