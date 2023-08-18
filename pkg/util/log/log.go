@@ -684,7 +684,7 @@ func InfofcStackDepth(depth int, context []interface{}, message string, params .
 
 // Infofc logs at the info level with context
 func Infofc(context []interface{}, message string, params ...interface{}) {
-	InfofcStackDepth(1, context, message, params)
+	InfofcStackDepth(1, context, message, params...)
 }
 
 // InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
