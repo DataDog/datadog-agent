@@ -17,6 +17,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -100,27 +101,47 @@ func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string
 		return nil
 	}
 
-	var val MapErrTelemetry
 	t := make(map[string]interface{})
-
 	for m, k := range b.mapKeys {
-		err := b.MapErrMap.Lookup(&k, &val)
-		if err != nil {
-			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
-			continue
-		}
-		if count := getMapErrCount(&val); len(count) > 0 {
+		if count, err := lookupPerCPUMapTelemetry(b.MapErrMap, k); err == nil && len(count) > 0 {
 			t[m] = count
+			// Emit telemetry as prometheus metrics.
 			for errStr, errCount := range count {
+				// Do not block when nil channel is provided
 				select {
 				case ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr):
 				default:
 				}
 			}
+		} else if err != nil {
+			log.Debugf("error getting telemetry for map %s: %v\n", m, err)
 		}
 	}
 
 	return t
+}
+
+func lookupPerCPUMapTelemetry(mapErrMap *ebpf.Map, key uint64) (map[string]uint64, error) {
+	// Since map telemetry is stored in per-cpu maps,
+	// we receive a list of `MapErrTelemetry` objects per cpu.
+	var vals []MapErrTelemetry
+
+	err := mapErrMap.Lookup(&key, &vals)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup key %d\n", key)
+	}
+
+	// Error telemetry is a monotonically increasing integer,
+	// so they can be combined commutatively
+	totalCount := make(map[string]uint64)
+	for _, v := range vals {
+		count := getMapErrCount(&v)
+		for errStr, cnt := range count {
+			totalCount[errStr] += cnt
+		}
+	}
+
+	return totalCount, nil
 }
 
 // GetHelperTelemetry returns a map of error telemetry for each ebpf program
@@ -133,7 +154,9 @@ func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[str
 		return nil
 	}
 
-	var val HelperErrTelemetry
+	// Since helper telemetry is stored in per-cpu maps,
+	// we receive a list of `HelperErrTelemetry` objects per cpu.
+	var val []HelperErrTelemetry
 	helperTelemMap := make(map[string]interface{})
 
 	for probeName, k := range b.probeKeys {
@@ -143,7 +166,7 @@ func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[str
 			continue
 		}
 
-		if t := getHelpersTelemetryForProbe(&val, probeName, ebpfHelperErrorsGauge, ch); len(t) > 0 {
+		if t := getHelpersTelemetryForProbe(val, probeName, ebpfHelperErrorsGauge, ch); len(t) > 0 {
 			helperTelemMap[probeName] = t
 		}
 	}
@@ -151,19 +174,29 @@ func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[str
 	return helperTelemMap
 }
 
-func getHelpersTelemetryForProbe(v *HelperErrTelemetry, probeName string, desc *prometheus.Desc, ch chan<- prometheus.Metric) map[string]interface{} {
+func getHelpersTelemetryForProbe(percpuTelemetry []HelperErrTelemetry, probeName string, desc *prometheus.Desc, ch chan<- prometheus.Metric) map[string]interface{} {
 	helper := make(map[string]interface{})
 
 	for indx, helperName := range helperNames {
-		if count := getErrCount(v, indx); len(count) > 0 {
-			helper[helperName] = count
+		totalHelperErrCount := make(map[string]uint64)
 
-			for errStr, errCount := range count {
-				// Do not block when nil channel is provided
-				select {
-				case ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr):
-				default:
+		for _, telemetry := range percpuTelemetry {
+			if count := getErrCount(&telemetry, indx); len(count) > 0 {
+				for errStr, errCount := range count {
+					totalHelperErrCount[errStr] += errCount
 				}
+			}
+		}
+		if len(totalHelperErrCount) > 0 {
+			helper[helperName] = totalHelperErrCount
+		}
+
+		// Emit helper telemetry as prometheus metrics.
+		for errStr, errCount := range totalHelperErrCount {
+			// Do not block when nil channel is provided
+			select {
+			case ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr):
+			default:
 			}
 		}
 	}
@@ -249,7 +282,7 @@ func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor 
 }
 
 func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
-	z := new(MapErrTelemetry)
+	var z []MapErrTelemetry
 	h := fnv.New64a()
 
 	for _, m := range maps {
@@ -261,9 +294,9 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 
 		h.Write([]byte(m.Name))
 		key := h.Sum64()
-		err := b.MapErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+		err := b.MapErrMap.Put(unsafe.Pointer(&key), z)
 		if err != nil {
-			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
+			return fmt.Errorf("failed to initialize telemetry struct for map %s: %v", m.Name, err)
 		}
 		h.Reset()
 
@@ -275,7 +308,7 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 }
 
 func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe) error {
-	z := new(HelperErrTelemetry)
+	var z []HelperErrTelemetry
 	h := fnv.New64a()
 
 	for _, p := range probes {
@@ -287,9 +320,9 @@ func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe)
 
 		h.Write([]byte(p.EBPFFuncName))
 		key := h.Sum64()
-		err := b.HelperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+		err := b.HelperErrMap.Put(unsafe.Pointer(&key), z)
 		if err != nil {
-			return fmt.Errorf("failed to initialize telemetry struct for map %s", p.EBPFFuncName)
+			return fmt.Errorf("failed to initialize telemetry struct for map %s: %v", p.EBPFFuncName, err)
 		}
 		h.Reset()
 
@@ -378,7 +411,8 @@ func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIde
 	return nil
 }
 
-// EBPF telemetry depends on the presence of the 'lock xadd' instruction
+// EBPF telemetry depends on the presence of per-cpu maps
+// and verifier from kernel 4.14+.
 func EBPFTelemetrySupported() bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
@@ -386,5 +420,5 @@ func EBPFTelemetrySupported() bool {
 		return false
 	}
 
-	return kversion >= kernel.VersionCode(4, 14, 0)
+	return (kversion >= kernel.VersionCode(4, 14, 0)) && (features.HaveMapType(ebpf.PerCPUHash) == nil)
 }
