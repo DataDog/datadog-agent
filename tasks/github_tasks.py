@@ -40,9 +40,9 @@ def trigger_macos_build(
         version_cache_file_content=version_cache,
     )
 
-    workflow_conclusion = follow_workflow_run(run)
+    workflow_conclusion, workflow_url = follow_workflow_run(run)
 
-    print_workflow_conclusion(workflow_conclusion)
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
 
     download_artifacts_with_retry(run, destination, retry_download, retry_interval)
 
