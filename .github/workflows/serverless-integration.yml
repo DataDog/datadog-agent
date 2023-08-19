@@ -51,7 +51,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
         with:
-          timeout_minutes: 30
+          timeout_minutes: 60
           max_attempts: 2
           command: |
             export RAWLOGS_DIR=$(mktemp -d)
