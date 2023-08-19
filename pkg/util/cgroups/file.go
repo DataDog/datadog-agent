@@ -9,16 +9,16 @@ package cgroups
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"strings"
-)
-
-const (
-	spaceSeparator = " "
+	"sync"
+	"unicode"
+	"unicode/utf8"
 )
 
 var defaultFileReader = &osFileReader{}
@@ -47,41 +47,64 @@ func (e *stopParsingError) Error() string {
 
 // returning an error will stop parsing and return the error
 // with the exception of stopParsingError that will return without error
-type parser func(string) error
+//
+// the input slice will get overwritten, and should be copied if it needs to escape the scope of the parser.
+type parser func([]byte) error
+
+var readerPool = sync.Pool{New: func() any { return bufio.NewReader(nil) }}
 
 func parseFile(fr fileReader, path string, p parser) error {
-	f, err := fr.open(path)
+	file, err := fr.open(path)
 	if err != nil {
-		return newFileSystemError(path, err)
+		return err
 	}
-	defer f.Close()
+	defer file.Close()
+	return readFile(file, p)
+}
 
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		line := s.Text()
-		err := p(line)
+func readFile(file io.Reader, p parser) error {
+	reader := readerPool.Get().(*bufio.Reader)
+	reader.Reset(file)
+	defer readerPool.Put(reader)
+
+	for {
+		line, isPrefix, err := reader.ReadLine()
+		if err == io.EOF {
+			break
+		}
+
+		// less efficient path, only if the line length exceeds the readers buffer
+		if isPrefix {
+			var accum []byte
+			accum = append(accum, line...)
+			for isPrefix {
+				line, isPrefix, _ = reader.ReadLine()
+				accum = append(accum, line...)
+			}
+			line = accum
+		}
+
+		err = p(line)
 		if err != nil {
 			if errors.Is(err, &stopParsingError{}) {
 				return nil
 			}
-
 			return err
 		}
 	}
-
 	return nil
 }
 
 func parseSingleSignedStat(fr fileReader, path string, val **int64) error {
-	return parseFile(fr, path, func(line string) error {
+	return parseFile(fr, path, func(line []byte) error {
 		// handle cgroupv2 max value, we usually consider max == no value (limit)
-		if line == "max" {
+		if bytes.Equal(line, []byte("max")) {
 			return &stopParsingError{}
 		}
 
-		value, err := strconv.ParseInt(line, 10, 64)
+		value, err := strconv.ParseInt(string(line), 10, 64)
 		if err != nil {
-			return newValueError(line, err)
+			return newValueError(string(line), err)
 		}
 		*val = &value
 		return &stopParsingError{}
@@ -89,7 +112,8 @@ func parseSingleSignedStat(fr fileReader, path string, val **int64) error {
 }
 
 func parseSingleUnsignedStat(fr fileReader, path string, val **uint64) error {
-	return parseFile(fr, path, func(line string) error {
+	return parseFile(fr, path, func(lineRaw []byte) error {
+		line := string(lineRaw)
 		// handle cgroupv2 max value, we usually consider max == no value (limit)
 		if line == "max" {
 			return &stopParsingError{}
@@ -105,8 +129,8 @@ func parseSingleUnsignedStat(fr fileReader, path string, val **uint64) error {
 }
 
 func parseColumnStats(fr fileReader, path string, valueParser func([]string) error) error {
-	err := parseFile(fr, path, func(line string) error {
-		splits := strings.Fields(line)
+	err := parseFile(fr, path, func(lineRaw []byte) error {
+		splits := strings.Fields(string(lineRaw))
 		return valueParser(splits)
 	})
 
@@ -114,21 +138,27 @@ func parseColumnStats(fr fileReader, path string, valueParser func([]string) err
 }
 
 // columns are 0-indexed, we skip malformed lines
-func parse2ColumnStats(fr fileReader, path string, keyColumn, valueColumn int, valueParser func(string, string) error) error {
-	lastIdx := valueColumn
-	if keyColumn > lastIdx {
-		lastIdx = keyColumn
-	}
+func parse2ColumnStats(fr fileReader, path string, keyColumn, valueColumn int, valueParser func([]byte, []byte) error) error {
+	err := parseFile(fr, path, func(lineRaw []byte) error {
 
-	err := parseFile(fr, path, func(line string) error {
-		splits := strings.SplitN(line, spaceSeparator, lastIdx+1)
-		if len(splits) <= lastIdx {
-			return nil
+		var (
+			i     int
+			key   []byte
+			value []byte
+			token []byte
+		)
+		for len(lineRaw) != 0 {
+			token, lineRaw = munchWhitespace(lineRaw)
+			if i == keyColumn {
+				key = token
+			}
+			if i == valueColumn {
+				value = token
+			}
+			i++
 		}
-
-		return valueParser(splits[keyColumn], splits[valueColumn])
+		return valueParser(key, value)
 	})
-
 	return err
 }
 
@@ -188,4 +218,33 @@ func parsePSI(fr fileReader, path string, somePsi, fullPsi *PSIStats) error {
 
 		return nil
 	})
+}
+
+// munchWhitespace reads the first token out of a unicode string, and returns a unicode string where the next call to munchWhitespace should pick up.
+// `in` is expected to be a valid unicode string (represented as a []byte to allow for zero-copy). `token` and `rest` are slices aliasing the same memory
+// as `in`.
+//
+// tok, rest := munchWhitespace("lorem ipsum dolor sit amet") => "lorem", "ipsum dolor sit amet"
+// tok, rest := munchWhitespace("ipsum dolor sit amet", "dolor sit amet")
+// ...
+func munchWhitespace(in []byte) (token, rest []byte) {
+
+	var cut int
+	for cut < len(in) {
+		r, size := utf8.DecodeRune(in[cut:])
+		if unicode.IsSpace(r) {
+			break
+		}
+		cut += size
+	}
+
+	cut2 := cut
+	for cut2 < len(in) {
+		r, size := utf8.DecodeRune(in[cut2:])
+		if !unicode.IsSpace(r) {
+			break
+		}
+		cut2 += size
+	}
+	return in[:cut], in[cut2:]
 }

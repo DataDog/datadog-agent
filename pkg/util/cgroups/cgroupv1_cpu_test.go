@@ -103,3 +103,26 @@ func TestCgroupV1CPUStats(t *testing.T) {
 		CPUCount:         pointer.Ptr(uint64(8)),
 	}, *stats))
 }
+
+func BenchmarkGetCPUStatsV1(b *testing.B) {
+	cfs := newCgroupMemoryFS("/test/fs/cgroup")
+	cfs.enableControllers("cpu")
+	cfs.enableControllers("cpuacct", "cpuset")
+
+	stats := &CPUStats{}
+	// Test failure if controller missing (cpu is missing)
+	cgFoo1 := cfs.createCgroupV1("foo1", containerCgroupKubePod(false))
+
+	// Test reading files in CPU controllers, all files present
+	createCgroupV1FakeCPUFiles(cfs, cgFoo1)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		err := cgFoo1.GetCPUStats(stats)
+		if err != nil {
+			b.Errorf("error in GetCPUStats: %v", err)
+			b.FailNow()
+		}
+	}
+}

@@ -54,8 +54,8 @@ func (c *cgroupV2) parseCPUController(stats *CPUStats) {
 func (c *cgroupV2) parseCPUSetController(stats *CPUStats) {
 	// Normally there's only one line, but as the parser works line by line anyway, we do support multiple lines
 	var cpuCount uint64
-	err := parseFile(c.fr, c.pathFor("cpuset.cpus.effective"), func(line string) error {
-		cpuCount += ParseCPUSetFormat(line)
+	err := parseFile(c.fr, c.pathFor("cpuset.cpus.effective"), func(lineRaw []byte) error {
+		cpuCount += ParseCPUSetFormat(string(lineRaw))
 		return nil
 	})
 
@@ -66,8 +66,11 @@ func (c *cgroupV2) parseCPUSetController(stats *CPUStats) {
 	}
 }
 
-func parseV2CPUStat(stats *CPUStats) func(key, value string) error {
-	return func(key, value string) error {
+func parseV2CPUStat(stats *CPUStats) func(keyRaw, valueRaw []byte) error {
+	return func(keyRaw, valueRaw []byte) error {
+		key := string(keyRaw)
+		value := string(valueRaw)
+
 		// Do not stop parsing the file if we cannot parse a single value
 		intVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
@@ -98,8 +101,11 @@ func parseV2CPUStat(stats *CPUStats) func(key, value string) error {
 	}
 }
 
-func parseV2CPUMax(stats *CPUStats) func(key, value string) error {
-	return func(limit, period string) error {
+func parseV2CPUMax(stats *CPUStats) func(keyRaw, valueRaw []byte) error {
+	return func(limitRaw, periodRaw []byte) error {
+		period := string(periodRaw)
+		limit := string(limitRaw)
+
 		periodVal, err := strconv.ParseUint(period, 10, 64)
 		if err == nil {
 			stats.SchedulerPeriod = pointer.Ptr(periodVal * uint64(time.Microsecond))
