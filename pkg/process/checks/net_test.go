@@ -77,21 +77,41 @@ func TestDNSNameEncoding(t *testing.T) {
 	}
 	assert.Equal(t, dns, dnsParsed)
 
-	//chunksBatch := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, true)
-	//connsBatch := chunksBatch.(*model.CollectorConnections)
-	//dnsParsedBatch := make(map[string]*model.DNSEntry)
-	//for _, conn := range p {
-	//	ip := conn.Raddr.Ip
-	//	dnsParsed[ip] = &model.DNSEntry{}
-	//	model.IterateDNSV2(conns.EncodedDnsLookups, ip,
-	//		func(i, total int, entry int32) bool {
-	//			host, e := connsBatch.GetDNSNameByOffset(entry)
-	//			assert.Nil(t, e)
-	//			assert.Equal(t, total, len(dns[ip].Names))
-	//			dnsParsed[ip].Names = append(dnsParsedBatch[ip].Names, host)
-	//			return true
-	//		})
-	//}
+}
+
+func TestDNSNameEncodingBatch(t *testing.T) {
+	p := makeConnections(5)
+	p[0].Raddr.Ip = "1.1.2.1"
+	p[1].Raddr.Ip = "1.1.2.2"
+	p[2].Raddr.Ip = "1.1.2.3"
+	p[3].Raddr.Ip = "1.1.2.4"
+	p[4].Raddr.Ip = "1.1.2.5"
+
+	dns := map[string]*model.DNSEntry{
+		"1.1.2.1": {Names: []string{"host1.domain.com"}},
+		"1.1.2.2": {Names: []string{"host2.domain.com", "host2.domain2.com"}},
+		"1.1.2.3": {Names: []string{"host3.domain.com", "host3.domain2.com", "host3.domain3.com"}},
+		"1.1.2.4": {Names: []string{"host4.domain.com"}},
+		"1.1.2.5": {Names: nil},
+	}
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	maxConnsPerMessage := 10
+	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, true)
+
+	conns := chunk.(*model.CollectorConnections)
+	dnsParsed := make(map[string]*model.DNSEntry)
+	for _, conn := range p {
+		ip := conn.Raddr.Ip
+		dnsParsed[ip] = &model.DNSEntry{}
+		model.IterateDNSV2(conns.EncodedDnsLookups, ip,
+			func(i, total int, entry int32) bool {
+				host, e := conns.GetDNSNameByOffset(entry)
+				assert.Nil(t, e)
+				assert.Equal(t, total, len(dns[ip].Names))
+				dnsParsed[ip].Names = append(dnsParsed[ip].Names, host)
+				return true
+			})
+	}
 	assert.Equal(t, dns, dnsParsed)
 
 }
@@ -169,6 +189,122 @@ func TestNetworkConnectionBatching(t *testing.T) {
 	}
 }
 
+func TestNetworkConnectionBatch(t *testing.T) {
+	for i, tc := range []struct {
+		cur, last     []*model.Connection
+		maxSize       int
+		expectedTotal int
+	}{
+		{
+			cur:           makeConnections(3),
+			maxSize:       1,
+			expectedTotal: 3,
+		},
+		{
+			cur:           makeConnections(3),
+			maxSize:       2,
+			expectedTotal: 3,
+		},
+		{
+			cur:           makeConnections(4),
+			maxSize:       10,
+			expectedTotal: 4,
+		},
+		{
+			cur:           makeConnections(4),
+			maxSize:       3,
+			expectedTotal: 4,
+		},
+		{
+			cur:           makeConnections(6),
+			maxSize:       2,
+			expectedTotal: 6,
+		},
+	} {
+		ctm := map[string]int64{}
+		rctm := map[string]*model.RuntimeCompilationTelemetry{}
+		khfr := model.KernelHeaderFetchResult_FetchNotAttempted
+		coretm := map[string]model.COREResult{}
+		ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+		chunk := processConnectionsBatch(&HostInfo{}, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, nil, ex, true)
+
+		total := 0
+		connections := chunk.(*model.CollectorConnections)
+		total += len(connections.Connections)
+
+		// make sure we could get container and pid mapping for connections
+		assert.Equal(t, len(connections.Connections), len(connections.ContainerForPid))
+		assert.Equal(t, "nid", connections.NetworkId)
+		for _, conn := range connections.Connections {
+			assert.Contains(t, connections.ContainerForPid, conn.Pid)
+			assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+		}
+
+		// ensure only first chunk has telemetry
+		assert.NotNil(t, connections.ConnTelemetryMap)
+		assert.NotNil(t, connections.CompilationTelemetryByAsset)
+		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
+	}
+}
+
+func TestNetworkConnectionBatchWithNoTelemetry(t *testing.T) {
+	for i, tc := range []struct {
+		cur, last     []*model.Connection
+		maxSize       int
+		expectedTotal int
+	}{
+		{
+			cur:           makeConnections(3),
+			maxSize:       1,
+			expectedTotal: 3,
+		},
+		{
+			cur:           makeConnections(3),
+			maxSize:       2,
+			expectedTotal: 3,
+		},
+		{
+			cur:           makeConnections(4),
+			maxSize:       10,
+			expectedTotal: 4,
+		},
+		{
+			cur:           makeConnections(4),
+			maxSize:       3,
+			expectedTotal: 4,
+		},
+		{
+			cur:           makeConnections(6),
+			maxSize:       2,
+			expectedTotal: 6,
+		},
+	} {
+		ctm := map[string]int64{}
+		rctm := map[string]*model.RuntimeCompilationTelemetry{}
+		khfr := model.KernelHeaderFetchResult_FetchNotAttempted
+		coretm := map[string]model.COREResult{}
+		ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+		chunk := processConnectionsBatch(&HostInfo{}, tc.maxSize, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, khfr, coretm, nil, nil, nil, nil, nil, ex, false)
+
+		total := 0
+		connections := chunk.(*model.CollectorConnections)
+		total += len(connections.Connections)
+
+		// make sure we could get container and pid mapping for connections
+		assert.Equal(t, len(connections.Connections), len(connections.ContainerForPid))
+		assert.Equal(t, "nid", connections.NetworkId)
+		for _, conn := range connections.Connections {
+			assert.Contains(t, connections.ContainerForPid, conn.Pid)
+			assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+		}
+
+		// ensure only first chunk has telemetry
+		assert.Nil(t, connections.ConnTelemetryMap)
+		assert.Nil(t, connections.CompilationTelemetryByAsset)
+		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
+	}
+}
+
 func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	p := makeConnections(4)
 
@@ -203,6 +339,36 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 			assert.Contains(t, connections.ContainerForPid, conn.Pid)
 			assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
 		}
+	}
+	assert.Equal(t, 4, total)
+}
+
+func TestNetworkConnectionBatchWithDNS(t *testing.T) {
+	p := makeConnections(4)
+
+	p[3].Raddr.Ip = "1.1.2.3"
+	dns := map[string]*model.DNSEntry{
+		"1.1.2.3": {Names: []string{"datacat.edu"}},
+	}
+
+	maxConnsPerMessage := 1
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, p, dns, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, true)
+
+	total := 0
+	connections := chunk.(*model.CollectorConnections)
+
+	assert.NotEmpty(t, connections.EncodedDnsLookups)
+
+	total += len(connections.Connections)
+	assert.Equal(t, int32(4), connections.GroupSize)
+
+	// make sure we could get container and pid mapping for connections
+	assert.Equal(t, len(connections.Connections), len(connections.ContainerForPid))
+	assert.Equal(t, "nid", connections.NetworkId)
+	for _, conn := range connections.Connections {
+		assert.Contains(t, connections.ContainerForPid, conn.Pid)
+		assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
 	}
 	assert.Equal(t, 4, total)
 }
@@ -243,6 +409,38 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 6, total)
+}
+
+func TestBatchSimilarConnectionsTogetherBatch(t *testing.T) {
+	p := makeConnections(6)
+
+	p[0].Raddr.Ip = "1.1.2.3"
+	p[1].Raddr.Ip = "1.2.3.4"
+	p[2].Raddr.Ip = "1.3.4.5"
+	p[3].Raddr.Ip = "1.1.2.3"
+	p[4].Raddr.Ip = "1.2.3.4"
+	p[5].Raddr.Ip = "1.3.4.5"
+
+	maxConnsPerMessage := 2
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, true)
+
+	total := 0
+	connections := chunk.(*model.CollectorConnections)
+	total += len(connections.Connections)
+	assert.Equal(t, int32(3), connections.GroupSize)
+	assert.Equal(t, 6, len(connections.Connections))
+
+	// make sure the connections with similar remote addresses were grouped together
+	assert.Equal(t, connections.Connections[0].Raddr.Ip, connections.Connections[1].Raddr.Ip)
+	assert.Equal(t, connections.Connections[2].Raddr.Ip, connections.Connections[3].Raddr.Ip)
+	assert.Equal(t, connections.Connections[4].Raddr.Ip, connections.Connections[5].Raddr.Ip)
+
+	//// make sure the connections with the same remote address are ordered by PID
+	assert.LessOrEqual(t, connections.Connections[0].Pid, connections.Connections[1].Pid)
+	assert.LessOrEqual(t, connections.Connections[2].Pid, connections.Connections[3].Pid)
+	assert.LessOrEqual(t, connections.Connections[4].Pid, connections.Connections[5].Pid)
+
 }
 
 func indexOf(s string, db []string) int32 {
@@ -392,6 +590,122 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	assert.Equal(t, 4, total)
 }
 
+func TestNetworkConnectionBatchWithDomainsByQueryType(t *testing.T) {
+	conns := makeConnections(4)
+
+	domains := []string{"foo.com", "bar.com", "baz.com"}
+	conns[1].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
+		0: {
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
+				int32(dns.TypeA): {
+					DnsTimeouts: 1,
+				},
+			},
+		},
+	}
+	conns[2].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
+		0: {
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
+				int32(dns.TypeA): {
+					DnsTimeouts: 2,
+				},
+			},
+		},
+		2: {
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
+				int32(dns.TypeA): {
+					DnsTimeouts: 3,
+				},
+			},
+		},
+	}
+	conns[3].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
+		1: {
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
+				int32(dns.TypeA): {
+					DnsTimeouts: 4,
+				},
+			},
+		},
+		2: {
+			DnsStatsByQueryType: map[int32]*model.DNSStats{
+				int32(dns.TypeA): {
+					DnsTimeouts: 5,
+				},
+			},
+		},
+	}
+	dnsmap := map[string]*model.DNSEntry{}
+
+	maxConnsPerMessage := 1
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, true)
+
+	total := 0
+	connections := chunk.(*model.CollectorConnections)
+	total += len(connections.Connections)
+
+	domaindb, _ := connections.GetDNSNames()
+
+	// verify nothing was put in the DnsStatsByDomain bucket by mistake
+	assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
+	assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
+
+	assert.Equal(t, len(domaindb), 3)
+	assert.Equal(t, domains[0], domaindb[0])
+	assert.Contains(t, domaindb, domains[1])
+	assert.Contains(t, domaindb, domains[2])
+
+	// check for correctness of the data
+	conn := connections.Connections[1]
+	assert.Equal(t, 1, len(conn.DnsStatsByDomainOffsetByQueryType))
+	// we don't know what hte offset will be, but since there's only one
+	// the iteration should only happen once
+	for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+		// first, verify the hostname is what we expect
+		domainstr, err := connections.GetDNSNameByOffset(off)
+		assert.Nil(t, err)
+		assert.Equal(t, domainstr, domains[0])
+		assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
+	}
+	conn = connections.Connections[2]
+	for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+		// first, verify the hostname is what we expect
+		domainstr, err := connections.GetDNSNameByOffset(off)
+		assert.Nil(t, err)
+
+		idx := indexOf(domainstr, domains)
+		assert.NotEqual(t, -1, idx)
+
+		switch idx {
+		case 0:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
+		case 2:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
+		default:
+			assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+		}
+	}
+	conn = connections.Connections[3]
+	for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+		// first, verify the hostname is what we expect
+		domainstr, err := connections.GetDNSNameByOffset(off)
+		assert.Nil(t, err)
+
+		idx := indexOf(domainstr, domains)
+		assert.NotEqual(t, -1, idx)
+
+		switch idx {
+		case 1:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
+		case 2:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
+		default:
+			assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+		}
+	}
+}
+
 func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns := makeConnections(4)
 
@@ -508,6 +822,102 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	assert.Equal(t, 4, total)
 }
 
+func TestNetworkConnectionBatchWithDomains(t *testing.T) {
+	conns := makeConnections(4)
+
+	domains := []string{"foo.com", "bar.com", "baz.com"}
+	conns[1].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {
+			DnsTimeouts: 1,
+		},
+	}
+	conns[2].DnsStatsByDomain = map[int32]*model.DNSStats{
+		0: {
+			DnsTimeouts: 2,
+		},
+		2: {
+			DnsTimeouts: 3,
+		},
+	}
+	conns[3].DnsStatsByDomain = map[int32]*model.DNSStats{
+		1: {
+			DnsTimeouts: 4,
+		},
+		2: {
+			DnsTimeouts: 5,
+		},
+	}
+	dnsmap := map[string]*model.DNSEntry{}
+
+	maxConnsPerMessage := 1
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, true)
+
+	total := 0
+	connections := chunk.(*model.CollectorConnections)
+	total += len(connections.Connections)
+
+	domaindb, _ := connections.GetDNSNames()
+
+	// verify nothing was put in the DnsStatsByDomain bucket by mistake
+	assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
+	// verify nothing was put in the DnsStatsByDomainByQueryType bucket by mistake
+	assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
+
+	assert.Equal(t, len(domaindb), 3)
+	assert.Equal(t, domains[0], domaindb[0])
+	assert.Contains(t, domaindb, domains[1])
+	assert.Contains(t, domaindb, domains[2])
+
+	// check for correctness of the data
+	conn := connections.Connections[1]
+	// we don't know what hte offset will be, but since there's only one
+	// the iteration should only happen once
+	for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+		// first, verify the hostname is what we expect
+		domainstr, err := connections.GetDNSNameByOffset(off)
+		assert.Nil(t, err)
+		assert.Equal(t, domainstr, domains[0])
+		assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
+	}
+	conn = connections.Connections[2]
+	for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+		// first, verify the hostname is what we expect
+		domainstr, err := connections.GetDNSNameByOffset(off)
+		assert.Nil(t, err)
+
+		idx := indexOf(domainstr, domains)
+		assert.NotEqual(t, -1, idx)
+
+		switch idx {
+		case 0:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
+		case 2:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
+		default:
+			assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+		}
+	}
+	conn = connections.Connections[3]
+	for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+		// first, verify the hostname is what we expect
+		domainstr, err := connections.GetDNSNameByOffset(off)
+		assert.Nil(t, err)
+
+		idx := indexOf(domainstr, domains)
+		assert.NotEqual(t, -1, idx)
+
+		switch idx {
+		case 1:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
+		case 2:
+			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
+		default:
+			assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+		}
+	}
+}
+
 func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	conns := makeConnections(8)
 
@@ -562,6 +972,53 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	assert.Equal(t, 8, total)
 }
 
+func TestNetworkConnectionBatchWithRoutes(t *testing.T) {
+	conns := makeConnections(8)
+
+	routes := []*model.Route{
+		{Subnet: &model.Subnet{Alias: "foo1"}},
+		{Subnet: &model.Subnet{Alias: "foo2"}},
+		{Subnet: &model.Subnet{Alias: "foo3"}},
+		{Subnet: &model.Subnet{Alias: "foo4"}},
+		{Subnet: &model.Subnet{Alias: "foo5"}},
+	}
+
+	conns[0].RouteIdx = 0
+	conns[1].RouteIdx = 1
+	conns[2].RouteIdx = 2
+	conns[3].RouteIdx = 3
+	conns[4].RouteIdx = -1
+	conns[5].RouteIdx = 4
+	conns[6].RouteIdx = 3
+	conns[7].RouteIdx = 2
+
+	maxConnsPerMessage := 4
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, routes, nil, nil, ex, true)
+
+	total := 0
+	connections := chunk.(*model.CollectorConnections)
+	total += len(connections.Connections)
+	require.Equal(t, int32(0), connections.Connections[0].RouteIdx)
+	require.Equal(t, int32(1), connections.Connections[1].RouteIdx)
+	require.Equal(t, int32(2), connections.Connections[2].RouteIdx)
+	require.Equal(t, int32(3), connections.Connections[3].RouteIdx)
+	require.Len(t, connections.Routes, 5)
+	require.Equal(t, routes[0].Subnet.Alias, connections.Routes[0].Subnet.Alias)
+	require.Equal(t, routes[1].Subnet.Alias, connections.Routes[1].Subnet.Alias)
+	require.Equal(t, routes[2].Subnet.Alias, connections.Routes[2].Subnet.Alias)
+	require.Equal(t, routes[3].Subnet.Alias, connections.Routes[3].Subnet.Alias)
+	require.Equal(t, int32(-1), connections.Connections[4].RouteIdx)
+	require.Equal(t, int32(0), connections.Connections[0].RouteIdx)
+	require.Equal(t, int32(1), connections.Connections[1].RouteIdx)
+	require.Equal(t, int32(2), connections.Connections[2].RouteIdx)
+	require.Len(t, connections.Routes, 5)
+	require.Equal(t, routes[4].Subnet.Alias, connections.Routes[4].Subnet.Alias)
+	require.Equal(t, routes[3].Subnet.Alias, connections.Routes[3].Subnet.Alias)
+	require.Equal(t, routes[2].Subnet.Alias, connections.Routes[2].Subnet.Alias)
+	assert.Equal(t, 8, total)
+}
+
 func TestNetworkConnectionTags(t *testing.T) {
 	conns := makeConnections(8)
 
@@ -611,6 +1068,58 @@ func TestNetworkConnectionTags(t *testing.T) {
 
 			foundTags = append(foundTags, fakeConn{tags: connections.GetConnectionsTags(conn.TagsIdx)})
 		}
+	}
+
+	assert.Equal(t, 8, total)
+	require.EqualValues(t, expectedTags, foundTags)
+}
+
+func TestNetworkConnectionBatchTags(t *testing.T) {
+	conns := makeConnections(8)
+
+	tags := []string{
+		"tag0",
+		"tag1",
+		"tag2",
+		"tag3",
+	}
+
+	conns[0].Tags = []uint32{0}
+	// conns[1] contains no tags
+	conns[2].Tags = []uint32{0, 2}
+	conns[3].Tags = []uint32{1, 2}
+	conns[4].Tags = []uint32{1}
+	conns[5].Tags = []uint32{2}
+	conns[6].Tags = []uint32{3}
+	conns[7].Tags = []uint32{2, 3}
+
+	type fakeConn struct {
+		tags []string
+	}
+	expectedTags := []fakeConn{
+		{tags: []string{"tag0"}},
+		{},
+		{tags: []string{"tag0", "tag2"}},
+		{tags: []string{"tag1", "tag2"}},
+		{tags: []string{"tag1"}},
+		{tags: []string{"tag2"}},
+		{tags: []string{"tag3"}},
+		{tags: []string{"tag2", "tag3"}},
+	}
+	foundTags := []fakeConn{}
+
+	maxConnsPerMessage := 4
+	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
+	batchChunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, tags, nil, ex, true)
+
+	total := 0
+	connections := batchChunk.(*model.CollectorConnections)
+	total += len(connections.Connections)
+	for _, conn := range connections.Connections {
+		// conn.Tags must be used between system-probe and the agent only
+		assert.Nil(t, conn.Tags)
+
+		foundTags = append(foundTags, fakeConn{tags: connections.GetConnectionsTags(conn.TagsIdx)})
 	}
 
 	assert.Equal(t, 8, total)
