@@ -261,7 +261,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 
 	if c.cdbName == "" {
-		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
+		row := db.QueryRow("SELECT /* DD */ lower(name) FROM v$database")
 		err = row.Scan(&c.cdbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
@@ -461,7 +461,7 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	if !pdb.Valid {
 		return tags
 	}
-	return append(tags, "pdb:"+pdb.String)
+	return append(tags, "pdb:"+strings.ToLower(pdb.String))
 }
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
