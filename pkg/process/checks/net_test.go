@@ -425,9 +425,7 @@ func TestBatchSimilarConnectionsTogetherBatch(t *testing.T) {
 	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
 	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, nil, nil, nil, ex, true)
 
-	total := 0
 	connections := chunk.(*model.CollectorConnections)
-	total += len(connections.Connections)
 	assert.Equal(t, int32(3), connections.GroupSize)
 	assert.Equal(t, 6, len(connections.Connections))
 
@@ -641,10 +639,7 @@ func TestNetworkConnectionBatchWithDomainsByQueryType(t *testing.T) {
 	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
 	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, true)
 
-	total := 0
 	connections := chunk.(*model.CollectorConnections)
-	total += len(connections.Connections)
-
 	domaindb, _ := connections.GetDNSNames()
 
 	// verify nothing was put in the DnsStatsByDomain bucket by mistake
@@ -853,17 +848,13 @@ func TestNetworkConnectionBatchWithDomains(t *testing.T) {
 	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))
 	chunk := processConnectionsBatch(&HostInfo{}, maxConnsPerMessage, 0, conns, dnsmap, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, domains, nil, nil, nil, ex, true)
 
-	total := 0
 	connections := chunk.(*model.CollectorConnections)
-	total += len(connections.Connections)
-
 	domaindb, _ := connections.GetDNSNames()
 
 	// verify nothing was put in the DnsStatsByDomain bucket by mistake
 	assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
 	// verify nothing was put in the DnsStatsByDomainByQueryType bucket by mistake
 	assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
-
 	assert.Equal(t, len(domaindb), 3)
 	assert.Equal(t, domains[0], domaindb[0])
 	assert.Contains(t, domaindb, domains[1])
