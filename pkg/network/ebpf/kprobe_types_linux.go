@@ -79,6 +79,10 @@ type ProtocolStack struct {
 	Encryption  uint8
 	Flags       uint8
 }
+type ProtocolStackWrapper struct {
+	Stack   ProtocolStack
+	Updated uint64
+}
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
@@ -109,4 +113,5 @@ type ClassificationProgram = uint32
 const (
 	ClassificationQueues ClassificationProgram = 0x2
 	ClassificationDBs    ClassificationProgram = 0x3
+	ClassificationGRPC   ClassificationProgram = 0x5
 )

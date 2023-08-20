@@ -23,8 +23,9 @@ import (
 	datadog "gopkg.in/zorkian/go-datadog-api.v2"
 )
 
-func TestAgentOnECS(t *testing.T) {
+func TestECSSuite(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	// Creating the stack
 	stackConfig := runner.ConfigMap{
@@ -36,6 +37,10 @@ func TestAgentOnECS(t *testing.T) {
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(context.Background(), "ecs-cluster", stackConfig, ecs.Run, false)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		infra.GetStackManager().DeleteStack(ctx, "ecs-cluster")
+	})
 
 	ecsClusterName := stackOutput.Outputs["ecs-cluster-name"].Value.(string)
 	ecsTaskFamily := stackOutput.Outputs["agent-fargate-task-family"].Value.(string)

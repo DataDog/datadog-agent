@@ -74,6 +74,7 @@ linters-settings:
     include-go-root: true
     packages-with-error-message:
       - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
+      - io/ioutil: "Deprecated since Go 1.16. Use package io or os instead."
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
     # Disable warnings for select Windows functions

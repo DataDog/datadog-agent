@@ -55,6 +55,8 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 	switch protocol {
 	case C.PROTOCOL_UNKNOWN:
 		return Unknown
+	case C.PROTOCOL_GRPC:
+		return GRPC
 	case C.PROTOCOL_HTTP:
 		return HTTP
 	case C.PROTOCOL_HTTP2:

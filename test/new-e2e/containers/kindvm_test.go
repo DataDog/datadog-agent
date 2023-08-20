@@ -37,12 +37,12 @@ func TestKindSuite(t *testing.T) {
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 	}
 
+	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		infra.GetStackManager().DeleteStack(ctx, "kind-cluster")
 	})
-
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
-	require.NoError(t, err)
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
 	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)

@@ -31,9 +31,6 @@ var (
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 )
 
-// ServiceName is the name that'll be used to register the Agent
-const ServiceName = "DatadogAgent"
-
 func osinit() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
@@ -43,8 +40,6 @@ func osinit() {
 		DefaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
 		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
-	} else {
-		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}
 
 	// Process Agent
