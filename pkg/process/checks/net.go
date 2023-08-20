@@ -549,7 +549,7 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	return tagsStr
 }
 
-// Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
+// Manage connections that have been split into batches from the system-probe
 func processConnectionsBatch(
 	hostInfo *HostInfo,
 	maxConnsPerMessage int,
