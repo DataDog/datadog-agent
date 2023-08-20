@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	//"log"
+	"math"
 	"testing"
 	"time"
 
@@ -123,27 +123,38 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func initAndStartAgentDemultiplexer() {
-	//deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	//demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
-
-	//aggregator.InitAndStartAgentDemultiplexer(nil, nil, demuxOpts(), "")
-}
-
-func TestChkRun(t *testing.T) {
-	//initAndStartAgentDemultiplexer()
+func initAndStartAgentDemultiplexer(t *testing.T) {
 	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
 
+	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
+}
+
+func getUsedPGA(db *sqlx.DB) (uint64, error) {
+	var pga uint64
+	err := chk.db.Get(&pga, `SELECT 
+	sum(p.pga_used_mem)
+FROM   v$session s,
+	v$process p
+WHERE  s.paddr = p.addr AND s.username = 'C##DATADOG'`)
+	return pga, err
+}
+
+func getSession(db *sqlx.DB) (string, error) {
+	var r string
+	err := chk.db.Get(&r, `SELECT sid || 'X' || serial# FROM v$session WHERE username = 'C##DATADOG'`)
+	return r, err
+}
+
+func TestChkRun(t *testing.T) {
+	initAndStartAgentDemultiplexer(t)
 	chk.dbmEnabled = true
 	chk.config.InstanceConfig.InstantClient = false
 
 	type RowsStruct struct {
 		N int `db:"N"`
 	}
-	r := RowsStruct{}
 
 	for _, tnsAlias := range []string{"", TNS_ALIAS} {
 		chk.db = nil
@@ -157,11 +168,31 @@ func TestChkRun(t *testing.T) {
 			driver = common.Godror
 		}
 
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 		err := chk.Run()
 		assert.NoError(t, err, "check run with %s driver", driver)
 
-		err = chk.db.Get(&r, "select /* DDTEST */ 1 n from dual")
-		assert.NoError(t, err, "running test statement with %s driver", driver)
+		pgaBefore, err := getUsedPGA(chk.db)
+		assert.NoError(t, err, "running statement with %s driver", driver)
+
+		sessionBefore, _ := getSession(chk.db)
+		_, err = chk.db.Exec(`begin
+				for i in 1..1000
+				loop
+				  execute immediate 'insert into t values (' || i || ')';
+				end loop;
+			  end ;`)
+		assert.NoError(t, err, "error generating statements with %s driver", driver)
+
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
+		chk.Run()
+		pgaAfter, _ := getUsedPGA(chk.db)
+		growth := math.Round(float64(pgaAfter-pgaBefore) / 1024 / 1024)
+		assert.Less(t, growth, float64(50), "PGA used changed between two consecutive runs")
+
+		sessionAfter, _ := getSession(chk.db)
+		assert.Equal(t, sessionBefore, sessionAfter, "The agent reconnected")
+
 	}
 }
 
