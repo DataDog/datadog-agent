@@ -239,13 +239,13 @@ func createCheckInstanceMetadata(checkID, configProvider, initConfig, instanceCo
 	checkInstanceMetadata["config.provider"] = configProvider
 
 	if withConfigs && config.Datadog.GetBool("inventories_checks_configuration_enabled") {
-		if instanceScrubbed, err := scrubber.ScrubString(instanceConfig); err != nil {
+		if instanceScrubbed, err := scrubber.ScrubYamlString(instanceConfig); err != nil {
 			log.Errorf("Could not scrub instance configuration for check id %s: %s", checkID, err)
 		} else {
 			checkInstanceMetadata["instance_config"] = strings.TrimSpace(instanceScrubbed)
 		}
 
-		if initScrubbed, err := scrubber.ScrubString(initConfig); err != nil {
+		if initScrubbed, err := scrubber.ScrubYamlString(initConfig); err != nil {
 			log.Errorf("Could not scrub init configuration for check id %s: %s", checkID, err)
 		} else {
 			checkInstanceMetadata["init_config"] = strings.TrimSpace(initScrubbed)
