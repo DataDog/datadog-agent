@@ -168,9 +168,9 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	runFallbackTests(t, "CORE and RC error", true, true, tests)
 }
 
-func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ *manager.Manager, _ manager.Options, _ *ddebpf.PerfHandler) (func(), error) {
-	return func(_ *config.Config, _ *manager.Manager, _ manager.Options, _ *ddebpf.PerfHandler) (func(), error) {
-		return closeFn, err
+func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
+		return nil, closeFn, err
 	}
 }
 
@@ -210,7 +210,7 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 			cfg.AllowPrecompiledFallback = te.allowPrebuiltFallback
 
 			prevOffsetGuessingRun := offsetGuessingRun
-			closeFn, tracerType, err := LoadTracer(cfg, nil, manager.Options{}, nil)
+			_, closeFn, tracerType, err := LoadTracer(cfg, manager.Options{}, nil)
 			if te.err == nil {
 				assert.NoError(t, err, "%+v", te)
 			} else {
@@ -245,14 +245,14 @@ func TestCORETracerSupported(t *testing.T) {
 	})
 
 	coreCalled := false
-	coreTracerLoader = func(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
 		coreCalled = true
-		return nil, nil
+		return nil, nil, nil
 	}
 	prebuiltCalled := false
-	prebuiltTracerLoader = func(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
 		prebuiltCalled = true
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	kv, err := kernel.HostVersion()
@@ -264,7 +264,7 @@ func TestCORETracerSupported(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableCORE = true
 	cfg.AllowRuntimeCompiledFallback = false
-	_, _, err = LoadTracer(cfg, nil, manager.Options{}, nil)
+	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil)
 	assert.False(t, prebuiltCalled)
 	if kv < kernel.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
 		assert.False(t, coreCalled)
@@ -277,7 +277,7 @@ func TestCORETracerSupported(t *testing.T) {
 	coreCalled = false
 	prebuiltCalled = false
 	cfg.AllowRuntimeCompiledFallback = true
-	_, _, err = LoadTracer(cfg, nil, manager.Options{}, nil)
+	_, _, _, err = LoadTracer(cfg, manager.Options{}, nil)
 	assert.NoError(t, err)
 	if kv < kernel.VersionCode(4, 4, 128) && platform != "centos" && platform != "redhat" {
 		assert.False(t, coreCalled)

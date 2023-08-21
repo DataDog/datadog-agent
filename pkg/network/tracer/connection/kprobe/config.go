@@ -39,6 +39,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}

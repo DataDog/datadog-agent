@@ -28,6 +28,7 @@ const (
 	clcRunnerPath        = "api/v1/clcrunner"
 	clcRunnerVersionPath = "version"
 	clcRunnerStatsPath   = "stats"
+	clcRunnerWorkersPath = "workers"
 )
 
 var globalCLCRunnerClient *CLCRunnerClient
@@ -36,6 +37,7 @@ var globalCLCRunnerClient *CLCRunnerClient
 type CLCRunnerClientInterface interface {
 	GetVersion(IP string) (version.Version, error)
 	GetRunnerStats(IP string) (types.CLCRunnersStats, error)
+	GetRunnerWorkers(IP string) (types.Workers, error)
 }
 
 // CLCRunnerClient is required to query the API of Datadog Cluster Level Check Runner
@@ -142,6 +144,38 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 	delete(stats, "")
 
 	return stats, err
+}
+
+// GetRunnerWorkers fetches the runner workers information exposed by the Cluster Level Check Runner
+func (c *CLCRunnerClient) GetRunnerWorkers(IP string) (types.Workers, error) {
+	var workers types.Workers
+
+	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerWorkersPath)
+
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return workers, err
+	}
+	req.Header = c.clcRunnerAPIRequestHeaders
+
+	resp, err := c.clcRunnerAPIClient.Do(req)
+	if err != nil {
+		return workers, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return workers, fmt.Errorf("unexpected status code from CLC runner: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return workers, err
+	}
+
+	err = json.Unmarshal(body, &workers)
+
+	return workers, err
 }
 
 // init globalCLCRunnerClient
