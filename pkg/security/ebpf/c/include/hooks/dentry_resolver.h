@@ -111,11 +111,8 @@ void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type)
 
     if (syscall->resolver.callback >= 0) {
         switch (dr_type) {
-        case DR_KPROBE:
-            bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_callbacks, syscall->resolver.callback);
-            break;
-        case DR_FENTRY:
-            bpf_tail_call_compat(ctx, &dentry_resolver_fentry_callbacks, syscall->resolver.callback);
+        case DR_KPROBE_OR_FENTRY:
+            bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_callbacks, syscall->resolver.callback);
             break;
         case DR_TRACEPOINT:
             bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_callbacks, syscall->resolver.callback);

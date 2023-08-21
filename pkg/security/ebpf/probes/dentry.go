@@ -13,15 +13,8 @@ import (
 
 // getDentryResolverTailCallRoutes is the list of routes used during the dentry resolution process
 func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool, fentry bool) []manager.TailCallRoute {
-	var dentryResolverProgs string
-	var dentryCallbackProgs string
-	if fentry {
-		dentryResolverProgs = "dentry_resolver_fentry_progs"
-		dentryCallbackProgs = "dentry_resolver_fentry_callbacks"
-	} else {
-		dentryResolverProgs = "dentry_resolver_kprobe_progs"
-		dentryCallbackProgs = "dentry_resolver_kprobe_callbacks"
-	}
+	dentryResolverProgs := "dentry_resolver_kprobe_or_fentry_progs"
+	dentryCallbackProgs := "dentry_resolver_kprobe_or_fentry_callbacks"
 
 	routes := []manager.TailCallRoute{
 		// activity dump filter programs
