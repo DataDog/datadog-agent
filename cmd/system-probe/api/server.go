@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const MaxGRPCSererMessage = 100 * 1024 * 1024
+
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
@@ -37,7 +39,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 		if err != nil {
 			return fmt.Errorf("error creating IPC socket: %s", err)
 		}
-		grpcServer = grpc.NewServer(grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024))
+		grpcServer = grpc.NewServer(grpc.MaxRecvMsgSize(MaxGRPCSererMessage), grpc.MaxSendMsgSize(MaxGRPCSererMessage))
 	}
 
 	mux := gorilla.NewRouter()

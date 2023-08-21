@@ -8,13 +8,14 @@ package checks
 import (
 	"context"
 	"errors"
-	"google.golang.org/grpc"
 	"io"
 	"sort"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -163,7 +164,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		defer conn.Close()
 		client := connectionserver.NewSystemProbeClient(conn)
 
-		response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: c.tracerClientID}, grpc.MaxCallRecvMsgSize(100*1024*1024), grpc.MaxCallSendMsgSize(100*1024*1024))
+		response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: c.tracerClientID}, grpc.MaxCallRecvMsgSize(api.MaxGRPCSererMessage), grpc.MaxCallSendMsgSize(api.MaxGRPCSererMessage))
 		if err != nil {
 			return nil, err
 		}
