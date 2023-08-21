@@ -131,7 +131,7 @@ int tracepoint_dentry_resolver_kern(void *ctx) {
 }
 
 TAIL_CALL_TARGET("dentry_resolver_kern")
-int fentry_dentry_resolver_kern(ctx_t *ctx) {
+int tail_call_target_dentry_resolver_kern(ctx_t *ctx) {
     dentry_resolver_kern(ctx, DR_KPROBE_OR_FENTRY);
     return 0;
 }
