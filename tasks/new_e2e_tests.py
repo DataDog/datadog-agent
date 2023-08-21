@@ -46,6 +46,7 @@ def run(
     cache=False,
     junit_tar="",
     coverage=False,
+    test_run_name=""
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -81,8 +82,12 @@ def run(
     if coverage:
         coverage_opt = f"-cover -covermode=count -coverprofile={coverage_path} -coverpkg=./...,github.com/DataDog/test-infra-definitions/..."
     
+    test_run_arg = ""
+    if test_run_name != "":
+        test_run_arg = f"-run {test_run_name}"
+
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",
@@ -93,6 +98,7 @@ def run(
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
         "coverage_opt": coverage_opt,
+        "test_run_arg": test_run_arg,
     }
 
     test_res = test_flavor(
