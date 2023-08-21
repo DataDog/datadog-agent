@@ -9,7 +9,6 @@ import (
 	"context"
 	"os"
 	"path"
-	"sync"
 	"time"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
@@ -18,11 +17,10 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	containerMetadata "github.com/DataDog/datadog-agent/pkg/util/containers/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -54,7 +52,7 @@ func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      hostMetadataUtils.GetHostTags(ctx, false, config.Datadog),
-		ContainerMeta: getContainerMeta(1 * time.Second),
+		ContainerMeta: containerMetadata.Get(1 * time.Second),
 		NetworkMeta:   getNetworkMeta(ctx),
 		LogsMeta:      getLogsMeta(),
 		InstallMethod: getInstallMethod(getInstallInfoPath()),
@@ -97,49 +95,6 @@ func getNetworkMeta(ctx context.Context) *NetworkMeta {
 	return networkMeta
 }
 
-func getContainerMeta(timeout time.Duration) map[string]string {
-	wg := sync.WaitGroup{}
-	containerMeta := make(map[string]string)
-	// protecting the above map from concurrent access
-	mutex := &sync.Mutex{}
-
-	for provider, getMeta := range container.DefaultCatalog {
-		wg.Add(1)
-		go func(provider string, getMeta container.MetadataProvider) {
-			defer wg.Done()
-			meta, err := getMeta()
-			if err != nil {
-				log.Debugf("Unable to get %s metadata: %s", provider, err)
-				return
-			}
-			mutex.Lock()
-			for k, v := range meta {
-				containerMeta[k] = v
-			}
-			mutex.Unlock()
-		}(provider, getMeta)
-	}
-	// we want to timeout even if the wait group is not done yet
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-	select {
-	case <-c:
-		return containerMeta
-	case <-time.After(timeout):
-		// in this case the map might be incomplete so return a copy to avoid race
-		incompleteMeta := make(map[string]string)
-		mutex.Lock()
-		for k, v := range containerMeta {
-			incompleteMeta[k] = v
-		}
-		mutex.Unlock()
-		return incompleteMeta
-	}
-}
-
 func getLogsMeta() *LogsMeta {
 	return &LogsMeta{
 		Transport:            string(status.CurrentTransport),
@@ -152,9 +107,6 @@ func getLogsMeta() *LogsMeta {
 // ProxyBehaviorChanged is true in the metadata if there would be any errors or warnings indicating that there would a
 // behavior change if 'no_proxy_nonexact_match' was enabled.
 func getProxyMeta() *ProxyMeta {
-	httputils.NoProxyMapMutex.Lock()
-	defer httputils.NoProxyMapMutex.Unlock()
-
 	NoProxyNonexactMatchExplicitlySetState := false
 	NoProxyNonexactMatch := false
 	if config.Datadog.IsSet("no_proxy_nonexact_match") {
@@ -164,7 +116,7 @@ func getProxyMeta() *ProxyMeta {
 
 	return &ProxyMeta{
 		NoProxyNonexactMatch:              NoProxyNonexactMatch,
-		ProxyBehaviorChanged:              len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0,
+		ProxyBehaviorChanged:              httputils.GetNumberOfWarnings() > 0,
 		NoProxyNonexactMatchExplicitlySet: NoProxyNonexactMatchExplicitlySetState,
 	}
 }
@@ -199,9 +151,6 @@ func getInstallMethod(infoPath string) *InstallMethod {
 
 	// if we could not get install info
 	if err != nil {
-		inventories.SetAgentMetadata(inventories.AgentInstallMethodTool, "undefined")
-		inventories.SetAgentMetadata(inventories.AgentInstallMethodToolVersion, "")
-		inventories.SetAgentMetadata(inventories.AgentInstallMethodInstallerVersion, "")
 		// consider install info is kept "undefined"
 		return &InstallMethod{
 			ToolVersion:      "undefined",
@@ -210,9 +159,6 @@ func getInstallMethod(infoPath string) *InstallMethod {
 		}
 	}
 
-	inventories.SetAgentMetadata(inventories.AgentInstallMethodTool, install.Method.Tool)
-	inventories.SetAgentMetadata(inventories.AgentInstallMethodToolVersion, install.Method.ToolVersion)
-	inventories.SetAgentMetadata(inventories.AgentInstallMethodInstallerVersion, install.Method.InstallerVersion)
 	return &InstallMethod{
 		ToolVersion:      install.Method.ToolVersion,
 		Tool:             &install.Method.Tool,

@@ -8,13 +8,14 @@ package config
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +25,7 @@ const (
 )
 
 func setEnv() {
-	if coreconfig.IsContainerized() && util.PathExists("/host") {
+	if coreconfig.IsContainerized() && filesystem.FileExists("/host") {
 		if v := os.Getenv("HOST_PROC"); v == "" {
 			os.Setenv("HOST_PROC", "/host/proc")
 		}
@@ -153,7 +154,7 @@ func NewConfig() (*Config, error) {
 		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
 		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:         getBool("event_stream.use_fentry"),
+		EventStreamUseFentry:         getEventStreamFentryValue(),
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
@@ -223,6 +224,21 @@ func (c *Config) sanitizeConfigNetwork() {
 		if !lazyInterfaces[name] {
 			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
 		}
+	}
+}
+
+func getEventStreamFentryValue() bool {
+	if getBool("event_stream.use_fentry") {
+		return true
+	}
+
+	switch runtime.GOARCH {
+	case "amd64":
+		return getBool("event_stream.use_fentry_amd64")
+	case "arm64":
+		return getBool("event_stream.use_fentry_arm64")
+	default:
+		return false
 	}
 }
 

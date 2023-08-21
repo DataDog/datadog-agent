@@ -91,4 +91,14 @@ exit:
     return 0;
 }
 
+int __attribute__((always_inline)) select_dr_key(int dr_type, int kprobe_key, int tracepoint_key) {
+    switch (dr_type) {
+    case DR_KPROBE:
+    case DR_FENTRY:
+        return kprobe_key;
+    default: // DR_TRACEPOINT
+        return tracepoint_key;
+    }
+}
+
 #endif

@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"go.uber.org/atomic"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -35,13 +36,20 @@ func Init() error {
 	return initErr
 }
 
-// HandlerFunc is the prototype for an event handler callback for process events
-type HandlerFunc func(*model.ProcessContext)
+type ProcessEventHandler interface {
+	HandleProcessEvent(*model.ProcessContext)
+}
 
 // RegisterHandler registers a handler function for getting process events
-func RegisterHandler(handler HandlerFunc) {
+func RegisterHandler(handler ProcessEventHandler) {
 	m := theMonitor.Load().(*eventMonitor)
 	m.RegisterHandler(handler)
+}
+
+// UnregisterHandler unregisters a handler function for getting process events
+func UnregisterHandler(handler ProcessEventHandler) {
+	m := theMonitor.Load().(*eventMonitor)
+	m.UnregisterHandler(handler)
 }
 
 type eventHandlerWrapper struct{}
@@ -70,7 +78,7 @@ func Handler() sprobe.EventHandler {
 type eventMonitor struct {
 	sync.Mutex
 
-	handlers []HandlerFunc
+	handlers []ProcessEventHandler
 }
 
 func newEventMonitor() (*eventMonitor, error) {
@@ -84,14 +92,14 @@ func (e *eventMonitor) HandleEvent(ev *model.Event) {
 	defer e.Unlock()
 
 	for _, h := range e.handlers {
-		h(ev.ProcessContext)
+		h.HandleProcessEvent(ev.ProcessContext)
 	}
 }
 
 func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 
-func (e *eventMonitor) RegisterHandler(handler HandlerFunc) {
+func (e *eventMonitor) RegisterHandler(handler ProcessEventHandler) {
 	if handler == nil {
 		return
 	}
@@ -100,5 +108,17 @@ func (e *eventMonitor) RegisterHandler(handler HandlerFunc) {
 	defer e.Unlock()
 
 	e.handlers = append(e.handlers, handler)
+}
 
+func (e *eventMonitor) UnregisterHandler(handler ProcessEventHandler) {
+	if handler == nil {
+		return
+	}
+
+	e.Lock()
+	defer e.Unlock()
+
+	if idx := slices.Index(e.handlers, handler); idx >= 0 {
+		e.handlers = slices.Delete(e.handlers, idx, idx+1)
+	}
 }

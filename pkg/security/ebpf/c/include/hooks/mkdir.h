@@ -81,7 +81,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0;
-    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MKDIR_CALLBACK_KPROBE_KEY : DR_MKDIR_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.callback = select_dr_key(dr_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
     syscall->resolver.sysretval = retval;

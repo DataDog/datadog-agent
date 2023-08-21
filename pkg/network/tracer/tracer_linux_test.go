@@ -34,6 +34,8 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -48,10 +50,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -791,7 +791,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	// run tcp server in test1 net namespace
 	var server *TCPServer
-	err = util.WithNS(test1Ns, func() error {
+	err = kernel.WithNS(test1Ns, func() error {
 		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
 		return server.Run()
 	})
@@ -824,7 +824,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		err = util.WithNS(test2Ns, func() error {
+		err = kernel.WithNS(test2Ns, func() error {
 			var err error
 			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
 			return err
@@ -848,7 +848,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 		// try connecting to something outside
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
-		util.WithNS(test2Ns, func() error {
+		kernel.WithNS(test2Ns, func() error {
 			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
 			return nil
 		})
@@ -1855,7 +1855,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
 	require.True(t, ok)
-	assert.NotZero(t, tcpStatsErrors["file exists"])
+	assert.NotZero(t, tcpStatsErrors["EEXIST"])
 }
 
 func sysOpenAt2Supported() bool {
@@ -1917,7 +1917,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
 	require.True(t, ok)
 
-	badAddressCnt, ok := probeReadUserError["bad address"]
+	badAddressCnt, ok := probeReadUserError["EFAULT"]
 	require.True(t, ok)
 	assert.NotZero(t, badAddressCnt)
 }
@@ -2030,4 +2030,21 @@ func testConfig() *config.Config {
 		cfg.CollectUDPv6Conns = false
 	}
 	return cfg
+}
+
+func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
+	t := s.T()
+	cfg := testConfig()
+	// disable IPv6 via config to trigger logic in GuessSocketSK
+	cfg.CollectTCPv6Conns = false
+	cfg.CollectUDPv6Conns = false
+	kv, err := kernel.HostVersion()
+	kv470 := kernel.VersionCode(4, 7, 0)
+	require.NoError(t, err)
+	if kv >= kv470 {
+		// will only be run on kernels < 4.7.0 matching the GuessSocketSK check
+		t.Skip("This test should only be run on kernels < 4.7.0")
+	}
+	// fail if tracer cannot start
+	_ = setupTracer(t, cfg)
 }

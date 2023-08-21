@@ -70,13 +70,15 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 		isLeader:  isLeader,
 	}
 
-	datadogMetricsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := datadogMetricsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueue,
 		DeleteFunc: c.enqueue,
 		UpdateFunc: func(obj, new interface{}) {
 			c.enqueue(new)
 		},
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to datadogMetricsInformer informer: %v", err)
+	}
 
 	// We use an observer on the store to propagate events as soon as possible
 	c.store.RegisterObserver(DatadogMetricInternalObserver{
