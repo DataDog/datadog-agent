@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"strings"
@@ -189,8 +188,6 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 		Timestamp:  timestamp,
 	})
 	if args.RuntimeStart.IsZero() || args.RuntimeEnd.IsZero() {
-		fmt.Printf("args.RuntimeStart: %v\n", args.RuntimeStart)
-		fmt.Printf("args.RuntimeEnd: %v\n", args.RuntimeEnd)
 		log.Debug("Impossible to compute aws.lambda.enhanced.post_runtime_duration due to an invalid interval")
 	} else {
 		postRuntimeDuration := args.DurationMs - float64(args.RuntimeEnd.Sub(args.RuntimeStart).Milliseconds())
