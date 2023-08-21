@@ -13,8 +13,18 @@ type Payload struct {
 	Encoding  string    `json:"encoding"`
 }
 
-type APIFakeIntakePayloadsGETResponse struct {
+type ParsedPayload struct {
+	Timestamp time.Time   `json:"timestamp"`
+	Data      interface{} `json:"data"`
+	Encoding  string      `json:"encoding"`
+}
+
+type APIFakeIntakePayloadsRawGETResponse struct {
 	Payloads []Payload `json:"payloads"`
+}
+
+type APIFakeIntakePayloadsJsonGETResponse struct {
+	Payloads []ParsedPayload `json:"payloads"`
 }
 
 type RouteStat struct {
