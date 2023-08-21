@@ -95,28 +95,18 @@ func TestDollarQuotedFunc(t *testing.T) {
 
 func TestSingleDollarIdentifier(t *testing.T) {
 	q := `
-	MERGE [md].InventoryLotLocationView as target
-	using (select *
-	from #InventoryLotLocationView_Loader) as source
-		on (target.[LotId] = source.[LotId]
-		and target.[ItemKey] = source.[ItemKey]
-		and target.[LocationCode] = source.[LocationCode])
-	when matched 
-	and  (target.[LotNumber] <> source.[LotNumber]
-		or target.[ExpirationDate] <> source.[ExpirationDate]
-	)
-	then update
-	set target.[LotNumber] = source.[LotNumber] 
-	when not matched by source then delete
-	when not matched by target then
-	insert([LotId] 
-	,[ItemKey] 
-	)
-	values (
-	source.[LotId] 
-	,source.[ItemKey] 
-	)
-	OUTPUT $action, deleted.*, $action, inserted.*;
+	MERGE INTO Employees AS target
+	USING EmployeeUpdates AS source
+	ON (target.EmployeeID = source.EmployeeID)
+	WHEN MATCHED THEN 
+		UPDATE SET 
+			target.Name = source.Name
+	WHEN NOT MATCHED BY TARGET THEN 
+		INSERT (EmployeeID, Name)
+		VALUES (source.EmployeeID, source.Name)
+	WHEN NOT MATCHED BY SOURCE THEN 
+		DELETE
+	OUTPUT $action, inserted.*, deleted.*;
 	`
 
 	t.Run("", func(t *testing.T) {
@@ -124,7 +114,7 @@ func TestSingleDollarIdentifier(t *testing.T) {
 			DBMS: DBMSSQLServer,
 		}}).ObfuscateSQLString(q)
 		assert.NoError(t, err)
-		assert.Equal(t, "MERGE md . InventoryLotLocationView using ( select * from #InventoryLotLocationView_Loader ) on ( target. LotId = source. LotId and target. ItemKey = source. ItemKey and target. LocationCode = source. LocationCode ) when matched and ( target. LotNumber <> source. LotNumber or target. ExpirationDate <> source. ExpirationDate ) then update set target. LotNumber = source. LotNumber when not matched by source then delete when not matched by target then insert ( LotId, ItemKey ) values ( source. LotId, source. ItemKey ) OUTPUT $action, deleted.*, $action, inserted.*", oq.Query)
+		assert.Equal(t, "MERGE INTO Employees USING EmployeeUpdates ON ( target.EmployeeID = source.EmployeeID ) WHEN MATCHED THEN UPDATE SET target.Name = source.Name WHEN NOT MATCHED BY TARGET THEN INSERT ( EmployeeID, Name ) VALUES ( source.EmployeeID, source.Name ) WHEN NOT MATCHED BY SOURCE THEN DELETE OUTPUT $action, inserted.*, deleted.*", oq.Query)
 	})
 }
 
