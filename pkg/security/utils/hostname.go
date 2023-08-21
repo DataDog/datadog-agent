@@ -16,6 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// maxAttempts is the maximum number of times we try to get the hostname
+	// from the core-agent before bailing out.
+	maxAttempts = 6
+)
+
 // GetHostname attempts to acquire a hostname by connecting to the core agent's
 // gRPC endpoints
 func GetHostname() (string, error) {
@@ -38,6 +44,6 @@ func GetHostname() (string, error) {
 
 		hostname = reply.Hostname
 		return nil
-	}, retry.LastErrorOnly(true), retry.Attempts(6))
+	}, retry.LastErrorOnly(true), retry.Attempts(maxAttempts))
 	return hostname, err
 }
