@@ -20,13 +20,13 @@ func getFlowProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_nf_nat_manip_pkt",
+				EBPFFuncName: "hook_nf_nat_manip_pkt",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_nf_nat_packet",
+				EBPFFuncName: "hook_nf_nat_packet",
 			},
 		},
 		{

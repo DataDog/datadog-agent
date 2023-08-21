@@ -47,7 +47,7 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
     return 0;
 }
 
-__attribute__((always_inline)) int trace_nat_manip_pkt(struct pt_regs *ctx, struct nf_conn *ct) {
+__attribute__((always_inline)) int trace_nat_manip_pkt(struct nf_conn *ct) {
     u32 netns = get_netns_from_nf_conn(ct);
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
@@ -77,16 +77,16 @@ __attribute__((always_inline)) int trace_nat_manip_pkt(struct pt_regs *ctx, stru
     return 0;
 }
 
-SEC("kprobe/nf_nat_manip_pkt")
-int kprobe_nf_nat_manip_pkt(struct pt_regs *ctx) {
-    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM2(ctx);
-    return trace_nat_manip_pkt(ctx, ct);
+HOOK_ENTRY("nf_nat_manip_pkt")
+int hook_nf_nat_manip_pkt(ctx_t *ctx) {
+    struct nf_conn *ct = (struct nf_conn *)CTX_PARM2(ctx);
+    return trace_nat_manip_pkt(ct);
 }
 
-SEC("kprobe/nf_nat_packet")
-int kprobe_nf_nat_packet(struct pt_regs *ctx) {
-    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM1(ctx);
-    return trace_nat_manip_pkt(ctx, ct);
+HOOK_ENTRY("nf_nat_packet")
+int hook_nf_nat_packet(ctx_t *ctx) {
+    struct nf_conn *ct = (struct nf_conn *)CTX_PARM1(ctx);
+    return trace_nat_manip_pkt(ct);
 }
 
 #endif

@@ -15,11 +15,13 @@ import (
 )
 
 // NetworkNFNatSelectors is the list of probes that should be activated if the `nf_nat` module is loaded
-var NetworkNFNatSelectors = []manager.ProbesSelector{
-	&manager.OneOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_nf_nat_manip_pkt"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_nf_nat_packet"}},
-	}},
+func NetworkNFNatSelectors(fentry bool) []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		&manager.OneOf{Selectors: []manager.ProbesSelector{
+			kprobeOrFentry("nf_nat_manip_pkt", fentry),
+			kprobeOrFentry("nf_nat_packet", fentry),
+		}},
+	}
 }
 
 // NetworkVethSelectors is the list of probes that should be activated if the `veth` module is loaded
@@ -446,7 +448,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 	loadedModules, err := utils.FetchLoadedModules()
 	if err == nil {
 		if _, ok := loadedModules["nf_nat"]; ok {
-			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors...)
+			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors(fentry)...)
 		}
 	}
 
