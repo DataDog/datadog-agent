@@ -5,10 +5,10 @@
 #include "constants/offsets/netns.h"
 #include "helpers/network.h"
 
-SEC("kprobe/security_sk_classify_flow")
-int kprobe_security_sk_classify_flow(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    struct flowi *fl = (struct flowi *)PT_REGS_PARM2(ctx);
+HOOK_ENTRY("security_sk_classify_flow")
+int hook_security_sk_classify_flow(ctx_t *ctx) {
+    struct sock *sk = (struct sock *)CTX_PARM1(ctx);
+    struct flowi *fl = (struct flowi *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
     union flowi_uli uli;
 

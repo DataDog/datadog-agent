@@ -14,7 +14,7 @@ func getFlowProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_security_sk_classify_flow",
+				EBPFFuncName: "hook_security_sk_classify_flow",
 			},
 		},
 		{
