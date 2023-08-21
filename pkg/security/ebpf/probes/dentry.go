@@ -12,7 +12,7 @@ import (
 )
 
 // getDentryResolverTailCallRoutes is the list of routes used during the dentry resolution process
-func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool, fentry bool) []manager.TailCallRoute {
+func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	dentryResolverProgs := "dentry_resolver_kprobe_or_fentry_progs"
 	dentryCallbackProgs := "dentry_resolver_kprobe_or_fentry_callbacks"
 
