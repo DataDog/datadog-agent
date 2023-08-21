@@ -5,16 +5,19 @@ single-machine-performance-workload-checks:
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
-    - job: single_machine_performance-nightly-amd64-a7
+    - job: single_machine_performance-amd64-a7
       artifacts: false
+    # DO NOT MERGE, INTENDED FOR TESTING
+    # - job: single_machine_performance-nightly-amd64-a7
+    #   artifacts: false
   artifacts:
     expire_in: 1 weeks
     paths:
-      - submission_metadata              # for provenance, debugging
+      - submission_metadata # for provenance, debugging
     when: always
   variables:
-    SMP_VERSION: 0.9.2
-    LADING_VERSION: 0.17.3
+    SMP_VERSION: 0.10.0
+    LADING_VERSION: 0.18.0
     WARMUP_SECONDS: 45
     TOTAL_SAMPLES: 600
     REPLICAS: 5
@@ -33,8 +36,9 @@ single-machine-performance-workload-checks:
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
     - chmod +x smp
-    # Copy the baseline SHA to SMP for debugging purposes later
-    - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:nightly-${CI_COMMIT_SHA}-7-amd64
+    # - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:nightly--${CI_COMMIT_SHA}-7-amd64 # double -- intended
+    # DO NOT MERGE, INTENDED FOR TESTING
+    - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
     - echo "${TARGET_SHA}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
@@ -50,6 +54,7 @@ single-machine-performance-workload-checks:
             --target-name datadog-agent
             --target-command "/bin/entrypoint.sh"
             --target-environment-variables "DD_HOSTNAME=smp-regression,DD_DD_URL=http://127.0.0.1:9092,DD_API_KEY=00000001"
+            --tags status=experimental,commit_time="${CI_COMMIT_TIME}"
             --submission-metadata submission-metadata
     # Wait for job to complete.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
