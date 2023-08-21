@@ -9,6 +9,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/avast/retry-go/v4"
+
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,19 +19,25 @@ import (
 // GetHostname attempts to acquire a hostname by connecting to the core agent's
 // gRPC endpoints
 func GetHostname() (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	var hostname string
+	err := retry.Do(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
 
-	client, err := grpc.GetDDAgentClient(ctx)
-	if err != nil {
-		return "", err
-	}
+		client, err := grpc.GetDDAgentClient(ctx)
+		if err != nil {
+			return err
+		}
 
-	reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
-	if err != nil {
-		return "", err
-	}
+		reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
+		if err != nil {
+			return err
+		}
 
-	log.Debugf("Acquired hostname from gRPC: %s", reply.Hostname)
-	return reply.Hostname, nil
+		log.Debugf("Acquired hostname from gRPC: %s", reply.Hostname)
+
+		hostname = reply.Hostname
+		return nil
+	}, retry.LastErrorOnly(true))
+	return hostname, err
 }
