@@ -20,6 +20,7 @@ from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
+from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -58,13 +59,13 @@ CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 
-def ninja_define_windows_resources(ctx, nw, major_version):
+def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
-    nw.variable("windrestarget", "pe-x86-64")
-    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir $in")
+    nw.variable("windrestarget", arch_to_windres_target(arch))
+    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
     nw.rule(
         name="windres",
         command="windres --define MAJ_VER=$maj_ver --define MIN_VER=$min_ver --define PATCH_VER=$patch_ver "
@@ -439,12 +440,25 @@ def ninja_generate(
             if arch == "x86":
                 raise Exit(message="system probe not supported on x86")
 
-            ninja_define_windows_resources(ctx, nw, major_version)
-            rcout = "cmd/system-probe/windows_resources/system-probe.rc"
-            in_path = "cmd/system-probe/windows_resources/system-probe-msg.mc"
-            in_dir, _ = os.path.split(in_path)
-            nw.build(inputs=[in_path], outputs=[rcout], rule="windmc", variables={"rcdir": in_dir})
-            nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
+            ninja_define_windows_resources(ctx, nw, major_version, arch=arch)
+            # messagestrings
+            in_path = MESSAGESTRINGS_MC_PATH
+            in_name = os.path.splitext(os.path.basename(in_path))[0]
+            in_dir = os.path.dirname(in_path)
+            rcout = os.path.join(in_dir, f"{in_name}.rc")
+            hout = os.path.join(in_dir, f'{in_name}.h')
+            msgout = os.path.join(in_dir, 'MSG00409.bin')
+            nw.build(
+                inputs=[in_path],
+                outputs=[rcout],
+                implicit_outputs=[hout, msgout],
+                rule="windmc",
+                variables={"rcdir": in_dir},
+            )
+            nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
+            # system-probe
+            rcin = "cmd/system-probe/windows_resources/system-probe.rc"
+            nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
@@ -690,21 +704,63 @@ def go_package_dirs(packages, build_tags):
     return target_packages
 
 
+BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
+
+
+def clean_build(ctx):
+    if not os.path.exists(KITCHEN_ARTIFACT_DIR):
+        return True
+
+    if not os.path.exists(BUILD_COMMIT):
+        return True
+
+    # if this build happens on a new commit do it cleanly
+    with open(BUILD_COMMIT, 'r') as f:
+        build_commit = f.read().rstrip()
+        curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
+        if curr_commit != build_commit:
+            return True
+
+    return False
+
+
+def full_pkg_path(name):
+    return os.path.join(os.getcwd(), name[name.index("pkg") :])
+
+
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages=""):
     """
     Compile test suite for kitchen
     """
-
-    # Clean up previous build
-    if os.path.exists(KITCHEN_ARTIFACT_DIR):
-        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
-
     build_tags = [NPM_TAG]
     if not windows:
         build_tags.append(BPF_TAG)
 
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
+
+    # Clean up previous build
+    if os.path.exists(KITCHEN_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
+        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+    elif packages != "":
+        packages = [full_pkg_path(name) for name in packages.split(",")]
+        # make sure valid packages were provided.
+        for pkg in packages:
+            if pkg not in target_packages:
+                raise Exit(f"Unknown target packages {pkg} specified")
+
+        target_packages = packages
+
+    if os.path.exists(BUILD_COMMIT):
+        os.remove(BUILD_COMMIT)
+
+    os.makedirs(KITCHEN_ARTIFACT_DIR, exist_ok=True)
+
+    # clean target_packages only
+    for pkg_dir in target_packages:
+        test_dir = pkg_dir.lstrip(os.getcwd())
+        if os.path.exists(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir)):
+            shutil.rmtree(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir))
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
@@ -760,6 +816,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
+    ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
 
 
 @task
@@ -1531,7 +1588,7 @@ def print_failed_tests(_, output_dir):
 
         for key, res in test_results.items():
             if res == "fail":
-                package, name = key.split(".")
+                package, name = key.split(".", maxsplit=1)
                 print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
                 fail_count += 1
 

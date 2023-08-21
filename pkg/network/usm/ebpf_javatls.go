@@ -255,7 +255,7 @@ func (p *javaTLSProgram) newJavaProcess(pid uint32) {
 	}
 }
 
-func (p *javaTLSProgram) PreStart(*manager.Manager) error {
+func (p *javaTLSProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
 	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
 	return nil
 }

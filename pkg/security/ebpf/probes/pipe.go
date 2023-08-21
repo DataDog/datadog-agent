@@ -9,16 +9,13 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// pipeProbes holds the list of probes used to track pipe events
-var pipeProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_mntget",
-		},
-	},
-}
-
 func getPipeProbes() []*manager.Probe {
-	return pipeProbes
+	return []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_mntget",
+			},
+		},
+	}
 }

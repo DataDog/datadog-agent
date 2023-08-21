@@ -60,6 +60,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
+	conf.DecoderTimeout = 10000
 
 	return conf
 }

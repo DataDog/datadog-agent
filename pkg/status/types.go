@@ -7,12 +7,14 @@ package status
 
 import (
 	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
 // CLCChecks is used to unmarshall the runner expvar payload for CLC Runner
 type CLCChecks struct {
-	Checks map[string]map[string]CLCStats `json:"Checks"`
+	Checks  map[string]map[string]CLCStats `json:"Checks"`
+	Workers Workers                        `json:"Workers"`
 }
 
 // CLCStats is used to unmarshall the stats needed from the runner expvar payload
@@ -22,6 +24,17 @@ type CLCStats struct {
 	HistogramBuckets     int  `json:"HistogramBuckets"`
 	Events               int  `json:"Events"`
 	LastExecFailed       bool `json:"LastExecFailed"`
+}
+
+// Workers is used to unmarshall the workers info needed from the runner expvar payload
+type Workers struct {
+	Count     int                   `json:"Count"`
+	Instances map[string]WorkerInfo `json:"Instances"`
+}
+
+// WorkerInfo is used to unmarshall the workers info needed from the runner expvar payload
+type WorkerInfo struct {
+	Utilization float64 `json:"Utilization"`
 }
 
 // UnmarshalJSON overwrites the unmarshall method for CLCStats

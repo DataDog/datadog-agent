@@ -19,7 +19,7 @@ import (
 var (
 	cpuGet      = cpu.CollectInfo
 	memoryGet   = memory.CollectInfo
-	networkGet  = network.Get
+	networkGet  = network.CollectInfo
 	platformGet = platform.CollectInfo
 )
 
@@ -74,7 +74,7 @@ func logWarnings(warnings []string) {
 	}
 }
 
-func fetchFromMetadata(key string, metadata AgentMetadata) string {
+func fetchFromMetadata(key AgentMetadataName, metadata AgentMetadata) string {
 	if value, ok := metadata[key]; ok {
 		if stringValue, ok := value.(string); ok {
 			return stringValue
@@ -135,25 +135,28 @@ func getHostMetadata() *HostMetadata {
 		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
-	networkInfo, warnings, err := networkGet()
+	networkInfo, err := networkGet()
+	if err == nil {
+		_, warnings, err = networkInfo.AsJSON()
+	}
 	if err != nil {
 		logErrorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.IPAddress = networkInfo.IpAddress
-		metadata.IPv6Address = networkInfo.IpAddressv6
+		metadata.IPAddress = networkInfo.IPAddress
+		metadata.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
 		metadata.MacAddress = networkInfo.MacAddress
 	}
 
 	metadata.AgentVersion = version.AgentVersion
 
-	metadata.CloudProvider = fetchFromMetadata(string(HostCloudProvider), agentMetadata)
-	metadata.CloudProviderSource = fetchFromMetadata(string(HostCloudProviderSource), hostMetadata)
-	metadata.CloudProviderHostID = fetchFromMetadata(string(HostCloudProviderHostID), hostMetadata)
-	metadata.OsVersion = fetchFromMetadata(string(HostOSVersion), hostMetadata)
+	metadata.CloudProvider = fetchFromMetadata(HostCloudProvider, agentMetadata)
+	metadata.CloudProviderSource = fetchFromMetadata(HostCloudProviderSource, hostMetadata)
+	metadata.CloudProviderHostID = fetchFromMetadata(HostCloudProviderHostID, hostMetadata)
+	metadata.OsVersion = fetchFromMetadata(HostOSVersion, hostMetadata)
 
-	metadata.CloudProviderAccountID = fetchFromMetadata(string(HostCloudProviderAccountID), hostMetadata)
+	metadata.CloudProviderAccountID = fetchFromMetadata(HostCloudProviderAccountID, hostMetadata)
 
 	metadata.HypervisorGuestUUID = dmi.GetHypervisorUUID()
 	metadata.DmiProductUUID = dmi.GetProductUUID()

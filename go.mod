@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.18
+go 1.20
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -44,18 +44,18 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.1
 	github.com/DataDog/agent-payload/v5 v5.0.93
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
-	github.com/DataDog/datadog-agent/pkg/gohai v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.3.0
-	github.com/DataDog/datadog-operator v1.0.3
-	github.com/DataDog/ebpf-manager v0.2.13
+	github.com/DataDog/datadog-operator v1.1.0
+	github.com/DataDog/ebpf-manager v0.2.15
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
@@ -97,7 +97,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.3
-	github.com/davecgh/go-spew v1.1.1
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v24.0.2+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
@@ -127,7 +127,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.3
-	github.com/hashicorp/consul/api v1.21.0
+	github.com/hashicorp/consul/api v1.24.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.5
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
@@ -297,7 +297,7 @@ require (
 	github.com/aquasecurity/table v1.8.0 // indirect
 	github.com/aquasecurity/tml v0.6.1 // indirect
 	github.com/arduino/go-apt-client v0.0.0-20190812130613-5613f843fdc8 // indirect
-	github.com/armon/go-metrics v0.4.0 // indirect
+	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
 	github.com/aws/aws-sdk-go-v2 v1.18.1 // indirect
@@ -373,7 +373,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-hclog v1.2.0 // indirect
+	github.com/hashicorp/go-hclog v1.5.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
@@ -452,9 +452,9 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
-	github.com/prometheus/common v0.44.0 // indirect
+	github.com/prometheus/common v0.44.0
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
@@ -560,7 +560,7 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-beta.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
