@@ -78,6 +78,7 @@ type Check struct {
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
+	previousAllocationCount                 float64
 }
 
 func handleServiceCheck(c *Check, err error) {
