@@ -12,7 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type agentSuite struct {
@@ -34,4 +36,51 @@ func (v *agentSuite) TestAgentCommandNoArg() {
 func (v *agentSuite) TestAgentCommandWithArg() {
 	status := v.Env().Agent.Status(client.WithArgs([]string{"-h", "-n"}))
 	assert.Contains(v.T(), status.Content, "Use \"datadog-agent status [command] --help\" for more information about a command.")
+}
+
+func (v *agentSuite) TestWithAgentConfig() {
+	for _, param := range []struct {
+		useConfig      bool
+		config         string
+		expectedConfig string
+	}{
+		{true, "log_level: debug", "log_level: debug\n"},
+		{true, "", "log_level: info\n"},
+		{true, "log_level: warn", "log_level: warn\n"},
+		{true, "log_level: debug", "log_level: debug\n"},
+		{false, "", "log_level: info\n"},
+	} {
+		var agentParams []agentparams.Option
+		if param.useConfig {
+			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
+		}
+		v.UpdateEnv(e2e.AgentStackDef(nil, agentParams...))
+		config := v.Env().Agent.Config()
+		re := regexp.MustCompile(`.*log_level:(.*)\n`)
+		matches := re.FindStringSubmatch(config)
+		require.NotEmpty(v.T(), matches)
+		require.Equal(v.T(), param.expectedConfig, matches[0])
+	}
+}
+
+func (s *agentSuite) TestWithTelemetry() {
+	s.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithTelemetry()))
+
+	status := s.Env().Agent.Status()
+	require.Contains(s.T(), status.Content, "go_expvar")
+
+	s.UpdateEnv(e2e.AgentStackDef(nil))
+	status = s.Env().Agent.Status()
+	require.NotContains(s.T(), status.Content, "go_expvar")
+}
+
+func (s *agentSuite) TestWithLogs() {
+	s.UpdateEnv(e2e.AgentStackDef(nil))
+
+	config := s.Env().Agent.Config()
+	require.Contains(s.T(), config, "logs_enabled: false")
+
+	s.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithLogs()))
+	config = s.Env().Agent.Config()
+	require.Contains(s.T(), config, "logs_enabled: true")
 }
