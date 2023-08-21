@@ -84,7 +84,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	architecture := ResolveRuntimeArch()
 	tags = setIfNotEmpty(tags, ArchitectureKey, architecture)
 
-	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar))
+	tags = setIfNotEmpty(tags, RuntimeKey, getRuntime("/proc", "/etc", runtimeVar, 5))
 
 	tags = setIfNotEmpty(tags, MemorySizeKey, os.Getenv(memorySizeVar))
 
@@ -230,11 +230,11 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 	return runtime
 }
 
-func getRuntime(procPath string, osReleasePath string, varName string) string {
+func getRuntime(procPath string, osReleasePath string, varName string, retries int) string {
 	runtime := ""
 	counter := 0
 	start := time.Now()
-	for len(runtime) == 0 && counter < 6 {
+	for len(runtime) == 0 && counter <= retries {
 		if counter > 0 {
 			time.Sleep(5 * time.Millisecond)
 		}
