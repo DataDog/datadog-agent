@@ -23,10 +23,12 @@ var NetworkNFNatSelectors = []manager.ProbesSelector{
 }
 
 // NetworkVethSelectors is the list of probes that should be activated if the `veth` module is loaded
-var NetworkVethSelectors = []manager.ProbesSelector{
-	&manager.AllOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_rtnl_create_link"}},
-	}},
+func NetworkVethSelectors(fentry bool) []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			kprobeOrFentry("rtnl_create_link", fentry),
+		}},
+	}
 }
 
 // NetworkSelectors is the list of probes that should be activated when the network is enabled
@@ -42,19 +44,19 @@ func NetworkSelectors(fentry bool) []manager.ProbesSelector {
 
 		// network device probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_register_netdevice"}},
+			kprobeOrFentry("register_netdevice", fentry),
+			kretprobeOrFexit("register_netdevice", fentry),
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_change_net_namespace"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_change_net_namespace"}},
+				kprobeOrFentry("dev_change_net_namespace", fentry),
+				kprobeOrFentry("__dev_change_net_namespace", fentry),
 			}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_register_netdevice"}},
 		}},
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_get_valid_name"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_new_index"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_dev_new_index"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_index"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_name"}},
+			kprobeOrFentry("dev_get_valid_name", fentry),
+			kprobeOrFentry("dev_new_index", fentry),
+			kretprobeOrFexit("dev_new_index", fentry),
+			kprobeOrFentry("__dev_get_by_index", fentry),
+			kprobeOrFentry("__dev_get_by_name", fentry),
 		}},
 	}
 }
@@ -434,7 +436,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"dns": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.AllOf{Selectors: NetworkSelectors(fentry)},
-				&manager.AllOf{Selectors: NetworkVethSelectors},
+				&manager.AllOf{Selectors: NetworkVethSelectors(fentry)},
 				kprobeOrFentry("security_socket_bind", fentry),
 			}},
 		},
