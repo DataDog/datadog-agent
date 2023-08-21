@@ -6,6 +6,7 @@
 package run
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type contextSupplier struct {
+	ctx context.Context
+}
+
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
 
@@ -30,7 +35,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return runTraceAgentFct(cliParams, cliParams.ConfPath, Start)
+			return runTraceAgent(cliParams, cliParams.ConfPath)
 		},
 	}
 
@@ -49,15 +54,12 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-type Params struct {
-	DefaultLogFile string
-}
-
-func runTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interface{}) error {
+func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
-	return fxutil.OneShot(fct,
+	return fxutil.OneShot(Run,
+		fx.Supply(&contextSupplier{ctx: ctx}),
 		fx.Supply(cliParams),
 		config.Module,
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),

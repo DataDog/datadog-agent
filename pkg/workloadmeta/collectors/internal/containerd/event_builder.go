@@ -14,7 +14,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -40,20 +40,20 @@ func (c *collector) buildCollectorEvent(
 
 	case TaskExitTopic:
 		exited := &events.TaskExit{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, exited); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), exited); err != nil {
 			return workloadmeta.CollectorEvent{}, err
 		}
 
-		c.cacheExitInfo(containerID, &exited.ExitStatus, exited.ExitedAt)
+		c.cacheExitInfo(containerID, &exited.ExitStatus, exited.ExitedAt.AsTime())
 		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
 
 	case TaskDeleteTopic:
 		deleted := &events.TaskDelete{}
-		if err := proto.Unmarshal(containerdEvent.Event.Value, deleted); err != nil {
+		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), deleted); err != nil {
 			return workloadmeta.CollectorEvent{}, err
 		}
 
-		c.cacheExitInfo(containerID, &deleted.ExitStatus, deleted.ExitedAt)
+		c.cacheExitInfo(containerID, &deleted.ExitStatus, deleted.ExitedAt.AsTime())
 		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
 
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic:

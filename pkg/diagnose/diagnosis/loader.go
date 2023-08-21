@@ -42,11 +42,11 @@ type Suite struct {
 
 // Diagnose configuration
 type Config struct {
-	Verbose        bool
-	ForceLocal     bool
-	RemoteDiagnose bool
-	Include        []*regexp.Regexp
-	Exclude        []*regexp.Regexp
+	Verbose               bool
+	RunLocal              bool
+	RunningInAgentProcess bool
+	Include               []*regexp.Regexp
+	Exclude               []*regexp.Regexp
 }
 
 type Result int

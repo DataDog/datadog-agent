@@ -29,15 +29,12 @@ func getSELinuxProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_sel_commit_bools_write",
 			},
 		},
-	}
-
-	if !fentry {
-		selinuxProbes = append(selinuxProbes, &manager.Probe{
+		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_sel_write_disable",
 			},
-		})
+		},
 	}
 
 	return selinuxProbes
