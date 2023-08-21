@@ -17,9 +17,9 @@ import (
 func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps bool, fentry bool) []manager.TailCallRoute {
 	var dentryResolverProgs string
 	if fentry {
-		dentryResolverProgs = "dentry_resolver_kprobe_progs"
-	} else {
 		dentryResolverProgs = "dentry_resolver_fentry_progs"
+	} else {
+		dentryResolverProgs = "dentry_resolver_kprobe_progs"
 	}
 
 	routes := []manager.TailCallRoute{
