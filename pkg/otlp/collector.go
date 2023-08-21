@@ -245,7 +245,7 @@ func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()
 	}
-	if err := checkAndUpdateCfg(cfg, &pcfg, logsAgentChannel); err != nil {
+	if err := checkAndUpdateCfg(pcfg, logsAgentChannel); err != nil {
 		return nil, err
 	}
 

@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -235,9 +236,8 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			mockConfig.Set("language_detection.enabled", true)
-
 			// remote process collector server (process agent)
 			server := &mockServer{
 				responses:       test.serverResponses,
