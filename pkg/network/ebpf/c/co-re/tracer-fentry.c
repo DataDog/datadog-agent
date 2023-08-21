@@ -179,7 +179,6 @@ int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
         return 0;
     }
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fexit/tcp_sendpage: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
@@ -205,7 +204,6 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
         return 0;
     }
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fexit/udp_sendpage: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
@@ -224,7 +222,6 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
         return 0;
     }
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
@@ -236,7 +233,6 @@ int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, s
         return 0;
     }
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
@@ -245,7 +241,6 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     u64 pid_tgid;
     SET_PID_TGID_OR_RETURN("fentry/tcp_close", pid_tgid);
     conn_tuple_t t = {};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Should actually delete something only if the connection never got established
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
@@ -445,18 +440,17 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     u64 pid_tgid;
     SET_PID_TGID_OR_RETURN("fexit/tcp_retransmit_skb", pid_tgid);
     log_debug("fexit/tcp_retransmit\n");
-    u64 tid = bpf_get_current_pid_tgid();
     if (err < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
         return 0;
     }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
     if (args == NULL) {
         return 0;
     }
     u32 retrans_out_pre = args->retrans_out_pre;
     u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
 
     if (retrans_out < 0) {
         return 0;
@@ -469,7 +463,6 @@ SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
     u64 pid_tgid;
     SET_PID_TGID_OR_RETURN("fentry/tcp_connect", pid_tgid);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fentry/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
@@ -479,8 +472,7 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fentry/tcp_finish_connect", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
     u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     if (!pid_tgid_p) {
         return 0;
@@ -511,7 +503,6 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
         return 0;
     }
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fexit/inet_csk_accept: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
