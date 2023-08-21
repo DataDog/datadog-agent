@@ -12,7 +12,7 @@ api_key:
 
 ## @param app_key - string - optional
 ## @env DD_APP_KEY - string - optional
-## The Datadog application key to use when your Agent makes requests to Datadog
+## The Datadog application key to use when your Agent makes requests to Datadog.
 ## Create a new application key here: https://app.datadoghq.com/organization-settings/application-keys
 # app_key:
 
