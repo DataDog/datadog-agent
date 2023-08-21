@@ -997,21 +997,26 @@ func (f OpenFlags) String() string {
 
 // StringArray returns the open flags as an array of strings
 func (f OpenFlags) StringArray() []string {
-	rdWriteBits := int(f) & 0b11
+	// open flags are actually composed of 2 sets of flags
+	// the lowest 2 bits manage the read/write access modes
+	readWriteBits := int(f) & 0b11
+	// the other bits manage the general purpose flags (like O_CLOEXEC, or O_TRUNC)
 	flagsBits := int(f) & ^0b11
 
-	rdWrite := bitmaskToStringArray(rdWriteBits, openFlagsStrings)
+	// in order to default to O_RDONLY even if other bits are set we convert
+	// both bitmask separately
+	readWrite := bitmaskToStringArray(readWriteBits, openFlagsStrings)
 	flags := bitmaskToStringArray(flagsBits, openFlagsStrings)
 
-	if len(rdWrite) == 0 {
-		rdWrite = []string{openFlagsStrings[syscall.O_RDONLY]}
+	if len(readWrite) == 0 {
+		readWrite = []string{openFlagsStrings[syscall.O_RDONLY]}
 	}
 
 	if len(flags) == 0 {
-		return rdWrite
+		return readWrite
 	}
 
-	return append(rdWrite, flags...)
+	return append(readWrite, flags...)
 }
 
 // FileMode represents a file mode bitmask value
