@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Eliminate duplicate upper case cdb and pdb tags.
+    Eliminate duplicate upper case ``cdb`` and ``pdb`` tags.
