@@ -61,4 +61,4 @@ single-machine-performance-workload-checks:
             job status
             --wait
             --wait-delay-seconds 60
-            --submission-metadata submission_metadata
+            --submission-metadata submission-metadata
