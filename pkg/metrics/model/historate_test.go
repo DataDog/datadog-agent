@@ -6,6 +6,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -14,8 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func setup_config() conf.Config {
+	c := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c.Set("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	c.Set("histogram_percentiles", []string{"0.95"})
+	return c
+}
+
 func TestHistorateEmptyFlush(t *testing.T) {
-	c := conf.NewConfig("DD", "DD", nil)
+	c := setup_config()
 	h := NewHistorate(1, c)
 
 	// Flush w/o samples: error
@@ -24,7 +32,7 @@ func TestHistorateEmptyFlush(t *testing.T) {
 }
 
 func TestHistorateAddSampleOnce(t *testing.T) {
-	c := conf.NewConfig("DD", "DD", nil)
+	c := setup_config()
 	h := NewHistorate(1, c)
 	h.addSample(&MetricSample{Value: 1}, 50)
 
@@ -34,7 +42,9 @@ func TestHistorateAddSampleOnce(t *testing.T) {
 }
 
 func TestHistorateAddSample(t *testing.T) {
-	c := conf.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	fmt.Printf("### starting testin of TestHistorateAddSample\n")
+
+	c := setup_config()
 	h := NewHistorate(1, c)
 
 	h.addSample(&MetricSample{Value: 1}, 50)
