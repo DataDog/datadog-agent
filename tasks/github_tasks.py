@@ -3,8 +3,10 @@ import os
 from invoke import Exit, task
 
 from .libs.github_actions_tools import (
-    download_artifacts_with_retry,
+    download_artifacts,
+    download_with_retry,
     follow_workflow_run,
+    print_failed_jobs_logs,
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
@@ -42,9 +44,12 @@ def trigger_macos_build(
 
     workflow_conclusion, workflow_url = follow_workflow_run(run)
 
+    if workflow_conclusion == "failures":
+        print_failed_jobs_logs(run)
+
     print_workflow_conclusion(workflow_conclusion, workflow_url)
 
-    download_artifacts_with_retry(run, destination, retry_download, retry_interval)
+    download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
 
     if workflow_conclusion != "success":
         raise Exit(code=1)
@@ -72,11 +77,14 @@ def trigger_macos_test(
         version_cache_file_content=version_cache,
     )
 
-    workflow_conclusion = follow_workflow_run(run)
+    workflow_conclusion, workflow_url = follow_workflow_run(run)
 
-    print_workflow_conclusion(workflow_conclusion)
+    if workflow_conclusion == "failures":
+        print_failed_jobs_logs(run)
 
-    download_artifacts_with_retry(run, destination, retry_download, retry_interval)
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
 
     if workflow_conclusion != "success":
         raise Exit(code=1)

@@ -119,22 +119,33 @@ class GithubAPI:
         """
         Downloads the artifact identified by artifact_id to destination_dir.
         """
+        url = artifact.archive_download_url
+
+        return self.download_from_url(url, destination_dir, destination_dir=artifact.id)
+
+    def download_from_url(self, url, destination_dir, destination_file):
         import requests
 
         headers = {
             "Authorization": f'{self._auth.token_type} {self._auth.token}',
             "Accept": "application/vnd.github.v3+json",
         }
-
-        url = artifact.archive_download_url
         # Retrying this request if needed is handled by the caller
         with requests.get(url, headers=headers, stream=True) as r:
             r.raise_for_status()
-            zip_target_path = os.path.join(destination_dir, f"{artifact.id}.zip")
+            zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
             with open(zip_target_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
         return zip_target_path
+
+    def download_logs(self, run_id, destination_dir):
+
+        run = self._repository.get_workflow_run(run_id)
+        logs_url = run.logs_url
+        _, headers, _ = run._requester.requestJson("GET", logs_url)
+
+        return self.download_from_url(headers["location"], destination_dir, run.id)
 
     def latest_workflow_run_for_ref(self, workflow_name, ref):
         """
@@ -170,11 +181,16 @@ class GithubAPI:
             return appAuth.get_installation_auth(int(installation_id))
         if platform.system() == "Darwin":
             try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
+                output = (
+                    subprocess.check_output(
+                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
+                    )
+                    .decode()
+                    .strip()
                 )
+
                 if output:
-                    return Auth.Token(output.strip())
+                    return Auth.Token(output)
             except subprocess.CalledProcessError:
                 print("GITHUB_TOKEN not found in keychain...")
                 pass

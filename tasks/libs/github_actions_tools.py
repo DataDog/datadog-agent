@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import tempfile
 import zipfile
@@ -132,6 +133,62 @@ def print_workflow_conclusion(conclusion, workflow_uri):
         print(f"Failed workflow URI {workflow_uri}")
 
 
+def print_failed_jobs_logs(run):
+    """
+    Retrieves, parses and print failed job logs for the workflow run
+    """
+    failed_jobs = get_failed_jobs(run)
+
+    download_with_retry(download_logs, run, destination="workflow_logs")
+
+    failed_steps = get_failed_steps_log_files("workflow_logs", failed_jobs)
+
+    for failed_step, log_file in failed_steps.items():
+        print(color_message(f"Step: {failed_step} failed:", "red"))
+        print("\n".join(parse_log_file(log_file)))
+    print(color_message("Logs might be incomplete, for complete logs check directly in the worklow logs", "blue"))
+
+
+def get_failed_jobs(run):
+    """
+    Retrieves failed jobs for the workflow run
+    """
+    failed_jobs = []
+    jobs = run.jobs()
+    for job in jobs:
+        if job.conclusion == "failure":
+            failed_jobs.append(job)
+    return failed_jobs
+
+
+def get_failed_steps_log_files(log_dir, failed_jobs):
+    failed_steps_log_files = {}
+    for failed_job in failed_jobs:
+        for step in failed_job.steps:
+            if step.conclusion == "failure":
+                failed_steps_log_files[step.name] = f"{log_dir}/{failed_job.name}/{step.number}_{step.name}.txt"
+    return failed_steps_log_files
+
+
+def parse_log_file(log_file):
+    """
+    Parse log file and return relevant line to print in GitlabCI logs.
+    The function will iterate over the log file, once one of the following lines is encountered, it will return
+    all the next lines:
+        - line containing [error]
+        - line containing Linter|Test failures
+        - line containing Traceback
+    """
+
+    error_regex = re.compile(r'\[error\]|(Linter|Test) failures|Traceback')
+
+    with open(log_file, 'r') as f:
+        lines = f.readlines()
+        for line_number, line in enumerate(lines):
+            if error_regex.search(line):
+                return lines[line_number:]
+
+
 def download_artifacts(run, destination="."):
     """
     Download all artifacts for a given job in the specified location.
@@ -157,19 +214,34 @@ def download_artifacts(run, destination="."):
                 zip_ref.extractall(destination)
 
 
-def download_artifacts_with_retry(run, destination=".", retry_count=3, retry_interval=10):
+def download_logs(run, destination="."):
+    """
+    Download all logs for the given run
+    """
+    print(color_message(f"Downloading logs for run {run.id}", "blue"))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        workflow = GithubAPI('DataDog/datadog-agent-macos-build')
+
+        zip_path = workflow.download_logs(run.id, tmpdir)
+        # Unzip it in the target destination
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(destination)
+
+
+def download_with_retry(download_function, run, destination=".", retry_count=3, retry_interval=10):
     import requests
 
     retry = retry_count
 
     while retry > 0:
         try:
-            download_artifacts(run, destination)
-            print(color_message(f"Successfully downloaded artifacts for run {run,id} to {destination}", "blue"))
+            download_function(run, destination)
+            print(color_message(f"Download successful for run {run.id} to {destination}", "blue"))
             return
         except (requests.exceptions.RequestException, ConnectionError):
             retry -= 1
-            print(f'Connectivity issue while downloading the artifact, retrying... {retry} attempts left')
+            print(f'Connectivity issue while downloading, retrying... {retry} attempts left')
             sleep(retry_interval)
         except Exception as e:
             print("Exception that is not a connectivity issue: ", type(e).__name__, " - ", e)
