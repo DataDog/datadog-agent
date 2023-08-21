@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -60,4 +61,8 @@ func (o *ebpfModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": o.lastCheck.Load(),
 	}
+}
+
+func (o *ebpfModule) RegisterGRPC(_ *grpc.Server) error {
+	return nil
 }

@@ -81,6 +81,10 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
+func (m *EventMonitor) RegisterGRPC(_ *grpc.Server) error {
+	return nil
+}
+
 // AddEventTypeHandler registers an event handler
 func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
 	if !slices.Contains(allowedEventTypes, eventType) {

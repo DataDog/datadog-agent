@@ -6,9 +6,10 @@
 package dynamicinstrumentation
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Module struct{}
@@ -19,6 +20,10 @@ func NewModule(config *Config) (*Module, error) {
 
 func (m *Module) Close() {
 	log.Info("Closing user tracer module")
+}
+
+func (m *Module) RegisterGRPC(_ *grpc.Server) error {
+	return nil
 }
 
 func (m *Module) GetStats() map[string]interface{} {

@@ -20,6 +20,17 @@ import (
 
 const maxRoutes = math.MaxInt32
 
+var connsPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.Connections)
+	},
+}
+
+func ConnsToPool(o *model.Connections) {
+	o.Reset()
+	connsPool.Put(o)
+}
+
 var connPool = sync.Pool{
 	New: func() interface{} {
 		return new(model.Connection)
@@ -144,7 +155,7 @@ func FormatCORETelemetry(telByAsset map[string]int32) map[string]model.COREResul
 	return ret
 }
 
-func returnToPool(c *model.Connections) {
+func Cleanup(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {
 			c.Reset()
