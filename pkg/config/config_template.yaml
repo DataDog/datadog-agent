@@ -6,9 +6,15 @@
 ## @param api_key - string - required
 ## @env DD_API_KEY - string - required
 ## The Datadog API key to associate your Agent's data with your organization.
-## Create a new API key here: https://app.datadoghq.com/account/settings
+## Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys
 #
 api_key:
+
+## @param app_key - string - optional
+## @env DD_APP_KEY - string - optional
+## The Datadog application key to use when your Agent makes requests to Datadog
+## Create a new application key here: https://app.datadoghq.com/organization-settings/application-keys
+# app_key:
 
 ## @param site - string - optional - default: datadoghq.com
 ## @env DD_SITE - string - optional - default: datadoghq.com
