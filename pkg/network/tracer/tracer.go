@@ -205,7 +205,6 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}
 
-	tr.activeBuffer = network.NewConnectionBuffer(512, 256)
 	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
 	tr.destExcludes = network.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
