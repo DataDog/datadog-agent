@@ -992,18 +992,26 @@ func bitmaskU64ToString(bitmask uint64, intToStrMap map[uint64]string) string {
 type OpenFlags int
 
 func (f OpenFlags) String() string {
-	if int(f) == syscall.O_RDONLY {
-		return openFlagsStrings[syscall.O_RDONLY]
-	}
-	return bitmaskToString(int(f), openFlagsStrings)
+	return strings.Join(f.StringArray(), " | ")
 }
 
 // StringArray returns the open flags as an array of strings
 func (f OpenFlags) StringArray() []string {
-	if int(f) == syscall.O_RDONLY {
-		return []string{openFlagsStrings[syscall.O_RDONLY]}
+	rdWriteBits := int(f) & 0b11
+	flagsBits := int(f) & ^0b11
+
+	rdWrite := bitmaskToStringArray(rdWriteBits, openFlagsStrings)
+	flags := bitmaskToStringArray(flagsBits, openFlagsStrings)
+
+	if len(rdWrite) == 0 {
+		rdWrite = []string{openFlagsStrings[syscall.O_RDONLY]}
 	}
-	return bitmaskToStringArray(int(f), openFlagsStrings)
+
+	if len(flags) == 0 {
+		return rdWrite
+	}
+
+	return append(rdWrite, flags...)
 }
 
 // FileMode represents a file mode bitmask value
