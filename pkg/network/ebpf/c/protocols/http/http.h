@@ -140,7 +140,9 @@ static __always_inline void http_process(http_transaction_t *http_stack, skb_inf
 
     http->tags |= tags;
 
-    if (http_responding(http)) {
+    // Update response_last_seen if the payload is not empty (buffer[0] != 0) and this is not the first time we update
+    // the response_last_seen. The first update must be done couple of lines above when checkign the packet_type.
+    if (http_responding(http) && buffer[0] != 0) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
