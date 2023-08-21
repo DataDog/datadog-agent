@@ -8,6 +8,7 @@
 package http
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"strconv"
 	"sync"
 	"time"
@@ -68,7 +69,12 @@ func (h *HttpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
-	for _, tx := range h.incomplete.Flush(time.Now()) {
+	now, err := ebpf.NowNanoseconds()
+	if err != nil {
+		log.Warnf("couldn't get monotonic clock, using realtime clock instead: %s", err)
+		now = time.Now().UnixNano()
+	}
+	for _, tx := range h.incomplete.Flush(now) {
 		h.add(tx)
 	}
 
