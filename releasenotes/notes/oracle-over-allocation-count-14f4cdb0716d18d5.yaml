@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add Oracle pga_over_allocation_count_metric.
+    Add Oracle ``pga_over_allocation_count_metric``.
