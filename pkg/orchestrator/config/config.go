@@ -210,6 +210,6 @@ func IsOrchestratorEnabled() (bool, bool, string) {
 		clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	}
 	coreCheck := config.Datadog.GetBool(key(orchestratorNS, "run_on_node_agent"))
-	pkglog.Infof("run_on_node_agent: %t\n", coreCheck)
+	pkglog.Infof("orchestrator_explorer.run_on_node_agent: %t\n", coreCheck)
 	return enabled, coreCheck, clusterName
 }
