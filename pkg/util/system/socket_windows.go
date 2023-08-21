@@ -32,7 +32,7 @@ func CheckSocketAvailable(path string, timeout time.Duration) (bool, bool) {
 }
 
 func checkSocketExists(path string) bool {
-	_, err := os.Stat(path)
 	// On Windows there's not easy way to check if a path is a named pipe
+	_, err := os.Stat(path)
 	return err == nil
 }
