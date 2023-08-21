@@ -21,7 +21,7 @@ import (
 func GetHostname() (string, error) {
 	var hostname string
 	err := retry.Do(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
 		client, err := grpc.GetDDAgentClient(ctx)
@@ -38,6 +38,6 @@ func GetHostname() (string, error) {
 
 		hostname = reply.Hostname
 		return nil
-	}, retry.LastErrorOnly(true))
+	}, retry.LastErrorOnly(true), retry.Attempts(6))
 	return hostname, err
 }
