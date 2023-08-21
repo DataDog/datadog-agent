@@ -16,6 +16,7 @@ import (
 	"github.com/beevik/ntp"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -139,7 +140,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
 	if err != nil {
@@ -150,7 +151,7 @@ func (c *NTPCheck) Configure(integrationConfigDigest uint64, data integration.Da
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+	err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}

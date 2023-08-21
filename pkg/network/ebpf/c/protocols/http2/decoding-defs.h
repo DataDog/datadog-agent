@@ -38,7 +38,10 @@
 // 1 << 7 - 1
 #define MAX_7_BITS 127
 
-typedef enum {
+#define HTTP2_CONTENT_TYPE_IDX 31
+
+typedef enum
+{
     kGET = 2,
     kPOST = 3,
     kEmptyPath = 4,
@@ -53,7 +56,7 @@ typedef enum {
 } static_table_value_t;
 
 typedef struct {
-    char buffer[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+    char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
     __u8 string_len;
 } dynamic_table_entry_t;
 
@@ -77,7 +80,7 @@ typedef struct {
     __u8 path_size;
     bool request_end_of_stream;
 
-    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
 } http2_stream_t;
 
 typedef struct {
@@ -85,11 +88,12 @@ typedef struct {
     http2_stream_key_t http2_stream_key;
 } http2_ctx_t;
 
-typedef enum {
-    kStaticHeader  = 0,
+typedef enum
+{
+    kStaticHeader = 0,
     kExistingDynamicHeader = 1,
     kNewDynamicHeader = 2,
-} __attribute__ ((packed)) http2_header_type_t;
+} __attribute__((packed)) http2_header_type_t;
 
 typedef struct {
     __u32 index;

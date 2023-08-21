@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"time"
 
@@ -38,6 +39,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
@@ -79,7 +82,6 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
 		telemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
-
 		return nil
 	}
 
@@ -182,6 +184,49 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 			return cfg.SetHandler()
 		},
 	})
+
+	// prepare go runtime
+	cgsetprocs := agentrt.SetMaxProcs()
+	if !cgsetprocs {
+		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
+			log.Infof("GOMAXPROCS manually set to %v", mp)
+		} else if tracecfg.MaxCPU > 0 {
+			allowedCores := int(tracecfg.MaxCPU / 100)
+			if allowedCores < 1 {
+				allowedCores = 1
+			}
+			if allowedCores < runtime.GOMAXPROCS(0) {
+				log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, (allowedCores))
+				runtime.GOMAXPROCS(int(allowedCores))
+			}
+		} else {
+			log.Infof("apm_config.max_cpu is disabled. leaving GOMAXPROCS at current value.")
+		}
+	}
+	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
+
+	// prepare go runtime
+	cgmem, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
+	if err != nil {
+		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
+	}
+	if cgmem == 0 {
+		// memory limit not set from cgroups
+		if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
+			log.Infof("GOMEMLIMIT manually set to: %v", lim)
+		} else if tracecfg.MaxMemory > 0 {
+			// We have apm_config.max_memory, and no cgroup memory limit is in place.
+			//log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			finalmem := int64(tracecfg.MaxMemory * 0.9)
+			debug.SetMemoryLimit(finalmem)
+			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
+		} else {
+			// There are no memory constraints
+			log.Infof("GOMEMLIMIT unconstrained.")
+		}
+	} else {
+		log.Infof("Memory constrained by cgroup. GOMEMLIMIT is: %vMiB", cgmem/(1024*1024))
+	}
 
 	agnt := agent.NewAgent(ctx, tracecfg, telemetryCollector)
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)

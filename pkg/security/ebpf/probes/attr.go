@@ -9,17 +9,16 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// attrProbes holds the list of probes used to track link events
-var attrProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_security_inode_setattr",
-		},
-	},
-}
-
 func getAttrProbes(fentry bool) []*manager.Probe {
+	var attrProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_security_inode_setattr",
+			},
+		},
+	}
+
 	// chmod
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
