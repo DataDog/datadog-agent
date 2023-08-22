@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,12 +68,7 @@ func (h *HttpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
-	now, err := ebpf.NowNanoseconds()
-	if err != nil {
-		log.Warnf("couldn't get monotonic clock, using realtime clock instead: %s", err)
-		now = time.Now().UnixNano()
-	}
-	for _, tx := range h.incomplete.Flush(now) {
+	for _, tx := range h.incomplete.Flush(getCurrentNanoSeconds()) {
 		h.add(tx)
 	}
 
