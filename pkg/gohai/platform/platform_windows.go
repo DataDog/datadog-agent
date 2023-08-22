@@ -195,11 +195,13 @@ func fetchOsDescription() (string, error) {
 			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
 			// Don't check for err, as this API doesn't return an error but just a formatted string.
 			os, _, _ := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
-			//nolint:errcheck
-			defer windows.LocalFree(windows.Handle(os))
-			// govet complains about possible misuse of unsafe.Pointer here
-			//nolint:govet
-			return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
+			if os != 0 {
+				//nolint:errcheck
+				defer windows.LocalFree(windows.Handle(os))
+				// govet complains about possible misuse of unsafe.Pointer here
+				//nolint:govet
+				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
+			}
 		}
 	}
 
