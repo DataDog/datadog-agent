@@ -49,9 +49,9 @@ printf '{"alias_secret": {"value": "a_super_secret_string"}}\n'`
 host_aliases:
   - ENC[alias_secret]`
 
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript)))
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false)))
 	v.Env().VM.Execute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript), agentparams.WithAgentConfig(config)))
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false), agentparams.WithAgentConfig(config)))
 
 	output, err := v.Env().Agent.Secret()
 	assert.NoError(v.T(), err)
