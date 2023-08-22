@@ -153,7 +153,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	_, err := t.driverInterface.GetOpenConnectionStats(t.activeBuffer, func(c *network.ConnectionStats) bool {
+	defer func() {
+		t.closedBuffer.Reset()
+	}()
+
+	buffer := network.ClientPool.Get()
+	_, err := t.driverInterface.GetOpenConnectionStats(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
@@ -165,7 +170,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
-	activeConnStats := t.activeBuffer.Connections()
+	activeConnStats := buffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
@@ -180,23 +185,20 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	}
 
-	t.activeBuffer.Reset()
-	t.closedBuffer.Reset()
+	buffer.Assign(delta.Conns)
+	conns := network.NewConnections(buffer)
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
 	}
-	names := t.reverseDNS.Resolve(ips)
-	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
-	return &network.Connections{
-		BufferedData:  delta.BufferedData,
-		HTTP:          delta.HTTP,
-		DNS:           names,
-		DNSStats:      delta.DNSStats,
-		ConnTelemetry: telemetryDelta,
-	}, nil
+	conns.DNS = t.reverseDNS.Resolve(ips)
+	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
+	conns.HTTP = delta.HTTP
+	conns.DNSStats = delta.DNSStats
+	conns.ConnTelemetry = telemetryDelta
+	return conns, nil
 }
 
 // RegisterClient registers the client
