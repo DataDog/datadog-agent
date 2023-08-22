@@ -1,0 +1,28 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  list-repositories:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set Up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: List Repositories
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ORG_NAME: datadog
+          PR_NUMBER: ${{ github.event.number }} 
+        run: python .github/workflows/dependency-review.py
