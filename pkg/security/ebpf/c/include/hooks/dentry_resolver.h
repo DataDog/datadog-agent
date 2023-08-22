@@ -281,6 +281,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
             goto exit;
         }
     }
+
     if (state->iteration < DR_MAX_TAIL_CALL) {
         tail_call_dr_progs(ctx, dr_type, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
@@ -296,208 +297,24 @@ int tail_call_target_dentry_resolver_erpc_mmap(ctx_t *ctx) {
     return dentry_resolver_erpc_mmap(ctx, DR_KPROBE_OR_FENTRY);
 }
 
-int __attribute__((always_inline)) dentry_resolver_segment_erpc_write_user(void *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
+#endif // USE_FENTRY
 
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
+SEC("kprobe/dentry_resolver_ad_filter")
+int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall) {
         return 0;
     }
 
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
+    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
+        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    if (map_value->len + sizeof(key) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_write_user((void *) state->userspace_buffer, &state->key, sizeof(state->key));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-    ret = bpf_probe_write_user((void *) state->userspace_buffer + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    ret = bpf_probe_write_user((void *) state->userspace_buffer + sizeof(state->key), map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
+    tail_call_dr_progs(ctx, DR_KPROBE, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
-TAIL_CALL_TARGET("dentry_resolver_segment_erpc_write_user")
-int tail_call_target_dentry_resolver_segment_erpc_write_user(ctx_t *ctx) {
-    return dentry_resolver_segment_erpc_write_user(ctx);
-}
-
-int __attribute__((always_inline)) dentry_resolver_segment_erpc_mmap(void *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
-    char *mmapped_userspace_buffer = NULL;
-
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
-        return 0;
-    }
-
-    mmapped_userspace_buffer = bpf_map_lookup_elem(&dr_erpc_buffer, &key);
-    if (mmapped_userspace_buffer == NULL) {
-        resolution_err = DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
-    }
-
-    if (map_value->len + sizeof(key) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_read((void *) mmapped_userspace_buffer, sizeof(state->key), &state->key);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    ret = bpf_probe_read((void *) mmapped_userspace_buffer + (offsetof(struct path_key_t, path_id) & 0x7FFF), sizeof(state->challenge), &state->challenge);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    ret = bpf_probe_read((void *) mmapped_userspace_buffer + (sizeof(state->key) & 0x7FFF), DR_MAX_SEGMENT_LENGTH + 1, map_value->name);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
-    return 0;
-}
-
-TAIL_CALL_TARGET("dentry_resolver_segment_erpc_mmap")
-int tail_call_target_dentry_resolver_segment_erpc_mmap(ctx_t *ctx) {
-    return dentry_resolver_segment_erpc_mmap(ctx);
-}
-
-int __attribute__((always_inline)) dentry_resolver_parent_erpc_write_user(void *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
-
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
-        return 0;
-    }
-
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
-    }
-
-    if (sizeof(map_value->parent) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_write_user((void *) state->userspace_buffer, &map_value->parent, sizeof(map_value->parent));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-    ret = bpf_probe_write_user((void *) state->userspace_buffer + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
-    return 0;
-}
-
-TAIL_CALL_TARGET("dentry_resolver_parent_erpc_write_user")
-int tail_call_target_dentry_resolver_parent_erpc_write_user(ctx_t *ctx) {
-    return dentry_resolver_parent_erpc_write_user(ctx);
-}
-
-int __attribute__((always_inline)) dentry_resolver_parent_erpc_mmap(void *ctx) {
-    u32 key = 0;
-    u32 resolution_err = 0;
-    char *mmapped_userspace_buffer = NULL;
-
-    struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
-    if (state == NULL) {
-        return 0;
-    }
-
-    mmapped_userspace_buffer = bpf_map_lookup_elem(&dr_erpc_buffer, &key);
-    if (mmapped_userspace_buffer == NULL) {
-        resolution_err = DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-    // resolve segment and write in buffer
-    struct path_key_t path_key = state->key;
-    struct path_leaf_t *map_value = bpf_map_lookup_elem(&pathnames, &path_key);
-    if (map_value == NULL) {
-        resolution_err = DR_ERPC_CACHE_MISS;
-        goto exit;
-    }
-
-    if (sizeof(map_value->parent) > state->buffer_size) {
-        // make sure we do not write outside of the provided buffer
-        resolution_err = DR_ERPC_BUFFER_SIZE;
-        goto exit;
-    }
-
-    int ret = bpf_probe_read((void *) mmapped_userspace_buffer, sizeof(map_value->parent), &map_value->parent);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-    ret = bpf_probe_read((void *) mmapped_userspace_buffer + (offsetof(struct path_key_t, path_id) & 0x7FFF), sizeof(state->challenge), &state->challenge);
-    if (ret < 0) {
-        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
-        goto exit;
-    }
-
-exit:
-    monitor_resolution_err(resolution_err);
-    return 0;
-}
-
-TAIL_CALL_TARGET("dentry_resolver_parent_erpc_mmap")
-int tail_call_target_dentry_resolver_parent_erpc_mmap(ctx_t *ctx) {
-    return dentry_resolver_parent_erpc_mmap(ctx);
-}
+#ifdef USE_FENTRY
 
 TAIL_CALL_TARGET("dentry_resolver_ad_filter")
 int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {
