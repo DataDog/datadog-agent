@@ -162,7 +162,7 @@ func TestAggregator(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
-	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.FlushFlowsToSendInterval = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
 	}
@@ -262,7 +262,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	logger := fxutil.Test[log.Component](t, log.MockModule)
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger)
-	aggregator.flushFlowsToSendInterval = 1 * time.Second
+	aggregator.FlushFlowsToSendInterval = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
 	}
