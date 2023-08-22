@@ -6,67 +6,20 @@
 package metrics
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-)
-
-var (
-	tlmMetricSamplePoolGet = telemetry.NewGauge("dogstatsd", "metric_sample_pool_get",
-		nil, "Amount of sample gotten from the metric sample pool")
-	tlmMetricSamplePoolPut = telemetry.NewGauge("dogstatsd", "metric_sample_pool_put",
-		nil, "Amount of sample put in the metric sample pool")
-	tlmMetricSamplePool = telemetry.NewGauge("dogstatsd", "metric_sample_pool",
-		nil, "Usage of the metric sample pool in dogstatsd")
+	"github.com/DataDog/datadog-agent/pkg/metrics/model"
 )
 
 // MetricSampleBatch is a slice of MetricSample. It is used by the MetricSamplePool
 // to avoid constant reallocation in high throughput pipelines.
 //
 // Can be used for both "on-time" and for "late" metrics.
-type MetricSampleBatch []MetricSample
+type MetricSampleBatch = model.MetricSampleBatch
 
 // MetricSamplePool is a pool of metrics sample
-type MetricSamplePool struct {
-	pool *sync.Pool
-	// telemetry
-	tlmEnabled bool
-}
+type MetricSamplePool = model.MetricSamplePool
 
 // NewMetricSamplePool creates a new MetricSamplePool
-func NewMetricSamplePool(batchSize int) *MetricSamplePool {
-	return &MetricSamplePool{
-		pool: &sync.Pool{
-			New: func() interface{} {
-				return make(MetricSampleBatch, batchSize)
-			},
-		},
-		// telemetry
-		tlmEnabled: utils.IsTelemetryEnabled(),
-	}
-}
-
-// GetBatch gets a batch of metric samples from the pool
-func (m *MetricSamplePool) GetBatch() MetricSampleBatch {
-	if m == nil {
-		return nil
-	}
-	if m.tlmEnabled {
-		tlmMetricSamplePoolGet.Inc()
-		tlmMetricSamplePool.Inc()
-	}
-	return m.pool.Get().(MetricSampleBatch)
-}
-
-// PutBatch puts a batch back into the pool
-func (m *MetricSamplePool) PutBatch(batch MetricSampleBatch) {
-	if m == nil {
-		return
-	}
-	if m.tlmEnabled {
-		tlmMetricSamplePoolPut.Inc()
-		tlmMetricSamplePool.Dec()
-	}
-	m.pool.Put(batch[:cap(batch)])
+var NewMetricSamplePool = func(batchSize int) MetricSamplePool {
+	return *model.NewMetricSamplePool(batchSize, utils.IsTelemetryEnabled())
 }

@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package model
 
 import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -65,11 +66,11 @@ func NewCheckMetrics(expireMetrics bool, statefulTimeout time.Duration) CheckMet
 // If contextKey is scheduled for removal (see Expire), it will be unscheduled.
 //
 // See also ContextMetrics.AddSample().
-func (cm *CheckMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) error {
+func (cm *CheckMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64, config conf.Config) error {
 	if cm.deadlines != nil {
 		delete(cm.deadlines, contextKey)
 	}
-	return cm.metrics.AddSample(contextKey, sample, timestamp, interval, checkMetricsAddSampleTelemetry)
+	return cm.metrics.AddSample(contextKey, sample, timestamp, interval, checkMetricsAddSampleTelemetry, config)
 }
 
 // Expire enables metric data for given context keys to be removed.

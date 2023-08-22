@@ -12,13 +12,13 @@ type MetricSource = model.MetricSource
 
 // Enumeration of the currently supported MetricSources
 const (
-	MetricSourceUnknown MetricSource = iota
+	MetricSourceUnknown = model.MetricSourceUnknown
 
-	MetricSourceDogstatsd
+	MetricSourceDogstatsd = model.MetricSourceDogstatsd
 
 	// In the future, metrics from official JMX integrations will
 	// be properly categorized, but as things are today, ALL metrics
 	// from a JMX check will be marked as "custom", including official
 	// integrations
-	MetricSourceJmxCustom
+	MetricSourceJmxCustom = model.MetricSourceJmxCustom
 )

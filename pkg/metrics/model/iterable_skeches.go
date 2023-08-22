@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metrics
+package model
 
 // IterableSketches is an specialisation of iterableMetrics for Sketches.
 type IterableSketches struct {

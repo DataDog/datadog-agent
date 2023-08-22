@@ -1,8 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
 package model
 
 import "github.com/DataDog/datadog-agent/pkg/tagset"
@@ -34,10 +29,7 @@ func (m *HistogramBucket) GetHost() string {
 }
 
 // GetTags returns the bucket tags.
-func (m *HistogramBucket) GetTags(
-	taggerBuffer, metricBuffer tagset.TagsAccumulator,
-	fn EnrichTagsfn,
-) {
+func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
 	// Other 'GetTags' methods for metrics support origin detections. Since
 	// HistogramBucket only come, for now, from checks we can simply return
 	// tags.
