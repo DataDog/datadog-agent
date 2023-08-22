@@ -22,7 +22,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -1199,127 +1198,6 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
 	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
-}
-
-func (s *TracerSuite) TestConnectionClobber() {
-	t := s.T()
-	cfg := testConfig()
-	cfg.CollectUDPv4Conns = false
-	cfg.CollectUDPv6Conns = false
-	cfg.ExcludedDestinationConnections = map[string][]string{
-		"0.0.0.0/2":   {"*"},
-		"64.0.0.0/3":  {"*"},
-		"96.0.0.0/4":  {"*"},
-		"112.0.0.0/5": {"*"},
-		"120.0.0.0/6": {"*"},
-		"124.0.0.0/7": {"*"},
-		"126.0.0.0/8": {"*"},
-		"128.0.0.0/1": {"*"},
-	}
-	tr := setupTracer(t, cfg)
-
-	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
-	var serverConns []net.Conn
-	srvRecvBuf := make([]byte, 4)
-	server := NewTCPServer(func(c net.Conn) {
-		serverConns = append(serverConns, c)
-		_, _ = io.ReadFull(c, srvRecvBuf)
-		_, _ = c.Write(srvRecvBuf)
-	})
-	require.NoError(t, server.Run())
-	t.Cleanup(server.Shutdown)
-
-	// we only need 1/4 since both send and recv sides will be registered
-	sendCount := tr.activeBuffer.Capacity()/4 + 1
-	sendAndRecv := func() []net.Conn {
-		connsCh := make(chan net.Conn, sendCount)
-		var conns []net.Conn
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for c := range connsCh {
-				if c == nil {
-					return
-				}
-				conns = append(conns, c)
-			}
-		}()
-
-		g := new(errgroup.Group)
-		for i := 0; i < sendCount; i++ {
-			g.Go(func() error {
-				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
-				if err != nil {
-					return err
-				}
-				connsCh <- c
-
-				buf := make([]byte, 4)
-				_, err = c.Write(buf)
-				if err != nil {
-					return err
-				}
-
-				_, err = io.ReadFull(c, buf[:0])
-				return err
-			})
-		}
-
-		err := g.Wait()
-		require.NoError(t, err)
-		// signal all connections have been created
-		connsCh <- nil
-		// wait for all conns to be stored
-		wg.Wait()
-
-		return conns
-	}
-
-	conns := sendAndRecv()
-
-	// wait for tracer to pick up all connections
-	//
-	// there is not a good way do this other than a sleep since we
-	// can't call getConnections in a `require.Eventually` call
-	// to the get the number of connections as that could
-	// affect the `activeBuffer` length
-	time.Sleep(2 * time.Second)
-
-	preCap := tr.activeBuffer.Capacity()
-	connections := getConnections(t, tr)
-	require.NotEmpty(t, connections)
-	src := connections.Conns[0].SPort
-	dst := connections.Conns[0].DPort
-	t.Logf("got %d connections", len(connections.Conns))
-	// ensure we didn't grow or shrink the buffer
-	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
-
-	closeConns := func(cxs []net.Conn) {
-		for _, c := range cxs {
-			if tcpc, ok := c.(*net.TCPConn); ok {
-				tcpc.SetLinger(0)
-			}
-			c.Close()
-		}
-	}
-
-	closeConns(append(conns, serverConns...))
-	serverConns = serverConns[:0]
-
-	// send second batch so that underlying array gets clobbered
-	conns = sendAndRecv()
-	serverConns = serverConns[:0]
-	t.Cleanup(func() {
-		closeConns(append(conns, serverConns...))
-	})
-
-	time.Sleep(2 * time.Second)
-
-	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
-	assert.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
-	assert.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
-	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
 func (s *TracerSuite) TestTCPDirection() {

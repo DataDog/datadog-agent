@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -25,6 +26,8 @@ const (
 	maxByteCountChange uint64 = 375 << 30
 	// use typical small MTU size, 1300, to get max packet count
 	maxPacketCountChange uint64 = maxByteCountChange / 1300
+
+	defaultConnectionBufferSize = 1024
 )
 
 // ConnectionType will be either TCP or UDP
@@ -118,15 +121,10 @@ func (e EphemeralPortType) String() string {
 	}
 }
 
-// BufferedData encapsulates data whose underlying memory can be recycled
-type BufferedData struct {
-	Conns  []ConnectionStats
-	buffer *clientBuffer
-}
-
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	BufferedData
+	Conns                       []ConnectionStats
+	Buffer                      *ConnectionBuffer
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
@@ -137,6 +135,30 @@ type Connections struct {
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
 	DNSStats                    dns.StatsByKeyByNameByType
+}
+
+var connectionBufferPool = sync.Pool{
+	New: func() any {
+		return NewConnectionBuffer(defaultConnectionBufferSize, 256)
+	},
+}
+
+func NewConnections() *Connections {
+	c := &Connections{Buffer: connectionBufferPool.Get().(*ConnectionBuffer)}
+	c.Conns = c.Buffer.Connections()
+	return c
+}
+
+func (c *Connections) Assign(conns []ConnectionStats) {
+	c.Buffer.Assign(conns)
+	c.Conns = c.Buffer.Connections()
+}
+
+func (c *Connections) Reclaim() {
+	c.Conns = nil
+	c.Buffer.Reset()
+	connectionBufferPool.Put(c.Buffer)
+	c.Buffer = nil
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe

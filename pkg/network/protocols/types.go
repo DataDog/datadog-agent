@@ -74,3 +74,7 @@ func (s *Stack) MergeWith(other Stack) {
 func (s *Stack) Contains(proto ProtocolType) bool {
 	return s.Api == proto || s.Application == proto || s.Encryption == proto
 }
+
+func (s *Stack) IsUnknown() bool {
+	return s.Api == Unknown && s.Application == Unknown && s.Encryption == Unknown
+}

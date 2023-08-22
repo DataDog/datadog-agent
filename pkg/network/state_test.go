@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -131,7 +132,7 @@ func TestRemoveConnections(t *testing.T) {
 	assert.Equal(t, 0, len(conns))
 
 	conns = state.GetDelta(clientID, latestEpochTime(), []ConnectionStats{conn}, nil, nil).Conns
-	assert.Equal(t, 1, len(conns))
+	require.Equal(t, 1, len(conns))
 	assert.Equal(t, conn, conns[0])
 
 	client := state.clients[clientID]
@@ -654,9 +655,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn2.LastUpdateEpoch = latestEpochTime()
 		// Retrieve the connections
 		conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn2}, nil, nil).Conns
-		require.Len(t, conns, 2)
-		assert.EqualValues(t, uint64(1), conns[0].Last.SentBytes)
-		assert.EqualValues(t, uint64(2), conns[0].Monotonic.SentBytes)
+		require.Len(t, conns, 1)
+		assert.EqualValues(t, uint64(2), conns[0].Last.SentBytes)
+		assert.EqualValues(t, uint64(3), conns[0].Monotonic.SentBytes)
 		// should not hold on to active connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
@@ -710,11 +711,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Second get, we should have monotonic and last stats = 5
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		require.Equal(t, 2, len(conns))
-		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
 		// should not hold on to closed connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
@@ -733,11 +732,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Third get, we should have monotonic = 6 and last stats = 4
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 6, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		// should not hold on to closed connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn3.Cookie)
@@ -864,11 +861,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Second get, for client c we should have monotonic and last stats = 5
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
@@ -899,11 +894,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Third get, for client c, we should have monotonic = 6 and last stats = 4
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 6, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn3.Cookie)
 
@@ -914,11 +907,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// 4th get, for client d, we should have monotonic = 7 and last stats = 4
 		conns = state.GetDelta(clientD, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 7, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["d"].stats, 1)
 		assert.Contains(t, state.clients["d"].stats, conn3.Cookie)
 
@@ -1041,11 +1032,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Second get, for client c we should have monotonic and last stats = 5
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
@@ -1770,7 +1759,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 		conns = append(conns, te.conn)
 	}
 	state := newDefaultState()
-	state.determineConnectionIntraHost(conns)
+	state.determineConnectionIntraHost(slice.NewChain(conns))
 	for i, te := range tests {
 		if i >= len(conns) {
 			assert.Failf(t, "missing connection for %s", te.name)
