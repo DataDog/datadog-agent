@@ -11,6 +11,13 @@ REPOS = requests.get(
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 ).json()
 
+CVE_INFO = requests.get(
+    f"https://api.github.com/advisories/{REPOS['advisory_ghsa_id']}",
+    headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
+).json()
+
+print(CVE_INFO)
+
 output = ""
 output += "### Vulnerability Report\n\n"
 # Loop through each entry in the data
