@@ -8,6 +8,7 @@ package netflow
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -33,6 +34,7 @@ type Server struct {
 	listeners []*netflowListener
 	flowAgg   *flowaggregator.FlowAggregator
 	logger    log.Component
+	started   bool
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
@@ -51,29 +53,6 @@ func NewNetflowServer(sender sender.Sender, epForwarder epforwarder.EventPlatfor
 	}
 
 	flowAgg := flowaggregator.NewFlowAggregator(sender, epForwarder, mainConfig, hostnameDetected, logger)
-	go flowAgg.Start()
-
-	if mainConfig.PrometheusListenerEnabled {
-		go func() {
-			serverMux := http.NewServeMux()
-			serverMux.Handle("/metrics", promhttp.Handler())
-			err := http.ListenAndServe(mainConfig.PrometheusListenerAddress, serverMux)
-			if err != nil {
-				logger.Errorf("error starting prometheus server `%s`", mainConfig.PrometheusListenerAddress)
-			}
-		}()
-	}
-
-	logger.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", mainConfig.AggregatorBufferSize, mainConfig.AggregatorFlushInterval, mainConfig.AggregatorFlowContextTTL)
-	for _, listenerConfig := range mainConfig.Listeners {
-		logger.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
-		listener, err := startFlowListener(listenerConfig, flowAgg, logger)
-		if err != nil {
-			logger.Warnf("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d): %s", listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, err)
-			continue
-		}
-		listeners = append(listeners, listener)
-	}
 
 	return &Server{
 		listeners: listeners,
@@ -81,10 +60,42 @@ func NewNetflowServer(sender sender.Sender, epForwarder epforwarder.EventPlatfor
 		flowAgg:   flowAgg,
 		logger:    logger,
 	}, nil
+
+}
+
+func (s *Server) Start() error {
+	if s.started {
+		return errors.New("server already started")
+	}
+	s.started = true
+	go s.flowAgg.Start()
+
+	if s.config.PrometheusListenerEnabled {
+		go func() {
+			serverMux := http.NewServeMux()
+			serverMux.Handle("/metrics", promhttp.Handler())
+			err := http.ListenAndServe(s.config.PrometheusListenerAddress, serverMux)
+			if err != nil {
+				s.logger.Errorf("error starting prometheus server `%s`", s.config.PrometheusListenerAddress)
+			}
+		}()
+	}
+
+	s.logger.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", s.config.AggregatorBufferSize, s.config.AggregatorFlushInterval, s.config.AggregatorFlowContextTTL)
+	for _, listenerConfig := range s.config.Listeners {
+		s.logger.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
+		listener, err := startFlowListener(listenerConfig, s.flowAgg, s.logger)
+		if err != nil {
+			s.logger.Warnf("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d): %s", listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, err)
+			continue
+		}
+		s.listeners = append(s.listeners, listener)
+	}
+	return nil
 }
 
 // Stop stops the Server.
-func (s *Server) stop() {
+func (s *Server) Stop() {
 	s.logger.Infof("Stop NetFlow Server")
 
 	s.flowAgg.Stop()
@@ -123,13 +134,16 @@ func StartServer(demux aggregator.DemultiplexerWithAggregator, ddconf ddconfig.C
 		return err
 	}
 	serverInstance = server
+	if err := serverInstance.Start(); err != nil {
+		return err
+	}
 	return nil
 }
 
 // StopServer stops the netflow server, if it is running.
 func StopServer() {
 	if serverInstance != nil {
-		serverInstance.stop()
+		serverInstance.Stop()
 		serverInstance = nil
 	}
 }

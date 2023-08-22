@@ -85,13 +85,16 @@ network_devices:
 	require.NoError(t, err, "cannot get default sender")
 
 	server, err := NewNetflowServer(sender, nil, config.Datadog, logger)
+	if err == nil {
+		err = server.Start()
+	}
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
 	flowProcessor := replaceWithDummyFlowProcessor(server, port)
 
 	// Stops server
-	server.stop()
+	server.Stop()
 
 	// Assert logs present
 	assert.Equal(t, flowProcessor.stopped, true)
