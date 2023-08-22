@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -26,8 +25,6 @@ const (
 	maxByteCountChange uint64 = 375 << 30
 	// use typical small MTU size, 1300, to get max packet count
 	maxPacketCountChange uint64 = maxByteCountChange / 1300
-
-	defaultConnectionBufferSize = 1024
 )
 
 // ConnectionType will be either TCP or UDP
@@ -121,10 +118,15 @@ func (e EphemeralPortType) String() string {
 	}
 }
 
+// BufferedData encapsulates data whose underlying memory can be recycled
+type BufferedData struct {
+	Conns  []ConnectionStats
+	buffer *ClientBuffer
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
-	Conns                       []ConnectionStats
-	Buffer                      *ConnectionBuffer
+	BufferedData
 	DNS                         map[util.Address][]dns.Hostname
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
@@ -137,33 +139,13 @@ type Connections struct {
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
-var connectionBufferPool = sync.Pool{
-	New: func() any {
-		return NewConnectionBuffer(defaultConnectionBufferSize, 256)
-	},
-}
-
-// NewConnections creates a new Connections object
-func NewConnections() *Connections {
-	c := &Connections{Buffer: connectionBufferPool.Get().(*ConnectionBuffer)}
-	c.Conns = c.Buffer.Connections()
-	return c
-}
-
-// Assign assigns the given slice to the Connection object;
-// Connection.Conn and Connection.Buffer are updated
-func (c *Connections) Assign(conns []ConnectionStats) {
-	c.Buffer.Assign(conns)
-	c.Conns = c.Buffer.Connections()
-}
-
-// Reclaim "reclaims" this Connection object by reclaiming
-// memory for some enclosed objects
-func (c *Connections) Reclaim() {
-	c.Conns = nil
-	c.Buffer.Reset()
-	connectionBufferPool.Put(c.Buffer)
-	c.Buffer = nil
+func NewConnections(buffer *ClientBuffer) *Connections {
+	return &Connections{
+		BufferedData: BufferedData{
+			Conns:  buffer.Connections(),
+			buffer: buffer,
+		},
+	}
 }
 
 // ConnTelemetryType enumerates the connection telemetry gathered by the system-probe

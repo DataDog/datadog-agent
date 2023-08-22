@@ -286,7 +286,7 @@ func getClientID(req *http.Request) string {
 }
 
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
-	defer cs.Reclaim()
+	defer network.Reclaim(cs)
 
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {

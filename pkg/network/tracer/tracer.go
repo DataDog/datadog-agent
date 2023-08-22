@@ -378,8 +378,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	}
 	t.ebpfTracer.FlushPending()
 
-	conns := network.NewConnections()
-	latestTime, active, err := t.getConnections(conns.Buffer)
+	buffer := network.ClientPool.Get(clientID)
+	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
@@ -400,15 +400,16 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		}
 	}
 
+	buffer.ConnectionBuffer.Assign(delta.Conns)
+	conns := network.NewConnections(buffer)
+
 	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
 	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
-
-	conns.Assign(delta.Conns)
+	conns.DNS = t.reverseDNS.Resolve(ips)
+	conns.DNSStats = delta.DNSStats
 	conns.HTTP = delta.HTTP
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka
-	conns.DNS = t.reverseDNS.Resolve(ips)
-	conns.DNSStats = delta.DNSStats
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
@@ -670,11 +671,15 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	activeBuffer := network.NewConnectionBuffer(512, 512)
-	_, conns, err := t.getConnections(activeBuffer)
+	_, connections, err := t.getConnections(activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
-	return &network.Connections{Conns: conns}, nil
+	return &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
+	}, nil
 
 }
 

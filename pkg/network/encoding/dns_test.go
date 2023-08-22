@@ -9,10 +9,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/agent-payload/v5/process"
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -22,15 +21,17 @@ import (
 
 func TestFormatConnectionDNS(t *testing.T) {
 	payload := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source:    util.AddressFromString("10.1.1.1"),
-				Dest:      util.AddressFromString("8.8.8.8"),
-				SPort:     1000,
-				DPort:     53,
-				Type:      network.UDP,
-				Family:    network.AFINET6,
-				Direction: network.LOCAL,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("8.8.8.8"),
+					SPort:     1000,
+					DPort:     53,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
+				},
 			},
 		},
 		DNSStats: dns.StatsByKeyByNameByType{
@@ -113,26 +114,28 @@ func TestFormatConnectionDNS(t *testing.T) {
 
 func TestDNSPIDCollision(t *testing.T) {
 	payload := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source:    util.AddressFromString("10.1.1.1"),
-				Dest:      util.AddressFromString("8.8.8.8"),
-				Pid:       1,
-				SPort:     1000,
-				DPort:     53,
-				Type:      network.UDP,
-				Family:    network.AFINET6,
-				Direction: network.LOCAL,
-			},
-			{
-				Source:    util.AddressFromString("10.1.1.1"),
-				Dest:      util.AddressFromString("8.8.8.8"),
-				Pid:       2,
-				SPort:     1000,
-				DPort:     53,
-				Type:      network.UDP,
-				Family:    network.AFINET6,
-				Direction: network.LOCAL,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("8.8.8.8"),
+					Pid:       1,
+					SPort:     1000,
+					DPort:     53,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
+				},
+				{
+					Source:    util.AddressFromString("10.1.1.1"),
+					Dest:      util.AddressFromString("8.8.8.8"),
+					Pid:       2,
+					SPort:     1000,
+					DPort:     53,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
+				},
 			},
 		},
 		DNSStats: dns.StatsByKeyByNameByType{

@@ -268,10 +268,7 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	active, closed := ns.mergeConnections(id, active)
 
-	cs := slice.NewChain(active, closed)
-	ns.determineConnectionIntraHost(cs)
-
-	aggr := newConnectionAggregator(cs.Len())
+	aggr := newConnectionAggregator((len(closed) + len(active)) / 2)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -281,6 +278,8 @@ func (ns *networkState) GetDelta(
 	})
 
 	aggr.finalize()
+
+	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
 
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -777,6 +776,7 @@ func (ns *networkState) RemoveClient(clientID string) {
 	ns.Lock()
 	defer ns.Unlock()
 	delete(ns.clients, clientID)
+	ClientPool.RemoveExpiredClient(clientID)
 }
 
 func (ns *networkState) RemoveExpiredClients(now time.Time) {
@@ -787,6 +787,7 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 		if c.lastFetch.Add(ns.clientExpiry).Before(now) {
 			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closedConnections))
 			delete(ns.clients, id)
+			ClientPool.RemoveExpiredClient(id)
 		}
 	}
 }
@@ -1086,6 +1087,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	}
 
 	if bytes.Compare(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) != 0 {
+		log.Debugf("cookie collision for connections %+v and %+v", a, b)
 		// cookie collision
 		return true
 	}

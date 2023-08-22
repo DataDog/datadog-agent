@@ -9,15 +9,15 @@ import (
 	"runtime"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/stretchr/testify/suite"
 )
 
 type HTTP2Suite struct {
@@ -74,12 +74,14 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 	}
 
 	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source: localhost,
-				Dest:   localhost,
-				SPort:  clientPort,
-				DPort:  serverPort,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  clientPort,
+					DPort:  serverPort,
+				},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -158,12 +160,14 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	)
 
 	payload := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source: util.AddressFromString("10.1.1.1"),
-				Dest:   util.AddressFromString("10.2.2.2"),
-				SPort:  60000,
-				DPort:  80,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("10.2.2.2"),
+					SPort:  60000,
+					DPort:  80,
+				},
 			},
 		},
 		HTTP2: map[http.Key]*http.RequestStats{
@@ -241,7 +245,9 @@ func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	http2Stats.AddRequest(104, 1.0, 0, nil)
 
 	in := &network.Connections{
-		Conns: connections,
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
 		HTTP2: map[http.Key]*http.RequestStats{
 			httpKey: http2Stats,
 		},
@@ -306,7 +312,9 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	http2Stats.AddRequest(103, 1.0, 0, nil)
 
 	in := &network.Connections{
-		Conns: connections,
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
 		HTTP2: map[http.Key]*http.RequestStats{
 			httpKey: http2Stats,
 		},
