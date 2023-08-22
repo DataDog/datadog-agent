@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - Improve marshalling performance in the system-probe -> process-agent path. This improves memory footprint when NPM and/or USM are enabled.
+  - Improve marshalling performance in the ``system-probe`` -> ``process-agent`` path. This improves memory footprint when NPM and/or USM are enabled.
