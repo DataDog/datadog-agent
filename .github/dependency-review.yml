@@ -22,7 +22,7 @@ jobs:
 
       - name: List Repositories
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           ORG_NAME: datadog
           PR_NUMBER: ${{ github.event.number }} 
         run: python .github/workflows/dependency-review.py
