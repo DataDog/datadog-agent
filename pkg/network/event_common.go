@@ -139,6 +139,7 @@ type Connections struct {
 	DNSStats                    dns.StatsByKeyByNameByType
 }
 
+// NewConnections create a new Connections object
 func NewConnections(buffer *ClientBuffer) *Connections {
 	return &Connections{
 		BufferedData: BufferedData{
