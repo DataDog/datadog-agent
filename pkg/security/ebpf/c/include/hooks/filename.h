@@ -39,4 +39,10 @@ int hook_user_path_create(ctx_t *ctx) {
     return filename_create_common(p);
 }
 
+HOOK_ENTRY("security_path_link")
+int hook_security_path_link(ctx_t *ctx) {
+    struct path* p = (struct path*)CTX_PARM2(ctx);
+    return filename_create_common(p);
+}
+
 #endif
