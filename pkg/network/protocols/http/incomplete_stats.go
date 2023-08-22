@@ -146,10 +146,17 @@ func (b *incompleteBuffer) Flush(nowNano int64) []Transaction {
 		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
 			if b.shouldKeep(parts.requests[i], nowNano) {
-				keep := parts.requests[i:]
-				parts := newTXParts()
-				parts.requests = append(parts.requests, keep...)
-				b.data[key] = parts
+				// if `i` is 0, then we are keeping all requests and zeroing the responses.
+				// We're dropping the responses as either they are too old, or already matched to a request by the loop
+				// above.
+				if i == 0 {
+					b.data[key].responses = b.data[key].responses[:0]
+				} else {
+					keep := parts.requests[i:]
+					parts := newTXParts()
+					parts.requests = append(parts.requests, keep...)
+					b.data[key] = parts
+				}
 				break
 			}
 			b.telemetry.joiner.agedRequest.Add(1)
