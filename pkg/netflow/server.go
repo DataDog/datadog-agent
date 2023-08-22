@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+// Package netflow defines listeners that parse metrics and events from netflow traffic
 package netflow
 
 import (
