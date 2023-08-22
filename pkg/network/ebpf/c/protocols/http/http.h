@@ -140,7 +140,9 @@ static __always_inline void http_process(http_transaction_t *http_stack, skb_inf
 
     http->tags |= tags;
 
-    if (http_responding(http)) {
+    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
+    // This is to prevent things such as keep-alives adding up to the transaction latency
+    if ((buffer[0] != 0) && http_responding(http)) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
