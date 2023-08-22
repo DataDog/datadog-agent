@@ -800,7 +800,4 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
 #endif
 }
 
-// This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

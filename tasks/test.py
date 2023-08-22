@@ -119,6 +119,16 @@ def download_tools(ctx):
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
+    if os.path.isfile("go.work") or os.path.isfile("go.work.sum"):
+        print(
+            color_message(
+                "Detected go workspace files. Go workspaces are not currently supported, "
+                + "please remove go.work and go.work.sum",
+                "red",
+            )
+        )
+        return
+
     with environ({'GO111MODULE': 'on'}):
         for path, tools in TOOLS.items():
             with ctx.cd(path):

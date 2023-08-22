@@ -73,5 +73,4 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     return 0;
 }
 
-__u32 _version SEC("version") = 0xFFFFFFFE;
 char _license[] SEC("license") = "GPL";

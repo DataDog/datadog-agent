@@ -51,7 +51,10 @@ var (
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
-	failingStartupMock := func(_ *manager.Manager) error {
+	failingPreStartupMock := func(_ *manager.Manager, _ protocols.BuildMode) error {
+		return fmt.Errorf("mock error")
+	}
+	failingPostStartupMock := func(_ *manager.Manager) error {
 		return fmt.Errorf("mock error")
 	}
 
@@ -59,8 +62,8 @@ func TestMonitorProtocolFail(t *testing.T) {
 		name string
 		spec protocolMockSpec
 	}{
-		{name: "PreStart fails", spec: protocolMockSpec{preStartFn: failingStartupMock}},
-		{name: "PostStart fails", spec: protocolMockSpec{postStartFn: failingStartupMock}},
+		{name: "PreStart fails", spec: protocolMockSpec{preStartFn: failingPreStartupMock}},
+		{name: "PostStart fails", spec: protocolMockSpec{postStartFn: failingPostStartupMock}},
 	}
 
 	for _, tt := range testCases {

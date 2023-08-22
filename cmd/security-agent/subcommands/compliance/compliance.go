@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -53,9 +54,10 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		resolverOptions.StatsdClient = statsdClient
 	}
 
-	runner := runner.NewRunner()
+	senderManager := aggregator.GetSenderManager()
+	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
-	agent := compliance.NewAgent(compliance.AgentOptions{
+	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
 		ResolverOptions: resolverOptions,
 		ConfigDir:       configDir,
 		Reporter:        reporter,

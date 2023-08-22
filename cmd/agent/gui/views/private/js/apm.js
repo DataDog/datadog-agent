@@ -40,9 +40,6 @@ var apmTemplate = '' +
 '                <% } else { %>' +
 '                    Priority sampling rate for \'<%= prop[0] %>\': <% prop[1].toFixed(2)*100 %>%' +
 '                <% } %>' +
-'                <% if (ratelimiter.TargetRate > 1.0) { %>' +
-'                    <br>WARNING: Rate-limiter keep percentage: <% ratelimiter.TargetRate.toFixed(2)*100 %>%<br>' +
-'                <% } %>' +
 '            <% }); %>' +
 '        <% } %>' +
 '    </span>' +

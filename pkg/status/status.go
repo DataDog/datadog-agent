@@ -34,11 +34,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 var timeFormat = "2006-01-02 15:04:05.999 MST"
@@ -86,12 +85,10 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 	stats["processAgentStatus"] = GetProcessAgentStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
-		httputils.NoProxyMapMutex.Lock()
-		stats["TransportWarnings"] = len(httputils.NoProxyIgnoredWarningMap)+len(httputils.NoProxyUsedInFuture)+len(httputils.NoProxyChanged) > 0
-		stats["NoProxyIgnoredWarningMap"] = httputils.NoProxyIgnoredWarningMap
-		stats["NoProxyUsedInFuture"] = httputils.NoProxyUsedInFuture
-		stats["NoProxyChanged"] = httputils.NoProxyChanged
-		httputils.NoProxyMapMutex.Unlock()
+		stats["TransportWarnings"] = httputils.GetNumberOfWarnings() > 0
+		stats["NoProxyIgnoredWarningMap"] = httputils.GetProxyIgnoredWarnings()
+		stats["NoProxyUsedInFuture"] = httputils.GetProxyUsedInFutureWarnings()
+		stats["NoProxyChanged"] = httputils.GetProxyIgnoredWarnings()
 	}
 
 	if config.IsContainerized() {

@@ -165,7 +165,7 @@ if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     end
   end
 
-  if node[:cws_platform] == "docker"
+  if ['docker', 'docker-fentry'].include?(node[:cws_platform])
     # Please see https://github.com/paulcacheux/cws-buildimages/blob/main/Dockerfile
     # for the definition of this base image.
     # If this successfully helps in reducing the amount of rate limits, this should be moved

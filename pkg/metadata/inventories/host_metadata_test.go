@@ -110,8 +110,8 @@ func setupHostMetadataMock(t *testing.T) {
 		platformGet = platform.CollectInfo
 
 		inventoryMutex.Lock()
-		delete(agentMetadata, string(HostCloudProvider))
-		delete(hostMetadata, string(HostOSVersion))
+		delete(agentMetadata, HostCloudProvider)
+		delete(hostMetadata, HostOSVersion)
 		inventoryMutex.Unlock()
 	})
 
