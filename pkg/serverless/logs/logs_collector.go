@@ -64,7 +64,7 @@ type LambdaLogsCollector struct {
 func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
-		In:                     make(chan []LambdaLogAPIMessage),
+		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs),
 		out:                    out,
 		demux:                  demux,
 		extraTags:              extraTags,
