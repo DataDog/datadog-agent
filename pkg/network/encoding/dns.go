@@ -107,7 +107,6 @@ func (f *dnsFormatter) FormatDNS(builder *model.ConnectionsBuilder) {
 		return
 	}
 
-	// ipToNames := make(map[string]*model.DNSEntry, len(f.conns.DNS))
 	for addr, names := range f.conns.DNS {
 		builder.AddDns(func(w *model.Connections_DnsEntryBuilder) {
 			w.SetKey(f.ipc.Get(addr))
