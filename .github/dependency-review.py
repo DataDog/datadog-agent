@@ -32,9 +32,6 @@ for entry in REPOS:
 
 print(output)
 
-comment = f"Repositories in {ORG_NAME} organization:\n{REPOS}"
-print(comment)
-
 API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('PR_NUMBER')}/comments"
 print(API_URL)
 response = requests.post(
