@@ -143,17 +143,22 @@ var connectionBufferPool = sync.Pool{
 	},
 }
 
+// NewConnections creates a new Connections object
 func NewConnections() *Connections {
 	c := &Connections{Buffer: connectionBufferPool.Get().(*ConnectionBuffer)}
 	c.Conns = c.Buffer.Connections()
 	return c
 }
 
+// Assign assigns the given slice to the Connection object;
+// Connection.Conn and Connection.Buffer are updated
 func (c *Connections) Assign(conns []ConnectionStats) {
 	c.Buffer.Assign(conns)
 	c.Conns = c.Buffer.Connections()
 }
 
+// Reclaim "reclaims" this Connection object by reclaiming
+// memory for some enclosed objects
 func (c *Connections) Reclaim() {
 	c.Conns = nil
 	c.Buffer.Reset()
