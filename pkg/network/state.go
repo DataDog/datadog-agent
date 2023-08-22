@@ -262,8 +262,18 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	active, closed := ns.mergeConnections(id, active)
 
-	cs := slice.NewChain(active, closed)
-	ns.determineConnectionIntraHost(cs)
+	aggr := newConnectionAggregator((len(closed) + len(active)) / 2)
+	active = filterConnections(active, func(c *ConnectionStats) bool {
+		return !aggr.Aggregate(c)
+	})
+
+	closed = filterConnections(closed, func(c *ConnectionStats) bool {
+		return !aggr.Aggregate(c)
+	})
+
+	aggr.finalize()
+
+	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
 
 	// do local resolution if available
 	resolved := resolver.Resolve(cs)
@@ -683,10 +693,6 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 	// connections with the same cookie
 	active, activeByCookie := ns.mergeByCookie(active)
 
-	// connections aggregated by tuple
-	aggr := newConnectionAggregator(len(active)+len(client.closedConnections), false)
-	defer aggr.finalize()
-
 	// filter closed connections, keeping those that have changed or have not
 	// been aggregated into another connection
 	closed = filterConnections(client.closedConnections, func(closedConn *ConnectionStats) bool {
@@ -715,7 +721,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 			return false
 		}
 
-		return !aggr.Aggregate(closedConn)
+		return true
 	})
 
 	// do the same for active connections
@@ -736,7 +742,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 			return false
 		}
 
-		return !aggr.Aggregate(c)
+		return true
 	})
 
 	client.stats = newStats
@@ -782,6 +788,7 @@ func (ns *networkState) RemoveClient(clientID string) {
 	ns.Lock()
 	defer ns.Unlock()
 	delete(ns.clients, clientID)
+	ClientPool.RemoveExpiredClient(clientID)
 }
 
 func (ns *networkState) RemoveExpiredClients(now time.Time) {
@@ -792,6 +799,7 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 		if c.lastFetch.Add(ns.clientExpiry).Before(now) {
 			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closedConnections))
 			delete(ns.clients, id)
+			ClientPool.RemoveExpiredClient(id)
 		}
 	}
 }
@@ -1000,7 +1008,7 @@ type aggregateConnection struct {
 }
 
 type aggregationKey struct {
-	ConnectionStatsByteKey
+	string
 	containers struct {
 		source, dest string
 	}
@@ -1008,20 +1016,21 @@ type aggregationKey struct {
 
 type connectionAggregator struct {
 	conns    map[aggregationKey][]*aggregateConnection
-	bkey     aggregationKey
+	buf      []byte
 	resolved bool
 }
 
 func newConnectionAggregator(size int, resolved bool) *connectionAggregator {
 	return &connectionAggregator{
 		conns:    make(map[aggregationKey][]*aggregateConnection, size),
+		buf:      make([]byte, ConnectionByteKeyMaxLen),
 		resolved: resolved,
 	}
 }
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
 	if !a.resolved {
-		return aggregationKey{ConnectionStatsByteKey: c.ByteKey()}, false, false
+		return aggregationKey{string: string(c.ByteKey(a.buf))}, false, false
 	}
 
 	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
@@ -1037,7 +1046,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 		!isShortLived ||
 		(!ephemeralSport && !ephemeralDport) {
 		log.TraceFunc(func() string { return fmt.Sprintf("not rolling up connection %+v ", c) })
-		return aggregationKey{ConnectionStatsByteKey: c.ByteKey()}, false, false
+		return aggregationKey{string: string(c.ByteKey(a.buf))}, false, false
 	}
 
 	log.TraceFunc(func() string { return fmt.Sprintf("rolling up connection %+v ", c) })
@@ -1057,7 +1066,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 		}()
 	}
 
-	key.ConnectionStatsByteKey = c.ByteKey()
+	key.string = string(c.ByteKey(a.buf))
 	if c.ContainerID.Source != nil {
 		key.containers.source = *c.ContainerID.Source
 	}
@@ -1112,11 +1121,10 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 //   - the other connection's protocol stack is unknown
 //   - the other connection's protocol stack is not unknown AND equal
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	var sportRolledUp, dportRolledUp bool
-	a.bkey, sportRolledUp, dportRolledUp = a.key(c)
-	aggrConns, ok := a.conns[a.bkey]
+	key, sportRolledUp, dportRolledUp := a.key(c)
+	aggrConns, ok := a.conns[key]
 	if !ok {
-		a.conns[a.bkey] = []*aggregateConnection{
+		a.conns[key] = []*aggregateConnection{
 			{
 				ConnectionStats: c,
 				rttSum:          uint64(c.RTT),
@@ -1167,35 +1175,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 		return true
 	}
 
-	a.conns[a.bkey] = append(aggrConns, &aggregateConnection{
-		ConnectionStats: c,
-		rttSum:          uint64(c.RTT),
-		rttVarSum:       uint64(c.RTTVar),
-		count:           1,
-	})
-
-	for _, aggrConn := range aggrConns {
-		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation, sportRolledUp, dportRolledUp) ||
-			!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
-			continue
-		}
-
-		aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
-		aggrConn.Last = aggrConn.Last.Add(c.Last)
-		aggrConn.rttSum += uint64(c.RTT)
-		aggrConn.rttVarSum += uint64(c.RTTVar)
-		aggrConn.count++
-		if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
-			aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
-		}
-		if aggrConn.IPTranslation == nil {
-			aggrConn.IPTranslation = c.IPTranslation
-		}
-		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
-		return true
-	}
-
-	a.conns[a.bkey] = append(aggrConns, &aggregateConnection{
+	a.conns[key] = append(aggrConns, &aggregateConnection{
 		ConnectionStats: c,
 		rttSum:          uint64(c.RTT),
 		rttVarSum:       uint64(c.RTTVar),

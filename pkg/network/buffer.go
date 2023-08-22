@@ -41,6 +41,12 @@ func (b *ConnectionBuffer) Next() *ConnectionStats {
 	return c
 }
 
+// Assign slice to ConnectionBuffer
+func (b *ConnectionBuffer) Assign(slice []ConnectionStats) {
+	b.buf = slice
+	b.off = len(slice)
+}
+
 // Append slice to ConnectionBuffer
 func (b *ConnectionBuffer) Append(slice []ConnectionStats) {
 	if b == nil {
