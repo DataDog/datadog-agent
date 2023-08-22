@@ -14,6 +14,7 @@ api_key:
 ## The application key used to access Datadog's programatic API
 ## Create a new application key here: https://app.datadoghq.com/organization-settings/application-keys
 ## Read more about application keys here: https://docs.datadoghq.com/account_management/api-app-keys/#application-keys
+#
 # app_key:
 
 ## @param site - string - optional - default: datadoghq.com
