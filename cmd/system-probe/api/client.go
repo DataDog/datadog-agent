@@ -20,7 +20,7 @@ func GetClient(socketPath string) *http.Client {
 			MaxIdleConns:    2,
 			IdleConnTimeout: 30 * time.Second,
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial(netType, socketPath)
+				return net.Dial(NetType, socketPath)
 			},
 			TLSHandshakeTimeout:   1 * time.Second,
 			ResponseHeaderTimeout: 5 * time.Second,

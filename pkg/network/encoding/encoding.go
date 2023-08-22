@@ -113,6 +113,7 @@ func (c *ConnectionsModeler) ModelConnections(conns *network.Connections) *model
 	payload.Routes = routes
 	payload.Tags = tagsSet.GetStrings()
 
+	// include telemetry only in the first batch for all the connections
 	if c.batchIndex == 0 {
 		payload.ConnTelemetryMap = c.connTelemetryMap
 		payload.CompilationTelemetryByAsset = c.compilationTelemetryByAsset

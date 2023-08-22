@@ -101,8 +101,8 @@ func min(a, b int) int {
 // GetConnections function that establishes a streaming RPC connection to retrieve and continuously stream information
 // about the current connections in the system.
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
-	runCounter := atomic.NewUint64(0)
 	start := time.Now()
+	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
 	if err != nil {
@@ -118,6 +118,8 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	logRequests(id, count, len(cs.Conns), start)
 	connections := &connectionserver.Connection{}
 
+	// As long as there are connections, we divide them into batches and subsequently send all the batches
+	// via a gRPC stream to the process agent. The size of each batch is determined by the value of maxConnsPerMessage.
 	for len(cs.Conns) > 0 {
 		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
 		rest := cs.Conns[finalBatchSize:]

@@ -17,7 +17,7 @@ import (
 const (
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "localhost:3333"
-	defaultGRPCSystemProbeAddress = ""
+	defaultGRPCSystemProbeAddress = "localhost:3334"
 
 	// ServiceName is the service name used for the system-probe
 	ServiceName = "datadog-system-probe"

@@ -8,5 +8,5 @@
 package api
 
 const (
-	netType = "unix"
+	NetType = "unix"
 )
