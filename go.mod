@@ -15,6 +15,9 @@ retract (
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
+// Dev
+replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20230822021034-1f28b7f2b55a
+
 // Internal deps fix version
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
