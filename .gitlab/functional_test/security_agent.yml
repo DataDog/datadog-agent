@@ -127,8 +127,6 @@ kitchen_test_security_agent_x64_ec2:
     - .kitchen_test_security_agent
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  rules:
-    !reference [.on_security_agent_changes_or_manual]
   needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
