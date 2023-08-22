@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  list-repositories:
+  dependency-review:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -25,4 +25,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           ORG_NAME: datadog
           PR_NUMBER: ${{ github.event.number }} 
-        run: python .github/workflows/dependency-review.py
+        run: python .github/dependency-review.py
