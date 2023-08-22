@@ -2,12 +2,14 @@ import json
 import os
 import subprocess
 from collections import defaultdict
+import re
 
 from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
 DEFAULT_JIRA_PROJECT = "AGENTR"
+DATADOG_AGENT_GITHUB_REPO_URL = "https://github.com/DataDog/datadog-agent"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = {
     "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
@@ -147,20 +149,21 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
 
 
 def base_message(header, state):
-    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
-{commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
-        header=header,
-        pipeline_url=os.getenv("CI_PIPELINE_URL"),
-        pipeline_id=os.getenv("CI_PIPELINE_ID"),
-        commit_ref_name=os.getenv("CI_COMMIT_REF_NAME"),
-        commit_title=os.getenv("CI_COMMIT_TITLE"),
-        commit_url="{project_url}/commit/{commit_sha}".format(  # noqa: FS002
-            project_url=os.getenv("CI_PROJECT_URL"), commit_sha=os.getenv("CI_COMMIT_SHA")
-        ),
-        commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
-        author=get_git_author(),
-        state=state,
-    )
+    commit_title=os.getenv("CI_COMMIT_TITLE")
+    pipeline_url=os.getenv("CI_PIPELINE_URL")
+    pipeline_id=os.getenv("CI_PIPELINE_ID")
+    commit_ref_name=os.getenv("CI_COMMIT_REF_NAME")
+    commit_url_gitlab=f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}",
+    commit_url_github=f"{DATADOG_AGENT_GITHUB_REPO_URL}/commit/{os.getenv('CI_COMMIT_SHA')}",
+    commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA")
+    author=get_git_author()
+    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    if parsed_pr_id_found:
+        parsed_pr_id = parsed_pr_id_found.group(1)
+    pr_url_github = f"{DATADOG_AGENT_GITHUB_REPO_URL}/pull/{parsed_pr_id}"
+    enhanced_commit_title = commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github} | #{parsed_pr_id}>")
+    return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
+{enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github} | link>) by {author}"""
 
 
 def get_git_author():
