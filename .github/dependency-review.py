@@ -35,8 +35,8 @@ for entry in REPOS:
     for vulnerability in vulnerabilities:
         output += f"\tSeverity: {vulnerability['severity']}\n"
         output += f"\tAdvisory Summary: {vulnerability['advisory_summary']}\n"
+        output += f"\tCVE ID: {CVE_INFO['cve_id']}\n"
         output += f"\tAdvisory URL: {vulnerability['advisory_url']}\n\n"
-        output += f"CVE ID: {CVE_INFO['cve_id']}\n"
 
 print(output)
 
