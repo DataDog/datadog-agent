@@ -43,8 +43,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(logger, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()
@@ -52,7 +52,7 @@ network_devices:
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
-	server, err := NewNetflowServer(sender, epForwarder)
+	server, err := NewNetflowServer(sender, epForwarder, config.Datadog, logger)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
@@ -96,8 +96,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(logger, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()
@@ -105,7 +105,7 @@ network_devices:
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
-	server, err := NewNetflowServer(sender, epForwarder)
+	server, err := NewNetflowServer(sender, epForwarder, config.Datadog, logger)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
@@ -143,8 +143,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(logger, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()
@@ -152,7 +152,7 @@ network_devices:
 
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
-	server, err := NewNetflowServer(sender, epForwarder)
+	server, err := NewNetflowServer(sender, epForwarder, config.Datadog, logger)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 

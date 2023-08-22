@@ -23,6 +23,7 @@ var seeLogToLogrusLevel = map[seelog.LogLevel]logrus.Level{
 
 // GetLogrusLevel returns logrus log level from log.GetLogLevel()
 func GetLogrusLevel() *logrus.Logger {
+	// TODO this should come from the logger component instead, but it doesn't expose this function yet.
 	logLevel, err := log.GetLogLevel()
 	if err != nil {
 		log.Warnf("error getting log level")

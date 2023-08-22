@@ -600,8 +600,8 @@ func startAgent(
 	// Start NetFlow server
 	// This must happen after LoadComponents is set up (via common.LoadComponents).
 	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
-	if netflow.IsEnabled() {
-		if err = netflow.StartServer(demux); err != nil {
+	if netflow.IsEnabled(pkgconfig.Datadog) {
+		if err = netflow.StartServer(demux, pkgconfig.Datadog, log); err != nil {
 			log.Errorf("Failed to start NetFlow server: %s", err)
 		}
 	}

@@ -14,7 +14,7 @@ import (
 )
 
 func TestStartFlowRoutine_invalidType(t *testing.T) {
-	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow))
+	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow), nil)
 	assert.EqualError(t, err, "unknown flow type: invalid")
 	assert.Nil(t, state)
 }

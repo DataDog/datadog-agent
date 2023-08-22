@@ -13,7 +13,7 @@ import (
 	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
@@ -39,11 +39,11 @@ type FlowRunnableState interface {
 }
 
 // StartFlowRoutine starts one of the goflow flow routine depending on the flow type
-func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, flowInChan chan *common.Flow) (*FlowStateWrapper, error) {
+func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, workers int, namespace string, flowInChan chan *common.Flow, logger log.Component) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
 
 	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace)
-	logger := GetLogrusLevel()
+	logrusLogger := GetLogrusLevel()
 	ctx := context.Background()
 
 	switch flowType {
@@ -56,18 +56,18 @@ func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, wo
 
 		state := utils.NewStateNetFlow()
 		state.Format = formatDriver
-		state.Logger = logger
+		state.Logger = logrusLogger
 		state.TemplateSystem = templateSystem
 		flowState = state
 	case common.TypeSFlow5:
 		state := utils.NewStateSFlow()
 		state.Format = formatDriver
-		state.Logger = logger
+		state.Logger = logrusLogger
 		flowState = state
 	case common.TypeNetFlow5:
 		state := utils.NewStateNFLegacy()
 		state.Format = formatDriver
-		state.Logger = logger
+		state.Logger = logrusLogger
 		flowState = state
 	default:
 		return nil, fmt.Errorf("unknown flow type: %s", flowType)
@@ -76,7 +76,7 @@ func StartFlowRoutine(flowType common.FlowType, hostname string, port uint16, wo
 	go func() {
 		err := flowState.FlowRoutine(workers, hostname, int(port), reusePort)
 		if err != nil {
-			log.Errorf("Error listening to %s: %s", flowType, err)
+			logger.Errorf("Error listening to %s: %s", flowType, err)
 		}
 	}()
 	return &FlowStateWrapper{
