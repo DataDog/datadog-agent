@@ -63,6 +63,7 @@ func NewNetflowServer(sender sender.Sender, epForwarder epforwarder.EventPlatfor
 
 }
 
+// Start starts the server running
 func (s *Server) Start() error {
 	if s.started {
 		return errors.New("server already started")
