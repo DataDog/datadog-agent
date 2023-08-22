@@ -1,4 +1,4 @@
-name: List Repositories
+name: Dependency Review
 
 on:
   pull_request:
