@@ -19,7 +19,7 @@ type delayedConntracker struct {
 
 	mux          sync.Mutex
 	numDelays    int
-	delayPerConn map[network.ConnectionStatsByteKey]int
+	delayPerConn map[string]int
 }
 
 // NewDelayedConntracker returns a netlink.Conntracker that returns `nil` for `numDelays`
@@ -28,7 +28,7 @@ func NewDelayedConntracker(ctr netlink.Conntracker, numDelays int) netlink.Connt
 	return &delayedConntracker{
 		Conntracker:  ctr,
 		numDelays:    numDelays,
-		delayPerConn: make(map[network.ConnectionStatsByteKey]int),
+		delayPerConn: make(map[string]int),
 	}
 }
 
@@ -36,10 +36,10 @@ func (ctr *delayedConntracker) GetTranslationForConn(c network.ConnectionStats) 
 	ctr.mux.Lock()
 	defer ctr.mux.Unlock()
 
-	key := c.ByteKey()
-	delays := ctr.delayPerConn[key]
+	key := c.ByteKey(make([]byte, 64))
+	delays := ctr.delayPerConn[string(key)]
 	if delays < ctr.numDelays {
-		ctr.delayPerConn[key]++
+		ctr.delayPerConn[string(key)]++
 		return nil
 	}
 

@@ -20,12 +20,6 @@ func NewConnectionBuffer(initSize, minSize int) *ConnectionBuffer {
 	}
 }
 
-// Assign resets the buffer to the passed in slice
-func (b *ConnectionBuffer) Assign(slice []ConnectionStats) {
-	b.buf = slice
-	b.off = len(slice)
-}
-
 // Next returns the next `ConnectionStats` object available for writing.
 // It will resize the internal buffer if necessary.
 func (b *ConnectionBuffer) Next() *ConnectionStats {

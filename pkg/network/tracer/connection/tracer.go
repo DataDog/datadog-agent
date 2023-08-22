@@ -710,12 +710,13 @@ func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, r
 
 type cookieHasher struct {
 	hash hash.Hash64
-	key  network.ConnectionStatsByteKey
+	buf  []byte
 }
 
 func newCookieHasher() *cookieHasher {
 	return &cookieHasher{
 		hash: murmur3.New64(),
+		buf:  make([]byte, network.ConnectionByteKeyMaxLen),
 	}
 }
 
@@ -725,8 +726,8 @@ func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
 		log.Errorf("error writing cookie to hash: %s", err)
 		return
 	}
-	h.key = stats.ByteKey()
-	if _, err := h.hash.Write(h.key[:]); err != nil {
+	key := stats.ByteKey(h.buf)
+	if _, err := h.hash.Write(key); err != nil {
 		log.Errorf("error writing byte key to hash: %s", err)
 		return
 	}

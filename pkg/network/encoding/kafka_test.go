@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -78,8 +79,10 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 	)
 
 	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			defaultConnection,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				defaultConnection,
+			},
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStat{
 			kafkaKey1: {
@@ -151,7 +154,9 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	)
 
 	in := &network.Connections{
-		Conns: connections,
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
 		Kafka: map[kafka.Key]*kafka.RequestStat{
 			kafkaKey: {
 				Count: 10,
@@ -204,7 +209,9 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 	)
 
 	in := &network.Connections{
-		Conns: connections,
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
 		Kafka: map[kafka.Key]*kafka.RequestStat{
 			kafkaKey: {
 				Count: 10,
@@ -239,7 +246,9 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 	localhost := util.AddressFromString("127.0.0.1")
 
 	payload := network.Connections{
-		Conns: make([]network.ConnectionStats, 1),
+		BufferedData: network.BufferedData{
+			Conns: make([]network.ConnectionStats, 1),
+		},
 		Kafka: map[kafka.Key]*kafka.RequestStat{},
 	}
 
@@ -322,7 +331,9 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 	)
 
 	in := &network.Connections{
-		Conns: connections,
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
 		Kafka: map[kafka.Key]*kafka.RequestStat{
 			kafkaKey: {
 				Count: 10,

@@ -7,6 +7,7 @@ package network
 
 import "sync"
 
+// ClientPool holds a ConnectionBuffer object per client
 var ClientPool *clientBufferPool
 
 const defaultClientBufferSize = 1024

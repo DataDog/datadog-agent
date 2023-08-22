@@ -6,6 +6,7 @@
 package network
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"sync"
@@ -63,6 +64,9 @@ const (
 	// We could have used layers.DNSResponseCodeNoErr here. But importing the gopacket library only for this
 	// constant is not worth the increased memory cost.
 	DNSResponseCodeNoError = 0
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 
 	stateModuleName = "network_tracer__state"
 )
@@ -180,7 +184,7 @@ type networkState struct {
 	maxHTTPStats   int
 	maxKafkaStats  int
 
-	mergeStatsBuffers [2]ConnectionStatsByteKey
+	mergeStatsBuffers [2][]byte
 }
 
 // NewState creates a new network state
@@ -193,6 +197,10 @@ func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats 
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
 		maxKafkaStats:  maxKafkaStats,
+		mergeStatsBuffers: [2][]byte{
+			make([]byte, ConnectionByteKeyMaxLen),
+			make([]byte, ConnectionByteKeyMaxLen),
+		},
 	}
 }
 
@@ -262,7 +270,7 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	active, closed := ns.mergeConnections(id, active)
 
-	aggr := newConnectionAggregator((len(closed) + len(active)) / 2)
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, false)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -273,7 +281,8 @@ func (ns *networkState) GetDelta(
 
 	aggr.finalize()
 
-	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
+	cs := slice.NewChain(active, closed)
+	ns.determineConnectionIntraHost(cs)
 
 	// do local resolution if available
 	resolved := resolver.Resolve(cs)
@@ -1199,9 +1208,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 		return false
 	}
 
-	ns.mergeStatsBuffers[0] = a.ByteKey()
-	ns.mergeStatsBuffers[1] = b.ByteKey()
-	if ns.mergeStatsBuffers[0] != ns.mergeStatsBuffers[1] {
+	if bytes.Compare(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) != 0 {
 		log.Debugf("cookie collision for connections %+v and %+v", a, b)
 		// cookie collision
 		return true

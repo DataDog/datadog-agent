@@ -33,6 +33,7 @@ var (
 )
 
 func TestBeautifyKey(t *testing.T) {
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	for _, c := range []ConnectionStats{
 		testConn,
 		{
@@ -57,13 +58,14 @@ func TestBeautifyKey(t *testing.T) {
 			Cookie:    2,
 		},
 	} {
-		bk := c.ByteKey()
+		bk := c.ByteKey(buf)
 		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type)
-		assert.Equal(t, expected, BeautifyKey(bk))
+		assert.Equal(t, expected, BeautifyKey(string(bk)))
 	}
 }
 
 func TestConnStatsByteKey(t *testing.T) {
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	addrA := util.AddressFromString("127.0.0.1")
 	addrB := util.AddressFromString("127.0.0.2")
 
@@ -112,13 +114,15 @@ func TestConnStatsByteKey(t *testing.T) {
 			b: ConnectionStats{Pid: 1, Source: addrA, Dest: addrB, Type: 1},
 		},
 	} {
-		keyA := test.a.ByteKey()
-		keyB := test.b.ByteKey()
+		var keyA, keyB string
+		keyA = string(test.a.ByteKey(buf))
+		keyB = string(test.b.ByteKey(buf))
 		assert.NotEqual(t, keyA, keyB)
 	}
 }
 
 func TestByteKeyNAT(t *testing.T) {
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	for _, test := range []struct {
 		a           ConnectionStats
 		b           ConnectionStats
@@ -200,8 +204,9 @@ func TestByteKeyNAT(t *testing.T) {
 			shouldMatch: true,
 		},
 	} {
-		keyA := test.a.ByteKeyNAT()
-		keyB := test.b.ByteKeyNAT()
+		var keyA, keyB string
+		keyA = string(test.a.ByteKeyNAT(buf))
+		keyB = string(test.b.ByteKeyNAT(buf))
 		actual := keyA == keyB
 		assert.Equalf(t, test.shouldMatch, actual,
 			"a: %s\nb:%s\nshouldMatch: %v\ngot: %v", test.a, test.b, test.shouldMatch, actual,
@@ -238,7 +243,7 @@ func TestIsExpired(t *testing.T) {
 }
 
 func BenchmarkByteKey(b *testing.B) {
-	var key ConnectionStatsByteKey
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	addrA := util.AddressFromString("127.0.0.1")
 	addrB := util.AddressFromString("127.0.0.2")
 	c := ConnectionStats{Pid: 1, Dest: addrB, Family: 0, Type: 1, Source: addrA}
@@ -246,7 +251,7 @@ func BenchmarkByteKey(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		key = c.ByteKey()
+		_ = c.ByteKey(buf)
 	}
-	runtime.KeepAlive(key)
+	runtime.KeepAlive(buf)
 }

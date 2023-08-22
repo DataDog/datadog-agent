@@ -98,9 +98,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			w.WriteHeader(500)
 			return
 		}
-
-		defer cs.Reclaim()
-
 		contentType := req.Header.Get("Accept")
 		marshaler := encoding.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
@@ -157,7 +154,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		defer cs.Reclaim()
 		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP, cs.DNS))
 	})
 
@@ -170,7 +166,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		defer cs.Reclaim()
 		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
 	})
 
@@ -183,7 +178,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		defer cs.Reclaim()
 		utils.WriteAsJSON(w, httpdebugging.HTTP(cs.HTTP2, cs.DNS))
 	})
 
@@ -292,6 +286,8 @@ func getClientID(req *http.Request) string {
 }
 
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
+	defer network.Reclaim(cs)
+
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)

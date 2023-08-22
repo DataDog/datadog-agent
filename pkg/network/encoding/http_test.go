@@ -10,16 +10,16 @@ import (
 	"runtime"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 )
 
 func TestFormatHTTPStats(t *testing.T) {
@@ -64,12 +64,14 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	}
 
 	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source: localhost,
-				Dest:   localhost,
-				SPort:  clientPort,
-				DPort:  serverPort,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  clientPort,
+					DPort:  serverPort,
+				},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -150,12 +152,14 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	)
 
 	payload := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source: util.AddressFromString("10.1.1.1"),
-				Dest:   util.AddressFromString("10.2.2.2"),
-				SPort:  60000,
-				DPort:  80,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("10.2.2.2"),
+					SPort:  60000,
+					DPort:  80,
+				},
 			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
@@ -232,7 +236,9 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	httpStats.AddRequest(104, 1.0, 0, nil)
 
 	in := &network.Connections{
-		Conns: connections,
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
 		HTTP: map[http.Key]*http.RequestStats{
 			httpKey: httpStats,
 		},
@@ -294,7 +300,9 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	httpStats.AddRequest(103, 1.0, 0, nil)
 
 	in := &network.Connections{
-		Conns: connections,
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
 		HTTP: map[http.Key]*http.RequestStats{
 			httpKey: httpStats,
 		},
@@ -367,8 +375,10 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 	localhost := util.AddressFromString("127.0.0.1")
 
 	payload := network.Connections{
-		Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
-		HTTP:  make(map[http.Key]*http.RequestStats),
+		BufferedData: network.BufferedData{
+			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
+		},
+		HTTP: make(map[http.Key]*http.RequestStats),
 	}
 
 	httpStats := http.NewRequestStats(false)
