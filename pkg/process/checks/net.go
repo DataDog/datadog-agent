@@ -44,8 +44,6 @@ var (
 	ProcessAgentClientID = "process-agent-unique-id"
 )
 
-const unixSocketPath = "unix://"
-
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
 func NewConnectionsCheck(config, sysprobeYamlConfig config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
 	return &ConnectionsCheck{
