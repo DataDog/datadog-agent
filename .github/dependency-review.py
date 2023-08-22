@@ -12,7 +12,7 @@ REPOS = requests.get(
 ).json()
 
 CVE_INFO = requests.get(
-    f"https://api.github.com/advisories/{REPOS['advisory_ghsa_id']}",
+    f"https://api.github.com/advisories/{REPOS[0]['advisory_ghsa_id']}",
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 ).json()
 
