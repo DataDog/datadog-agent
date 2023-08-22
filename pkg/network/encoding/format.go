@@ -62,6 +62,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral)))
 	builder.SetLastBytesSent(conn.Last.SentBytes)
 	builder.SetLastBytesReceived(conn.Last.RecvBytes)
+	builder.SetLastPacketsSent(conn.Last.SentPackets)
 	builder.SetLastRetransmits(conn.Last.Retransmits)
 	builder.SetLastPacketsReceived(conn.Last.RecvPackets)
 	builder.SetDirection(uint64(formatDirection(conn.Direction)))
