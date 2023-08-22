@@ -194,6 +194,21 @@ new-e2e-agent-subcommands-main:
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 
+new-e2e-language-detection-dev:
+  extends: .new_e2e_template
+  rules: !reference [ .on_dev_branch_manual ]
+  needs: [ ]
+  variables:
+    TARGETS: ./language-detection
+    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3"
+
+new-e2e-language-detection-main:
+  extends: .new_e2e_template
+  rules: !reference [ .on_main ]
+  variables:
+    TARGETS: ./language-detection
+    CONFIGPARAMS: "-c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
