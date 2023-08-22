@@ -8,6 +8,8 @@ on:
 jobs:
   dependency-review:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
@@ -20,7 +22,7 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: List Repositories
+      - name: Find Remediated Dependency Vulnerabilities
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ORG_NAME: datadog
