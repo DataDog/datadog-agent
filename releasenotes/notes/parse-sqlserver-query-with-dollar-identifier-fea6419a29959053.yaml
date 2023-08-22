@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Parse SQL Server query with single dollar identifier $action.
+    Parse SQL Server query with single dollar identifier ``$action``.
