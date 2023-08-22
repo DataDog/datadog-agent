@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,7 +57,7 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	enabledProtocols  map[protocols.ProtocolType]protocols.Protocol
+	enabledProtocols  map[types.ProtocolType]protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
 
 	buildMode buildMode
@@ -106,7 +108,7 @@ type subprogram interface {
 
 var http2TailCall = manager.TailCallRoute{
 	ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-	Key:           uint32(protocols.ProgramHTTP2),
+	Key:           uint32(http.ProtocolHTTP2),
 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
 		EBPFFuncName: "socket__http2_filter",
 	},
@@ -181,14 +183,14 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 		tailCalls = append(tailCalls,
 			manager.TailCallRoute{
 				ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-				Key:           uint32(protocols.ProgramKafka),
+				Key:           uint32(http.ProtocolKafka),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__kafka_filter",
 				},
 			},
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherClassificationPrograms,
-				Key:           uint32(protocols.DispatcherKafkaProg),
+				Key:           uint32(http.DispatcherKafkaProg),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__protocol_dispatcher_kafka",
 				},
@@ -352,9 +354,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	} else {
 		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-			Type:       ebpf.Hash,
+			Type:       ebpf.LRUHash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
-			EditorFlag: manager.EditMaxEntries,
+			EditorFlag: manager.EditMaxEntries | manager.EditType,
 		}
 	}
 

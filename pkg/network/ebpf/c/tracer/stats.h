@@ -10,9 +10,7 @@
 #include "tracer/telemetry.h"
 #include "cookie.h"
 #include "sock.h"
-#include "port_range.h"
 #include "protocols/classification/shared-tracer-maps.h"
-#include "protocols/classification/stack-helpers.h"
 #include "protocols/tls/tags-types.h"
 #include "ip.h"
 #include "skb.h"
@@ -32,6 +30,7 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
+    empty.protocol = PROTOCOL_UNKNOWN;
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
 }
@@ -57,31 +56,85 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
-static __always_inline void update_protocol_classification_information(conn_tuple_t *t, conn_stats_ts_t *stats) {
-    if (is_fully_classified(&stats->protocol_stack)) {
-        return;
+static __always_inline bool is_tls_connection_cached(conn_tuple_t *t) {
+    if (bpf_map_lookup_elem(&tls_connection, t) != NULL) {
+        return true;
     }
+    return false;
+}
 
+// is_tls_connection check if a connection has been classified as TLS protocol in the protocol_classifier_entrypoint(skb)
+static __always_inline bool is_tls_connection(conn_tuple_t *t) {
     conn_tuple_t conn_tuple_copy = *t;
     // The classifier is a socket filter and there we are not accessible for pid and netns.
     // The key is based of the source & dest addresses and ports, and the metadata.
     conn_tuple_copy.netns = 0;
     conn_tuple_copy.pid = 0;
-    normalize_tuple(&conn_tuple_copy);
-
-    protocol_stack_t *protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
-    merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
-
-    conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
-    if (!cached_skb_conn_tup_ptr) {
-        return;
+    if (is_tls_connection_cached(&conn_tuple_copy)) {
+        return true;
     }
 
-    conn_tuple_copy = *cached_skb_conn_tup_ptr;
-    protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-    set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
-    merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
+    conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        if (is_tls_connection_cached(&skb_tup)) {
+            return true;
+        }
+    }
+
+    flip_tuple(&conn_tuple_copy);
+    if (is_tls_connection_cached(&conn_tuple_copy)) {
+        return true;
+    }
+
+    cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        if (is_tls_connection_cached(&skb_tup)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// get_protocol return the protocol has been classified in the protocol_classifier_entrypoint(skb)
+static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
+    conn_tuple_t conn_tuple_copy = *t;
+    // The classifier is a socket filter and there we are not accessible for pid and netns.
+    // The key is based of the source & dest addresses and ports, and the metadata.
+    conn_tuple_copy.netns = 0;
+    conn_tuple_copy.pid = 0;
+    protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    if (cached_protocol_ptr != NULL) {
+       return *cached_protocol_ptr;
+    }
+
+    conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
+        if (cached_protocol_ptr != NULL) {
+           return *cached_protocol_ptr;
+        }
+    }
+
+    flip_tuple(&conn_tuple_copy);
+    cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    if (cached_protocol_ptr != NULL) {
+       return *cached_protocol_ptr;
+    }
+
+    cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
+        if (cached_protocol_ptr != NULL) {
+           return *cached_protocol_ptr;
+        }
+    }
+
+    return PROTOCOL_UNKNOWN;
 }
 
 // update_conn_stats update the connection metadata : protocol, tags, timestamp, direction, packets, bytes sent and received
@@ -93,7 +146,16 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    update_protocol_classification_information(t, val);
+    if (val->protocol == PROTOCOL_UNKNOWN) {
+        protocol_t protocol = get_protocol(t);
+        if (protocol != PROTOCOL_UNKNOWN) {
+            log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
+            val->protocol = protocol;
+        }
+    }
+    if (is_tls_connection(t)) {
+        val->conn_tags |= CONN_TLS;
+    }
 
     // If already in our map, increment size in-place
     update_conn_state(t, val, sent_bytes, recv_bytes);

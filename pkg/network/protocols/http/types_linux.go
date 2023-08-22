@@ -41,6 +41,28 @@ type LibPath struct {
 	Buf [120]byte
 }
 
+type ProtocolType uint8
+
+const (
+	ProtocolUnknown  ProtocolType = 0x1
+	ProtocolHTTP     ProtocolType = 0x2
+	ProtocolHTTP2    ProtocolType = 0x3
+	ProtocolKafka    ProtocolType = 0x5
+	ProtocolTLS      ProtocolType = 0x4
+	ProtocolMONGO    ProtocolType = 0x6
+	ProtocolPostgres ProtocolType = 0x7
+	ProtocolAMQP     ProtocolType = 0x8
+	ProtocolRedis    ProtocolType = 0x9
+	ProtocolMySQL    ProtocolType = 0xa
+	ProtocolMax      ProtocolType = 0xb
+)
+
+type DispatcherProgramType uint32
+
+const (
+	DispatcherKafkaProg DispatcherProgramType = 0x0
+)
+
 const (
 	BufferSize = 0xa0
 

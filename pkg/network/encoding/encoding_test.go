@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -229,18 +229,18 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 							Alias: "subnet-foo",
 						},
 					},
-					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
+					Protocol: types.ProtocolHTTP,
 				},
 				{
-					Source:        util.AddressFromString("10.1.1.1"),
-					Dest:          util.AddressFromString("8.8.8.8"),
-					SPort:         1000,
-					DPort:         53,
-					Type:          network.UDP,
-					Family:        network.AFINET6,
-					Direction:     network.LOCAL,
-					StaticTags:    tagOpenSSL | tagTLS,
-					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
+					Source:     util.AddressFromString("10.1.1.1"),
+					Dest:       util.AddressFromString("8.8.8.8"),
+					SPort:      1000,
+					DPort:      53,
+					Type:       network.UDP,
+					Family:     network.AFINET6,
+					Direction:  network.LOCAL,
+					StaticTags: tagOpenSSL | tagTLS,
+					Protocol:   types.ProtocolHTTP2,
 				},
 			},
 		},
@@ -585,14 +585,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
+				Protocol:         formatProtocol(types.ProtocolUnknown, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
+				Protocol:         formatProtocol(types.ProtocolUnknown, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -619,7 +619,6 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	t.Run("status class", func(t *testing.T) {
 		testHTTP2SerializationWithLocalhostTraffic(t, false)
 	})
-
 }
 
 func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
@@ -700,14 +699,14 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
+				Protocol:          formatProtocol(types.ProtocolUnknown, 0),
 			},
 			{
 				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
+				Protocol:          formatProtocol(types.ProtocolUnknown, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{

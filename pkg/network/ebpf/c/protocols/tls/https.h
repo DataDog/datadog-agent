@@ -27,23 +27,7 @@
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/go-tls-types.h"
 
-/* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS) and */
-/* it's used for classify the subset of protocols that is supported by `classify_protocol_for_dispatcher` */
-static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *buffer, size_t len) {
-    protocol_stack_t *stack = get_protocol_stack(t);
-    if (!stack || is_protocol_layer_known(stack, LAYER_APPLICATION)) {
-        return;
-    }
-
-    protocol_t proto = PROTOCOL_UNKNOWN;
-    classify_protocol_for_dispatcher(&proto, t, buffer, len);
-    if (proto == PROTOCOL_UNKNOWN) {
-        return;
-    }
-
-    set_protocol(stack, PROTOCOL_TLS);
-    set_protocol(stack, proto);
-}
+#define HTTPS_PORT 443
 
 static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
 
@@ -52,8 +36,26 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
     bpf_memset(&http, 0, sizeof(http));
     bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
     read_into_buffer(http.request_fragment, buffer, len);
+
+    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &http.tup);
+    if (cur_fragment_protocol_ptr == NULL) {
+        protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
+        conn_tuple_t inverse_conn_tup = http.tup;
+        flip_tuple(&inverse_conn_tup);
+
+        cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &inverse_conn_tup);
+
+        // try classifying the protocol if no prior identification exists
+        if (cur_fragment_protocol_ptr == NULL) {
+            classify_protocol_for_dispatcher(&cur_fragment_protocol, &http.tup, http.request_fragment, len);
+            // If there has been a change in the classification, save the new protocol.
+            if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+                bpf_map_update_with_telemetry(connection_protocol, &http.tup, &cur_fragment_protocol, BPF_NOEXIST);
+                bpf_map_update_with_telemetry(connection_protocol, &inverse_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
+            }
+        }
+    }
     http_process(&http, NULL, tags);
-    classify_decrypted_payload(&http.tup, http.request_fragment, len);
 }
 
 static __always_inline void https_finish(conn_tuple_t *t) {

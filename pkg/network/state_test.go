@@ -19,9 +19,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -1407,8 +1407,8 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	httpStats := make(map[http.Key]*http.RequestStats)
 	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
-	usmStats := make(map[protocols.ProtocolType]interface{})
-	usmStats[protocols.HTTP] = httpStats
+	usmStats := make(map[types.ProtocolType]interface{})
+	usmStats[types.ProtocolHTTP] = httpStats
 
 	// Register client & pass in HTTP stats
 	state := newDefaultState()
@@ -1473,13 +1473,13 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 		DPort:  80,
 	}
 
-	getStats := func(path string) map[protocols.ProtocolType]interface{} {
+	getStats := func(path string) map[types.ProtocolType]interface{} {
 		httpStats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
 		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
-		usmStats := make(map[protocols.ProtocolType]interface{})
-		usmStats[protocols.HTTP] = httpStats
+		usmStats := make(map[types.ProtocolType]interface{})
+		usmStats[types.ProtocolHTTP] = httpStats
 
 		return usmStats
 	}

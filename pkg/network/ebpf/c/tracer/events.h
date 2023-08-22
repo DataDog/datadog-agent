@@ -11,7 +11,6 @@
 #include "tracer/telemetry.h"
 #include "cookie.h"
 #include "ip.h"
-#include "port_range.h"
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
@@ -21,8 +20,8 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
     conn_tuple.pid = 0;
     conn_tuple.netns = 0;
-    normalize_tuple(&conn_tuple);
-    delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
+    bpf_map_delete_elem(&connection_protocol, &conn_tuple);
+    bpf_map_delete_elem(&tls_connection, &conn_tuple);
 
     conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
     if (skb_tup_ptr == NULL) {
@@ -30,7 +29,15 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     }
 
     conn_tuple_t skb_tup = *skb_tup_ptr;
-    delete_protocol_stack(&skb_tup, NULL, FLAG_TCP_CLOSE_DELETION);
+    bpf_map_delete_elem(&connection_protocol, &skb_tup);
+    bpf_map_delete_elem(&tls_connection, &skb_tup);
+
+    flip_tuple(&skb_tup);
+    skb_tup.pid = 0;
+    skb_tup.netns = 0;
+    bpf_map_delete_elem(&connection_protocol, &skb_tup);
+    bpf_map_delete_elem(&tls_connection, &skb_tup);
+
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 

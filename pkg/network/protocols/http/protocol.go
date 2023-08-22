@@ -22,6 +22,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,7 +49,7 @@ var Spec = protocols.ProtocolSpec{
 	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP),
+			Key:           uint32(ProtocolHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
 			},
@@ -184,7 +185,7 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
 	return &protocols.ProtocolStats{
-		Type:  protocols.HTTP,
+		Type:  types.ProtocolHTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
 }

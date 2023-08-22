@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,8 +46,8 @@ var (
 
 	// knownProtocols maps individual protocol types, to their specification,
 	// for the Monitor to use during its initialisation.
-	knownProtocols = map[protocols.ProtocolType]protocols.ProtocolSpec{
-		protocols.HTTP: http.Spec,
+	knownProtocols = map[types.ProtocolType]protocols.ProtocolSpec{
+		types.ProtocolHTTP: http.Spec,
 	}
 )
 
@@ -57,7 +58,7 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	enabledProtocols map[protocols.ProtocolType]protocols.Protocol
+	enabledProtocols map[types.ProtocolType]protocols.Protocol
 
 	http2Consumer   *events.Consumer
 	ebpfProgram     *ebpfProgram
@@ -99,7 +100,8 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
+	// Patching connectionProtocolMap
+	mgr, err := newEBPFProgram(c, nil, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
@@ -312,7 +314,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	return response
 }
 
-func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
+func (m *Monitor) GetProtocolStats() map[types.ProtocolType]interface{} {
 	if m == nil {
 		return nil
 	}
@@ -323,7 +325,7 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 		m.lastUpdateTime.Swap(now)
 	}()
 
-	ret := make(map[protocols.ProtocolType]interface{})
+	ret := make(map[types.ProtocolType]interface{})
 
 	for _, protocol := range m.enabledProtocols {
 		ps := protocol.GetStats()
@@ -511,8 +513,8 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 // - a slice containing instances of the Protocol interface for each enabled protocol support
 // - a slice containing pointers to the protocol specs of disabled protocols.
 // - an error value, which is non-nil if an error occurred while initialising a protocol
-func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolType]protocols.Protocol, []*protocols.ProtocolSpec, error) {
-	enabledProtocols := make(map[protocols.ProtocolType]protocols.Protocol)
+func initProtocols(c *config.Config, mgr *ebpfProgram) (map[types.ProtocolType]protocols.Protocol, []*protocols.ProtocolSpec, error) {
+	enabledProtocols := make(map[types.ProtocolType]protocols.Protocol)
 	disabledProtocols := make([]*protocols.ProtocolSpec, 0)
 
 	for proto, spec := range knownProtocols {

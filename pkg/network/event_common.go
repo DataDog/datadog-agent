@@ -14,9 +14,9 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -267,7 +267,7 @@ type ConnectionStats struct {
 
 	ContainerID *string
 
-	ProtocolStack protocols.Stack
+	Protocol types.ProtocolType
 }
 
 // Via has info about the routing decision for a flow
@@ -399,7 +399,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
-	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
+	str += fmt.Sprintf(", protocol: %v", c.Protocol)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
 	return str

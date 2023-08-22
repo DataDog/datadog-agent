@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 )
 
 // Helper type to wrap & mock Protocols in tests. We keep an instance of the
@@ -69,7 +70,7 @@ func (p *protocolMock) GetStats() *protocols.ProtocolStats                      
 
 // patchProtocolMock updates the map of known protocols to replace the mock
 // factory in place of the HTTP protocol factory
-func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType, spec protocolMockSpec) {
+func patchProtocolMock(t *testing.T, protocolType types.ProtocolType, spec protocolMockSpec) {
 	t.Helper()
 
 	p, present := knownProtocols[protocolType]

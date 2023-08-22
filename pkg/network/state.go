@@ -15,9 +15,9 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/types"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -77,7 +77,7 @@ type State interface {
 		latestTime uint64,
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
-		usmStats map[protocols.ProtocolType]interface{},
+		usmStats map[types.ProtocolType]interface{},
 		http2 map[http.Key]*http.RequestStats,
 		kafka map[kafka.Key]*kafka.RequestStat,
 	) Delta
@@ -248,7 +248,7 @@ func (ns *networkState) GetDelta(
 	latestTime uint64,
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
-	usmStats map[protocols.ProtocolType]interface{},
+	usmStats map[types.ProtocolType]interface{},
 	http2Stats map[http.Key]*http.RequestStats,
 	kafkaStats map[kafka.Key]*kafka.RequestStat,
 ) Delta {
@@ -274,7 +274,7 @@ func (ns *networkState) GetDelta(
 
 	for protocolType, protocolStats := range usmStats {
 		switch protocolType {
-		case protocols.HTTP:
+		case types.ProtocolHTTP:
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
 			ns.storeHTTPStats(stats)
 		}
@@ -1013,7 +1013,11 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 		a.IPTranslation = b.IPTranslation
 	}
 
-	a.ProtocolStack.MergeWith(b.ProtocolStack)
+	if a.Protocol == types.ProtocolUnknown && b.Protocol != types.ProtocolUnknown {
+		a.Protocol = b.Protocol
+	} else if b.Protocol == types.ProtocolUnknown && a.Protocol != types.ProtocolUnknown {
+		b.Protocol = a.Protocol
+	}
 
 	return false
 }
