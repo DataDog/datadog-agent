@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -24,10 +25,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/DataDog/datadog-agent/pkg/netflow/config"
-	"github.com/DataDog/datadog-agent/pkg/netflow/format"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
 const flushFlowsToSendInterval = 10 * time.Second
@@ -36,7 +36,7 @@ const metricPrefix = "datadog.netflow."
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
 	flowIn                       chan *common.Flow
-	flushFlowsToSendInterval     time.Duration // interval for checking flows to flush and send them to EP Forwarder
+	FlushFlowsToSendInterval     time.Duration // interval for checking flows to flush and send them to EP Forwarder
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
 	sender                       sender.Sender
@@ -84,7 +84,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatfo
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
 		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger),
-		flushFlowsToSendInterval:     flushFlowsToSendInterval,
+		FlushFlowsToSendInterval:     flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
 		epForwarder:                  epForwarder,
@@ -209,8 +209,8 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 func (agg *FlowAggregator) flushLoop() {
 	var flushFlowsToSendTicker <-chan time.Time
 
-	if agg.flushFlowsToSendInterval > 0 {
-		flushFlowsToSendTicker = time.NewTicker(agg.flushFlowsToSendInterval).C
+	if agg.FlushFlowsToSendInterval > 0 {
+		flushFlowsToSendTicker = time.NewTicker(agg.FlushFlowsToSendInterval).C
 	} else {
 		agg.logger.Debug("flushFlowsToSendInterval set to 0: will never flush automatically")
 	}

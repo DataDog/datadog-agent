@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // MockTimeNow mocks time.Now

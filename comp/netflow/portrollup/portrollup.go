@@ -12,7 +12,7 @@ package portrollup
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 // EphemeralPort port number is represented by `-1` internally

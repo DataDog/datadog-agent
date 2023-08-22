@@ -10,7 +10,7 @@ package goflowlib
 import (
 	flowpb "github.com/netsampler/goflow2/pb"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 // ConvertFlow convert goflow flow structure to internal flow structure

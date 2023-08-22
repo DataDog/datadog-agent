@@ -25,7 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
-	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
 //go:embed pcap_recordings/netflow5.pcapng
@@ -50,7 +51,7 @@ func SendUDPPacket(port uint16, data []byte) error {
 
 // ExpectNetflow5Payloads expects the payloads that should result from our
 // recorded pcap files.
-func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEventPlatformForwarder) {
+func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader forwarder.MockComponent) {
 	events := [][]byte{
 		[]byte(`
 {
