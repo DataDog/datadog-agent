@@ -109,7 +109,7 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
 }
 
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
-    return (packet_type == HTTP_REQUEST && http->request_started) ||
+    return (packet_type == HTTP_REQUEST && (http->request_started || http->response_status_code)) ||
         (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
