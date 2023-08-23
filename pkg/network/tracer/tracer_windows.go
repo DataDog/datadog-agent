@@ -43,7 +43,6 @@ type Tracer struct {
 	reverseDNS      dns.ReverseDNS
 	usmMonitor      usm.Monitor
 
-	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
 	connLock     sync.Mutex
 
@@ -94,7 +93,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
 		usmMonitor:      newUSMMonitor(config, di.GetHandle()),
