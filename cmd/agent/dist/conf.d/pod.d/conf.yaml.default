@@ -1,5 +1,3 @@
-ad_identifiers:
-  - _pod
 init_config:
 instances:
   -
