@@ -159,7 +159,7 @@ def base_message(header, state):
     commit_short_sha = os.getenv("CI_COMMIT_SHORT_SHA")
     author = get_git_author()
 
-    # Try to found a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
+    # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
     parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
     enhanced_commit_title = commit_title
     if parsed_pr_id_found:
