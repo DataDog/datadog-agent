@@ -20,10 +20,7 @@ single-machine-performance-workload-checks:
     REPLICAS: 5
   allow_failure: true
   script:
-    # Compute the commit time from CI_COMMIT_SHA, must match the calculation on
-    # `docker_publish_job_definition`.
     - git fetch origin
-    - CI_COMMIT_TIME=$(git show -s --format=%ct $CI_COMMIT_SHA)
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
