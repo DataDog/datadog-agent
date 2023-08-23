@@ -6,15 +6,15 @@ ORG_NAME = "datadog"
 
 API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('INPUT_PULL_REQUEST')}/comments"
 
-REPOS = requests.get(
+DEPENDENCY_REVIEW_RESPONSE = requests.get(
     f"https://api.github.com/repos/datadog/datadog-agent/dependency-graph/compare/{os.getenv('BASE_REF')}...{os.getenv('HEAD_REF')}",
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 ).json()
-
+print(DEPENDENCY_REVIEW_RESPONSE)
 output = ""
 output += "### Vulnerability Report\n\n"
 # Loop through each entry in the data
-for entry in REPOS:
+for entry in DEPENDENCY_REVIEW:
     output += f"Change Type: {entry['change_type']}\n"
     output += f"Manifest: {entry['manifest']}\n"
     output += f"Ecosystem: {entry['ecosystem']}\n"
