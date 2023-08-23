@@ -26,10 +26,10 @@ var severityMap = map[string]diagnosis.Result{
 }
 
 // NewDeviceDiagnostics returns a new Diagnostics for a NDM device resource
-func NewDeviceDiagnostics(deviceId string) *Diagnostics {
+func NewDeviceDiagnostics(deviceID string) *Diagnostics {
 	return &Diagnostics{
 		resourceType: "ndm_device",
-		resourceID:   deviceId,
+		resourceID:   deviceID,
 	}
 }
 
