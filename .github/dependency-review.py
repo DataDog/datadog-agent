@@ -11,7 +11,7 @@ DEPENDENCY_REVIEW_RESPONSE = requests.get(
 print(DEPENDENCY_REVIEW_RESPONSE)
 output = ""
 output += "### Vulnerability Report\n\n"
-# Loop through each entry in the data
+# Loop through each entry from Dependency Review Response
 for entry in DEPENDENCY_REVIEW_RESPONSE:
     output += f"Change Type: {entry['change_type']}\n"
     output += f"Manifest: {entry['manifest']}\n"
