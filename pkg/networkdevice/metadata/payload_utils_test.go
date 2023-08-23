@@ -7,10 +7,11 @@ package metadata
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func Test_batchPayloads(t *testing.T) {
@@ -42,7 +43,7 @@ func Test_batchPayloads(t *testing.T) {
 			FlowType:  "netflow5",
 		})
 	}
-	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters)
+	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters, nil)
 
 	require.Len(t, payloads, 7)
 
