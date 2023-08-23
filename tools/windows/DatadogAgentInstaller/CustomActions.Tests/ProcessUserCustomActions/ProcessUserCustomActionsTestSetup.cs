@@ -81,6 +81,18 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             domain ??= _fixture.Create<string>();
 
             NativeMethods.Setup(n => n.IsDomainController()).Returns(true);
+            NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Returns(false);
+            NativeMethods.Setup(n => n.GetComputerDomain()).Returns(domain);
+
+            return this;
+        }
+
+        public ProcessUserCustomActionsTestSetup WithReadOnlyDomainController(string domain = null)
+        {
+            domain ??= _fixture.Create<string>();
+
+            NativeMethods.Setup(n => n.IsDomainController()).Returns(true);
+            NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Returns(true);
             NativeMethods.Setup(n => n.GetComputerDomain()).Returns(domain);
 
             return this;

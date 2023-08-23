@@ -595,13 +595,15 @@ namespace Datadog.CustomActions.Native
             {
                 return false;
             }
+
             IntPtr pDCI = IntPtr.Zero;
             try
             {
                 var result = DsGetDcName(null, null, null, null, 0, out pDCI);
                 if (result != 0)
                 {
-                    throw new Exception("unexpected error getting domain controller information", new Win32Exception((int)result));
+                    throw new Exception("unexpected error getting domain controller information",
+                        new Win32Exception((int)result));
                 }
 
                 var domainInfo = (DOMAIN_CONTROLLER_INFO)Marshal.PtrToStructure(pDCI, typeof(DOMAIN_CONTROLLER_INFO));
