@@ -555,13 +555,15 @@ def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
 
-    # skip generation of serializer for windows
-    if sys.platform == "win32":
-        return
-
     shutil.copy(
-        "./pkg/security/serializers/serializers_easyjson.mock", "./pkg/security/serializers/serializers_easyjson.go"
+        "./pkg/security/serializers/serializers_linux_easyjson.mock",
+        "./pkg/security/serializers/serializers_linux_easyjson.go",
     )
+    shutil.copy(
+        "./pkg/security/serializers/serializers_windows_easyjson.mock",
+        "./pkg/security/serializers/serializers_windows_easyjson.go",
+    )
+
     shutil.copy(
         "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
         "./pkg/security/security_profile/dump/activity_dump_easyjson.go",

@@ -28,3 +28,13 @@ func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Contai
 func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
 	return process.Argv
 }
+
+// ResolveFilePath resolves the inode to a full path
+func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
+	return f.PathnameStr
+}
+
+// ResolveFileBasename resolves the inode to a full path
+func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
+	return f.BasenameStr
+}
