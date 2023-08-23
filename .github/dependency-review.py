@@ -11,13 +11,6 @@ REPOS = requests.get(
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 ).json()
 
-CVE_INFO = requests.get(
-    f"https://api.github.com/advisories/{REPOS[0]['vulnerabilities'][0]['advisory_ghsa_id']}",
-    headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
-).json()
-
-print(CVE_INFO)
-
 output = ""
 output += "### Vulnerability Report\n\n"
 # Loop through each entry in the data
@@ -33,6 +26,10 @@ for entry in REPOS:
     # Loop through vulnerabilities if present
     vulnerabilities = entry.get('vulnerabilities', [])
     for vulnerability in vulnerabilities:
+        CVE_INFO = requests.get(
+            f"https://api.github.com/advisories/{vulnerability['advisory_ghsa_id']}",
+            headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
+        ).json()
         output += f"\tSeverity: {vulnerability['severity']}\n"
         output += f"\tAdvisory Summary: {vulnerability['advisory_summary']}\n"
         output += f"\tCVE ID: {CVE_INFO['cve_id']}\n"
