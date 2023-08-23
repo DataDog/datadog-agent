@@ -326,7 +326,7 @@ func storePopulatedFromFile(filename string) (*workloadmetatesting.Store, error)
 
 	podList, err := os.ReadFile(filename)
 	if err != nil {
-		return store, fmt.Errorf("unable to load pod list, err: %v", err)
+		return store, fmt.Errorf("unable to load pod list, err: %w", err)
 	}
 	var pods *kubelet.PodList
 	err = json.Unmarshal(podList, &pods)
