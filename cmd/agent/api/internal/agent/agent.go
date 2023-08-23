@@ -27,10 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
@@ -39,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,13 +51,20 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
+func SetupHandlers(
+	r *mux.Router,
+	flareComp flare.Component,
+	server dogstatsdServer.Component,
+	serverDebug dogstatsdDebug.Component,
+	logsAgent util.Optional[logsAgent.Component],
+) *mux.Router {
+
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
+	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -69,10 +80,15 @@ func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdSer
 	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", metadataPayload).Methods("GET")
+	r.HandleFunc("/diagnose", getDiagnose).Methods("POST")
 
 	// Some agent subcommands do not provide these dependencies (such as JMX)
 	if server != nil && serverDebug != nil {
 		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
+	}
+
+	if logsAgent, ok := logsAgent.Get(); ok {
+		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
 	}
 
 	return r
@@ -190,68 +206,78 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-func streamLogs(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got a request for stream logs.")
-	w.Header().Set("Transfer-Encoding", "chunked")
+func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(logsAgent.GetMessageReceiver, "logs", "logs agent")
+}
 
-	logMessageReceiver := logs.GetMessageReceiver()
+func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(epforwarder.GetGlobalReceiver, "event platform payloads", "agent")
+}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		log.Errorf("Expected a Flusher type, got: %v", w)
-		return
-	}
+func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("Got a request to stream %s.", streamType)
+		w.Header().Set("Transfer-Encoding", "chunked")
 
-	if logMessageReceiver == nil {
-		http.Error(w, "The logs agent is not running", 405)
-		flusher.Flush()
-		log.Info("Logs agent is not running - can't stream logs")
-		return
-	}
+		messageReceiver := messageReceiverFunc()
 
-	if !logMessageReceiver.SetEnabled(true) {
-		http.Error(w, "Another client is already streaming logs.", 405)
-		flusher.Flush()
-		log.Info("Logs are already streaming. Dropping connection.")
-		return
-	}
-	defer logMessageReceiver.SetEnabled(false)
-
-	var filters diagnostic.Filters
-
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			log.Errorf("Expected a Flusher type, got: %v", w)
 			return
 		}
 
-		if err := json.Unmarshal(body, &filters); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-	conn := GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
-
-	done := make(chan struct{})
-	defer close(done)
-	logChan := logMessageReceiver.Filter(&filters, done)
-	flushTimer := time.NewTicker(time.Second)
-	for {
-		// Handlers for detecting a closed connection (from either the server or client)
-		select {
-		case <-w.(http.CloseNotifier).CloseNotify(): //nolint
-			return
-		case <-r.Context().Done():
-			return
-		case line := <-logChan:
-			fmt.Fprint(w, line)
-		case <-flushTimer.C:
-			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+		if messageReceiver == nil {
+			http.Error(w, fmt.Sprintf("The %s is not running", agentType), 405)
 			flusher.Flush()
+			log.Infof("The %s is not running - can't stream %s", agentType, streamType)
+			return
+		}
+
+		if !messageReceiver.SetEnabled(true) {
+			http.Error(w, fmt.Sprintf("Another client is already streaming %s.", streamType), 405)
+			flusher.Flush()
+			log.Infof("%s are already streaming. Dropping connection.", streamType)
+			return
+		}
+		defer messageReceiver.SetEnabled(false)
+
+		var filters diagnostic.Filters
+
+		if r.Body != http.NoBody {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+				return
+			}
+
+			if err := json.Unmarshal(body, &filters); err != nil {
+				http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+				return
+			}
+		}
+
+		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
+		conn := GetConnection(r)
+		_ = conn.SetDeadline(time.Time{})
+
+		done := make(chan struct{})
+		defer close(done)
+		logChan := messageReceiver.Filter(&filters, done)
+		flushTimer := time.NewTicker(time.Second)
+		for {
+			// Handlers for detecting a closed connection (from either the server or client)
+			select {
+			case <-w.(http.CloseNotifier).CloseNotify(): //nolint
+				return
+			case <-r.Context().Done():
+				return
+			case line := <-logChan:
+				fmt.Fprint(w, line)
+			case <-flushTimer.C:
+				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+				flusher.Flush()
+			}
 		}
 	}
 }
@@ -435,6 +461,54 @@ func metadataPayload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(scrubbed)
+}
+
+func getDiagnose(w http.ResponseWriter, r *http.Request) {
+	var diagCfg diagnosis.Config
+
+	// Read parameters
+	if r.Body != http.NoBody {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &diagCfg); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
+	// Reset the `server_timeout` deadline for this connection as running diagnose code in Agent process can take some time
+	conn := GetConnection(r)
+	_ = conn.SetDeadline(time.Time{})
+
+	// Indicate that we are already running in Agent process (and flip RunLocal)
+	diagCfg.RunningInAgentProcess = true
+	diagCfg.RunLocal = true
+
+	// Get diagnoses via API
+	diagnoses, err := diagnose.Run(diagCfg)
+	if err != nil {
+		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
+		return
+	}
+
+	// No diagnosis to report
+	if len(diagnoses) == 0 {
+		return
+	}
+
+	// Serizalize it
+	diagnosesJson, err := json.Marshal(diagnoses)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(diagnosesJson)
 }
 
 // max returns the maximum value between a and b.

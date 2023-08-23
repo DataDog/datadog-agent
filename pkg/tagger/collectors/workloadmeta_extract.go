@@ -762,7 +762,7 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*TagInfo 
 	process := ev.Entity.(*workloadmeta.Process)
 	tags := utils.NewTagList()
 	if process.Language != nil {
-		tags.AddLow("language", *process.Language)
+		tags.AddLow("language", string(process.Language.Name))
 	}
 	low, orch, high, standard := tags.Compute()
 	return []*TagInfo{{

@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -30,7 +30,7 @@ type CollectorDemuxTestSuite struct {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	suite.c = NewCollector()
+	suite.c = NewCollector(aggregator.GetSenderManager())
 	log := fxutil.Test[log.Component](suite.T(), log.MockModule)
 	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 100*time.Hour)
 
@@ -174,7 +174,7 @@ func TestCollectorDemuxSuite(t *testing.T) {
 }
 
 type cancelledCheck struct {
-	check.StubCheck
+	stub.StubCheck
 	flip chan struct{}
 	flop chan struct{}
 }

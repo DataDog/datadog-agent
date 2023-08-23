@@ -13,7 +13,6 @@
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/https.h"
-#include "protocols/tls/sowatcher.h"
 #include "protocols/tls/tags-types.h"
 
 SEC("socket/protocol_dispatcher")
@@ -517,7 +516,4 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
     return 0;
 }
 
-// This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

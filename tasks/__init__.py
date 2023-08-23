@@ -16,6 +16,7 @@ from . import (
     dogstatsd,
     epforwarder,
     github,
+    kmt,
     msi,
     new_e2e_tests,
     package,
@@ -67,6 +68,7 @@ from .test import (
     test,
 )
 from .utils import generate_config
+from .windows_resources import build_messagetable
 
 # the root namespace
 ns = Collection()
@@ -105,6 +107,7 @@ ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
+ns.add_task(build_messagetable)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -131,6 +134,7 @@ ns.add_collection(process_agent)
 ns.add_collection(security_agent)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
+ns.add_collection(kmt)
 ns.configure(
     {
         'run': {

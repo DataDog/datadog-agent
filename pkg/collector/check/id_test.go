@@ -12,22 +12,24 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 )
 
 func TestBuildID(t *testing.T) {
-	testCheck := &StubCheck{}
+	testCheck := &stub.StubCheck{}
 
 	instance1 := integration.Data("key1:value1\nkey2:value2")
 	initConfig1 := integration.Data("key:value")
 	instance2 := instance1
 	initConfig2 := initConfig1
-	assert.Equal(t, BuildID(testCheck.String(), 1, instance1, initConfig1), BuildID(testCheck.String(), 1, instance2, initConfig2))
+	assert.Equal(t, checkid.BuildID(testCheck.String(), 1, instance1, initConfig1), checkid.BuildID(testCheck.String(), 1, instance2, initConfig2))
 	// Different integration config digest
-	assert.NotEqual(t, BuildID(testCheck.String(), 1, instance1, initConfig1), BuildID(testCheck.String(), 2, instance2, initConfig2))
+	assert.NotEqual(t, checkid.BuildID(testCheck.String(), 1, instance1, initConfig1), checkid.BuildID(testCheck.String(), 2, instance2, initConfig2))
 
 	instance3 := integration.Data("key1:value1\nkey2:value3")
 	initConfig3 := integration.Data("key:value")
-	assert.NotEqual(t, BuildID(testCheck.String(), 1, instance1, initConfig1), BuildID(testCheck.String(), 1, instance3, initConfig3))
+	assert.NotEqual(t, checkid.BuildID(testCheck.String(), 1, instance1, initConfig1), checkid.BuildID(testCheck.String(), 1, instance3, initConfig3))
 }
 
 func TestIDToCheckName(t *testing.T) {
@@ -59,7 +61,7 @@ func TestIDToCheckName(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("case %d: %s", i, tc.in), func(t *testing.T) {
-			assert.Equal(t, tc.out, IDToCheckName(ID(tc.in)))
+			assert.Equal(t, tc.out, checkid.IDToCheckName(checkid.ID(tc.in)))
 		})
 	}
 }

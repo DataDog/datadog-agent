@@ -140,7 +140,9 @@ static __always_inline void http_process(http_transaction_t *http_stack, skb_inf
 
     http->tags |= tags;
 
-    if (http_responding(http)) {
+    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
+    // This is to prevent things such as keep-alives adding up to the transaction latency
+    if ((buffer[0] != 0) && http_responding(http)) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
@@ -161,12 +163,8 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
         return false;
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&http->tup);
-    if (!stack) {
-        return false;
-    }
     bool empty_payload = skb_info->data_off == skb->len;
-    if (empty_payload || is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
+    if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);

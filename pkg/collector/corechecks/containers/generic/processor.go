@@ -8,7 +8,7 @@ package generic
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -53,7 +53,7 @@ func (p *Processor) RegisterExtension(id string, extension ProcessorExtension) {
 }
 
 // Run executes the check
-func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) error {
+func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error {
 	allContainers := p.ctrLister.ListRunning()
 
 	if len(allContainers) == 0 {
@@ -133,7 +133,7 @@ func (p *Processor) Run(sender aggregator.Sender, cacheValidity time.Duration) e
 	return nil
 }
 
-func (p *Processor) processContainer(sender aggregator.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
+func (p *Processor) processContainer(sender sender.Sender, tags []string, container *workloadmeta.Container, containerStats *metrics.ContainerStats) error {
 	if uptime := time.Since(container.State.StartedAt); uptime >= 0 {
 		p.sendMetric(sender.Gauge, "container.uptime", pointer.Ptr(uptime.Seconds()), tags)
 	}
@@ -169,6 +169,7 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags) // Windows
 		p.sendMetric(sender.Gauge, "container.memory.commit", containerStats.Memory.CommitBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
+		p.sendMetric(sender.Gauge, "container.memory.peak", containerStats.Memory.Peak, tags)
 		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
 	}
 

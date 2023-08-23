@@ -13,14 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProcessEntity is a placeholder workloadmeta.ProcessEntity.
-// It does not contain all the fields that the final entity will contain.
+const subsystem = "WorkloadMetaExtractor"
+
+// ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
-	pid      int32
-	language *languagemodels.Language
+	Pid          int32
+	ContainerId  string
+	NsPid        int32
+	CreationTime int64
+	Language     *languagemodels.Language
 }
 
 // WorkloadMetaExtractor does these two things:
@@ -34,6 +39,10 @@ type WorkloadMetaExtractor struct {
 	cacheMutex   sync.RWMutex
 
 	diffChan chan *ProcessCacheDiff
+
+	pidToCid map[int]string
+
+	sysprobeConfig config.ConfigReader
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
@@ -44,47 +53,86 @@ type ProcessCacheDiff struct {
 	deletion     []*ProcessEntity
 }
 
+var (
+	cacheSizeGuage = telemetry.NewGauge(subsystem, "cache_size", nil, "The cache size for the workloadMetaExtractor")
+	oldDiffDropped = telemetry.NewSimpleCounter(subsystem, "diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full.")
+	diffChanFull   = telemetry.NewSimpleCounter(subsystem, "diff_chan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen.")
+)
+
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(sysprobeConfig config.ConfigReader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
+
 	return &WorkloadMetaExtractor{
 		cache:        make(map[string]*ProcessEntity),
 		cacheVersion: 0,
 		// Keep only the latest diff in memory in case there's no consumer for it
-		diffChan: make(chan *ProcessCacheDiff, 1),
+		diffChan:       make(chan *ProcessCacheDiff, 1),
+		sysprobeConfig: sysprobeConfig,
 	}
+}
+
+// SetLastPidToCid is a utility function that should be called from either the process collector, or the process check.
+// pidToCid will be used by the extractor to add enrich process entities with their associated container id.
+// This method was added to avoid the cost of reaching out to workloadMeta on a hot path where `GetContainers` will do an O(n) copy of its entire store.
+// Note that this method is not thread safe.
+func (w *WorkloadMetaExtractor) SetLastPidToCid(pidToCid map[int]string) {
+	w.pidToCid = pidToCid
 }
 
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta
 func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
-	newProcs := make([]*procutil.Process, 0, len(procs))
+	defer w.reportTelemetry()
+
+	newEntities := make([]*ProcessEntity, 0, len(procs))
+	newProcs := make([]languagemodels.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
 		if entity, ok := w.cache[hash]; ok {
 			newCache[hash] = entity
+
+			// Sometimes the containerID can be late to initialize. If this is the case add it to the list of changed procs
+			if cid, ok := w.pidToCid[int(proc.Pid)]; ok && entity.ContainerId == "" {
+				entity.ContainerId = cid
+				newEntities = append(newEntities, entity)
+			}
 			continue
 		}
 
 		newProcs = append(newProcs, proc)
 	}
 
-	newEntities := make([]*ProcessEntity, 0, len(newProcs))
-	languages := languagedetection.DetectLanguage(newProcs)
+	deadProcs := getDifference(w.cache, newCache)
+
+	// If no process has been created, terminated, or updated, there's no need to update the cache
+	// or generate a new diff
+	if len(newProcs) == 0 && len(deadProcs) == 0 && len(newEntities) == 0 {
+		return
+	}
+
+	languages := languagedetection.DetectLanguage(newProcs, w.sysprobeConfig)
 	for i, lang := range languages {
-		pid := newProcs[i].Pid
+		pid := newProcs[i].GetPid()
 		proc := procs[pid]
+
+		var creationTime int64
+		if proc.Stats != nil {
+			creationTime = proc.Stats.CreateTime
+		}
+
 		entity := &ProcessEntity{
-			pid:      pid,
-			language: lang,
+			Pid:          pid,
+			NsPid:        proc.NsPid,
+			CreationTime: creationTime,
+			Language:     lang,
+			ContainerId:  w.pidToCid[int(pid)],
 		}
 		newEntities = append(newEntities, entity)
 		newCache[hashProcess(pid, proc.Stats.CreateTime)] = entity
 
 		log.Trace("detected language", lang.Name, "for pid", pid)
 	}
-
-	deadProcs := getDifference(w.cache, newCache)
 
 	w.cacheMutex.Lock()
 	w.cache = newCache
@@ -95,6 +143,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	select {
 	case <-w.diffChan:
 		// drop message
+		oldDiffDropped.Inc()
 		log.Debug("Dropping old process diff in WorkloadMetaExtractor")
 		break
 	default:
@@ -111,6 +160,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	case w.diffChan <- diff:
 		break
 	default:
+		diffChanFull.Inc()
 		log.Error("Dropping newer process diff in WorkloadMetaExtractor")
 	}
 }
@@ -128,7 +178,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 
 // Enabled returns whether the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
-	return ddconfig.GetBool("process_config.language_detection.enabled")
+	return ddconfig.GetBool("language_detection.enabled")
 }
 
 func hashProcess(pid int32, createTime int64) string {
@@ -153,4 +203,8 @@ func (w *WorkloadMetaExtractor) GetAllProcessEntities() (map[string]*ProcessEnti
 // ProcessCacheDiff returns a channel to consume process diffs from
 func (w *WorkloadMetaExtractor) ProcessCacheDiff() <-chan *ProcessCacheDiff {
 	return w.diffChan
+}
+
+func (w *WorkloadMetaExtractor) reportTelemetry() {
+	cacheSizeGuage.Set(float64(len(w.cache)))
 }

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
@@ -24,6 +24,7 @@ import (
 
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
+	defaultMaximumCRDs      = 100
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way
@@ -138,6 +139,11 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 		}
 		groupVersion := collectorName[:idx]
 		resource := collectorName[idx+1:]
+
+		if cb.skipResources(groupVersion, resource) {
+			return
+		}
+
 		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
 			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
 
@@ -192,7 +198,14 @@ func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
 	if len(cb.check.instance.CRDCollectors) == 0 {
 		return false
 	}
-	for _, c := range cb.check.instance.CRDCollectors {
+
+	crdCollectors := cb.check.instance.CRDCollectors
+	if len(cb.check.instance.CRDCollectors) > defaultMaximumCRDs {
+		crdCollectors = cb.check.instance.CRDCollectors[:defaultMaximumCRDs]
+		cb.check.Warnf("Too many crd collectors are configured, will only collect the first %d collectors", defaultMaximumCRDs)
+	}
+
+	for _, c := range crdCollectors {
 		cb.addCollectorFromConfig(c, true)
 	}
 	return true
@@ -268,7 +281,7 @@ func (cb *CollectorBundle) Initialize() error {
 }
 
 // Run is used to sequentially run all collectors in the bundle.
-func (cb *CollectorBundle) Run(sender aggregator.Sender) {
+func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 	// Start a thread to buffer manifests and kill it when the check is finished.
 	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
@@ -303,4 +316,12 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 			}
 		}
 	}
+}
+
+func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
+	if groupVersion == "v1" && (resource == "secrets" || resource == "configmaps") {
+		cb.check.Warnf("Skipping collector: %s/%s, we don't support collecting it for now as it can contain sensitive data", groupVersion, resource)
+		return true
+	}
+	return false
 }

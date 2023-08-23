@@ -16,7 +16,7 @@ import (
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/events"
-	prototypes "github.com/gogo/protobuf/types"
+	"github.com/containerd/typeurl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -74,18 +74,17 @@ func TestCheckEvents(t *testing.T) {
 	sub := createEventSubscriber("subscriberTest1", containerdutil.ContainerdItf(itf), nil)
 	sub.CheckEvents()
 
-	tp := containerdevents.TaskPaused{
+	tp := &containerdevents.TaskPaused{
 		ContainerID: "42",
 	}
-	vp, err := tp.Marshal()
+
+	vp, err := typeurl.MarshalAny(tp)
 	assert.NoError(t, err)
 
 	en := events.Envelope{
 		Timestamp: time.Now(),
 		Topic:     "/tasks/paused",
-		Event: &prototypes.Any{
-			Value: vp,
-		},
+		Event:     vp,
 	}
 	cha <- &en
 
@@ -131,32 +130,28 @@ func TestCheckEvents(t *testing.T) {
 	sub = createEventSubscriber("subscriberTest2", containerdutil.ContainerdItf(itf), nil)
 	sub.CheckEvents()
 
-	tk := containerdevents.TaskOOM{
+	tk := &containerdevents.TaskOOM{
 		ContainerID: "42",
 	}
-	vk, err := tk.Marshal()
+	vk, err := typeurl.MarshalAny(tk)
 	assert.NoError(t, err)
 
 	ek := events.Envelope{
 		Timestamp: time.Now(),
 		Topic:     "/tasks/oom",
-		Event: &prototypes.Any{
-			Value: vk,
-		},
+		Event:     vk,
 	}
 
-	nd := containerdevents.NamespaceDelete{
+	nd := &containerdevents.NamespaceDelete{
 		Name: "k10s.io",
 	}
-	vnd, err := nd.Marshal()
+	vnd, err := typeurl.MarshalAny(nd)
 	assert.NoError(t, err)
 
 	evnd := events.Envelope{
 		Timestamp: time.Now(),
 		Topic:     "/namespaces/delete",
-		Event: &prototypes.Any{
-			Value: vnd,
-		},
+		Event:     vnd,
 	}
 
 	cha <- &ek
@@ -412,9 +407,9 @@ func TestComputeEvents(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			computeEvents(test.events, mocked, containerdCheck.containerFilter)
-			mocked.On("Event", mock.AnythingOfType("metrics.Event"))
+			mocked.On("Event", mock.AnythingOfType("event.Event"))
 			if len(mocked.Calls) > 0 {
-				res := (mocked.Calls[0].Arguments.Get(0)).(metrics.Event)
+				res := (mocked.Calls[0].Arguments.Get(0)).(event.Event)
 				assert.Contains(t, res.Title, test.expectedTitle)
 				assert.ElementsMatch(t, res.Tags, test.expectedTags)
 			}
@@ -425,10 +420,10 @@ func TestComputeEvents(t *testing.T) {
 }
 
 func createContainerEvent(namespace string, containerID string) (events.Envelope, error) {
-	containerCreate := containerdevents.ContainerCreate{
+	containerCreate := &containerdevents.ContainerCreate{
 		ID: containerID,
 	}
-	containerCreateMarshal, err := containerCreate.Marshal()
+	containerCreateMarshal, err := typeurl.MarshalAny(containerCreate)
 	if err != nil {
 		return events.Envelope{}, err
 	}
@@ -437,17 +432,15 @@ func createContainerEvent(namespace string, containerID string) (events.Envelope
 		Namespace: namespace,
 		Timestamp: time.Now(),
 		Topic:     "/containers/create",
-		Event: &prototypes.Any{
-			Value: containerCreateMarshal,
-		},
+		Event:     containerCreateMarshal,
 	}, nil
 }
 
 func deleteTaskEvent(namespace string, containerID string) (events.Envelope, error) {
-	taskDelete := containerdevents.TaskDelete{
+	taskDelete := &containerdevents.TaskDelete{
 		ContainerID: containerID,
 	}
-	taskDeleteMarshal, err := taskDelete.Marshal()
+	taskDeleteMarshal, err := typeurl.MarshalAny(taskDelete)
 	if err != nil {
 		return events.Envelope{}, err
 	}
@@ -456,17 +449,15 @@ func deleteTaskEvent(namespace string, containerID string) (events.Envelope, err
 		Namespace: namespace,
 		Timestamp: time.Now(),
 		Topic:     "/tasks/delete",
-		Event: &prototypes.Any{
-			Value: taskDeleteMarshal,
-		},
+		Event:     taskDeleteMarshal,
 	}, nil
 }
 
 func deleteContainerEvent(namespace string, containerID string) (events.Envelope, error) {
-	containerDelete := containerdevents.ContainerDelete{
+	containerDelete := &containerdevents.ContainerDelete{
 		ID: containerID,
 	}
-	containerDeleteMarshal, err := containerDelete.Marshal()
+	containerDeleteMarshal, err := typeurl.MarshalAny(containerDelete)
 	if err != nil {
 		return events.Envelope{}, err
 	}
@@ -475,8 +466,6 @@ func deleteContainerEvent(namespace string, containerID string) (events.Envelope
 		Namespace: namespace,
 		Timestamp: time.Now(),
 		Topic:     "/containers/delete",
-		Event: &prototypes.Any{
-			Value: containerDeleteMarshal,
-		},
+		Event:     containerDeleteMarshal,
 	}, nil
 }

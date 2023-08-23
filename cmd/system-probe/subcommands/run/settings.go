@@ -16,22 +16,22 @@ const configPrefix = config.Namespace + "."
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
 func initRuntimeSettings() error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: pkgconfig.SystemProbe}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level", Config: pkgconfig.SystemProbe}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.ProfilingGoroutines{ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "system-probe", ConfigPrefix: configPrefix, Config: pkgconfig.SystemProbe}); err != nil {
 		return err
 	}
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey}); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(&commonsettings.ActivityDumpRuntimeSetting{ConfigKey: commonsettings.MaxDumpSizeConfKey}); err != nil {
 		return err
 	}
 	return nil

@@ -24,7 +24,6 @@
 #include "protocols/tls/go-tls-location.h"
 #include "protocols/tls/go-tls-conn.h"
 #include "protocols/tls/https.h"
-#include "protocols/tls/sowatcher.h"
 #include "protocols/tls/tags-types.h"
 
 // The entrypoint for all packets classification & decoding in universal service monitoring.
@@ -801,7 +800,4 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
 #endif
 }
 
-// This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

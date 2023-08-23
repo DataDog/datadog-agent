@@ -69,7 +69,8 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy.pid = 0;
     normalize_tuple(&conn_tuple_copy);
 
-    protocol_stack_t *protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    protocol_stack_t *protocol_stack = __get_protocol_stack(&conn_tuple_copy);
+    set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
@@ -78,7 +79,8 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     }
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
-    protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    protocol_stack = __get_protocol_stack(&conn_tuple_copy);
+    set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 }
 
@@ -123,8 +125,8 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         u32 *port_count = NULL;
         port_binding_t pb = {};
         pb.port = t->sport;
+        pb.netns = t->netns;
         if (t->metadata & CONN_TYPE_TCP) {
-            pb.netns = t->netns;
             port_count = bpf_map_lookup_elem(&port_bindings, &pb);
         } else {
             port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
@@ -135,22 +137,13 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 
 // update_tcp_stats update rtt, retransmission and state on of a TCP connection
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
-    // query stats without the PID from the tuple
-    __u32 pid = t->pid;
-    t->pid = 0;
-
     // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
     bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST);
 
     tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
-    t->pid = pid;
     if (val == NULL) {
         return;
-    }
-
-    if (stats.retransmits > 0) {
-        __sync_fetch_and_add(&val->retransmits, stats.retransmits);
     }
 
     if (stats.rtt > 0) {
@@ -175,13 +168,19 @@ static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, si
 static __always_inline int handle_retransmit(struct sock *sk, int count) {
     conn_tuple_t t = {};
     u64 zero = 0;
-
     if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = count, .rtt = 0, .rtt_var = 0 };
-    update_tcp_stats(&t, stats);
+    // initialize-if-no-exist the connection state, and load it
+    u32 u32_zero = 0;
+    bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST);
+    u32 *val = bpf_map_lookup_elem(&tcp_retransmits, &t);
+    if (val == NULL) {
+        return 0;
+    }
+
+    __sync_fetch_and_add(val, count);
 
     return 0;
 }
@@ -196,7 +195,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     BPF_CORE_READ_INTO(&rtt_var, tcp_sk(sk), mdev_us);
 #endif
 
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
+    tcp_stats_t stats = { .rtt = rtt, .rtt_var = rtt_var };
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }

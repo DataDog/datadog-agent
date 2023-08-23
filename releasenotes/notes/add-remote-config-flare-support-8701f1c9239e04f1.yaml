@@ -8,6 +8,5 @@
 ---
 features:
   - |
-    Add flare support through Remote Configuration.
-    Only works for agents that already have Remote Configuration enabled.
-    No UI support yet.
+    Add ability to send an Agent flare from the Datadog Application for Datadog support team troubleshooting.
+    This feature requires enabling Remote Configuration.

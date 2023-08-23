@@ -7,39 +7,48 @@ package cpu
 
 import (
 	"bufio"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/cihub/seelog"
 )
 
 var prefix = "" // only used for testing
 var listRangeRegex = regexp.MustCompile("([0-9]+)-([0-9]+)$")
 
-// sysCpuInt reads an integer from a file in /sys/devices/system/cpu
-func sysCpuInt(path string) (uint64, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+// sysCPUInt reads an integer from a file in /sys/devices/system/cpu
+func sysCPUInt(path string) (uint64, bool) {
+	filepath := prefix + "/sys/devices/system/cpu/" + path
+	content, err := os.ReadFile(filepath)
 	if err != nil {
 		return 0, false
 	}
 
 	value, err := strconv.ParseUint(strings.TrimSpace(string(content)), 0, 64)
 	if err != nil {
+		log.Warnf("file %s did not contain a valid integer", filepath)
 		return 0, false
 	}
 
 	return value, true
 }
 
-// sysCpuSize reads an value with a K/M/G suffix from a file in /sys/devices/system/cpu
-func sysCpuSize(path string) (uint64, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+// sysCPUSize reads a value with a K/M/G suffix from a file in /sys/devices/system/cpu
+func sysCPUSize(path string) (uint64, bool) {
+	filepath := prefix + "/sys/devices/system/cpu/" + path
+	content, err := os.ReadFile(filepath)
 	if err != nil {
 		return 0, false
 	}
 
 	s := strings.TrimSpace(string(content))
+	if s == "" {
+		log.Warnf("file %s was empty", filepath)
+		return 0, false
+	}
+
 	mult := uint64(1)
 	switch s[len(s)-1] {
 	case 'K':
@@ -55,25 +64,26 @@ func sysCpuSize(path string) (uint64, bool) {
 
 	value, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
+		log.Warnf("file %s did not contain a valid size", filepath)
 		return 0, false
 	}
 
 	return value * mult, true
 }
 
-// sysCpuList reads a list of integers, comma-seprated with ranges (`0-5,7-11`)
+// sysCPUList reads a list of integers, comma-seprated with ranges (`0-5,7-11`)
 // from a file in /sys/devices/system/cpu.  The return value is the set of
 // integers included in the list (for the example above, {0, 1, 2, 3, 4, 5, 7,
 // 8, 9, 10, 11}).
-func sysCpuList(path string) (map[uint64]struct{}, bool) {
-	content, err := ioutil.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
+func sysCPUList(path string) (map[uint64]struct{}, bool) {
+	content, err := os.ReadFile(prefix + "/sys/devices/system/cpu/" + path)
 	if err != nil {
 		return nil, false
 	}
 
 	result := map[uint64]struct{}{}
 	contentStr := strings.TrimSpace(string(content))
-	if len(contentStr) == 0 {
+	if contentStr == "" {
 		return result, true
 	}
 
@@ -104,10 +114,10 @@ func sysCpuList(path string) (map[uint64]struct{}, bool) {
 	return result, true
 }
 
-// readProcCpuInfo reads /proc/cpuinfo.  The file is structured as a set of
+// readProcCPUInfo reads /proc/cpuinfo.  The file is structured as a set of
 // blank-line-separated stanzas, and each stanza is a map of string to string,
 // with whitespace stripped.
-func readProcCpuInfo() ([]map[string]string, error) {
+func readProcCPUInfo() ([]map[string]string, error) {
 	file, err := os.Open(prefix + "/proc/cpuinfo")
 	if err != nil {
 		return nil, err
@@ -126,15 +136,15 @@ func readProcCpuInfo() ([]map[string]string, error) {
 			continue
 		}
 
-		pair := strings.SplitN(line, ":", 2)
-		if len(pair) != 2 {
+		key, value, found := strings.Cut(line, ":")
+		if !found {
 			continue
 		}
 		if stanza == nil {
 			stanza = make(map[string]string)
 			stanzas = append(stanzas, stanza)
 		}
-		stanza[strings.TrimSpace(pair[0])] = strings.TrimSpace(pair[1])
+		stanza[strings.TrimSpace(key)] = strings.TrimSpace(value)
 	}
 
 	if scanner.Err() != nil {

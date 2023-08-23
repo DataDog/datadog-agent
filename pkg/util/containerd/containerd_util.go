@@ -297,12 +297,13 @@ func (c *ContainerdUtil) LabelsWithContext(ctx context.Context, namespace string
 
 // Spec unmarshal Spec from container.Info(), will return parsed Spec if size < maxSize
 func (c *ContainerdUtil) Spec(namespace string, ctn containers.Container, maxSize int) (*oci.Spec, error) {
-	if len(ctn.Spec.Value) >= maxSize {
+	spec := ctn.Spec.GetValue()
+	if len(spec) >= maxSize {
 		return nil, fmt.Errorf("unable to get spec for container: %s/%s, err: %w", namespace, ctn.ID, ErrSpecTooLarge)
 	}
 
 	var s oci.Spec
-	if err := json.Unmarshal(ctn.Spec.Value, &s); err != nil {
+	if err := json.Unmarshal(spec, &s); err != nil {
 		return nil, err
 	}
 	return &s, nil

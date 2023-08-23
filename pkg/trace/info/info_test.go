@@ -308,6 +308,8 @@ func TestInfoReceiverStats(t *testing.T) {
 	conf := testInit(t)
 	assert.NotNil(conf)
 
+	assert.NotNil(publishReceiverStats())
+
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
@@ -530,18 +532,6 @@ func TestPublishWatchdogInfo(t *testing.T) {
 		map[string]interface{}{
 			"CPU": map[string]interface{}{"UserAvg": 1.2},
 			"Mem": map[string]interface{}{"Alloc": 1000.0},
-		})
-}
-
-func TestPublishRateLimiterStats(t *testing.T) {
-	rateLimiterStats = RateLimiterStats{1.0, 2.0, 3.0, 4.0}
-
-	testExpvarPublish(t, publishRateLimiterStats,
-		map[string]interface{}{
-			"TargetRate":          1.0,
-			"RecentPayloadsSeen":  2.0,
-			"RecentTracesSeen":    3.0,
-			"RecentTracesDropped": 4.0,
 		})
 }
 

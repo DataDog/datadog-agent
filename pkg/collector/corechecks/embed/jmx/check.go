@@ -11,15 +11,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // JMXCheck represents a JMXFetch check
 type JMXCheck struct {
-	id             check.ID
+	id             checkid.ID
 	name           string
 	config         integration.Config
 	stop           chan struct{}
@@ -29,17 +32,17 @@ type JMXCheck struct {
 	instanceConfig string
 }
 
-func newJMXCheck(config integration.Config, source string) *JMXCheck {
+func newJMXCheck(senderManager sender.SenderManager, config integration.Config, source string) *JMXCheck {
 	digest := config.IntDigest()
 	check := &JMXCheck{
 		config:    config,
 		stop:      make(chan struct{}),
 		name:      config.Name,
-		id:        check.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
+		id:        checkid.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
 		source:    source,
-		telemetry: telemetry_utils.IsCheckEnabled("jmx"),
+		telemetry: utils.IsCheckTelemetryEnabled("jmx"),
 	}
-	check.Configure(digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
+	check.Configure(senderManager, digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
 
 	return check
 }
@@ -97,7 +100,7 @@ func (c *JMXCheck) InstanceConfig() string {
 }
 
 // Configure configures this JMXCheck, setting InitConfig and InstanceConfig
-func (c *JMXCheck) Configure(integrationConfigDigest uint64, config integration.Data, initConfig integration.Data, source string) error {
+func (c *JMXCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config integration.Data, initConfig integration.Data, source string) error {
 	c.initConfig = string(config)
 	c.instanceConfig = string(initConfig)
 	return nil
@@ -109,7 +112,7 @@ func (c *JMXCheck) Interval() time.Duration {
 }
 
 // ID provides a unique identifier for this JMXCheck instance
-func (c *JMXCheck) ID() check.ID {
+func (c *JMXCheck) ID() checkid.ID {
 	return c.id
 }
 
@@ -124,6 +127,11 @@ func (c *JMXCheck) GetWarnings() []error {
 }
 
 // GetSenderStats returns the stats from the last run of this JMXCheck
-func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
-	return check.NewSenderStats(), nil
+func (c *JMXCheck) GetSenderStats() (stats.SenderStats, error) {
+	return stats.NewSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *JMXCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }

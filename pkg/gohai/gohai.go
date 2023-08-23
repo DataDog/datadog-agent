@@ -8,7 +8,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
 // Collector represents a group of information which can be collected
@@ -36,14 +36,9 @@ type Collector interface {
 
 // CollectorV2 is a compatibility layer between the old 'Collector' interface and
 // the way the new API is defined
-type CollectorV2[T Jsonable] struct {
+type CollectorV2[T utils.Jsonable] struct {
 	name    string
-	collect func() T
-}
-
-// Jsonable represents a type which can be converted to a mashallable object
-type Jsonable interface {
-	AsJSON() (interface{}, []string, error)
+	collect func() (T, error)
 }
 
 // Name returns the name of the CollectorV2
@@ -53,7 +48,11 @@ func (collector *CollectorV2[T]) Name() string {
 
 // Collect calls the CollectorV2's collect method and returns only its marshallable object and error
 func (collector *CollectorV2[T]) Collect() (interface{}, error) {
-	json, _, err := collector.collect().AsJSON()
+	info, err := collector.collect()
+	if err != nil {
+		return nil, err
+	}
+	json, _, err := info.AsJSON()
 	return json, err
 }
 
@@ -61,14 +60,29 @@ func (collector *CollectorV2[T]) Collect() (interface{}, error) {
 type SelectedCollectors map[string]struct{}
 
 var collectors = []Collector{
-	&cpu.Cpu{},
+	&CollectorV2[*cpu.Info]{
+		name: "cpu",
+		collect: func() (*cpu.Info, error) {
+			return cpu.CollectInfo(), nil
+		},
+	},
 	&filesystem.FileSystem{},
 	&CollectorV2[*memory.Info]{
-		name:    "memory",
-		collect: memory.CollectInfo,
+		name: "memory",
+		collect: func() (*memory.Info, error) {
+			return memory.CollectInfo(), nil
+		},
 	},
-	&network.Network{},
-	&platform.Platform{},
+	&CollectorV2[*network.Info]{
+		name:    "network",
+		collect: network.CollectInfo,
+	},
+	&CollectorV2[*platform.Info]{
+		name: "platform",
+		collect: func() (*platform.Info, error) {
+			return platform.CollectInfo(), nil
+		},
+	},
 	&processes.Processes{},
 }
 
@@ -76,16 +90,7 @@ var options struct {
 	only     SelectedCollectors
 	exclude  SelectedCollectors
 	logLevel string
-	version  bool
 }
-
-// version information filled in at build time
-var (
-	buildDate string
-	gitCommit string
-	gitBranch string
-	goVersion string
-)
 
 // Collect fills the result map with the collector information under their name key
 func Collect() (result map[string]interface{}, err error) {
@@ -103,39 +108,7 @@ func Collect() (result map[string]interface{}, err error) {
 		}
 	}
 
-	result["gohai"] = versionMap()
-
 	return
-}
-
-func versionMap() (result map[string]interface{}) {
-	result = make(map[string]interface{})
-
-	result["git_hash"] = gitCommit
-	result["git_branch"] = gitBranch
-	result["build_date"] = buildDate
-	result["go_version"] = goVersion
-
-	return
-}
-
-func versionString() string {
-	var buf bytes.Buffer
-
-	if gitCommit != "" {
-		fmt.Fprintf(&buf, "Git hash: %s\n", gitCommit)
-	}
-	if gitBranch != "" {
-		fmt.Fprintf(&buf, "Git branch: %s\n", gitBranch)
-	}
-	if buildDate != "" {
-		fmt.Fprintf(&buf, "Build date: %s\n", buildDate)
-	}
-	if goVersion != "" {
-		fmt.Fprintf(&buf, "Go Version: %s\n", goVersion)
-	}
-
-	return buf.String()
 }
 
 // Implement the flag.Value interface
@@ -175,7 +148,6 @@ func init() {
 	options.only = make(SelectedCollectors)
 	options.exclude = make(SelectedCollectors)
 
-	flag.BoolVar(&options.version, "version", false, "Show version information and exit")
 	flag.Var(&options.only, "only", "Run only the listed collectors (comma-separated list of collector names)")
 	flag.Var(&options.exclude, "exclude", "Run all the collectors except those listed (comma-separated list of collector names)")
 	flag.StringVar(&options.logLevel, "log-level", "info", "Log level (one of 'warn', 'info', 'debug')")
@@ -191,19 +163,12 @@ func main() {
 		panic(fmt.Sprintf("Unable to initialize logger: %s", err))
 	}
 
-	if options.version {
-		fmt.Printf("%s", versionString())
-		os.Exit(0)
-	}
-
 	gohai, err := Collect()
-
 	if err != nil {
 		panic(err)
 	}
 
 	buf, err := json.Marshal(gohai)
-
 	if err != nil {
 		panic(err)
 	}

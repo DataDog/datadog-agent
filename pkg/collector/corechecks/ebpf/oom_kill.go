@@ -18,12 +18,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -67,8 +68,8 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *OOMKillCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := m.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -136,8 +137,8 @@ func (m *OOMKillCheck) Run() error {
 		sender.Count("oom_kill.oom_process.count", 1, "", tags)
 
 		// submit event with a few more details
-		event := metrics.Event{
-			Priority:       metrics.EventPriorityNormal,
+		event := event.Event{
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: oomKillCheckName,
 			EventType:      oomKillCheckName,
 			AggregationKey: containerID,

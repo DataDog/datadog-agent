@@ -16,10 +16,11 @@ import (
 	"github.com/beevik/ntp"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -139,7 +140,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 }
 
 // Configure configure the data from the yaml
-func (c *NTPCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
 	if err != nil {
@@ -150,7 +151,7 @@ func (c *NTPCheck) Configure(integrationConfigDigest uint64, data integration.Da
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+	err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -165,27 +166,30 @@ func (c *NTPCheck) Run() error {
 		return err
 	}
 
-	var serviceCheckStatus metrics.ServiceCheckStatus
+	var serviceCheckStatus servicecheck.ServiceCheckStatus
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
 
 	clockOffset, err := c.queryOffset()
 	if err != nil {
-		log.Info(err)
-		serviceCheckStatus = metrics.ServiceCheckUnknown
-	} else {
-		if int(math.Abs(clockOffset)) > offsetThreshold {
-			serviceCheckStatus = metrics.ServiceCheckCritical
-			serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
-		} else {
-			serviceCheckStatus = metrics.ServiceCheckOK
-		}
+		log.Error(err)
 
-		sender.Gauge("ntp.offset", clockOffset, "", nil)
-		ntpExpVar.Set(clockOffset)
-		tlmNtpOffset.Set(clockOffset)
+		sender.ServiceCheck("ntp.in_sync", servicecheck.ServiceCheckUnknown, "", nil, serviceCheckMessage)
+		c.lastCollection = time.Now()
+		sender.Commit()
+
+		return err
+	}
+	if int(math.Abs(clockOffset)) > offsetThreshold {
+		serviceCheckStatus = servicecheck.ServiceCheckCritical
+		serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
+	} else {
+		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
+	sender.Gauge("ntp.offset", clockOffset, "", nil)
+	ntpExpVar.Set(clockOffset)
+	tlmNtpOffset.Set(clockOffset)
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
 	c.lastCollection = time.Now()

@@ -724,7 +724,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		}
 
 		// did we reached the stable state time limit ?
-		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(event.GetEventType()) {
 			eventState.state = StableEventType
 			// call the activity dump manager to stop dumping workloads from the current profile selector
 			if m.activityDumpManager != nil {
@@ -785,7 +785,7 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 	defer m.profilesLock.Unlock()
 
 	for _, p := range m.profiles {
-		msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod)
+		msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity)
 		out.Profiles = append(out.Profiles, msg)
 	}
 
@@ -797,7 +797,7 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 			if !ok {
 				continue
 			}
-			msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod)
+			msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity)
 			out.Profiles = append(out.Profiles, msg)
 		}
 	}
@@ -816,7 +816,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	p := m.GetProfile(selector)
 	if p == nil {
 		return &api.SecurityProfileSaveMessage{
-			Error: fmt.Sprintf("security profile not found"),
+			Error: "security profile not found",
 		}, nil
 	}
 
@@ -824,7 +824,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	psp := SecurityProfileToProto(p)
 	if psp == nil {
 		return &api.SecurityProfileSaveMessage{
-			Error: fmt.Sprintf("security profile not found"),
+			Error: "security profile not found",
 		}, nil
 	}
 

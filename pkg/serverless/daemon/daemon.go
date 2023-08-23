@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
-	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -240,7 +240,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 
 	timedOut := waitWithTimeout(&wg, FlushTimeout)
 	if timedOut {
-		log.Debug("Timed out while flushing, flush may be continued on next invocation")
+		log.Debug("Timed out while flushing")
 	} else {
 		log.Debug("Finished flushing")
 	}
@@ -390,6 +390,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		ecs := d.ExecutionContext.GetCurrentState()
 		tagMap := tags.BuildTagMap(ecs.ARN, configTags)
+		d.ExecutionContext.UpdateRuntime(tagMap[tags.RuntimeKey])
 		tagArray := tags.BuildTagsFromMap(tagMap)
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)

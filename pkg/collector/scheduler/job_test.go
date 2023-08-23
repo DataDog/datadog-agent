@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -21,7 +21,7 @@ type TestJobCheck struct {
 	id string
 }
 
-func (c *TestJobCheck) ID() check.ID { return check.ID(c.id) }
+func (c *TestJobCheck) ID() checkid.ID { return checkid.ID(c.id) }
 
 func TestBucket_RemoveJob(t *testing.T) {
 	bucket := &jobBucket{}

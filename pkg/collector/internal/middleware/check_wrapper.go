@@ -9,15 +9,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // CheckWrapper cleans up the check sender after a check was
 // descheduled, taking care that Run is not executing during or after
 // that.
 type CheckWrapper struct {
+	senderManager sender.SenderManager
+
 	inner check.Check
 	// done is true when the check was cancelled and must not run.
 	done bool
@@ -26,9 +31,10 @@ type CheckWrapper struct {
 }
 
 // NewCheckWrapper returns a wrapped check.
-func NewCheckWrapper(inner check.Check) *CheckWrapper {
+func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager) *CheckWrapper {
 	return &CheckWrapper{
-		inner: inner,
+		inner:         inner,
+		senderManager: senderManager,
 	}
 }
 
@@ -53,7 +59,7 @@ func (c *CheckWrapper) destroySender() {
 	c.runM.Lock()
 	defer c.runM.Unlock()
 	c.done = true
-	aggregator.DestroySender(c.ID())
+	c.senderManager.DestroySender(c.ID())
 }
 
 // Stop implements Check#Stop
@@ -67,8 +73,11 @@ func (c *CheckWrapper) String() string {
 }
 
 // Configure implements Check#Configure
-func (c *CheckWrapper) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	return c.inner.Configure(integrationConfigDigest, config, initConfig, source)
+func (c *CheckWrapper) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	if c.senderManager == nil {
+		c.senderManager = senderManager
+	}
+	return c.inner.Configure(c.senderManager, integrationConfigDigest, config, initConfig, source)
 }
 
 // Interval implements Check#Interval
@@ -77,7 +86,7 @@ func (c *CheckWrapper) Interval() time.Duration {
 }
 
 // ID implements Check#ID
-func (c *CheckWrapper) ID() check.ID {
+func (c *CheckWrapper) ID() checkid.ID {
 	return c.inner.ID()
 }
 
@@ -87,7 +96,7 @@ func (c *CheckWrapper) GetWarnings() []error {
 }
 
 // GetSenderStats implements Check#GetSenderStats
-func (c *CheckWrapper) GetSenderStats() (check.SenderStats, error) {
+func (c *CheckWrapper) GetSenderStats() (stats.SenderStats, error) {
 	return c.inner.GetSenderStats()
 }
 
@@ -114,4 +123,16 @@ func (c *CheckWrapper) InitConfig() string {
 // InstanceConfig implements Check#InstanceConfig
 func (c *CheckWrapper) InstanceConfig() string {
 	return c.inner.InstanceConfig()
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	// Avoid running concurrently with Run method (for now)
+	c.runM.Lock()
+	defer c.runM.Unlock()
+
+	if c.done {
+		return nil, nil
+	}
+	return c.inner.GetDiagnoses()
 }
