@@ -219,7 +219,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
+					return net.Dial(NetType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
 				ResponseHeaderTimeout: 5 * time.Second,
