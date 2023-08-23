@@ -7,8 +7,7 @@ ORG_NAME = "datadog"
 API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('INPUT_PULL_REQUEST')}/comments"
 
 DEPENDENCY_REVIEW_RESPONSE = requests.get(
-    f"https://api.github.com/repos/datadog/datadog-agent/dependency-graph/compare/{os.getenv('BASE_REF')}...{os.getenv('HEAD_REF')}",
-    headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
+    f"https://api.github.com/repos/datadog/datadog-agent/dependency-graph/compare/0984805db2b6ef8dd83ab3482de654440dfd10a4...2e8e7359a0f831b78e081327e6c4967dd31f465e",
 ).json()
 print(DEPENDENCY_REVIEW_RESPONSE)
 output = ""
