@@ -14,6 +14,7 @@ type valueStore interface {
 	get(key StoreKey) (string, error)
 }
 
+// Store instance contains a valueStore
 type Store struct {
 	vs valueStore
 }
@@ -24,18 +25,22 @@ func newStore(vs valueStore) Store {
 	}
 }
 
+// Get returns a string value from the store
 func (s Store) Get(key StoreKey) (string, error) {
 	return getAndConvert(s.vs, key, func(s string) (string, error) { return s, nil })
 }
 
+// GetWithDefault returns a string value from the store with default on missing key
 func (s Store) GetWithDefault(key StoreKey, def string) (string, error) {
 	return getWithDefault(key, s.Get, def)
 }
 
+// GetBool returns a boolean value from the store
 func (s Store) GetBool(key StoreKey) (bool, error) {
 	return getAndConvert(s.vs, key, strconv.ParseBool)
 }
 
+// GetBoolWithDefault returns a boolean value from the store with default on missing key
 func (s Store) GetBoolWithDefault(key StoreKey, def bool) (bool, error) {
 	return getWithDefault(key, s.GetBool, def)
 }

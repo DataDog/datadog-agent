@@ -24,15 +24,19 @@ import (
 //   ddinfra:
 //     aws/someVariable: "ponyo"
 
+// Config instance contains ConfigParams and StackParams
 type Config struct {
 	ConfigParams ConfigParams                 `yaml:"configParams"`
 	StackParams  map[string]map[string]string `yaml:"stackParams"`
 }
 
+// ConfigParams instance contains config relayed parameters
 type ConfigParams struct {
 	AWS   AWS   `yaml:"aws"`
 	Agent Agent `yaml:"agent"`
 }
+
+// AWS instance contains AWS related parameters
 type AWS struct {
 	Account       string `yaml:"account"`
 	KeyPairName   string `yaml:"keyPairName"`
@@ -40,6 +44,7 @@ type AWS struct {
 	TeamTag       string `yaml:"teamTag"`
 }
 
+// Agent instance contains agent related parameters
 type Agent struct {
 	APIKey string `yaml:"apiKey"`
 	APPKey string `yaml:"appKey"`
@@ -52,6 +57,7 @@ type configFileValueStore struct {
 	stackParamsJson string
 }
 
+// NewConfigFileValueStore creates a configFileValueStore from a path
 func NewConfigFileValueStore(path string) (configFileValueStore, error) {
 	store := configFileValueStore{}
 	content, err := os.ReadFile(path)

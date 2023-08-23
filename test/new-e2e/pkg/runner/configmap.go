@@ -17,19 +17,29 @@ import (
 )
 
 const (
+	// AgentAPIKey pulumi config paramater name
 	AgentAPIKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
+	// AgentAPPKey pulumi config paramater name
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
 
+	// InfraEnvironmentVariables pulumi config paramater name
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
-	InfraExtraResourcesTags   = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
 
-	AWSKeyPairName    = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
-	AWSPublicKeyPath  = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
+	// InfraExtraResourcesTags pulumi config paramater name
+	InfraExtraResourcesTags = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
+
+	// AWSKeyPairName pulumi config paramater name
+	AWSKeyPairName = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
+	// AWSPublicKeyPath pulumi config paramater name
+	AWSPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
+	// AWSPrivateKeyPath pulumi config paramater name
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
 )
 
+// ConfigMap type alias to auto.ConfigMap
 type ConfigMap auto.ConfigMap
 
+// Set a value by key in a config map
 func (cm ConfigMap) Set(key, val string, secret bool) {
 	cm[key] = auto.ConfigValue{
 		Value:  val,
@@ -37,20 +47,24 @@ func (cm ConfigMap) Set(key, val string, secret bool) {
 	}
 }
 
+// Merge in ConfigMap into current config map
 func (cm ConfigMap) Merge(in ConfigMap) {
 	for key, val := range in {
 		cm[key] = val
 	}
 }
 
+// ToPulumi casts current config map to a Pulumi auto.ConfigMap
 func (cm ConfigMap) ToPulumi() auto.ConfigMap {
 	return (auto.ConfigMap)(cm)
 }
 
+// SetConfigMapFromSecret set config map from a secret store
 func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	return setConfigMapFromParameter(secretStore, cm, paramName, configMapKey, true)
 }
 
+// SetConfigMapFromParameter set config map from a parameter store
 func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	return setConfigMapFromParameter(store, cm, paramName, configMapKey, false)
 }
@@ -71,6 +85,8 @@ func setConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName p
 	return nil
 }
 
+// BuildStackParameters creates a config map from a profile, a scenario config map
+// and env/cli configuration parameters
 func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap, error) {
 	// Priority order: profile configs < scenarioConfig < Env/CLI config
 	cm := ConfigMap{}

@@ -49,25 +49,30 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 	return output
 }
 
+// Version runs version command returns the runtime Agent version
 func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("version", commandArgs...)
 }
 
+// Hostname runs hostname command and returns the runtime Agent hostname
 func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string {
 	output := agent.executeCommand("hostname", commandArgs...)
 	return strings.Trim(output, "\n")
 }
 
+// Config runs config command and returns the runtime agent config
 func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+// Health runs health command and returns the runtime agent health
 func (agent *AgentCommandRunner) Health() (string, error) {
 	arguments := []string{"health"}
 	output, err := agent.executeAgentCmdWithError(arguments)
 	return output, err
 }
 
+// ConfigCheck runs configcheck command and returns the runtime agent configcheck
 func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("configcheck", commandArgs...)
 }
@@ -79,6 +84,7 @@ func (a *Agent) IsReady() bool {
 	return err == nil
 }
 
+// Status contains the Agent status content
 type Status struct {
 	Content string
 }
@@ -95,11 +101,11 @@ func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status 
 // WaitForReady blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
-func (a *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
+func (agent *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		_, err := a.executeAgentCmdWithError([]string{"status"})
+		_, err := agent.executeAgentCmdWithError([]string{"status"})
 		if err != nil {
 			return errors.New("agent not ready")
 		}

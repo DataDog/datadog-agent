@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package infra implements utilities to interact with a Pulumi infrastructure
 package infra
 
 import (
@@ -46,6 +47,7 @@ type StackManager struct {
 	lock   sync.RWMutex
 }
 
+// GetStackManager returns a stack manager, initialising on first call
 func GetStackManager() *StackManager {
 	initStackManager.Do(func() {
 		var err error
@@ -90,6 +92,7 @@ func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name stri
 	return sm.getStack(ctx, name, config, deployFunc, failOnMissing)
 }
 
+// DeleteStack safely deletes a stack
 func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
@@ -131,6 +134,7 @@ func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name 
 	return stack.Workspace().RemoveStack(deleteContext, stack.Name(), optremove.Force())
 }
 
+// Cleanup delete any existing stack
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()

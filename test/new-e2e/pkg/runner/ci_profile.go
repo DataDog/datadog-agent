@@ -24,6 +24,7 @@ type ciProfile struct {
 	ciUniqueID string
 }
 
+// NewCIProfile creates a new CI profile
 func NewCIProfile() (Profile, error) {
 	// Create workspace directory
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
@@ -72,14 +73,17 @@ func NewCIProfile() (Profile, error) {
 	}, nil
 }
 
+// RootWorkspacePath returns the root directory for CI Pulumi workspace
 func (p ciProfile) RootWorkspacePath() string {
 	return workspaceFolder
 }
 
+// NamePrefix returns a prefix to name objects based on a CI unique ID
 func (p ciProfile) NamePrefix() string {
 	return p.ciUniqueID
 }
 
+// AllowDevMode returns if DevMode is allowed
 func (p ciProfile) AllowDevMode() bool {
 	return false
 }

@@ -19,11 +19,13 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+// StackDefinition contains a Pulumi stack definition
 type StackDefinition[Env any] struct {
 	envFactory func(ctx *pulumi.Context) (*Env, error)
 	configMap  runner.ConfigMap
 }
 
+// NewStackDef creates a custom definition
 func NewStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error), configMap runner.ConfigMap) *StackDefinition[Env] {
 	return &StackDefinition[Env]{envFactory: envFactory, configMap: configMap}
 }
@@ -33,6 +35,7 @@ func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, err
 	return NewStackDef(envFactory, runner.ConfigMap{})
 }
 
+// VMEnv contains a VM environment
 type VMEnv struct {
 	VM *client.VM
 }
@@ -46,6 +49,7 @@ func EC2VMStackDef(options ...ec2params.Option) *StackDefinition[VMEnv] {
 	return CustomEC2VMStackDef(noop, options...)
 }
 
+// CustomEC2VMStackDef creates a custom stack definition containing a virtual machine
 func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params.Option) *StackDefinition[VMEnv] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*VMEnv, error) {
 		vm, err := ec2vm.NewEc2VM(ctx, options...)
@@ -62,6 +66,7 @@ func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params
 	})
 }
 
+// AgentEnv contains an Agent VM environment
 type AgentEnv struct {
 	VM    *client.VM
 	Agent *client.Agent
@@ -95,13 +100,15 @@ func AgentStackDef(vmParams []ec2params.Option, agentParameters ...agentparams.O
 	)
 }
 
+// FakeIntakeEnv contains an environment with the Agent
+// installed on a VM and a dedicated fakeintake
 type FakeIntakeEnv struct {
 	VM         *client.VM
 	Agent      *client.Agent
 	Fakeintake *client.Fakeintake
 }
 
-// FakeIntake creates a stack definition containing a virtual machine the Agent and the fake intake.
+// FakeIntakeStackDef creates a stack definition containing a virtual machine the Agent and the fake intake.
 //
 // See [ec2vm.Params] for available options for vmParams.
 //
@@ -136,6 +143,7 @@ func FakeIntakeStackDef(vmParams []ec2params.Option, agentParameters ...agentpar
 	)
 }
 
+// DockerEnv contains an environment with Docker
 type DockerEnv struct {
 	Docker *client.Docker
 }

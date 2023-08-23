@@ -11,10 +11,15 @@ import (
 
 var _ valueStore = &CascadingValueStore{}
 
+// CascadingValueStore instance contains an array of valueStore
+// ordered by priority.
+// Parameters in a cascading value store are looked up iterating through
+// all value stores and return at first match
 type CascadingValueStore struct {
 	valueStores []valueStore
 }
 
+// NewCascadingStore creates a new cascading store
 func NewCascadingStore(valueStores ...valueStore) Store {
 	return newStore(CascadingValueStore{
 		valueStores: valueStores,

@@ -19,6 +19,7 @@ const (
 	defaultLocalEnvironments string = "aws/agent-sandbox"
 )
 
+// NewLocalProfile creates a new local profile
 func NewLocalProfile() (Profile, error) {
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
@@ -68,10 +69,12 @@ type localProfile struct {
 	baseProfile
 }
 
+// RootWorkspacePath returns the root directory for local Pulumi workspace
 func (p localProfile) RootWorkspacePath() string {
 	return workspaceFolder
 }
 
+// NamePrefix returns a prefix to name objects based on local username
 func (p localProfile) NamePrefix() string {
 	// Stack names may only contain alphanumeric characters, hyphens, underscores, or periods.
 	// As NamePrefix is used as stack name, we sanitize the user name.
@@ -105,6 +108,7 @@ func (p localProfile) NamePrefix() string {
 	return username
 }
 
+// AllowDevMode returns if DevMode is allowed
 func (p localProfile) AllowDevMode() bool {
 	return true
 }

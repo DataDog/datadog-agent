@@ -54,10 +54,10 @@ func (s *e2eSuite) Test3_UpdateEnv() {
 	s.Require().Equal(2, s.runFctCallCount)
 }
 
-func (suite *e2eSuite) createStack(stackName string) *StackDefinition[struct{}] {
+func (s *e2eSuite) createStack(stackName string) *StackDefinition[struct{}] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
-		suite.stackName = stackName
-		suite.runFctCallCount += 1
+		s.stackName = stackName
+		s.runFctCallCount++
 		return &struct{}{}, nil
 	})
 }
@@ -91,9 +91,9 @@ func (s *skipDeleteOnFailureSuite) Test3() {
 	s.UpdateEnv(s.updateStack("Test3"))
 }
 
-func (suite *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {
+func (s *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
-		suite.testsRun = append(suite.testsRun, testName)
+		s.testsRun = append(s.testsRun, testName)
 		return &struct{}{}, nil
 	})
 }

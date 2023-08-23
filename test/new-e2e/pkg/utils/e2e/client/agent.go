@@ -28,7 +28,7 @@ type Agent struct {
 	vmClient *vmClient
 }
 
-// Create a new instance of an Agent connected to an [agent.Installer].
+// NewAgent creates a new instance of an Agent connected to an [agent.Installer].
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 func NewAgent(installer *agent.Installer) *Agent {
@@ -40,7 +40,7 @@ func NewAgent(installer *agent.Installer) *Agent {
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
 func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	var err error
-	var privateSshKey []byte
+	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
 	if err != nil {
@@ -48,13 +48,13 @@ func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	}
 
 	if privateKeyPath != "" {
-		privateSshKey, err = os.ReadFile(privateKeyPath)
+		privateSSHKey, err = os.ReadFile(privateKeyPath)
 		if err != nil {
 			return err
 		}
 	}
 
-	agent.vmClient, err = newVMClient(t, privateSshKey, &data.Connection)
+	agent.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
 	agent.AgentCommandRunner = newAgentCommandRunner(t, agent.executeAgentCmdWithError)
 	return err
 }

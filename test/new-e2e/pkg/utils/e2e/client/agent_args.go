@@ -11,6 +11,7 @@ type agentArgs struct {
 	Args []string
 }
 
+// AgentArgsOption is an optional function parameter type for Agent arguments
 type AgentArgsOption = func(*agentArgs)
 
 // WithArgs sets the Agent arguments

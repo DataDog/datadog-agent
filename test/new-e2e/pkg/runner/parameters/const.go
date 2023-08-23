@@ -5,18 +5,30 @@
 
 package parameters
 
+// StoreKey alias to string
 type StoreKey string
 
 const (
-	APIKey              StoreKey = "api_key"
-	APPKey              StoreKey = "app_key"
-	Environments        StoreKey = "env"
-	ExtraResourcesTags  StoreKey = "extra_resources_tags"
-	KeyPairName         StoreKey = "key_pair_name"
-	PrivateKeyPath      StoreKey = "private_key_path"
-	Profile             StoreKey = "profile"
-	PublicKeyPath       StoreKey = "public_key_path"
-	PulumiPassword      StoreKey = "pulumi_password"
+	// APIKey config file parameter name
+	APIKey StoreKey = "api_key"
+	// APPKey config file parameter name
+	APPKey StoreKey = "app_key"
+	// Environments config file parameter name
+	Environments StoreKey = "env"
+	// ExtraResourcesTags config file parameter name
+	ExtraResourcesTags StoreKey = "extra_resources_tags"
+	// KeyPairName config file parameter name
+	KeyPairName StoreKey = "key_pair_name"
+	// PrivateKeyPath config file parameter name
+	PrivateKeyPath StoreKey = "private_key_path"
+	// Profile config file parameter name
+	Profile StoreKey = "profile"
+	// PublicKeyPath config file parameter name
+	PublicKeyPath StoreKey = "public_key_path"
+	// PulumiPassword config file parameter name
+	PulumiPassword StoreKey = "pulumi_password"
+	// SkipDeleteOnFailure config file parameter name
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
-	StackParameters     StoreKey = "stack_params"
+	// StackParameters config file parameter name
+	StackParameters StoreKey = "stack_params"
 )

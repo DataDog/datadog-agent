@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package params implements function parameters for [e2e.Suite]
 package params
 
+// Params implements [e2e.Suite] options
 type Params struct {
 	StackName string
 
@@ -15,6 +17,7 @@ type Params struct {
 	SkipDeleteOnFailure bool
 }
 
+// Option is an optional function parameter type for e2e options
 type Option = func(*Params)
 
 // WithStackName overrides the default stack name.

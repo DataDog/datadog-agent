@@ -7,10 +7,12 @@ package parameters
 
 import "fmt"
 
+// ParameterNotFoundError instance is an error related to a key not found in a valu store
 type ParameterNotFoundError struct {
 	key StoreKey
 }
 
+// Error returns a printable ParameterNotFoundError
 func (e ParameterNotFoundError) Error() string {
 	return fmt.Sprintf("parameter %v not found", e.key)
 }

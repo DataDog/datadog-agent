@@ -33,7 +33,7 @@ func NewVM(infraVM commonvm.VM) *VM {
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
 func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	var err error
-	var privateSshKey []byte
+	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
 	if err != nil {
@@ -41,12 +41,12 @@ func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	}
 
 	if privateKeyPath != "" {
-		privateSshKey, err = os.ReadFile(privateKeyPath)
+		privateSSHKey, err = os.ReadFile(privateKeyPath)
 		if err != nil {
 			return err
 		}
 	}
 
-	vm.vmClient, err = newVMClient(t, privateSshKey, &data.Connection)
+	vm.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
 	return err
 }

@@ -66,6 +66,8 @@ func getSSHClient(user, host string, privateKey []byte) (*ssh.Client, *ssh.Sessi
 	return client, session, nil
 }
 
+// ExecuteCommand creates a session on an ssh client and runs a command.
+// It returns the command output and errors
 func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {

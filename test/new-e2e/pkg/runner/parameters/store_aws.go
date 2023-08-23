@@ -22,6 +22,7 @@ type awsStore struct {
 	prefix string
 }
 
+// NewAWSStore creates a new AWS store
 func NewAWSStore(prefix string) Store {
 	return newStore(newCachingStore(awsStore{
 		prefix: prefix,

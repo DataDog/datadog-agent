@@ -22,7 +22,7 @@ import (
 
 var _ clientService[docker.ClientData] = (*Docker)(nil)
 
-// A docker client that is connected to an [docker.Deamon].
+// A Docker client that is connected to an [docker.Deamon].
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
@@ -34,7 +34,7 @@ type Docker struct {
 	os                 os.OS
 }
 
-// Create a new instance of Docker
+// NewDocker creates a new instance of Docker
 func NewDocker(daemon *docker.Daemon) *Docker {
 	dockerInstance := &Docker{
 		agentContainerName: daemon.GetAgentContainerName(),

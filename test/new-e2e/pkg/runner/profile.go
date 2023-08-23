@@ -14,13 +14,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
+// CloudProvider alias to string
 type CloudProvider string
 
 const (
-	AWS       CloudProvider = "aws"
-	Azure     CloudProvider = "az"
-	GCP       CloudProvider = "gcp"
-	EnvPrefix               = "E2E_"
+	// AWS cloud provider
+	AWS CloudProvider = "aws"
+	// Azure cloud provider
+	Azure CloudProvider = "az"
+	// GCP cloud provider
+	GCP CloudProvider = "gcp"
+	// EnvPrefix prefix for e2e environment variables
+	EnvPrefix = "E2E_"
 
 	envSep = ","
 )
@@ -31,6 +36,7 @@ var (
 	initProfile     sync.Once
 )
 
+// Profile interface defines functions required by a profile
 type Profile interface {
 	// EnvironmentName returns the environment names for cloud providers
 	EnvironmentNames() string
@@ -72,22 +78,27 @@ func newProfile(projectName string, environments []string, store parameters.Stor
 	return p
 }
 
+// EnvironmentNames returns a comma-separated list of environments that the profile targets
 func (p baseProfile) EnvironmentNames() string {
 	return strings.Join(p.environments, envSep)
 }
 
+// ProjectName returns the project name
 func (p baseProfile) ProjectName() string {
 	return p.projectName
 }
 
+// ParamStore returns the parameters store
 func (p baseProfile) ParamStore() parameters.Store {
 	return p.store
 }
 
+// SecretStore returns the secret parameters store
 func (p baseProfile) SecretStore() parameters.Store {
 	return p.secretStore
 }
 
+// GetProfile return a profile initialising it at first call
 func GetProfile() Profile {
 	initProfile.Do(func() {
 		var profileFunc func() (Profile, error) = NewLocalProfile

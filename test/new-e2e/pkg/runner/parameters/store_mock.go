@@ -15,6 +15,7 @@ type mockStore struct {
 	values map[StoreKey]string
 }
 
+// NewMockStore creates a new mock store
 func NewMockStore(values map[StoreKey]string) Store {
 	return newStore(mockStore{values: values})
 }

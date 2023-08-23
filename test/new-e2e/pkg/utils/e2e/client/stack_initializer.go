@@ -17,12 +17,14 @@ type stackInitializer interface {
 	setStack(t *testing.T, stackResult auto.UpResult) error
 }
 
+// CheckEnvStructValid validates an environment struct
 func CheckEnvStructValid[Env any]() error {
 	var env Env
 	_, err := getFields(&env)
 	return err
 }
 
+// CallStackInitializers validate an environment struct and initialise a stack
 func CallStackInitializers[Env any](t *testing.T, env *Env, upResult auto.UpResult) error {
 	fields, err := getFields(env)
 
