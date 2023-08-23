@@ -26,7 +26,7 @@ func init() {
 }
 
 func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
-	if diagCfg.RunningInAgentProcess {
+	if diagCfg.RunningInAgentProcess && common.Coll != nil {
 		return diagnoseChecksInAgentProcess()
 	}
 
