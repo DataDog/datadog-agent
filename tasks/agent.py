@@ -69,6 +69,7 @@ AGENT_CORECHECKS = [
     "winkmem",
     "winproc",
     "jetson",
+    "pod_orchestrator",
 ]
 
 IOT_AGENT_CORECHECKS = [
