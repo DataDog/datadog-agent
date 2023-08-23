@@ -7,6 +7,7 @@ package metadata
 
 import "time"
 
+// BatchPayloads batch NDM metadata payloads
 func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnostics []DiagnosticMetadata) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
