@@ -25,7 +25,6 @@ jobs:
       - name: Find Remediated Dependency Vulnerabilities
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          ORG_NAME: datadog
           PR_NUMBER: ${{ github.event.number }} 
           BASE_REF: ${{ secrets.BASE_REF }}
           HEAD_REF: ${{ secrets.HEAD_REF }}
