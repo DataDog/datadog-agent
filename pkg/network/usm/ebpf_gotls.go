@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -31,11 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -120,11 +119,11 @@ type runningBinary struct {
 	processCount int32
 }
 
-type goTLSProgram struct {
+type GoTLSProgram struct {
 	wg      sync.WaitGroup
 	done    chan struct{}
 	cfg     *config.Config
-	manager *manager.Manager
+	manager *errtelemetry.Manager
 
 	// Path to the process/container's procfs
 	procRoot string
@@ -157,53 +156,22 @@ type goTLSProgram struct {
 	blockCache *simplelru.LRU[binaryID, struct{}]
 }
 
-var goTLSSpec = &protocols.ProtocolSpec{
-	Factory: newGoTLSProgram,
-	Maps: []*manager.Map{
-		{Name: offsetsDataMap},
-		{Name: goTLSReadArgsMap},
-		{Name: goTLSWriteArgsMap},
-	},
-	Probes: []*manager.Probe{
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: connReadProbe,
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: connReadRetProbe,
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: connWriteProbe,
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: connWriteRetProbe,
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: connCloseProbe,
-			},
-		},
-	},
-}
+// Static evaluation to make sure we are not breaking the interface.
+var _ subprogram = &GoTLSProgram{}
 
-func newGoTLSProgram(c *config.Config) (protocols.Protocol, error) {
+func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	if !c.EnableHTTPSMonitoring || !c.EnableGoTLSSupport {
-		return nil, nil
+		return nil
 	}
 
 	if !http.HTTPSSupported(c) {
-		return nil, fmt.Errorf("goTLS not supported by this platform")
+		log.Errorf("goTLS not supported by this platform")
+		return nil
 	}
 
 	if !c.EnableRuntimeCompiler && !c.EnableCORE {
-		return nil, fmt.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
+		log.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
+		return nil
 	}
 
 	blockCache, err := simplelru.NewLRU[binaryID, struct{}](1000, nil)
@@ -212,7 +180,7 @@ func newGoTLSProgram(c *config.Config) (protocols.Protocol, error) {
 		blockCache = nil
 	}
 
-	p := &goTLSProgram{
+	p := &GoTLSProgram{
 		done:       make(chan struct{}),
 		cfg:        c,
 		procRoot:   c.ProcRoot,
@@ -223,15 +191,28 @@ func newGoTLSProgram(c *config.Config) (protocols.Protocol, error) {
 
 	p.binAnalysisMetric = libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd)
 
-	return p, nil
+	return p
 }
 
-func (p *goTLSProgram) Name() string {
+func (p *GoTLSProgram) Name() string {
 	return "go-tls"
 }
 
-func (p *goTLSProgram) ConfigureOptions(m *manager.Manager, options *manager.Options) {
+func (p *GoTLSProgram) IsBuildModeSupported(mode buildMode) bool {
+	return mode == CORE || mode == RuntimeCompiled
+}
+
+func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	p.manager = m
+	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
+		{Name: offsetsDataMap},
+		{Name: goTLSReadArgsMap},
+		{Name: goTLSWriteArgsMap},
+	}...)
+	// Hooks will be added in runtime for each binary
+}
+
+func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
@@ -239,16 +220,31 @@ func (p *goTLSProgram) ConfigureOptions(m *manager.Manager, options *manager.Opt
 	}
 }
 
-func (p *goTLSProgram) PreStart(m *manager.Manager, mode protocols.BuildMode) error {
-	var err error
+func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	probeList := make([]manager.ProbeIdentificationPair, 0)
+	for _, probeInfo := range functionToProbes {
+		if probeInfo.functionInfo != "" {
+			probeList = append(probeList, manager.ProbeIdentificationPair{
+				EBPFFuncName: probeInfo.functionInfo,
+			})
+		}
 
-	if !p.isBuildModeSupported(mode) {
-		return fmt.Errorf("GoTLS does not support %s build mode", mode)
+		if probeInfo.returnInfo != "" {
+			probeList = append(probeList, manager.ProbeIdentificationPair{
+				EBPFFuncName: probeInfo.returnInfo,
+			})
+		}
 	}
 
-	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
+	return probeList
+}
+
+func (p *GoTLSProgram) Start() {
+	var err error
+	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
-		return fmt.Errorf("could not get offsets_data map: %s", err)
+		log.Errorf("could not get offsets_data map: %s", err)
+		return
 	}
 
 	p.procMonitor.monitor = monitor.GetProcessMonitor()
@@ -283,21 +279,9 @@ func (p *goTLSProgram) PreStart(m *manager.Manager, mode protocols.BuildMode) er
 			}
 		}
 	}()
-
-	return nil
 }
 
-func (p *goTLSProgram) PostStart(*manager.Manager) error {
-	return nil
-}
-
-func (p *goTLSProgram) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
-
-func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
-	return nil
-}
-
-func (p *goTLSProgram) Stop(*manager.Manager) {
+func (p *GoTLSProgram) Stop() {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()
@@ -321,7 +305,7 @@ var (
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
 )
 
-func (p *goTLSProgram) handleProcessStart(pid pid) {
+func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 
@@ -387,11 +371,11 @@ func (p *goTLSProgram) handleProcessStart(pid pid) {
 	}
 }
 
-func (p *goTLSProgram) handleProcessStop(pid pid) {
+func (p *GoTLSProgram) handleProcessStop(pid pid) {
 	p.unregisterProcess(pid)
 }
 
-func (p *goTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bin *runningBinary) {
+func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bin *runningBinary) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -457,7 +441,7 @@ func (p *goTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 	log.Debugf("attached hooks on %s (%v) in %s", binPath, binID, elapsed)
 }
 
-func (p *goTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec) (int32, *runningBinary, error) {
+func (p *GoTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec) (int32, *runningBinary, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -480,7 +464,7 @@ func (p *goTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Ti
 	return old, bin, nil
 }
 
-func (p *goTLSProgram) unregisterProcess(pid pid) {
+func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	p.lock.RLock()
 	_, found := p.processes[pid]
 	p.lock.RUnlock()
@@ -510,7 +494,7 @@ func (p *goTLSProgram) unregisterProcess(pid pid) {
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
 // map that's being read by the probes, indexed by the binary's inode number `ino`.
-func (p *goTLSProgram) addInspectionResultToMap(binID binaryID, result *bininspect.Result) error {
+func (p *GoTLSProgram) addInspectionResultToMap(binID binaryID, result *bininspect.Result) error {
 	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
@@ -524,14 +508,14 @@ func (p *goTLSProgram) addInspectionResultToMap(binID binaryID, result *bininspe
 	return nil
 }
 
-func (p *goTLSProgram) removeInspectionResultFromMap(binID binaryID) {
+func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
 	err := p.offsetsDataMap.Delete(binID)
 	if err != nil {
 		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
 	}
 }
 
-func (p *goTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
+func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
 	pathID, err := utils.NewPathIdentifier(binPath)
 	if err != nil {
 		return probeIDs, fmt.Errorf("can't create path identifier for path %s : %s", binPath, err)
@@ -594,7 +578,7 @@ func (p *goTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 
 	return
 }
-func (p *goTLSProgram) unhookBinary(bin *runningBinary) {
+func (p *GoTLSProgram) unhookBinary(bin *runningBinary) {
 	if bin.probeIDs == nil {
 		// This binary was not hooked in the first place
 		return
@@ -606,15 +590,11 @@ func (p *goTLSProgram) unhookBinary(bin *runningBinary) {
 	log.Debugf("detached hooks on ino %v", bin.binID)
 }
 
-func (p *goTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
+func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 	for _, probeID := range probeIDs {
 		err := p.manager.DetachHook(probeID)
 		if err != nil {
 			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
 	}
-}
-
-func (p *goTLSProgram) isBuildModeSupported(mode protocols.BuildMode) bool {
-	return mode == protocols.CORE || mode == protocols.RuntimeCompiled
 }
