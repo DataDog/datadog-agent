@@ -27,5 +27,5 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           ORG_NAME: datadog
           PR_NUMBER: ${{ github.event.number }} 
-          HEAD_REF: ${{ github.ref_name }} 
+          HEAD_REF: ${{ github.head_ref }} 
         run: python .github/dependency-review.py
