@@ -105,10 +105,10 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
-	defer network.Reclaim(cs)
 	if err != nil {
 		return err
 	}
+	defer network.Reclaim(cs)
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
 	connectionsModeler := encoding.InitConnectionsModeler(cs)
