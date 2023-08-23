@@ -143,6 +143,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		cs.Conns = rest
 	}
 
+	network.Reclaim(cs)
 	return nil
 }
 
