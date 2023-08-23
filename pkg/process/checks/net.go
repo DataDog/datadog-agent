@@ -144,6 +144,7 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 		grpc.WithInsecure(),
 	}
 
+	// the second parameter is unused because we use a custom  dialer that has the state to see the address.
 	conn, err := grpc.DialContext(timedContext, "unused", opts...)
 	if err != nil {
 		return nil, err
@@ -178,11 +179,6 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 
 		batch, err := unmarshaler.Unmarshal(res.Data)
 		if err != nil {
-			// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-			if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
-				return nil, nil
-			}
-
 			return nil, err
 		}
 		log.Debugf("[grpc] the number of connections in grpc is %d", len(batch.Conns))
