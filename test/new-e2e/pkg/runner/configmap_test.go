@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

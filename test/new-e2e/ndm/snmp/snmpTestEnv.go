@@ -11,7 +11,7 @@ import (
 	"errors"
 	"path"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"

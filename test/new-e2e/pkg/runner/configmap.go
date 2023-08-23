@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
 	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
 

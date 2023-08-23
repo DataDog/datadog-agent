@@ -2,9 +2,9 @@
 
 This folder contains tests and utilities to write and run agent end to end tests based on Pulumi.
 
-## Documentation 
+## Documentation
 
-See https://pkg.go.dev/github.com/DataDog/datadog-agent/test/new-e2e@main/utils/e2e.
+See https://pkg.go.dev/github.com/DataDog/datadog-agent/test/new-e2e@main/pkg/utils/e2e.
 
 ## Development in VSCode
 
@@ -15,5 +15,4 @@ go work init
 go work use . ./test/new-e2e
 ```
 
-> **Note**
-> `go.work` file is currently ignored in `datadog-agent`
+> **Note** > `go.work` file is currently ignored in `datadog-agent`

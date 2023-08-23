@@ -7,7 +7,7 @@
 
 package runner
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
+import "github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
 var _ Profile = &mockProfile{}
 

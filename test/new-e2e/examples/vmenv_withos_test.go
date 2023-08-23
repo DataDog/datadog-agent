@@ -8,7 +8,7 @@ package examples
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/stretchr/testify/assert"

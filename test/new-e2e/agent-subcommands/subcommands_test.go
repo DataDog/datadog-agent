@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"

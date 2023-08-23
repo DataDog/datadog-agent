@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"

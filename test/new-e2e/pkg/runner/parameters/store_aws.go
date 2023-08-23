@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/clients"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )

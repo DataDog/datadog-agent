@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/clients"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"

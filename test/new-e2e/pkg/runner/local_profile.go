@@ -12,7 +12,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
 const (

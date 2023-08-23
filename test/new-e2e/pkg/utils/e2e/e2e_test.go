@@ -8,7 +8,7 @@ package e2e
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"

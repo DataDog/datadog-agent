@@ -12,7 +12,7 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 //	)
 //
 //	type vmSuite struct {
@@ -69,7 +69,7 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 //	)
 //
 //	type vmSuite struct {
@@ -91,7 +91,7 @@
 //
 //	import (
 //		"testing"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 //		"github.com/DataDog/test-infra-definitions/components/os"
 //		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 //		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
@@ -120,7 +120,7 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 //		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 //		"github.com/DataDog/test-infra-definitions/components/os"
 //		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
@@ -156,8 +156,8 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 //		"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
 //		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 //		"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -210,7 +210,7 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 //	)
 //
 //	type singleEnvSuite struct {
@@ -245,7 +245,7 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 //		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 //		"github.com/stretchr/testify/require"
 //	)
@@ -279,7 +279,7 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 //		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 //	)
 //
@@ -321,8 +321,8 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 //	)
 //
 //	type vmSuite struct {
@@ -355,11 +355,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
