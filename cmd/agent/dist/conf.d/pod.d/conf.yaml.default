@@ -1,5 +1,5 @@
 ad_identifiers:
-  - _pod_orchestrator
+  - _pod
 init_config:
 instances:
   -

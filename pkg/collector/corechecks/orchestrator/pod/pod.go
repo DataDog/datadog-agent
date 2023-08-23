@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const checkName = "pod_orchestrator"
+const checkName = "pod"
 
 var groupID atomic.Int32
 
