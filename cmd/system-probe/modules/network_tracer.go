@@ -105,6 +105,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
+	defer network.Reclaim(cs)
 	if err != nil {
 		return err
 	}
@@ -143,7 +144,6 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		cs.Conns = rest
 	}
 
-	network.Reclaim(cs)
 	return nil
 }
 
