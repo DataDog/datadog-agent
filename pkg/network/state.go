@@ -239,7 +239,6 @@ func filterConnections(conns []ConnectionStats, keep func(c *ConnectionStats) bo
 		conns[p], conns[i] = conns[i], conns[p]
 		if keep(&conns[p]) {
 			p++
-			continue
 		}
 	}
 
@@ -446,8 +445,10 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 			if c.LastUpdateEpoch > ck.LastUpdateEpoch {
 				// we overwrite the value here without
 				// updating the pointer in the map
-				// since we have already decided to
-				// not filter that pointer
+				// since keeping `c` would mean discarding
+				// `ck`, which is not possible here since
+				// we have already signaled to `filterConnections`
+				// we want to keep `ck`
 				*ck = *c
 			}
 		}
