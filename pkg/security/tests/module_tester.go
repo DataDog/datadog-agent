@@ -214,6 +214,7 @@ var (
 	logTags          stringSlice
 	logStatusMetrics bool
 	withProfile      bool
+	hostStdOnly      bool
 )
 
 const (
@@ -872,7 +873,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	var cmdWrapper cmdWrapper
-	if testEnvironment == DockerEnvironment {
+	if testEnvironment == DockerEnvironment || hostStdOnly {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
 		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
@@ -1756,6 +1757,7 @@ func init() {
 	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
+	flag.BoolVar(&hostStdOnly, "host-std-only", false, "disable docker test in host env")
 
 	rand.Seed(time.Now().UnixNano())
 

@@ -1758,6 +1758,10 @@ func TestProcessExit(t *testing.T) {
 }
 
 func TestProcessBusybox(t *testing.T) {
+	if hostStdOnly {
+		t.Skip("docker is disabled in host env")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_1",
