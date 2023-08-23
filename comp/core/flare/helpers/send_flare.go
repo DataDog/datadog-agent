@@ -28,6 +28,7 @@ var (
 	httpTimeout       = time.Duration(60) * time.Second
 )
 
+// any modification to this struct should also be applied to datadog-agent/test/fakeintake/server/body.go
 type flareResponse struct {
 	CaseID int    `json:"case_id,omitempty"`
 	Error  string `json:"error,omitempty"`
