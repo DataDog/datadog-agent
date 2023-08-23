@@ -14,7 +14,7 @@ print(DEPENDENCY_REVIEW_RESPONSE)
 output = ""
 output += "### Vulnerability Report\n\n"
 # Loop through each entry in the data
-for entry in DEPENDENCY_REVIEW:
+for entry in DEPENDENCY_REVIEW_RESPONSE:
     output += f"Change Type: {entry['change_type']}\n"
     output += f"Manifest: {entry['manifest']}\n"
     output += f"Ecosystem: {entry['ecosystem']}\n"
