@@ -395,6 +395,52 @@ namespace Datadog.CustomActions.Native
         string lpdwTagId, string lpDependencies, string lpServiceStartName, string lpPassword,
         string lpDisplayName);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public class GuidClass
+        {
+            public Guid TheGuid;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct DOMAIN_CONTROLLER_INFO
+        {
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerAddress;
+            public uint DomainControllerAddressType;
+            public Guid DomainGuid;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DnsForestName;
+            public DS_FLAG Flags;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DcSiteName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string ClientSiteName;
+        }
+
+        [Flags]
+        public enum DS_FLAG : uint
+        {
+            DS_WRITABLE_FLAG = 0x00000100,
+        }
+
+        [DllImport("Netapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern int DsGetDcName
+        (
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string ComputerName,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string DomainName,
+            [In] GuidClass DomainGuid,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string SiteName,
+            int Flags,
+            out IntPtr pDOMAIN_CONTROLLER_INFO
+        );
+
         #endregion
         #region Public interface
 
@@ -543,12 +589,39 @@ namespace Datadog.CustomActions.Native
             return false;
         }
 
+        public bool IsReadOnlyDomainController()
+        {
+            if (!IsDomainController())
+            {
+                return false;
+            }
+            IntPtr pDCI = IntPtr.Zero;
+            try
+            {
+                var result = DsGetDcName(null, null, null, null, 0, out pDCI);
+                if (result != 0)
+                {
+                    throw new Exception("unexpected error getting domain controller information", new Win32Exception((int)result));
+                }
+
+                var domainInfo = (DOMAIN_CONTROLLER_INFO)Marshal.PtrToStructure(pDCI, typeof(DOMAIN_CONTROLLER_INFO));
+                var isWritable = domainInfo.Flags.HasFlag(DS_FLAG.DS_WRITABLE_FLAG);
+                return !isWritable;
+            }
+            finally
+            {
+                if (pDCI != IntPtr.Zero)
+                {
+                    NetApiBufferFree(pDCI);
+                }
+            }
+        }
+
         public string GetComputerDomain()
         {
             // Computer is a DC, default to domain name
             return Domain.GetComputerDomain().Name;
         }
-
 
         /// <summary>
         /// Checks whether or not a user account belongs to a domain or is a local account.
