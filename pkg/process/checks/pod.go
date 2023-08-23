@@ -39,7 +39,6 @@ type PodCheck struct {
 
 // Init initializes a PodCheck instance.
 func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
-	log.Info("Josh sanity check\n")
 	c.hostInfo = hostInfo
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
@@ -50,13 +49,13 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 func (c *PodCheck) IsEnabled() bool {
 	// activate the pod collection if enabled and we have the cluster name set
 	orchestratorEnabled, coreCheck, kubeClusterName := oconfig.IsOrchestratorEnabled()
-	log.Infof("orchestrator_explorer.run_on_node_agent: %t\n", coreCheck)
 	if !orchestratorEnabled {
 		return false
 	}
 
 	// Do not run this check if we enabled the corecheck for pods
 	if coreCheck {
+		log.Info("Skipping pod check on processor agent")
 		return false
 	} else {
 		log.Warn("Running the pod check on the processor agent will soon be deprecated")

@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const checkName = "pod"
+const checkName = "orchestrator_pod"
 
 var groupID atomic.Int32
 
@@ -39,7 +39,8 @@ func nextGroupID() int32 {
 }
 
 func init() {
-	core.RegisterCheck(checkName, podFactory)
+	log.Info("pod check register")
+	core.RegisterCheck(checkName, PodFactory)
 }
 
 // Check doesn't need additional fields
@@ -53,7 +54,9 @@ type Check struct {
 	instance  *oinstance.OrchestratorInstance
 }
 
-func podFactory() check.Check {
+// PodFactory returns a new Pod.Check
+func PodFactory() check.Check {
+	log.Info("pod check factory")
 	return &Check{
 		CheckBase: core.NewCheckBase(checkName),
 	}
@@ -62,6 +65,7 @@ func podFactory() check.Check {
 // Configure the CPU check
 // nil check to allow for overrides
 func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	log.Info("pod check configure")
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
 	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
@@ -122,6 +126,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 
 // Run executes the check
 func (c *Check) Run() error {
+	log.Info("Running pod check on the node agent")
 	kubeUtil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return err
