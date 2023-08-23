@@ -21,6 +21,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             
             // By default computers are not domain-joined
             NativeMethods.Setup(n => n.IsDomainController()).Returns(false);
+            NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Returns(false);
             NativeMethods.Setup(n => n.GetComputerDomain()).Throws<ActiveDirectoryObjectNotFoundException>();
             ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
         }
