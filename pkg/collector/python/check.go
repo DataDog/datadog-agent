@@ -385,7 +385,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 		}
 
 		if len(dw.RawError) > 0 {
-			d.RawError = errors.New(dw.RawError)
+			d.RawError = dw.RawError
 		}
 
 		diagnoses = append(diagnoses, d)

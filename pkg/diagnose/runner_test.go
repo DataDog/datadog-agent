@@ -6,7 +6,6 @@
 package diagnose
 
 import (
-	"errors"
 	"regexp"
 	"testing"
 
@@ -40,7 +39,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 			Category:    "Category_foo",
 			Description: "Description_foo",
 			Remediation: "Remediation_foo",
-			RawError:    errors.New("Error_foo"),
+			RawError:    "Error_foo",
 		},
 		{
 			Result:      diagnosis.DiagnosisFail,
@@ -48,7 +47,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 			Category:    "Category_bar",
 			Description: "Description_bar",
 			Remediation: "Remediation_bar",
-			RawError:    errors.New("Error_bar"),
+			RawError:    "Error_bar",
 		},
 	}
 

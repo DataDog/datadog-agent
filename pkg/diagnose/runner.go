@@ -103,7 +103,7 @@ func outputDiagnosis(w io.Writer, cfg diagnosis.Config, result string, diagnosis
 	}
 
 	// [Optional] Error
-	if d.RawError != nil {
+	if len(d.RawError) > 0 {
 		// Do not output error for diagnosis.DiagnosisSuccess unless verbose
 		if d.Result != diagnosis.DiagnosisSuccess || cfg.Verbose {
 			fmt.Fprintf(w, "  Error: %s\n", d.RawError)
@@ -194,12 +194,12 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis
 			len(d.Name) == 0 ||
 			len(d.Diagnosis) == 0 {
 
-			if d.RawError != nil {
+			if len(d.RawError) > 0 {
 				// If error already reported, append to it
-				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
-					d.Result, d.Name, d.Diagnosis, d.RawError.Error())
+				diagnoses[i].RawError = fmt.Sprintf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
+					d.Result, d.Name, d.Diagnosis, d.RawError)
 			} else {
-				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
+				diagnoses[i].RawError = fmt.Sprintf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
 			}
 
 			diagnoses[i].Result = diagnosis.DiagnosisUnexpectedError
@@ -273,18 +273,18 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Run diagnose code inside Agent process
-	var r []byte
-	r, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
+	var response []byte
+	response, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
-		if r != nil && string(r) != "" {
-			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(r))
+		if response != nil && string(response) != "" {
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(response))
 		}
 		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
 	}
 
 	// Deserialize results
 	var diagnoses []diagnosis.Diagnoses
-	err = json.Unmarshal(r, &diagnoses)
+	err = json.NewDecoder(bytes.NewReader(response)).Decode(&diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
 	}

@@ -41,7 +41,7 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
-				RawError:    err,
+				RawError:    err.Error(),
 			},
 		}
 	}
@@ -76,7 +76,7 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 					d.Result = diagnosis.DiagnosisFail
 					d.Diagnosis = fmt.Sprintf("Connection to `%s` failed\n%s", logURL, report)
 					d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
-					d.RawError = err
+					d.RawError = reportErr.Error()
 				}
 
 				// Add http trace on error or if in verbose mode

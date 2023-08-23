@@ -501,14 +501,13 @@ func getDiagnose(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Serizalize it
-	diagnosesJson, err := json.Marshal(diagnoses)
+	err = json.NewEncoder(w).Encode(diagnoses)
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(diagnosesJson)
 }
 
 // max returns the maximum value between a and b.
