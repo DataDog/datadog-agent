@@ -50,6 +50,7 @@ func initCWSSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.delay", "10s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.ticker", "10s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.auto_suppression.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.workload_deny_list", []string{})
 
 	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)

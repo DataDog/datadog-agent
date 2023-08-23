@@ -49,6 +49,9 @@ func (ws *WorkloadSelector) IsReady() bool {
 
 // Match returns true if the input selector matches the current selector
 func (ws *WorkloadSelector) Match(selector WorkloadSelector) bool {
+	if ws.Tag == "*" || selector.Tag == "*" {
+		return ws.Image == selector.Image
+	}
 	return ws.Image == selector.Image && ws.Tag == selector.Tag
 }
 
