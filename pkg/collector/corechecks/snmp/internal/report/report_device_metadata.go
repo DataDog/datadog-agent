@@ -33,7 +33,7 @@ const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
 
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, diagnostics []devicemetadata.DiagnosticMetadata) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -45,7 +45,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil)
+	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnostics)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)

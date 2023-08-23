@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 var timeNow = time.Now
@@ -169,6 +170,22 @@ func (c *Check) Cancel() {
 // Interval returns the scheduling time for the check
 func (c *Check) Interval() time.Duration {
 	return c.config.MinCollectionInterval
+}
+
+// Collect diagnostics for diagnose CLI
+func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	if c.config.IsDiscovery() {
+		devices := c.discovery.GetDiscoveredDeviceConfigs()
+		var diagnosis []diagnosis.Diagnosis
+
+		for _, deviceCheck := range devices {
+			diagnosis = append(diagnosis, deviceCheck.GetDiagnoses()...)
+		}
+
+		return diagnosis, nil
+	} else {
+		return c.singleDeviceCk.GetDiagnoses(), nil
+	}
 }
 
 func snmpFactory() check.Check {
