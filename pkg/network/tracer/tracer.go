@@ -627,8 +627,6 @@ var allStats = []statsComp{
 	stateStats,
 	tracerStats,
 	httpStats,
-	bpfMapStats,
-	bpfHelperStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
