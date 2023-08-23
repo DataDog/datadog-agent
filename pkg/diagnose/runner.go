@@ -171,19 +171,6 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Su
 	return sortedFilteredSuites
 }
 
-// Diagnose sites are already sorted, sort only by category and then
-// by name. It may change in future versions, e.g. configured to not to sort
-// or confgured to sort by other attributes or order (which would need config)
-func sortDiagnoses(siteDiagnoses []diagnosis.Diagnoses) {
-	for _, sd := range siteDiagnoses {
-		ds := sd.SuiteDiagnoses
-		sort.Slice(ds, func(i, j int) bool {
-			return (ds[i].Category < ds[j].Category) ||
-				(ds[i].Category == ds[j].Category && ds[i].Name < ds[j].Name)
-		})
-	}
-}
-
 func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	diagnoses := ds.Diagnose(diagCfg)
 
@@ -304,9 +291,6 @@ func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Please note that if streaming will be implemented sorting strategy may need to be changed
-	sortDiagnoses(diagnoses)
 
 	return diagnoses, nil
 }
