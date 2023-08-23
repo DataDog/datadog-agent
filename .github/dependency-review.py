@@ -3,9 +3,9 @@ import requests
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 ORG_NAME = "datadog"
-print(f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/dependency-graph/compare/{os.getenv('BASE_REF')}...{os.getenv('GITHUB_SHA')}")
+print(f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/dependency-graph/compare/22a40c3987c5cffd2c328b1b0cd39aed15211f68...{os.getenv('GITHUB_SHA')}")
 DEPENDENCY_REVIEW_RESPONSE = requests.get(
-    f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/dependency-graph/compare/{os.getenv('BASE_REF')}...{os.getenv('GITHUB_SHA')}",
+    f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/dependency-graph/compare/22a40c3987c5cffd2c328b1b0cd39aed15211f68...{os.getenv('GITHUB_SHA')}",
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 ).json()
 print(DEPENDENCY_REVIEW_RESPONSE)
