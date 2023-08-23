@@ -245,8 +245,12 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 
 	var c netlink.Conntracker
 	var err error
-	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-		return c, nil
+	// retry creation of ebpf conntracker a few times in case the module is not loaded on the host yet
+	for i := 0; i < 3; i++ {
+		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+			return c, nil
+		}
+		time.Sleep(1 * time.Second)
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
