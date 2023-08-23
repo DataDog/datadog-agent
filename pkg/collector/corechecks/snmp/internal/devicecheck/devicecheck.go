@@ -341,6 +341,7 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
 }
 
+// GetDiagnoses collects diagnostics for diagnose CLI
 func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
 	return d.diagnostics.ConvertToCLI()
 }

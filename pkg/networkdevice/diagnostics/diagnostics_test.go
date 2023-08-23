@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package diagnostics
 
 import (
@@ -16,7 +21,7 @@ func TestReportDeviceDiagnostics(t *testing.T) {
 
 	expectedMetadata := []metadata.DiagnosticMetadata{{
 		ResourceType: "ndm_device",
-		ResourceId:   "default:1.2.3.4.5",
+		ResourceID:   "default:1.2.3.4.5",
 		Diagnostics: []metadata.Diagnostic{
 			{
 				Severity:   "error",
@@ -38,7 +43,7 @@ func TestReportCLIDiagnostics(t *testing.T) {
 
 	expected := []diagnosis.Diagnosis{{
 		Result:    diagnosis.DiagnosisFail,
-		Name:      "TEST_ERROR_DIAG",
+		Name:      "ndm_device - default:1.2.3.4.5 - TEST_ERROR_DIAG",
 		Diagnosis: "This is a test error diagnostic",
 	}}
 

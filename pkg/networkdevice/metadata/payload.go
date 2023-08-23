@@ -138,6 +138,6 @@ type Diagnostic struct {
 // DiagnosticMetadata contains diagnostics for a resource
 type DiagnosticMetadata struct {
 	ResourceType string       `json:"resource_type"`
-	ResourceId   string       `json:"resource_id"`
+	ResourceID   string       `json:"resource_id"`
 	Diagnostics  []Diagnostic `json:"diagnostics"`
 }
