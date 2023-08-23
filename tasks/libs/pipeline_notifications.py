@@ -154,8 +154,8 @@ def base_message(header, state):
     pipeline_url = os.getenv("CI_PIPELINE_URL")
     pipeline_id = os.getenv("CI_PIPELINE_ID")
     commit_ref_name = os.getenv("CI_COMMIT_REF_NAME")
-    commit_url_gitlab = f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}",
-    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/commit/{os.getenv('CI_COMMIT_SHA')}",
+    commit_url_gitlab = f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}"
+    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/commit/{os.getenv('CI_COMMIT_SHA')}"
     commit_short_sha = os.getenv("CI_COMMIT_SHORT_SHA")
     author = get_git_author()
 
