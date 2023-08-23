@@ -76,6 +76,32 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
         [Theory]
         [AutoData]
+        public void ProcessDdAgentUserCredentials_Fails_With_Creating_DomainUser_On_ReadOnly_Domain_Controllers_Sanity(
+            string ddAgentUserName,
+            string ddAgentUserPassword)
+        {
+            // Sanity check logic when IsDomainController() returns false and IsReadOnlyDomainController() returns true.
+            // This should never happen but we should make sure we still treat the host as a read-only domain controller.
+            Test.NativeMethods.Setup(n => n.IsDomainController()).Returns(false);
+            Test.NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Returns(true);
+
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{Domain}\\{ddAgentUserName}");
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_PASSWORD"]).Returns(ddAgentUserPassword);
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+
+            Test.Properties.Should()
+                .OnlyContain(kvp => (kvp.Key == "DDAGENTUSER_FOUND" && kvp.Value == "false") ||
+                                    (kvp.Key == "DDAGENTUSER_SID" && string.IsNullOrEmpty(kvp.Value)));
+        }
+
+        [Theory]
+        [AutoData]
         public void ProcessDdAgentUserCredentials_Succeeds_With_Existing_DomainUser_On_ReadOnly_Domain_Controllers(
             string ddAgentUserName,
             string ddAgentUserPassword)
