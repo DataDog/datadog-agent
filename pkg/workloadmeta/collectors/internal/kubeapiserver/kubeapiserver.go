@@ -29,10 +29,11 @@ const (
 
 type collector struct{}
 
-// newStore returns a new store specific to a given resource
-type newStore func(context.Context, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, error)
+// storeGenerator returns a new store specific to a given resource
+type storeGenerator func(context.Context, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, *reflectorStore, error)
 
-var objectStoreBuilders = make(map[string]newStore)
+// resourceSpecificGenerator contains a list of stores and functions to create this store
+var resourceSpecificGenerator = make(map[string]storeGenerator)
 
 func init() {
 	workloadmeta.RegisterClusterCollector(collectorID, func() workloadmeta.Collector {
@@ -49,12 +50,13 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 	}
 	client := apiserverClient.Cl
 
-	for _, storeBuilder := range objectStoreBuilders {
-		reflector, err := storeBuilder(ctx, wlmetaStore, client)
+	for _, storeBuilder := range resourceSpecificGenerator {
+		reflector, store, err := storeBuilder(ctx, wlmetaStore, client)
 		if err != nil {
 			log.Warnf("failed to start reflector:", err)
 			continue
 		}
+		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
 	go startReadiness(ctx, objectStores)

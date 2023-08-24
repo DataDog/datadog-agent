@@ -23,10 +23,10 @@ import (
 const nodeStoreName = "node-store"
 
 func init() {
-	objectStoreBuilders[nodeStoreName] = newNodeStore
+	resourceSpecificGenerator[nodeStoreName] = newNodeStore
 }
 
-func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, error) {
+func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
 	nodeListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Nodes().List(ctx, options)
@@ -44,7 +44,7 @@ func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes
 		nodeStore,
 		noResync,
 	)
-	return nodeReflector, nil
+	return nodeReflector, nodeStore, nil
 }
 
 func newNodeReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {

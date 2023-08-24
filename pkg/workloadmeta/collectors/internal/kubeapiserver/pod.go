@@ -27,12 +27,12 @@ import (
 const podStoreName = "pod-store"
 
 func init() {
-	objectStoreBuilders[podStoreName] = newPodStore
+	resourceSpecificGenerator[podStoreName] = newPodStore
 }
 
-func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, error) {
+func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
 	if config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
-		return nil, fmt.Errorf("cluster_agent.collect_kubernetes_tags is not enabled")
+		return nil, nil, fmt.Errorf("cluster_agent.collect_kubernetes_tags is not enabled")
 	}
 	podListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -51,7 +51,7 @@ func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.
 		podStore,
 		noResync,
 	)
-	return podReflector, nil
+	return podReflector, podStore, nil
 }
 
 func newPodReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {
