@@ -33,11 +33,11 @@ var LanguageDetectionModule = module.Factory{
 
 type languageDetectionModule struct{}
 
-func (l languageDetectionModule) GetStats() map[string]interface{} {
+func (l *languageDetectionModule) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (l languageDetectionModule) Register(router *module.Router) error {
+func (l *languageDetectionModule) Register(router *module.Router) error {
 	router.HandleFunc("/detect", detectLanguage)
 	return nil
 }
@@ -51,7 +51,7 @@ func (l *languageDetectionModule) RegisterGRPC(_ *grpc.Server) error {
 // This API currently does not hold any resources over its lifetime, so there is no need to release any resources when the
 // module is closed.
 
-func (l languageDetectionModule) Close() {}
+func (l *languageDetectionModule) Close() {}
 
 func toDetectLanguageResponse(langs []languagemodels.Language) *languageDetectionProto.DetectLanguageResponse {
 	resp := &languageDetectionProto.DetectLanguageResponse{

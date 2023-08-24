@@ -8,5 +8,5 @@
 package api
 
 const (
-	NetType = "tcp"
+	netType = "tcp"
 )

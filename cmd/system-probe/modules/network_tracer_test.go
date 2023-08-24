@@ -59,7 +59,7 @@ func TestDecode(t *testing.T) {
 	}
 
 	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
-	connectionsModeler := encoding.InitConnectionsModeler(in)
+	connectionsModeler := encoding.NewConnectionsModeler(in)
 	payload := connectionsModeler.ModelConnections(in)
 	defer encoding.Cleanup(payload)
 	expected, err := marshaller.Marshal(payload)

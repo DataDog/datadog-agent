@@ -70,7 +70,7 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		return &networkTracer{tracer: t, done: done, maxConnsPerMessage: cfg.MaxConnsPerMessage}, err
+		return &networkTracer{tracer: t, done: done, maxConnsPerMessage: cfg.MaxConnsPerMessage, runCounter: atomic.NewUint64(0)}, err
 	},
 }
 
@@ -84,6 +84,7 @@ type networkTracer struct {
 	// Intended to ensure (in compile time) we're implementing the SystemProbeServer interface
 	connectionserver.UnsafeSystemProbeServer
 	maxConnsPerMessage int
+	runCounter         *atomic.Uint64
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -102,20 +103,19 @@ func min(a, b int) int {
 // about the current connections in the system.
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
 	start := time.Now()
-	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to get connections: %s", err)
 	}
 	defer network.Reclaim(cs)
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	connectionsModeler := encoding.InitConnectionsModeler(cs)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
-	count := runCounter.Inc()
+	count := nt.runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
 	connections := &connectionserver.Connection{}
 
@@ -127,12 +127,13 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		cs.Conns = cs.Conns[:finalBatchSize]
 
 		payload := connectionsModeler.ModelConnections(cs)
+		connectionsModeler.CleanConnectionModeler()
 		// get the conns for a batch by the marshaler
 		conns, err := marshaler.Marshal(payload)
 		encoding.Cleanup(payload)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to marshal payload due to: %s", err)
 		}
 
 		connections.Data = conns
@@ -356,9 +357,10 @@ func getClientID(req *http.Request) string {
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
-	connectionsModeler := encoding.InitConnectionsModeler(cs)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
 	payload := connectionsModeler.ModelConnections(cs)
 	defer encoding.Cleanup(payload)
+	defer connectionsModeler.CleanConnectionModeler()
 
 	buf, err := marshaler.Marshal(payload)
 	if err != nil {

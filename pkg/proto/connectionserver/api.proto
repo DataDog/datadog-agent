@@ -3,6 +3,7 @@ package datadog.test.v1;
 
 option go_package = "/connectionserver"; // golang
 
+// Connection represents a marshalled connection type that is being represented as a sequence of bytes.
 message Connection {
   bytes data = 1;
 }

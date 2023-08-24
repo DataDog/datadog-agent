@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	nnet "net"
 	"sort"
@@ -139,7 +140,7 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 
 	opts := []grpc.DialOption{
 		grpc.WithContextDialer(func(_ context.Context, _ string) (nnet.Conn, error) {
-			return nnet.Dial(api.NetType, c.syscfg.GRPCSocketFilePath)
+			return nnet.Dial(net.NetType, c.syscfg.GRPCSocketFilePath)
 		}),
 		grpc.WithInsecure(),
 	}
@@ -147,14 +148,14 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 	// the second parameter is unused because we use a custom  dialer that has the state to see the address.
 	conn, err := grpc.DialContext(timedContext, "unused", opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to dial with context to grpc server due to: %v", err)
 	}
 	defer conn.Close()
 	client := connectionserver.NewSystemProbeClient(conn)
 
 	response, err := client.GetConnections(timedContext, &connectionserver.GetConnectionsRequest{ClientID: c.tracerClientID}, grpc.MaxCallRecvMsgSize(api.MaxGRPCServerMessage))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get connections from grpc server due to: %v", err)
 	}
 
 	// We only need to fetch once for a batch, and this boolean indicates that.
@@ -170,16 +171,16 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 	for {
 		start := time.Now()
 		res, err := response.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to get respinse from grpc server due to: %v", err)
 		}
 
 		batch, err := unmarshaler.Unmarshal(res.Data)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to unmarshal response due to: %v", err)
 		}
 		log.Debugf("[grpc] the number of connections in grpc is %d", len(batch.Conns))
 		if !processFetchSucceeded {

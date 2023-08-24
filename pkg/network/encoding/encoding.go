@@ -67,9 +67,12 @@ type ConnectionsModeler struct {
 	batchIndex                  int
 }
 
-// InitConnectionsModeler initialize the connection modeler with the encoders, telemetry, and agent configuration of
-// the current connections.
-func InitConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+// NewConnectionsModeler initializes the connection modeler with encoders, telemetry, and agent configuration for
+// the existing connections. The ConnectionsModeler holds the traffic encoders grouped by USM logic.
+// It also includes formatted connection telemetry related to all batches, not specific batches.
+// Furthermore, it stores the current agent configuration which applies to all instances related to the entire set of connections,
+// rather than just individual batches.
+func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	return &ConnectionsModeler{
 		httpEncoder:                 newHTTPEncoder(conns.HTTP),
 		http2Encoder:                newHTTP2Encoder(conns.HTTP2),
@@ -85,6 +88,13 @@ func InitConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
 		},
 	}
+}
+
+// CleanConnectionModeler cleans all encoders resources.
+func (c *ConnectionsModeler) CleanConnectionModeler() {
+	c.httpEncoder.Close()
+	c.http2Encoder.Close()
+	c.kafkaEncoder.Close()
 }
 
 // ModelConnections returns network connections after modeling for all supported types of traffic.
