@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a regression introduced in 7.47.0 that caused the Windows Installer
+    to fail on read-only domain controllers.
