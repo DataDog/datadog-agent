@@ -7,7 +7,6 @@ package client
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -73,10 +72,11 @@ func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) str
 	return agent.executeCommand("configcheck", commandArgs...)
 }
 
-// IsReady runs status command and returns true if the agent is ready.
+// IsReady runs status command and returns true the command return a non-zero exit code.
 // This function should rarely be used.
-func (a *Agent) IsReady() (bool, error) {
-	return a.Status().isReady()
+func (a *Agent) IsReady() bool {
+	_, err := a.executeAgentCmdWithError([]string{"status"})
+	return err == nil
 }
 
 type Status struct {
@@ -87,12 +87,8 @@ func newStatus(s string) *Status {
 	return &Status{Content: s}
 }
 
-// isReady true if status contains a valid version
-func (s *Status) isReady() (bool, error) {
-	return regexp.MatchString("={15}\nAgent \\(v6|7\\.\\d{2}\\..*\n={15}", s.Content)
-}
-
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
+
 	return newStatus(agent.executeCommand("status", commandArgs...))
 }
 
@@ -103,19 +99,10 @@ func (a *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		statusOutput, err := a.executeAgentCmdWithError([]string{"status"})
+		_, err := a.executeAgentCmdWithError([]string{"status"})
 		if err != nil {
-			return err
-		}
-
-		isReady, err := newStatus(statusOutput).isReady()
-		if err != nil {
-			return err
-		}
-		if !isReady {
 			return errors.New("agent not ready")
 		}
-
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
 	return err
