@@ -131,7 +131,7 @@ func (s *TracerSuite) TestGetStats() {
 			<-time.After(time.Second)
 
 			getConnections(t, tr)
-			actual, _ := tr.GetStats()
+			actual, _ := tr.getStats()
 
 			for section, entries := range expected {
 				if section == "usm" && !httpSupported {
