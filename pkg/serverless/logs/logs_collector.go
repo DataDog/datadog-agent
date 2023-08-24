@@ -23,7 +23,7 @@ import (
 
 const (
 	// The maximum number of logs that will be buffered during the init phase before the first invocation
-	maxBufferedLogs = 2000
+	maxBufferedLogs = 200
 )
 
 // Tags contains the actual array of Tags (useful for passing it via reference)
@@ -116,7 +116,6 @@ func (lc *LambdaLogsCollector) Start() {
 // Shutdown the log collector
 func (lc *LambdaLogsCollector) Shutdown() {
 	close(lc.In)
-	close(lc.orphanLogsChan)
 }
 
 // shouldProcessLog returns whether or not the log should be further processed.
