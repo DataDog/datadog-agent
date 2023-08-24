@@ -23,7 +23,7 @@ import (
 
 const (
 	// The maximum number of logs that will be buffered during the init phase before the first invocation
-	maxBufferedLogs = 200
+	maxBufferedLogs = 2000
 )
 
 // Tags contains the actual array of Tags (useful for passing it via reference)
