@@ -19,16 +19,16 @@ import (
 
 const collectorId = "local-process"
 
-func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
-	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
+func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collector {
+	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
-	processData := checks.NewProcessData(ddConfig)
+	processData := checks.NewProcessData(coreConfig)
 	processData.Register(wlmExtractor)
 
 	return &Collector{
-		ddConfig:        ddConfig,
+		ddConfig:        coreConfig,
 		wlmExtractor:    wlmExtractor,
-		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
+		grpcServer:      workloadmetaExtractor.NewGRPCServer(coreConfig, wlmExtractor),
 		processData:     processData,
 		collectionClock: clock.New(),
 		pidToCid:        make(map[int]string),
