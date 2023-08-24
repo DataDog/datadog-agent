@@ -2957,6 +2957,12 @@ api_key:
     #
     # apm_enabled: false
 
+    ## @param container_registry - string - optional - default: gcr.io/datadoghq
+    ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_CONTAINER_REGISTRY - string - optional - default: gcr.io/datadoghq
+    ## Set custome registry to fetch APM libraries from.
+    #
+    # container_registry: gcr.io/datadoghq
+
     ## @param init_resources - custom object - optional
     ## CPU and Memory resources of the init containers.
     #
