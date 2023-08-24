@@ -24,6 +24,24 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
+// Level is the type for log levels.
+type Level seelog.LogLevel
+
+// Log levels
+const (
+	TraceLvl    Level = seelog.TraceLvl
+	DebugLvl    Level = seelog.DebugLvl
+	InfoLvl     Level = seelog.InfoLvl
+	WarnLvl     Level = seelog.WarnLvl
+	ErrorLvl    Level = seelog.ErrorLvl
+	CriticalLvl Level = seelog.CriticalLvl
+	Off         Level = seelog.Off
+)
+
+func (l Level) String() string {
+	return seelog.LogLevel(l).String()
+}
+
 // NewTemporaryLogger returns a logger component instance. It assumes the logger has already been
 // initialized beforehand.
 //
@@ -137,6 +155,12 @@ func (*logger) Criticalf(format string, params ...interface{}) error {
 	// no need to check the current log level since Sprintf will be called in all case to generate the returned
 	// error
 	return log.CriticalStackDepth(2, fmt.Sprintf(format, params...))
+}
+
+// GetLogLevel implements Component#GetLogLevel.
+func (*logger) GetLogLevel() (Level, error) {
+	lvl, err := log.GetLogLevel()
+	return Level(lvl), err
 }
 
 // Flush implements Component#Flush.

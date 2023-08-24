@@ -60,6 +60,9 @@ type Component interface {
 	// an error containing the message.
 	Criticalf(format string, params ...interface{}) error
 
+	// GetLogLevel returns the current log level
+	GetLogLevel() (Level, error)
+
 	// Flush will flush the contents of the logs to the sinks
 	Flush()
 }

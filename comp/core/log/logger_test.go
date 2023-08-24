@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLogging(t *testing.T) {
@@ -21,4 +22,7 @@ func TestLogging(t *testing.T) {
 		Module,
 	))
 	log.Debugf("hello, world. %s", "hi")
+	if lvl, err := log.GetLogLevel(); assert.NoError(t, err) {
+		assert.Equal(t, DebugLvl, lvl)
+	}
 }
