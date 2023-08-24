@@ -24,7 +24,7 @@ func NewLocalProfile() (Profile, error) {
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
 	}
-	envValueStore := parameters.NewEnvValueStore(EnvPrefix)
+	envValueStore := parameters.NewEnvStore(EnvPrefix)
 
 	configPath, err := getConfigFilePath()
 	if err != nil {
@@ -33,9 +33,9 @@ func NewLocalProfile() (Profile, error) {
 
 	var store parameters.Store
 	if configPath != "" {
-		configFileValueStore, err := parameters.NewConfigFileValueStore(configPath)
+		configFileValueStore, err := parameters.NewConfigFileStore(configPath)
 		if err != nil {
-			return nil, fmt.Errorf("error when reading the config file %v: %v.", configPath, err)
+			return nil, fmt.Errorf("error when reading the config file %v: %v", configPath, err)
 		}
 		store = parameters.NewCascadingStore(envValueStore, configFileValueStore)
 	} else {

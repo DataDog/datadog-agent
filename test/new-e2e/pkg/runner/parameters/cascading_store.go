@@ -16,19 +16,19 @@ var _ valueStore = &CascadingValueStore{}
 // Parameters in a cascading value store are looked up iterating through
 // all value stores and return at first match
 type CascadingValueStore struct {
-	valueStores []valueStore
+	stores []Store
 }
 
 // NewCascadingStore creates a new cascading store
-func NewCascadingStore(valueStores ...valueStore) Store {
+func NewCascadingStore(stores ...Store) Store {
 	return newStore(CascadingValueStore{
-		valueStores: valueStores,
+		stores: stores,
 	})
 }
 
 func (s CascadingValueStore) get(key StoreKey) (string, error) {
-	for _, valueStore := range s.valueStores {
-		v, err := valueStore.get(key)
+	for _, store := range s.stores {
+		v, err := store.Get(key)
 
 		if err == nil {
 			return v, nil

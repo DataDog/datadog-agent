@@ -54,20 +54,20 @@ var _ valueStore = &configFileValueStore{}
 
 type configFileValueStore struct {
 	config          Config
-	stackParamsJson string
+	stackParamsJSON string
 }
 
-// NewConfigFileValueStore creates a configFileValueStore from a path
-func NewConfigFileValueStore(path string) (configFileValueStore, error) {
-	store := configFileValueStore{}
+// NewConfigFileStore creates a store from configFileValueStore from a path
+func NewConfigFileStore(path string) (Store, error) {
+	valueStore := configFileValueStore{}
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return store, err
+		return newStore(valueStore), err
 	}
 
-	err = store.parseConfigFileContent(content)
+	err = valueStore.parseConfigFileContent(content)
 
-	return store, err
+	return newStore(valueStore), err
 }
 
 func (s *configFileValueStore) parseConfigFileContent(content []byte) error {
@@ -86,7 +86,7 @@ func (s *configFileValueStore) parseConfigFileContent(content []byte) error {
 	if err != nil {
 		return err
 	}
-	s.stackParamsJson = string(b)
+	s.stackParamsJSON = string(b)
 	return err
 }
 
@@ -104,7 +104,7 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 	case PublicKeyPath:
 		value = s.config.ConfigParams.AWS.PublicKeyPath
 	case StackParameters:
-		value = s.stackParamsJson
+		value = s.stackParamsJSON
 	case Environments:
 		if s.config.ConfigParams.AWS.Account != "" {
 			value = "aws/" + s.config.ConfigParams.AWS.Account

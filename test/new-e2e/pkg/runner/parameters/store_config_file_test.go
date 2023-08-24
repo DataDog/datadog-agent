@@ -8,6 +8,8 @@ package parameters
 import (
 	_ "embed"
 	"encoding/json"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,14 +17,11 @@ import (
 )
 
 //go:embed testfixtures/test_config_with_stackparams.yaml
-var config_with_stackparams []byte
-
-//go:embed testfixtures/test_config_no_aws_account.yaml
-var config_no_aws_account []byte
+var configWithStackparams []byte
 
 func Test_parseConfigFileContent(t *testing.T) {
 	store := configFileValueStore{}
-	store.parseConfigFileContent(config_with_stackparams)
+	store.parseConfigFileContent(configWithStackparams)
 	assert.Equal(t, "totoro", store.config.ConfigParams.AWS.KeyPairName)
 	assert.Equal(t, "/Users/totoro/.ssh/id_rsa.pub", store.config.ConfigParams.AWS.PublicKeyPath)
 	assert.Equal(t, "kiki", store.config.ConfigParams.AWS.Account)
@@ -41,10 +40,13 @@ func Test_parseConfigFileContent(t *testing.T) {
 	assert.Equal(t, expectedStackparams, stackParams)
 }
 
-func Test_parseConfigFileStoreContent(t *testing.T) {
-	valueStore := configFileValueStore{}
-	valueStore.parseConfigFileContent(config_with_stackparams)
-	store := NewCascadingStore(valueStore)
+func Test_NewConfigFileStore(t *testing.T) {
+	dir, err := os.Getwd()
+	require.NoError(t, err)
+	configPath := path.Join(dir, "testfixtures/test_config_with_stackparams.yaml")
+
+	store, err := NewConfigFileStore(configPath)
+	require.NoError(t, err)
 
 	value, err := store.Get(KeyPairName)
 	assert.NoError(t, err)
@@ -67,10 +69,13 @@ func Test_parseConfigFileStoreContent(t *testing.T) {
 	assert.Equal(t, "team:miyazaki", value)
 }
 
-func Test_parseConfigFileStoreContentNoAWSAccount(t *testing.T) {
-	valueStore := configFileValueStore{}
-	valueStore.parseConfigFileContent(config_no_aws_account)
-	store := NewCascadingStore(valueStore)
+func Test_NewConfigFileStoreNoAWSAccount(t *testing.T) {
+	dir, err := os.Getwd()
+	require.NoError(t, err)
+	configPath := path.Join(dir, "testfixtures/test_config_no_aws_account.yaml")
+
+	store, err := NewConfigFileStore(configPath)
+	require.NoError(t, err)
 
 	value, err := store.Get(KeyPairName)
 	assert.NoError(t, err)
@@ -87,4 +92,7 @@ func Test_parseConfigFileStoreContentNoAWSAccount(t *testing.T) {
 	value, err = store.Get(APIKey)
 	assert.NoError(t, err)
 	assert.Equal(t, "00000000000000000000000000000000", value)
+
+	_, err = store.Get(APPKey)
+	assert.Error(t, err)
 }

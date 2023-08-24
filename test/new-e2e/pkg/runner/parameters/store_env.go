@@ -18,11 +18,10 @@ type envValueStore struct {
 
 // NewEnvStore creates a new store based on environment variables
 func NewEnvStore(prefix string) Store {
-	return newStore(NewEnvValueStore(prefix))
+	return newStore(newEnvValueStore(prefix))
 }
 
-// NewEnvValueStore creates a new value store based on environment variables
-func NewEnvValueStore(prefix string) envValueStore {
+func newEnvValueStore(prefix string) envValueStore {
 	return envValueStore{
 		prefix: prefix,
 	}
