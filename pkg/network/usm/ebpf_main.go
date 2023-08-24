@@ -88,9 +88,12 @@ type probeResolver interface {
 type buildMode string
 
 const (
-	Prebuilt        buildMode = "prebuilt"
+	// Prebuilt mode
+	Prebuilt buildMode = "prebuilt"
+	// RuntimeCompiled mode
 	RuntimeCompiled buildMode = "runtime-compilation"
-	CORE            buildMode = "CO-RE"
+	// CORE mode
+	CORE buildMode = "CO-RE"
 )
 
 type subprogram interface {
