@@ -68,6 +68,7 @@ namespace Datadog.CustomActions.Native
 
             // One or more of the members specified were already members of the local group. No new members were added.
             ERROR_MEMBER_IN_ALIAS = 1378,
+            ERROR_MEMBER_IN_GROUP = 1320,
 
             // One or more of the members specified do not exist. Therefore, no new members were added.
             ERROR_NO_SUCH_MEMBER = 1387,
@@ -507,7 +508,9 @@ namespace Datadog.CustomActions.Native
                 Marshal.Copy(sid, 0, info.pSID, sid.Length);
 
                 err = (ReturnCodes)NetLocalGroupAddMembers(null, groupName, 0, ref info, 1);
-                if (err == ReturnCodes.NO_ERROR || err == ReturnCodes.ERROR_MEMBER_IN_ALIAS)
+                if (err == ReturnCodes.NO_ERROR ||
+                    err == ReturnCodes.ERROR_MEMBER_IN_ALIAS ||
+                    err == ReturnCodes.ERROR_MEMBER_IN_GROUP)
                 {
                     return;
                 }
