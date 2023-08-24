@@ -155,7 +155,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		t.closedBuffer.Reset()
 	}()
 
-	buffer := network.ClientPool.Get()
+	buffer := network.ClientPool.Get(clientID)
 	_, err := t.driverInterface.GetOpenConnectionStats(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
@@ -183,19 +183,18 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	}
 
-	buffer.Assign(delta.Conns)
-	conns := network.NewConnections(buffer)
-
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
 	}
+
+	buffer.Assign(delta.Conns)
+	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	conns.HTTP = delta.HTTP
 	conns.DNSStats = delta.DNSStats
-	conns.ConnTelemetry = telemetryDelta
 	return conns, nil
 }
 
