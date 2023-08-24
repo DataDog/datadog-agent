@@ -165,9 +165,7 @@ def base_message(header, state):
     if parsed_pr_id_found:
         parsed_pr_id = parsed_pr_id_found.group(1)
         pr_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
-        enhanced_commit_title = enhanced_commit_title.replace(
-            f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>"
-        )
+        enhanced_commit_title = enhanced_commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>")
 
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
