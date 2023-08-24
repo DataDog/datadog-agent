@@ -20,18 +20,10 @@
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
-#define RETURN_IF_NOT_IN_SYSPROBE_TASK(prog_name)           \
-    u64 task_pid_tgid = get_pid_tgid(prog_name);            \
-    if (task_pid_tgid == 0) {                               \
-        return 0;                                           \
+#define RETURN_IF_NOT_IN_SYSPROBE_TASK()                \
+    if (get_sysprobe_ns_pid_tgid() == 0) {              \
+        return 0;                                       \
     }
-
-#define SET_PID_TGID_OR_RETURN(prog_name, pid_tgid)         \
-    u64 task_pid_tgid = get_pid_tgid(prog_name);            \
-    if (task_pid_tgid == 0) {                               \
-        return 0;                                           \
-    }                                                       \
-    pid_tgid = task_pid_tgid;
 
 static __always_inline __u32 systemprobe_dev() {
     __u64 val = 0;
@@ -45,7 +37,7 @@ static __always_inline __u32 systemprobe_ino() {
     return (__u32)val;
 }
 
-static __always_inline u64 get_pid_tgid(char *prog_name) {
+static __always_inline u64 get_sysprobe_ns_pid_tgid() {
     __u32 dev = systemprobe_dev();
     __u32 ino = systemprobe_ino();
     struct bpf_pidns_info ns = {};
@@ -53,7 +45,7 @@ static __always_inline u64 get_pid_tgid(char *prog_name) {
     u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
 
     if (error) {
-        log_debug("%s: err=event originates from outside current fargate task\n", prog_name);
+        log_debug("%s: err=event originates from outside current fargate task");
         return 0;
     }
 
@@ -147,8 +139,8 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
 
 SEC("fexit/tcp_sendmsg")
 int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size, int sent) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/tcp_sendmsg", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     if (sent < 0) {
         log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d\n", sent);
         return 0;
@@ -172,8 +164,8 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
 
 SEC("fexit/tcp_sendpage")
 int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/tcp_sendpage", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     if (sent < 0) {
         log_debug("fexit/tcp_sendpage: err=%d\n", sent);
         return 0;
@@ -197,8 +189,8 @@ int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 
 SEC("fexit/udp_sendpage")
 int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/udp_sendpage", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     if (sent < 0) {
         log_debug("fexit/udp_sendpage: err=%d\n", sent);
         return 0;
@@ -216,8 +208,8 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/tcp_recvmsg", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     if (copied < 0) { // error
         return 0;
     }
@@ -227,8 +219,8 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/tcp_recvmsg", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     if (copied < 0) { // error
         return 0;
     }
@@ -238,8 +230,8 @@ int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, s
 
 SEC("fentry/tcp_close")
 int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fentry/tcp_close", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     conn_tuple_t t = {};
 
     // Should actually delete something only if the connection never got established
@@ -260,7 +252,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 
 SEC("fexit/tcp_close")
 int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_close");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     flush_conn_close_if_full(ctx);
     return 0;
 }
@@ -282,8 +274,8 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent, u64 pid_tg
 
 SEC("kprobe/udp_v6_send_skb")
 int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("kprobe/udp_v6_send_skb", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
     struct flowi6 *fl6 = (struct flowi6*) PT_REGS_PARM2(ctx);
     struct sock *sk = BPF_CORE_READ(skb, sk);
@@ -303,15 +295,15 @@ int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
 
 SEC("fexit/udpv6_sendmsg")
 int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/udpv6_sendmsg", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     return handle_udp_send(sk, sent, pid_tgid);
 }
 
 SEC("kprobe/udp_send_skb")
 int kprobe__udp_send_skb(struct pt_regs *ctx) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("kprobe/udp_send_skb", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
     struct flowi4 *fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
     struct sock *sk = BPF_CORE_READ(skb, sk);
@@ -331,101 +323,97 @@ int kprobe__udp_send_skb(struct pt_regs *ctx) {
 
 SEC("fexit/udp_sendmsg")
 int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/udp_sendmsg", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     return handle_udp_send(sk, sent, pid_tgid);
 }
 
-static __always_inline int handle_udp_recvmsg(struct sock *sk, int flags, u64 pid_tgid) {
+static __always_inline int handle_udp_recvmsg(struct sock *sk, int flags) {
     if (flags & MSG_PEEK) {
         return 0;
     }
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     // keep track of non-peeking calls, since skb_free_datagram_locked doesn't have that argument
     udp_recv_sock_t t = {};
     bpf_map_update_with_telemetry(udp_recv_sock, &pid_tgid, &t, BPF_ANY);
     return 0;
 }
 
-static __always_inline int handle_udp_recvmsg_ret(u64 pid_tgid) {
+static __always_inline int handle_udp_recvmsg_ret() {
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     bpf_map_delete_elem(&udp_recv_sock, &pid_tgid);
     return 0;
 }
 
 SEC("fentry/udp_recvmsg")
 int BPF_PROG(udp_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fentry/udp_recvmsg", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fentry/udp_recvmsg: flags: %x\n", flags);
-    return handle_udp_recvmsg(sk, flags, pid_tgid);
+    return handle_udp_recvmsg(sk, flags);
 }
 
 SEC("fentry/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fentry/udpv6_recvmsg", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fentry/udpv6_recvmsg: flags: %x\n", flags);
-    return handle_udp_recvmsg(sk, flags, pid_tgid);
+    return handle_udp_recvmsg(sk, flags);
 }
 
 SEC("fexit/udp_recvmsg")
 int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/udp_recvmsg", pid_tgid);
-    return handle_udp_recvmsg_ret(pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udp_recvmsg")
 int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/udp_recvmsg", pid_tgid);            
-    return handle_udp_recvmsg_ret(pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();        
+    return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/udpv6_recvmsg", pid_tgid);   
-    return handle_udp_recvmsg_ret(pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    return handle_udp_recvmsg_ret();
 }
 
 SEC("fexit/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/udpv6_recvmsg", pid_tgid);
-    return handle_udp_recvmsg_ret(pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    return handle_udp_recvmsg_ret();
 }
 
 SEC("fentry/skb_free_datagram_locked")
 int BPF_PROG(skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/skb_free_datagram_locked");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     return handle_skb_consume_udp(sk, skb, 0);
 }
 
 SEC("fentry/__skb_free_datagram_locked")
 int BPF_PROG(__skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb, int len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/__skb_free_datagram_locked");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     return handle_skb_consume_udp(sk, skb, len);
 }
 
 SEC("fentry/skb_consume_udp")
 int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/skb_consume_udp");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     return handle_skb_consume_udp(sk, skb, len);
 }
 
 SEC("fentry/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fentry/tcp_retransmit_skb", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fentry/tcp_retransmit\n");
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
     args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
     if (args.retrans_out_pre < 0) {
@@ -437,9 +425,9 @@ int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs,
 
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/tcp_retransmit_skb", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fexit/tcp_retransmit\n");
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     if (err < 0) {
         bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
         return 0;
@@ -461,8 +449,8 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
 
 SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fentry/tcp_connect", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     log_debug("fentry/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
@@ -472,7 +460,7 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     if (!pid_tgid_p) {
         return 0;
@@ -497,8 +485,8 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
 
 SEC("fexit/inet_csk_accept")
 int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool kern, struct sock *sk) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/inet_csk_accept", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     if (sk == NULL) {
         return 0;
     }
@@ -522,7 +510,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
 
 SEC("fentry/inet_csk_listen_stop")
 int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_csk_listen_stop");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     __u16 lport = read_sport(sk);
     if (lport == 0) {
         log_debug("ERR(inet_csk_listen_stop): lport is 0 \n");
@@ -568,54 +556,54 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
 SEC("fentry/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udp_destroy_sock");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fentry/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udpv6_destroy_sock");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_destroy_sock");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     flush_conn_close_if_full(ctx);
     return 0;
 }
 
 SEC("fexit/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_destroy_sock");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     flush_conn_close_if_full(ctx);
     return 0;
 }
 
 SEC("fentry/inet_bind")
 int BPF_PROG(inet_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_bind");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fentry/inet_bind\n");
     return sys_enter_bind(sock, uaddr);
 }
 
 SEC("fentry/inet6_bind")
 int BPF_PROG(inet6_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet6_bind");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fentry/inet6_bind\n");
     return sys_enter_bind(sock, uaddr);
 }
 
 SEC("fexit/inet_bind")
 int BPF_PROG(inet_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet_bind");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fexit/inet_bind: rc=%d\n", rc);
     return sys_exit_bind(rc);
 }
 
 SEC("fexit/inet6_bind")
 int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet6_bind");
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
     log_debug("fexit/inet6_bind: rc=%d\n", rc);
     return sys_exit_bind(rc);
 }
@@ -625,8 +613,8 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
 // * an index of struct sock* to pid_fd_t;
 SEC("fexit/sockfd_lookup_light")
 int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struct socket *socket) {
-    u64 pid_tgid;
-    SET_PID_TGID_OR_RETURN("fexit/sockfd_lookup_light", pid_tgid);
+    RETURN_IF_NOT_IN_SYSPROBE_TASK();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     // Check if have already a map entry for this pid_fd_t
     // TODO: This lookup eliminates *4* map operations for existing entries
     // but can reduce the accuracy of programs relying on socket FDs for
