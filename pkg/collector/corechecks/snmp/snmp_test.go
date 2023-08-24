@@ -1561,14 +1561,14 @@ tags:
       "prefixlen": 24
     }
   ],
-  "diagnostics": [
+  "diagnoses": [
     {
       "resource_type": "ndm_device",
       "resource_id": "default:1.2.3.4",
-      "diagnostics": [
+      "diagnoses": [
         {
           "severity": "error",
-          "diagnostic": "Agent was not able to detect a profile for this network device.",
+          "diagnosis": "Agent was not able to detect a profile for this network device.",
           "error_code": "SNMP_COULD_NOT_DETECT_PROFILE"
         }
       ]
@@ -1664,19 +1664,19 @@ tags:
 		  "subnet": "127.0.0.0/30"
 		}
 	  ],
-      "diagnostics": [
+      "diagnoses": [
         {
 		  "resource_type": "ndm_device",
 		  "resource_id": "default:1.2.3.5",
-		  "diagnostics": [
+		  "diagnoses": [
 			{
 			  "severity": "error",
-			  "diagnostic": "Agent is not able to poll this network device. Check the authentication method and ensure the agent can ping this network device.",
+			  "diagnosis": "Agent is not able to poll this network device. Check the authentication method and ensure the agent can ping this network device.",
 			  "error_code": "SNMP_COULD_NOT_POLL_DEVICE"
 			},
 			{
 			  "severity": "error",
-			  "diagnostic": "Agent was not able to detect a profile for this network device.",
+			  "diagnosis": "Agent was not able to detect a profile for this network device.",
 			  "error_code": "SNMP_COULD_NOT_DETECT_PROFILE"
 			}
 		  ]

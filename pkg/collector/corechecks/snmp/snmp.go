@@ -172,7 +172,7 @@ func (c *Check) Interval() time.Duration {
 	return c.config.MinCollectionInterval
 }
 
-// GetDiagnoses collects diagnostics for diagnose CLI
+// GetDiagnoses collects diagnoses for diagnose CLI
 func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	if c.config.IsDiscovery() {
 		devices := c.discovery.GetDiscoveredDeviceConfigs()
