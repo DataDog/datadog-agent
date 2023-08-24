@@ -1,0 +1,13 @@
+logs:
+  - type: file
+    path: "/mnt/smp-logs/stdout.log"
+    tags:
+      - "env:smp-local-run"
+  - type: file
+    path: "/mnt/smp-logs/stderr.log"
+    tags:
+      - "env:smp-local-run"
+  - type: file
+    path: "/mnt/smp-logs/run.log"
+    tags:
+      - "env:smp-local-run"

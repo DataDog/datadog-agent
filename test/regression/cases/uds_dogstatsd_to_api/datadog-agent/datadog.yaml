@@ -12,3 +12,6 @@ confd_path: /etc/datadog-agent/conf.d
 cloud_provider_metadata: []
 
 dogstatsd_socket: '/tmp/dsd.socket'
+  #dogstatsd_context_expiry_seconds: 100
+  # config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
+  # config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
