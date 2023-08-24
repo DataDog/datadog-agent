@@ -10,13 +10,11 @@ package events
 import (
 	"sync"
 
-	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
-
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"go.uber.org/atomic"
 )
 
 var theMonitor atomic.Value
@@ -118,7 +116,7 @@ func (e *eventMonitor) UnregisterHandler(handler ProcessEventHandler) {
 	e.Lock()
 	defer e.Unlock()
 
-	if idx := slices.Index(e.handlers, handler); idx >= 0 {
-		e.handlers = slices.Delete(e.handlers, idx, idx+1)
-	}
+	//if idx := slices.Index(e.handlers, handler); idx >= 0 {
+	//	e.handlers = slices.Delete(e.handlers, idx, idx+1)
+	//}
 }

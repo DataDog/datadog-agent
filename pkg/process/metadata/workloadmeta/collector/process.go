@@ -19,6 +19,7 @@ import (
 
 const collectorId = "local-process"
 
+// NewProcessCollector creates a new process collector.
 func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
@@ -35,6 +36,8 @@ func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collec
 	}
 }
 
+// Collector collects processes to send to the remote process collector in the core agent.
+// It is only intended to be used when language detection is enabled, and the process check is disabled.
 type Collector struct {
 	ddConfig config.ConfigReader
 
