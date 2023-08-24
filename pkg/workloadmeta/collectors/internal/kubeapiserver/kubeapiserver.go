@@ -11,17 +11,14 @@ import (
 	"context"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	"k8s.io/client-go/kubernetes"
 )
 
 const (
@@ -31,6 +28,11 @@ const (
 )
 
 type collector struct{}
+
+// newStore returns a new store specific to a given resource
+type newStore func(context.Context, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, error)
+
+var objectStoreBuilders = make(map[string]newStore)
 
 func init() {
 	workloadmeta.RegisterClusterCollector(collectorID, func() workloadmeta.Collector {
@@ -47,49 +49,14 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 	}
 	client := apiserverClient.Cl
 
-	nodeListerWatcher := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return client.CoreV1().Nodes().List(ctx, options)
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return client.CoreV1().Nodes().Watch(ctx, options)
-		},
-	}
-
-	nodeStore := newNodeReflectorStore(wlmetaStore)
-	objectStores = append(objectStores, nodeStore)
-	nodeReflector := cache.NewNamedReflector(
-		componentName,
-		nodeListerWatcher,
-		&corev1.Node{},
-		nodeStore,
-		noResync,
-	)
-	go nodeReflector.Run(ctx.Done())
-
-	if config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
-		podListerWatcher := &cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
-			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
-			},
+	for _, storeBuilder := range objectStoreBuilders {
+		reflector, err := storeBuilder(ctx, wlmetaStore, client)
+		if err != nil {
+			log.Warnf("failed to start reflector:", err)
+			continue
 		}
-
-		podStore := newPodReflectorStore(wlmetaStore)
-		objectStores = append(objectStores, podStore)
-		podReflector := cache.NewNamedReflector(
-			componentName,
-			podListerWatcher,
-			&corev1.Pod{},
-			podStore,
-			noResync,
-		)
-
-		go podReflector.Run(ctx.Done())
+		go reflector.Run(ctx.Done())
 	}
-
 	go startReadiness(ctx, objectStores)
 	return nil
 }

@@ -8,10 +8,44 @@
 package kubeapiserver
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+const nodeStoreName = "node-store"
+
+func init() {
+	objectStoreBuilders[nodeStoreName] = newNodeStore
+}
+
+func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, error) {
+	nodeListerWatcher := &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return client.CoreV1().Nodes().List(ctx, options)
+		},
+		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			return client.CoreV1().Nodes().Watch(ctx, options)
+		},
+	}
+
+	nodeStore := newNodeReflectorStore(wlm)
+	nodeReflector := cache.NewNamedReflector(
+		componentName,
+		nodeListerWatcher,
+		&corev1.Node{},
+		nodeStore,
+		noResync,
+	)
+	return nodeReflector, nil
+}
 
 func newNodeReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {
 	store := &reflectorStore{
