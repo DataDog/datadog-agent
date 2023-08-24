@@ -10,11 +10,13 @@ package events
 import (
 	"sync"
 
+	"go.uber.org/atomic"
+	"golang.org/x/exp/slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"go.uber.org/atomic"
 )
 
 var theMonitor atomic.Value
