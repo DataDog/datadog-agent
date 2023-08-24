@@ -26,6 +26,7 @@ func TestTruncateString(t *testing.T) {
 
 func FuzzTruncateString(f *testing.F) {
 	f.Add("télé", 5)
+	f.Add("肋", 2)
 	f.Fuzz(func(t *testing.T, s string, limit int) {
 		if !utf8.Valid([]byte(s)) || limit <= 0 { // This function previously assumed these invariants so let's keep them for fuzzing.
 			t.Skip()
