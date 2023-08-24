@@ -119,6 +119,7 @@ type runningBinary struct {
 	processCount int32
 }
 
+// GoTLSProgram contains implementation for go-TLS.
 type GoTLSProgram struct {
 	wg      sync.WaitGroup
 	done    chan struct{}
@@ -194,14 +195,17 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	return p
 }
 
+// Name return the program's name.
 func (p *GoTLSProgram) Name() string {
 	return "go-tls"
 }
 
+// IsBuildModeSupported return true if the build mode is supported.
 func (p *GoTLSProgram) IsBuildModeSupported(mode buildMode) bool {
 	return mode == CORE || mode == RuntimeCompiled
 }
 
+// ConfigureManager adds maps to the given manager.
 func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
@@ -212,6 +216,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	// Hooks will be added in runtime for each binary
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
@@ -220,6 +225,7 @@ func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	}
 }
 
+// GetAllUndefinedProbes returns a list of the program's probes.
 func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	probeList := make([]manager.ProbeIdentificationPair, 0)
 	for _, probeInfo := range functionToProbes {
@@ -239,6 +245,7 @@ func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	return probeList
 }
 
+// Start launches the goTLS main goroutine to handle events.
 func (p *GoTLSProgram) Start() {
 	var err error
 	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
@@ -281,6 +288,7 @@ func (p *GoTLSProgram) Start() {
 	}()
 }
 
+// Stop terminates goTLS main goroutine.
 func (p *GoTLSProgram) Stop() {
 	close(p.done)
 	// Waiting for the main event loop to finish.
@@ -551,7 +559,7 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 					return
 				}
 				probeIDs = append(probeIDs, returnProbeID)
-				ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, returnProbeID.UID), "usm_gotls")
+				ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 			}
 		}
 
@@ -572,7 +580,7 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 				return
 			}
 			probeIDs = append(probeIDs, probeID)
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, probeID.UID), "usm_gotls")
+			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 		}
 	}
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -31,7 +32,7 @@ type JMXCheck struct {
 	instanceConfig string
 }
 
-func newJMXCheck(config integration.Config, source string) *JMXCheck {
+func newJMXCheck(senderManager sender.SenderManager, config integration.Config, source string) *JMXCheck {
 	digest := config.IntDigest()
 	check := &JMXCheck{
 		config:    config,
@@ -41,7 +42,7 @@ func newJMXCheck(config integration.Config, source string) *JMXCheck {
 		source:    source,
 		telemetry: utils.IsCheckTelemetryEnabled("jmx"),
 	}
-	check.Configure(digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
+	check.Configure(senderManager, digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
 
 	return check
 }
@@ -99,7 +100,7 @@ func (c *JMXCheck) InstanceConfig() string {
 }
 
 // Configure configures this JMXCheck, setting InitConfig and InstanceConfig
-func (c *JMXCheck) Configure(integrationConfigDigest uint64, config integration.Data, initConfig integration.Data, source string) error {
+func (c *JMXCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config integration.Data, initConfig integration.Data, source string) error {
 	c.initConfig = string(config)
 	c.instanceConfig = string(initConfig)
 	return nil

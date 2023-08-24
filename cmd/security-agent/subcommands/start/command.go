@@ -38,6 +38,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -202,11 +203,13 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 		}
 	}()
 
-	// get hostname
-	// FIXME: use gRPC cross-agent communication API to retrieve hostname
-	hostnameDetected, err := hostname.Get(context.TODO())
+	hostnameDetected, err := utils.GetHostname()
 	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
+		log.Warnf("Could not resolve hostname from core-agent: %v", err)
+		hostnameDetected, err = hostname.Get(ctx)
+		if err != nil {
+			return log.Errorf("Error while getting hostname, exiting: %v", err)
+		}
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
 
@@ -266,7 +269,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient)
+	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, aggregator.GetSenderManager())
 	if err != nil {
 		return err
 	}

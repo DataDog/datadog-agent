@@ -1016,7 +1016,7 @@ api_key:
     # oid_batch_size: 5
 
     ## @param interface_configs - map - optional
-    ## This option is used to override interface inbound/outbound speed.
+    ## This option is used to override interface inbound/outbound speed and add interface tags
     ## Example:
     ## interface_configs:
     ##   "10.0.0.1":              # target device IP address
@@ -1024,6 +1024,9 @@ api_key:
     ##       match_value: "eth0"  # (required) the value to match
     ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
     ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+    ##       tags:                # (optional) interface level tags
+    ##         - "testTagKey:testTagValue"
+    ##         - "tagKey2:tagValue2"
     #
     # interface_config:
     #   "10.0.0.1":
@@ -1040,6 +1043,12 @@ api_key:
     #       match_value: eth3
     #       in_speed: 50
     #       out_speed: 25
+    #   "10.0.0.3":
+    #     - match_field: name
+    #       match_value: eth4
+    #       tags:
+    #         - "monitored:true"
+    #         - "customKey:customValue"
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -2256,9 +2265,9 @@ api_key:
 ## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25.0
 ## When running in a container with jmx_use_container_support enabled, the JVM can
 ## automatically declare the maximum heap size based off of a percentage of
-## total container allocated memory. This option is overwritten if 
+## total container allocated memory. This option is overwritten if
 ## you use -Xmx to manually define the size of the heap. This option applies
-## to containers with a total memory limit greater than ~250mb. If 
+## to containers with a total memory limit greater than ~250mb. If
 ## jmx_use_container_support is disabled this option has no effect.
 #
 # jmx_max_ram_percentage: 25.0
@@ -3850,7 +3859,7 @@ api_key:
         ## - `drop` always drops the initial value.
         ## - `keep` always reports the initial value.
         #
-        # initial_cumulative_monotonic_value: auto   
+        # initial_cumulative_monotonic_value: auto
 
     ## @param summaries - custom object - optional
     ## Configuration for OTLP Summaries.
@@ -3917,9 +3926,9 @@ api_key:
   #
   # logs:
 
-    ## @param enabled - boolean - optional - default: true
-    ## @env DD_OTLP_CONFIG_LOGS_ENABLED - boolean - optional - default: true
-    ## Set to false to disable logs support in the OTLP ingest endpoint.
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_OTLP_CONFIG_LOGS_ENABLED - boolean - optional - default: false
+    ## Set to true to enable logs support in the OTLP ingest endpoint.
     ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
     #
     # enabled: true

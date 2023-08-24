@@ -15,6 +15,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -140,7 +141,7 @@ func doRun(m *testing.M) int {
 	// Setup docker check
 	dockerCfg := integration.Data(dockerCfgString)
 	dockerInitCfg := integration.Data("")
-	dockerCheck.Configure(integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
+	dockerCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
 
 	dockerCheck.Run()
 	return m.Run()

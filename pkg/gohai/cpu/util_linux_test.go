@@ -6,7 +6,6 @@
 package cpu
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,28 +20,28 @@ func TestSysCPUInt(t *testing.T) {
 	path := filepath.Join(prefix, filepath.FromSlash("sys/devices/system/cpu/somefile"))
 
 	t.Run("zero", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("0\n"), 0o666)
+		os.WriteFile(path, []byte("0\n"), 0o666)
 		got, ok := sysCPUInt("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(0), got)
 	})
 
 	t.Run("dec", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("20\n"), 0o666)
+		os.WriteFile(path, []byte("20\n"), 0o666)
 		got, ok := sysCPUInt("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(20), got)
 	})
 
 	t.Run("hex", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("0x20\n"), 0o666)
+		os.WriteFile(path, []byte("0x20\n"), 0o666)
 		got, ok := sysCPUInt("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(32), got)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("eleventy"), 0o666)
+		os.WriteFile(path, []byte("eleventy"), 0o666)
 		_, ok := sysCPUInt("somefile")
 		require.False(t, ok)
 	})
@@ -60,42 +59,42 @@ func TestSysCPUSize(t *testing.T) {
 	path := filepath.Join(prefix, filepath.FromSlash("sys/devices/system/cpu/somefile"))
 
 	t.Run("zero", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("0\n"), 0o666)
+		os.WriteFile(path, []byte("0\n"), 0o666)
 		got, ok := sysCPUSize("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(0), got)
 	})
 
 	t.Run("no-suffix", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("20\n"), 0o666)
+		os.WriteFile(path, []byte("20\n"), 0o666)
 		got, ok := sysCPUSize("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(20), got)
 	})
 
 	t.Run("K", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("20K\n"), 0o666)
+		os.WriteFile(path, []byte("20K\n"), 0o666)
 		got, ok := sysCPUSize("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(20*1024), got)
 	})
 
 	t.Run("M", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("20M"), 0o666)
+		os.WriteFile(path, []byte("20M"), 0o666)
 		got, ok := sysCPUSize("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(20*1024*1024), got)
 	})
 
 	t.Run("G", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("20G"), 0o666)
+		os.WriteFile(path, []byte("20G"), 0o666)
 		got, ok := sysCPUSize("somefile")
 		require.True(t, ok)
 		require.Equal(t, uint64(20*1024*1024*1024), got)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("eleventy"), 0o666)
+		os.WriteFile(path, []byte("eleventy"), 0o666)
 		_, ok := sysCPUSize("somefile")
 		require.False(t, ok)
 	})
@@ -113,21 +112,21 @@ func TestSysCPUList(t *testing.T) {
 	path := filepath.Join(prefix, filepath.FromSlash("sys/devices/system/cpu/somefile"))
 
 	t.Run("empty", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("\n"), 0o666)
+		os.WriteFile(path, []byte("\n"), 0o666)
 		got, ok := sysCPUList("somefile")
 		require.True(t, ok)
 		require.Equal(t, map[uint64]struct{}{}, got)
 	})
 
 	t.Run("single", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("20\n"), 0o666)
+		os.WriteFile(path, []byte("20\n"), 0o666)
 		got, ok := sysCPUList("somefile")
 		require.True(t, ok)
 		require.Equal(t, map[uint64]struct{}{20: {}}, got)
 	})
 
 	t.Run("range", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("5-8\n"), 0o666)
+		os.WriteFile(path, []byte("5-8\n"), 0o666)
 		got, ok := sysCPUList("somefile")
 		require.True(t, ok)
 		require.Equal(t, map[uint64]struct{}{
@@ -139,7 +138,7 @@ func TestSysCPUList(t *testing.T) {
 	})
 
 	t.Run("combo", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("1,5-8,10\n"), 0o666)
+		os.WriteFile(path, []byte("1,5-8,10\n"), 0o666)
 		got, ok := sysCPUList("somefile")
 		require.True(t, ok)
 		require.Equal(t, map[uint64]struct{}{
@@ -153,7 +152,7 @@ func TestSysCPUList(t *testing.T) {
 	})
 
 	t.Run("invalid", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte("eleventy"), 0o666)
+		os.WriteFile(path, []byte("eleventy"), 0o666)
 		_, ok := sysCPUList("somefile")
 		require.False(t, ok)
 	})
@@ -171,7 +170,7 @@ func TestReadProcCPUInfo(t *testing.T) {
 	path := filepath.Join(prefix, filepath.FromSlash("proc/cpuinfo"))
 
 	t.Run("simple", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte(`
+		os.WriteFile(path, []byte(`
 processor:	0
 
 processor:	1
@@ -185,7 +184,7 @@ processor:	1
 	})
 
 	t.Run("bogus stanza", func(t *testing.T) {
-		ioutil.WriteFile(path, []byte(`
+		os.WriteFile(path, []byte(`
 processor:	0
 
 processor:	1

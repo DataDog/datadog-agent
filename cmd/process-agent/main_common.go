@@ -70,14 +70,12 @@ func main() {
 	os.Exit(runcmd.Run(rootCmd))
 }
 
-func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
-	cleanupAndExit := cleanupAndExitHandler(globalParams)
-
+func runAgent(ctx context.Context, globalParams *command.GlobalParams) error {
 	if globalParams.PidFilePath != "" {
 		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
 			_ = log.Errorf("Error while writing PID file, exiting: %v", err)
-			cleanupAndExit(1)
+			return err
 		}
 
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), globalParams.PidFilePath)
@@ -95,15 +93,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// Log any potential misconfigs that are related to the process agent
 	misconfig.ToLog(misconfig.ProcessAgent)
 
-	err := runApp(exit, globalParams)
-	if err != nil {
-		cleanupAndExit(1)
-	}
+	return runApp(ctx, globalParams)
 }
 
-func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
+func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
+	exitSignal := make(chan struct{})
 	defer log.Flush() // Flush the log in case of an unclean shutdown
-	go util.HandleSignals(exit)
+	go util.HandleSignals(exitSignal)
 
 	var appInitDeps struct {
 		fx.In
@@ -178,14 +174,20 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 		return nil
 	}
 
-	err := app.Start(context.Background())
+	err := app.Start(ctx)
 	if err != nil {
 		log.Criticalf("Failed to start process agent: %v", err)
 		return err
 	}
 
-	// Set up an exit channel
-	<-exit
+	// Wait for exit signal
+	select {
+	case <-exitSignal:
+		log.Info("Received exit signal, shutting down...")
+	case <-ctx.Done():
+		log.Info("Received stop from service manager, shutting down...")
+	}
+
 	err = app.Stop(context.Background())
 	if err != nil {
 		log.Criticalf("Failed to properly stop the process agent: %v", err)
@@ -207,20 +209,6 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 
 func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
 	return anyChecksEnabled(checks) || collector.Enabled(cfg)
-}
-
-// cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit
-func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
-	return func(status int) {
-		// remove pidfile if set
-		if globalParams.PidFilePath != "" {
-			if _, err := os.Stat(globalParams.PidFilePath); err == nil {
-				os.Remove(globalParams.PidFilePath)
-			}
-		}
-
-		os.Exit(status)
-	}
 }
 
 type miscDeps struct {

@@ -121,8 +121,8 @@
       The following hosts used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
-        {{- range $key, $value := .NoProxyIgnoredWarningMap }}
-          {{ $key }}<br>
+        {{- range $.NoProxyIgnoredWarningMap }}
+          {{ . }}<br>
         {{- end }}
         </span>
       </span>
@@ -132,8 +132,8 @@
       The following hosts did not use a proxy - but will use the proxy in future Agent versions with the no_proxy setting.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
-        {{- range $key, $value := .NoProxyUsedInFuture }}
-          {{ $key }}<br>
+        {{- range $.NoProxyUsedInFuture }}
+          {{ . }}<br>
         {{- end }}
         </span>
       </span>
@@ -143,8 +143,8 @@
       The following hosts' proxy behavior will change in a future Agent version. Please check the Agent logs for more details.
       Enable the new behavior now with no_proxy_nonexact_match: true
         <span class="stat_data">
-        {{- range $key, $value := .NoProxyChanged }}
-          {{ $key }}<br>
+        {{- range .NoProxyChanged }}
+          {{ . }}<br>
         {{- end }}
         </span>
       </span>

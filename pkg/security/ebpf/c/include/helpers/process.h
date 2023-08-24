@@ -128,7 +128,7 @@ u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task
 }
 
 __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_fork) {
-    u32 key = 0;
+    u32 key = bpf_get_current_pid_tgid() % EVENT_GEN_SIZE;
     struct process_event_t *evt = bpf_map_lookup_elem(&process_event_gen, &key);
 
     if (evt) {

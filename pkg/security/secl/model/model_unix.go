@@ -27,8 +27,11 @@ const (
 	OverlayFS = "overlay"
 	// TmpFS tmpfs
 	TmpFS = "tmpfs"
-	// UnknownFS unknow filesystem
-	UnknownFS = "unknown"
+	// UnknownFS unknown filesystem
+	UnknownFS             = "unknown"
+	ErrPathMustBeAbsolute = "all the path have to be absolute"
+	ErrPathDepthLimit     = "path depths have to be shorter than"
+	ErrPathSegmentLimit   = "each segment of a path must be shorter than"
 )
 
 // check that all path are absolute
@@ -41,9 +44,9 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 	}
 
 	if value, ok := fieldValue.Value.(string); ok {
-		errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
-		errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
-		errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
+		errAbs := fmt.Errorf("invalid path `%s`, %s", value, ErrPathMustBeAbsolute)
+		errDepth := fmt.Errorf("invalid path `%s`, %s %d", value, ErrPathDepthLimit, MaxPathDepth)
+		errSegment := fmt.Errorf("invalid path `%s`, %s %d", value, ErrPathSegmentLimit, MaxSegmentLength)
 
 		if value == "" {
 			return nil
@@ -175,7 +178,7 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
+	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
 	Umount           UmountEvent           `field:"-" json:"-"`

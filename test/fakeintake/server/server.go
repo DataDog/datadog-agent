@@ -31,12 +31,13 @@ import (
 )
 
 type Server struct {
-	mu        sync.RWMutex
-	server    http.Server
-	ready     chan bool
-	clock     clock.Clock
-	retention time.Duration
-	shutdown  chan struct{}
+	mu            sync.RWMutex
+	server        http.Server
+	ready         chan bool
+	clock         clock.Clock
+	retention     time.Duration
+	shutdown      chan struct{}
+	payloadParser PayloadParser
 
 	url string
 
@@ -49,10 +50,11 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		mu:           sync.RWMutex{},
-		payloadStore: map[string][]api.Payload{},
-		clock:        clock.New(),
-		retention:    15 * time.Minute,
+		mu:            sync.RWMutex{},
+		payloadStore:  map[string][]api.Payload{},
+		clock:         clock.New(),
+		payloadParser: NewPayloadParser(),
+		retention:     15 * time.Minute,
 	}
 
 	mux := http.NewServeMux()
@@ -250,7 +252,13 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
+	err = fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
+	if err != nil {
+		response := buildPostResponse(err)
+		writeHttpResponse(w, response)
+		return
+	}
+
 	response := buildPostResponse(nil)
 	writeHttpResponse(w, response)
 }
@@ -300,16 +308,44 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		})
 		return
 	}
+
 	// we could support multiple endpoints in the future
 	route := routes[0]
-	log.Printf("Handling GetPayload request for %s payloads", route)
-	payloads := fi.safeGetPayloads(route)
+	log.Printf("Handling GetPayload request for %s payloads.", route)
+	var jsonResp []byte
+	var err error
+	if req.URL.Query().Get("format") == "" {
+		payloads := fi.safeGetRawPayloads(route)
 
-	// build response
-	resp := api.APIFakeIntakePayloadsGETResponse{
-		Payloads: payloads,
+		// build response
+		resp := api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: payloads,
+		}
+		jsonResp, err = json.Marshal(resp)
+	} else if fi.payloadParser.IsRouteHandled(route) {
+		payloads, payloadErr := fi.safeGetJsonPayloads(route)
+		if payloadErr != nil {
+			writeHttpResponse(w, httpResponse{
+				contentType: "text/plain",
+				statusCode:  http.StatusBadRequest,
+				body:        []byte(payloadErr.Error()),
+			})
+			return
+		}
+		// build response
+		resp := api.APIFakeIntakePayloadsJsonGETResponse{
+			Payloads: payloads,
+		}
+		jsonResp, err = json.Marshal(resp)
+	} else {
+		writeHttpResponse(w, httpResponse{
+			contentType: "text/plain",
+			statusCode:  http.StatusBadRequest,
+			body:        []byte("invalid route parameter"),
+		})
+		return
 	}
-	jsonResp, err := json.Marshal(resp)
+
 	if err != nil {
 		writeHttpResponse(w, httpResponse{
 			contentType: "text/plain",
@@ -318,7 +354,6 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		})
 		return
 	}
-
 	// send response
 	writeHttpResponse(w, httpResponse{
 		contentType: "application/json",
@@ -333,25 +368,39 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) {
+func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) error {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
 	if _, found := fi.payloadStore[route]; !found {
 		fi.payloadStore[route] = []api.Payload{}
 	}
-	fi.payloadStore[route] = append(fi.payloadStore[route], api.Payload{
+	rawPayload := api.Payload{
 		Timestamp: fi.clock.Now(),
 		Data:      data,
 		Encoding:  encoding,
-	})
+	}
+	fi.payloadStore[route] = append(fi.payloadStore[route], rawPayload)
+	return fi.payloadParser.parse(rawPayload, route)
 }
 
-func (fi *Server) safeGetPayloads(route string) []api.Payload {
+func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
 	payloads := make([]api.Payload, 0, len(fi.payloadStore[route]))
 	payloads = append(payloads, fi.payloadStore[route]...)
 	return payloads
+}
+
+func (fi *Server) safeGetJsonPayloads(route string) ([]api.ParsedPayload, error) {
+	fi.mu.Lock()
+	defer fi.mu.Unlock()
+	payload, err := fi.payloadParser.getJsonPayload(route)
+	if err != nil {
+		return nil, err
+	}
+	payloads := make([]api.ParsedPayload, 0, len(payload))
+	payloads = append(payloads, payload...)
+	return payloads, err
 }
 
 func (fi *Server) safeFlushPayloads() {
