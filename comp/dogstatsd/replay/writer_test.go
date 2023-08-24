@@ -92,7 +92,7 @@ func writerTest(t *testing.T, z bool) {
 		defer wg.Done()
 
 		close(start)
-		writer.Capture(file, testDuration, z)
+		writer.Capture(file, testDuration, z, path)
 	}(&wg)
 
 	wgc := make(chan struct{})

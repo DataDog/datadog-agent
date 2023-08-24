@@ -89,7 +89,8 @@ func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (str
 		return "", err
 	}
 
-	go tc.writer.Capture(target, d, compressed)
+	destinationName := target.Name()
+	go tc.writer.Capture(target, d, compressed, destinationName)
 
 	return path, nil
 
