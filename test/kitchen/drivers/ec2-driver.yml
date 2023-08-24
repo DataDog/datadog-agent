@@ -38,9 +38,9 @@ driver:
   security_group_ids: [ "sg-7fedd80a","sg-46506837" ]
   <% end %>
   metadata_options:
-    http_tokens: 'required'
+    http_tokens: required
     http_put_response_hop_limit: 1
-    instance_metadata_tags: 'enabled'
+    instance_metadata_tags: enabled
   region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
   instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
   associate_public_ip: false
