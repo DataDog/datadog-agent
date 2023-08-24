@@ -64,20 +64,28 @@ func PodFactory() check.Check {
 
 // Configure the CPU check
 // nil check to allow for overrides
-func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(
+	integrationConfigDigest uint64,
+	data integration.Data,
+	initConfig integration.Data,
+	source string,
+) error {
 	log.Info("pod check configure")
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
+	log.Info("pod check common configure")
 	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
 
+	log.Info("pod check config load")
 	err = c.config.Load()
 	if err != nil {
 		return err
 	}
 
+	log.Info("pod check check to enabled")
 	if !c.config.OrchestrationCollectionEnabled {
 		return errors.New("orchestrator check is configured but the feature is disabled")
 	}
@@ -88,6 +96,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 		return errors.New("orchestrator check is configured but the cluster name is empty")
 	}
 
+	log.Info("pod check load instance")
 	// load instance level config
 	if c.instance == nil {
 		err = c.instance.Parse(data)
@@ -97,6 +106,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 		}
 	}
 
+	log.Info("pod check cluster id")
 	if c.clusterID == "" {
 		c.clusterID, err = clustername.GetClusterID()
 		if err != nil {
@@ -104,10 +114,12 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 		}
 	}
 
+	log.Info("pod check processor")
 	if c.processor == nil {
 		c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
 	}
 
+	log.Info("pod check sender")
 	if c.sender == nil {
 		sender, err := c.GetSender()
 		if err != nil {
@@ -116,11 +128,13 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 		c.sender = sender
 	}
 
+	log.Info("pod check host")
 	if c.hostName == "" {
 		hname, _ := hostname.Get(context.TODO())
 		c.hostName = hname
 	}
 
+	log.Info("pod check return")
 	return nil
 }
 
@@ -161,5 +175,4 @@ func (c *Check) Run() error {
 	c.sender.OrchestratorMetadata(metadataMessages, c.clusterID, int(orchestrator.K8sPod))
 
 	return nil
-
 }
