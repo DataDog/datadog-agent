@@ -7,11 +7,17 @@ package cws
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	cws "github.com/DataDog/datadog-agent/test/new-e2e/cws/lib"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -23,40 +29,42 @@ type agentSuite struct {
 	apiClient     apiClient
 	signalRuleId  string
 	agentRuleID   string
-	dirname       string
 	filename      string
 	testId        string
 	desc          string
 	agentRuleName string
+	policies      string
 }
 
 func TestAgentSuite(t *testing.T) {
+	agentConfig := "hostname: host-custom-e2e\nlog_level: trace"
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(
 		[]ec2params.Option{
 			ec2params.WithName("cws-e2e-tests"),
 		},
-		agentparams.WithAgentConfig("log_level: debug"),
-		agentparams.WithAgentConfig("rc_enabled: true"),
+		agentparams.WithAgentConfig(agentConfig),
+		agentparams.WithSecurityAgentConfig("runtime_security_config:\n  enabled: true"),
+		agentparams.WithSystemProbeConfig("system_probe_config:\n  enabled: true\nruntime_security_config:\n  enabled: true"),
 		agentparams.WithVersion("7.46.0"),
 	), params.WithDevMode())
 }
 
 func (a *agentSuite) SetupSuite() {
 	// Create temporary directory
-	a.dirname = "e2e-temp-folder"
-	_, err := a.Env().VM.ExecuteWithError(fmt.Sprintf("mkdir -p %s", a.dirname))
+	tempDir, err := os.MkdirTemp("", "e2e-temp-folder")
 	if err != nil {
-		fmt.Println("Can't create temporary dir")
+		fmt.Println(err)
+		os.Exit(1)
 	}
-	a.filename = fmt.Sprintf("%s/secret", a.dirname)
+	dirName := filepath.Base(tempDir)
+	a.filename = fmt.Sprintf("%s/secret", dirName)
 	a.testId = uuid.NewString()[:4]
 	a.desc = fmt.Sprintf("e2e test rule %s", a.testId)
 	a.agentRuleName = fmt.Sprintf("e2e_agent_rule_%s", a.testId)
+	a.Suite.SetupSuite()
 }
 
 func (a *agentSuite) TearDownSuite() {
-	// Delete temporary directory
-	a.Env().VM.ExecuteWithError(fmt.Sprintf("rm -r %s", a.dirname))
 
 	if len(a.signalRuleId) != 0 {
 		a.apiClient.DeleteSignalRule(a.signalRuleId)
@@ -64,42 +72,62 @@ func (a *agentSuite) TearDownSuite() {
 	if len(a.agentRuleID) != 0 {
 		a.apiClient.DeleteAgentRule(a.agentRuleID)
 	}
+	a.Suite.TearDownSuite()
 }
 
 func (a *agentSuite) TestRulesCreation() {
-	a.apiClient = NewApiClient()
-	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, "Description of my custom rule", "open.file.path == \"/tmp\"")
-	if err != nil {
-		fmt.Println("Error", err)
-	}
-	a.agentRuleID = res.Data.GetId()
-	res2, err2 := a.apiClient.CreateCwsSignalRule(a.desc, a.desc, a.agentRuleName, []string{})
-	if err2 != nil {
-		fmt.Println("Error", err2)
-	}
-	a.signalRuleId = res2.GetId()
-}
 
-func (a *agentSuite) TestAgentStart() {
-	a.UpdateEnv(e2e.AgentStackDef(
-		[]ec2params.Option{},
-		agentparams.WithAgentConfig(fmt.Sprintf("hostname: host-%s", a.testId)),
-		agentparams.WithAgentConfig(`tags: ["tag1", "tag2"]`),
-		agentparams.WithAgentConfig("security_agent.remote_workloadmeta: true"),
-		agentparams.WithAgentConfig("remote_configuraiton.enabled: true"),
-		agentparams.WithAgentConfig("system_probe_config.log_level: trace"),
-		agentparams.WithAgentConfig("runtime_security_config.log_patterns: module.APIServer.*"),
-		agentparams.WithAgentConfig("runtime_security_config.enabled: true"),
-		agentparams.WithAgentConfig("runtime_security_config.network.enabled: true"),
-		agentparams.WithAgentConfig("runtime_security_config.remote_configuration.enabled: true"),
-	))
+	a.apiClient = NewApiClient()
+
+	// Create CWS Agent rule
+	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, "open.file.path == \"/tmp\"")
+	assert.NoError(a.T(), err, "Agent rule creation failed")
+	a.agentRuleID = res.Data.GetId()
+
+	// Create Signal Rule (backend)
+	res2, err2 := a.apiClient.CreateCwsSignalRule(a.desc, "signal rule for e2e testing", a.agentRuleName, []string{})
+	assert.NoError(a.T(), err2, "Signal rule creation failed")
+	a.signalRuleId = res2.GetId()
+
 	a.Env().Agent.WaitForReady()
+
+	// Check if the agent has started
 	isReady, err := a.Env().Agent.IsReady()
 	if err != nil {
 		fmt.Println(err)
 	}
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
-	// assert.Contains(a.T(), a.Env().Agent.Config(), "log_level: debug")
-	// assert.Contains(a.T(), a.Env().Agent.Config(), "runtime_security_config.enabled: true")
-	// assert.Contains(a.T(), a.Env().Agent.Config(), "runtime_security_config.network.enabled: true")
+
+	// Check if the agent use the right configuration
+	assert.Contains(a.T(), a.Env().Agent.Config(), "log_level: trace")
+
+	// Check if system-probe has started
+	err = cws.WaitAgentLogs(a.Env().VM, "system-probe", cws.SYS_PROBE_START_LOG)
+	require.NoError(a.T(), err, "system-probe could not start")
+
+	// Check if security-agent has started
+	err = cws.WaitAgentLogs(a.Env().VM, "security-agent", cws.SECURITY_START_LOG)
+	require.NoError(a.T(), err, "security-agent could not start")
+
+	// Download policies
+	apiKey, _ := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+	appKey, _ := runner.GetProfile().SecretStore().Get(parameters.APPKey)
+	policies, err := a.Env().VM.ExecuteWithError(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s DD_SITE=datadoghq.com %s runtime policy download", appKey, apiKey, cws.SEC_AGENT_PATH))
+	if err != nil {
+		fmt.Println("Error", err)
+	}
+	assert.NotEmpty(a.T(), policies, "should not be empty")
+	a.policies = policies
+
+	// Check that the newly created rule is in the policies
+	assert.Contains(a.T(), a.policies, a.desc, "The policies should contain the created rule")
+
+	// Push the policies
+	a.Env().VM.Execute(fmt.Sprintf("echo %s > %s", a.policies, cws.POLICIES_PATH))
+
+	// Reload policies
+	a.Env().VM.Execute(fmt.Sprintf("%s runtime policy reload", cws.SEC_AGENT_PATH))
+
+	// Check `downloaded` ruleset_loaded
+
 }
