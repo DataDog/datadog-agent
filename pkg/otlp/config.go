@@ -70,7 +70,6 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
-	censusConfig := readConfigSection(cfg, config.OTLPCensusReceiverSection)
 
 	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
 	if err != nil {
@@ -86,29 +85,23 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	debugConfig := readConfigSection(cfg, config.OTLPDebug)
 
 	return PipelineConfig{
-		OTLPReceiverConfig:       otlpConfig.ToStringMap(),
-		OpenCensusReceiverConfig: censusConfig.ToStringMap(),
-		OpenCensusEnabled:        hasSection(cfg, "opencensus"),
-		TracePort:                tracePort,
-		MetricsEnabled:           metricsEnabled,
-		TracesEnabled:            tracesEnabled,
-		Metrics:                  metricsConfig.ToStringMap(),
-		Debug:                    debugConfig.ToStringMap(),
+		OTLPReceiverConfig: otlpConfig.ToStringMap(),
+		TracePort:          tracePort,
+		MetricsEnabled:     metricsEnabled,
+		TracesEnabled:      tracesEnabled,
+		Metrics:            metricsConfig.ToStringMap(),
+		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Config) bool {
-	return hasSection(cfg, config.OTLPReceiverSubSectionKey)
-}
-
-func hasSection(cfg config.Config, section string) bool {
 	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
 	// from unmarshaling/validation done by the Collector code.
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
-	_, ok := readConfigSection(cfg, config.OTLPSection).ToStringMap()[section]
+	_, ok := readConfigSection(cfg, config.OTLPSection).ToStringMap()[config.OTLPReceiverSubSectionKey]
 	return ok
 }
 
