@@ -64,7 +64,7 @@ type LambdaLogsCollector struct {
 func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
-		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs),
+		In:                     make(chan []LambdaLogAPIMessage),
 		out:                    out,
 		demux:                  demux,
 		extraTags:              extraTags,
@@ -116,6 +116,7 @@ func (lc *LambdaLogsCollector) Start() {
 // Shutdown the log collector
 func (lc *LambdaLogsCollector) Shutdown() {
 	close(lc.In)
+	close(lc.orphanLogsChan)
 }
 
 // shouldProcessLog returns whether or not the log should be further processed.
@@ -182,7 +183,7 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			}
 
 			// If logs cannot be assigned a request ID, delay sending until a request ID is available
-			if message.objectRecord.requestID == "" && lc.lastRequestID == "" {
+			if len(message.objectRecord.requestID) == 0 && len(lc.lastRequestID) == 0 {
 				orphanMessages = append(orphanMessages, message)
 				continue
 			}
@@ -201,7 +202,9 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			}
 		}
 	}
-	lc.orphanLogsChan <- orphanMessages
+	if len(orphanMessages) > 0 {
+		lc.orphanLogsChan <- orphanMessages
+	}
 }
 
 // processMessage performs logic about metrics and tags on the message
