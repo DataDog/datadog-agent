@@ -16,7 +16,7 @@ retract (
 // for more details.
 
 // Dev
-replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20230824025746-664cfbf93c5f
+replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20230824183836-5b93473119b1
 
 // Internal deps fix version
 replace (
