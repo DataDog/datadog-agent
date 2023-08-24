@@ -18,10 +18,19 @@ func TruncateUTF8(s string, limit int) string {
 	// The max length of a valid code point is 4 bytes, therefore if we see all valid
 	// code points in the last 4 bytes we know we have a fully valid utf-8 string
 	// If not we can truncate one byte at a time until the end of the string is valid utf-8
-	for !(len(s) >= 4 && utf8.Valid([]byte(s[len(s)-4:]))) &&
-		!(len(s) >= 3 && utf8.Valid([]byte(s[len(s)-3:]))) &&
-		!(len(s) >= 2 && utf8.Valid([]byte(s[len(s)-2:]))) &&
-		!(len(s) >= 1 && utf8.Valid([]byte(s[len(s)-1:]))) && len(s) >= 1 {
+	for len(s) >= 1 {
+		if len(s) >= 4 && utf8.Valid([]byte(s[len(s)-4:])) {
+			break
+		}
+		if len(s) >= 3 && utf8.Valid([]byte(s[len(s)-3:])) {
+			break
+		}
+		if len(s) >= 2 && utf8.Valid([]byte(s[len(s)-2:])) {
+			break
+		}
+		if len(s) >= 1 && utf8.Valid([]byte(s[len(s)-1:])) {
+			break
+		}
 		s = s[:len(s)-1]
 	}
 	return s
