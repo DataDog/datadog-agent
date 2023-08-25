@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    On Windows, fixes issue with NPM driver where attempting to restart
-    driver would fail with "File Not Found"
+    Fixes issue with NPM driver restart failing with "File Not Found" error on Windows.
