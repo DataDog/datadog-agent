@@ -706,8 +706,10 @@ var _ Entity = &KubernetesNode{}
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
-	EntityMeta
-	LanguagesForContainer map[EntityID][]languagemodels.Language
+	Env                   string
+	Service               string
+	Version               string
+	LanguagesForContainer map[string][]languagemodels.Language
 }
 
 // GetID implements Entity#GetID.
@@ -736,11 +738,12 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
+	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
+	_, _ = fmt.Fprintln(&sb, "Service :", d.Env)
+	_, _ = fmt.Fprintln(&sb, "Version :", d.Env)
+	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
 
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, d.EntityMeta.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- languages -----------")
 	for container, languages := range d.LanguagesForContainer {
 		var langSb strings.Builder
 		for i, lang := range languages {

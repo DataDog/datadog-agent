@@ -72,7 +72,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "test-deployment",
 			Namespace: "test-namespace",
-			Labels:    map[string]string{"test-label": "test-value"},
+			Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env", "tags.datadoghq.com/service": "service", "tags.datadoghq.com/version": "version"},
 		},
 	}
 	entity := parser.Parse(deployment)
@@ -80,8 +80,9 @@ func TestDeploymentParser_Parse(t *testing.T) {
 	require.True(t, ok)
 	assert.IsType(t, &workloadmeta.KubernetesDeployment{}, entity)
 	assert.Equal(t, "test-deployment", storedDeployment.ID)
-	assert.Equal(t, "test-namespace", storedDeployment.Namespace)
-	assert.Equal(t, map[string]string{"test-label": "test-value"}, storedDeployment.Labels)
+	assert.Equal(t, "env", storedDeployment.Env)
+	assert.Equal(t, "service", storedDeployment.Service)
+	assert.Equal(t, "version", storedDeployment.Version)
 }
 
 func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
@@ -91,7 +92,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{
 		Name:      "test-deployment",
 		Namespace: "test-namespace",
-		Labels:    map[string]string{"test-label": "test-value"},
+		Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
 	}
 	createResource := func(cl *fake.Clientset) error {
 		_, err := cl.AppsV1().Deployments(objectMeta.Namespace).Create(context.TODO(), &appsv1.Deployment{ObjectMeta: objectMeta}, metav1.CreateOptions{})
@@ -107,11 +108,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 							ID:   objectMeta.Name,
 							Kind: workloadmeta.KindKubernetesDeployment,
 						},
-						EntityMeta: workloadmeta.EntityMeta{
-							Name:      objectMeta.Name,
-							Namespace: objectMeta.Namespace,
-							Labels:    objectMeta.Labels,
-						},
+						Env: "env",
 					},
 				},
 			},

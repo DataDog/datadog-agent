@@ -23,6 +23,8 @@ import (
 )
 
 const deploymentStoreName = "deployments-store"
+const deploymentLabelSelector = "tags.datadoghq.com/env!=,tags.datadoghq.com/service!=,tags.datadoghq.com/version!="
+const datadogTagPrefix = "tags.datadoghq.com/"
 
 func init() {
 	resourceSpecificGenerator[deploymentStoreName] = newDeploymentStore
@@ -34,9 +36,11 @@ func newDeploymentStore(ctx context.Context, cfg config.Config, wlm workloadmeta
 	}
 	deploymentListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			options.LabelSelector = deploymentLabelSelector
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			options.LabelSelector = deploymentLabelSelector
 			return client.AppsV1().Deployments(metav1.NamespaceAll).Watch(ctx, options)
 		},
 	}
@@ -76,10 +80,15 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Name, // not sure if we should use the UID or the name here
 		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      deployment.Name,
-			Namespace: deployment.Namespace,
-			Labels:    deployment.Labels,
-		},
+		Env:     getOrDefault(deployment.Labels, datadogTagPrefix+"env", ""),
+		Service: getOrDefault(deployment.Labels, datadogTagPrefix+"service", ""),
+		Version: getOrDefault(deployment.Labels, datadogTagPrefix+"version", ""),
 	}
+}
+
+func getOrDefault(m map[string]string, key, defaultV string) string {
+	if v, ok := m[key]; ok {
+		return v
+	}
+	return defaultV
 }
