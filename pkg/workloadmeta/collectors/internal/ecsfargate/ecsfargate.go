@@ -41,7 +41,7 @@ func init() {
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.ECSFargate) {
-		return errors.NewDisabled(componentName, "Agent is not running on Fargate")
+		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
 	}
 
 	var err error
