@@ -45,25 +45,29 @@ var (
 )
 
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netserverenum
+//
+//nolint:revive
 const (
-	// svTypeWorkstation is for all workstations.
-	svTypeWorkstation = uint32(0x00000001)
-	// svTypeServer is for all computers that run the Server service.
-	svTypeServer = uint32(0x00000002)
-	// svTypeDomainCtrl is for a server that is primary domain controller.
-	svTypeDomainCtrl = uint32(0x00000008)
-	// svTypeDomainBakctrl is for any server that is a backup domain controller.
-	svTypeDomainBakctrl = uint32(0x00000010)
-	// svTypeDomainMember is for any computer that is LAN Manager 2.x domain member.
-	svTypeDomainMember = uint32(0x00000100)
+	// SV_TYPE_WORKSTATION is for all workstations.
+	SV_TYPE_WORKSTATION = uint32(0x00000001)
+	// SV_TYPE_SERVER is for all computers that run the Server service.
+	SV_TYPE_SERVER = uint32(0x00000002)
+	// SV_TYPE_DOMAIN_CTRL is for a server that is primary domain controller.
+	SV_TYPE_DOMAIN_CTRL = uint32(0x00000008)
+	// SV_TYPE_DOMAIN_BAKCTRL is for any server that is a backup domain controller.
+	SV_TYPE_DOMAIN_BAKCTRL = uint32(0x00000010)
+	// SV_TYPE_DOMAIN_MEMBER is for any computer that is LAN Manager 2.x domain member.
+	SV_TYPE_DOMAIN_MEMBER = uint32(0x00000100)
 )
 
+//nolint:revive
 const (
-	// imageFileMachineAmd64 is AMD64 (K8)
-	imageFileMachineAmd64 = uint16(0x8664)
-	// imageFileMachineArm64 is ARM64 Little-Endian
-	imageFileMachineArm64 = uint16(0xAA64)
+	// IMAGE_FILE_MACHINE_AMD64 is AMD64 (K8)
+	IMAGE_FILE_MACHINE_AMD64 = uint16(0x8664)
+	// IMAGE_FILE_MACHINE_ARM64 is ARM64 Little-Endian
+	IMAGE_FILE_MACHINE_ARM64 = uint16(0xAA64)
 )
+
 const registryHive = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 const productNameKey = "ProductName"
 const buildNumberKey = "CurrentBuildNumber"
@@ -179,10 +183,10 @@ func getNativeArchInfo() string {
 			if b != uintptr(0) {
 				// check to see the native processor type.
 				switch pnative {
-				case imageFileMachineAmd64:
+				case IMAGE_FILE_MACHINE_AMD64:
 					// it's already set to this
 					nativearch = "x86_64"
-				case imageFileMachineArm64:
+				case IMAGE_FILE_MACHINE_ARM64:
 					nativearch = "ARM64"
 				}
 			}
@@ -210,21 +214,21 @@ func (platformInfo *Info) fillPlatformInfo() {
 	family := "Unknown"
 	si, sierr := netServerGetInfo()
 	if sierr == nil {
-		if (si.sv101Type&svTypeWorkstation) == svTypeWorkstation ||
-			(si.sv101Type&svTypeServer) == svTypeServer {
-			if (si.sv101Type & svTypeWorkstation) == svTypeWorkstation {
+		if (si.sv101Type&SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION ||
+			(si.sv101Type&SV_TYPE_SERVER) == SV_TYPE_SERVER {
+			if (si.sv101Type & SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION {
 				family = "Workstation"
-			} else if (si.sv101Type & svTypeServer) == svTypeServer {
+			} else if (si.sv101Type & SV_TYPE_SERVER) == SV_TYPE_SERVER {
 				family = "Server"
 			}
-			if (si.sv101Type & svTypeDomainMember) == svTypeDomainMember {
+			if (si.sv101Type & SV_TYPE_DOMAIN_MEMBER) == SV_TYPE_DOMAIN_MEMBER {
 				family = "Domain Joined " + family
 			} else {
 				family = "Standalone " + family
 			}
-		} else if (si.sv101Type & svTypeDomainCtrl) == svTypeDomainCtrl {
+		} else if (si.sv101Type & SV_TYPE_DOMAIN_CTRL) == SV_TYPE_DOMAIN_CTRL {
 			family = "Domain Controller"
-		} else if (si.sv101Type & svTypeDomainBakctrl) == svTypeDomainBakctrl {
+		} else if (si.sv101Type & SV_TYPE_DOMAIN_BAKCTRL) == SV_TYPE_DOMAIN_BAKCTRL {
 			family = "Backup Domain Controller"
 		}
 	}
