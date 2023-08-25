@@ -43,6 +43,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -860,6 +861,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if err := initLogger(); err != nil {
 		return nil, err
+	}
+
+	if opts.enableSBOM {
+		// reset global scanner to avoid error while creating a new one
+		scanner.DeleteGlobalScanner()
 	}
 
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.testDir)

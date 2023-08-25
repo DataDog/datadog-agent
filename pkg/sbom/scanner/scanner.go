@@ -185,6 +185,11 @@ func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
 	return globalScanner, nil
 }
 
+// DeleteGlobalScanner remove the global SBOM scanner. Mainly used for testing purpose
+func DeleteGlobalScanner() {
+	globalScanner = nil
+}
+
 // GetGlobalScanner returns a global instance of the SBOM scanner. It does
 // not create one if it's not already set (see CreateGlobalScanner) and returns
 // nil in that case.
