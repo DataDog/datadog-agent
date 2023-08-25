@@ -12,80 +12,80 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// groupaffinity represents a processor group-specific affinity,
+// GROUP_AFFINITY represents a processor group-specific affinity,
 // such as the affinity of a thread.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_affinity
-type groupaffinity struct {
+type GROUP_AFFINITY struct {
 	Mask     uintptr
 	Group    uint16
 	Reserved [3]uint16
 }
 
-// numaNodeRelationship represents information about a NUMA node
+// NUMA_NODE_RELATIONSHIP represents information about a NUMA node
 // in a processor group.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-numa_node_relationship
-type numaNodeRelationship struct {
+type NUMA_NODE_RELATIONSHIP struct {
 	NodeNumber uint32
 	Reserved   [20]uint8
-	GroupMask  groupaffinity
+	GroupMask  GROUP_AFFINITY
 }
 
-// cacheRelationship describes cache attributes.
+// CACHE_RELATIONSHIP describes cache attributes.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-cache_relationship
-type cacheRelationship struct {
+type CACHE_RELATIONSHIP struct {
 	Level         uint8
 	Associativity uint8
 	LineSize      uint16
 	CacheSize     uint32
 	CacheType     int // enum in C
 	Reserved      [20]uint8
-	GroupMask     groupaffinity
+	GroupMask     GROUP_AFFINITY
 }
 
-// processorGroupInfo represents the number and affinity of processors
+// PROCESSOR_GROUP_INFO represents the number and affinity of processors
 // in a processor group.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_group_info
-type processorGroupInfo struct {
+type PROCESSOR_GROUP_INFO struct {
 	MaximumProcessorCount uint8
 	ActiveProcessorCount  uint8
 	Reserved              [38]uint8
 	ActiveProcessorMask   uintptr
 }
 
-// groupRelationship represents information about processor groups.
+// GROUP_RELATIONSHIP represents information about processor groups.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_relationship
-type groupRelationship struct {
+type GROUP_RELATIONSHIP struct {
 	MaximumGroupCount uint16
 	ActiveGroupCount  uint16
 	Reserved          [20]uint8
-	// variable size array of processorGroupInfo
+	// variable size array of PROCESSOR_GROUP_INFO
 }
 
-// processorRelationship represents information about affinity
+// PROCESSOR_RELATIONSHIP represents information about affinity
 // within a processor group.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_relationship
-type processorRelationship struct {
+type PROCESSOR_RELATIONSHIP struct {
 	Flags           uint8
 	EfficiencyClass uint8
 	WReserved       [20]uint8
 	GroupCount      uint16
-	// what follows is an array of zero or more groupaffinity structures
+	// what follows is an array of zero or more GROUP_AFFINITY structures
 }
 
-// systemLogicalProcessorInformationEX contains information about
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX contains information about
 // the relationships of logical processors and related hardware.
 // https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex
-type systemLogicalProcessorInformationEX struct {
+type SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX struct {
 	Relationship int
 	Size         uint32
 	// what follows is a C union of
-	// processorRelationship,
-	// numaNodeRelationship,
-	// cacheRelationship,
-	// groupRelationship
+	// PROCESSOR_RELATIONSHIP,
+	// NUMA_NODE_RELATIONSHIP,
+	// CACHE_RELATIONSHIP,
+	// GROUP_RELATIONSHIP
 }
 
-func byteArrayToGroupAffinity(data []byte) (affinity groupaffinity, consumed uint32, err error) {
+func byteArrayToGroupAffinity(data []byte) (affinity GROUP_AFFINITY, consumed uint32, err error) {
 	err = nil
 	affinity.Mask = uintptr(binary.LittleEndian.Uint64(data))
 	affinity.Group = binary.LittleEndian.Uint16(data[8:])
@@ -94,7 +94,7 @@ func byteArrayToGroupAffinity(data []byte) (affinity groupaffinity, consumed uin
 	return
 
 }
-func byteArrayToProcessorInformationExStruct(data []byte) (info systemLogicalProcessorInformationEX, consumed uint32, err error) {
+func byteArrayToProcessorInformationExStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX, consumed uint32, err error) {
 	err = nil
 	info.Relationship = int(binary.LittleEndian.Uint32(data))
 	info.Size = binary.LittleEndian.Uint32(data[4:])
@@ -103,18 +103,18 @@ func byteArrayToProcessorInformationExStruct(data []byte) (info systemLogicalPro
 	return
 }
 
-func byteArrayToProcessorRelationshipStruct(data []byte) (proc processorRelationship, groupMask []groupaffinity, consumed uint32, err error) {
+func byteArrayToProcessorRelationshipStruct(data []byte) (proc PROCESSOR_RELATIONSHIP, groupMask []GROUP_AFFINITY, consumed uint32, err error) {
 	err = nil
 	proc.Flags = data[0]
 	proc.EfficiencyClass = data[1]
 	proc.GroupCount = uint16(binary.LittleEndian.Uint32(data[22:]))
 	consumed = 24
 	if proc.GroupCount != 0 {
-		gm := make([]groupaffinity, proc.GroupCount)
+		gm := make([]GROUP_AFFINITY, proc.GroupCount)
 
 		for i := uint16(0); i < proc.GroupCount; i++ {
 			var used uint32
-			var ga groupaffinity
+			var ga GROUP_AFFINITY
 			ga, used, err = byteArrayToGroupAffinity(data[consumed:])
 			if err != nil {
 				return
@@ -127,7 +127,7 @@ func byteArrayToProcessorRelationshipStruct(data []byte) (proc processorRelation
 	return
 }
 
-func byteArrayToNumaNode(data []byte) (numa numaNodeRelationship, consumed uint32, err error) {
+func byteArrayToNumaNode(data []byte) (numa NUMA_NODE_RELATIONSHIP, consumed uint32, err error) {
 	numa.NodeNumber = binary.LittleEndian.Uint32(data)
 	// skip 20 bytes of reserved
 	consumed = 24
@@ -137,7 +137,7 @@ func byteArrayToNumaNode(data []byte) (numa numaNodeRelationship, consumed uint3
 	return
 }
 
-func byteArrayToRelationCache(data []byte) (cache cacheRelationship, consumed uint32, err error) {
+func byteArrayToRelationCache(data []byte) (cache CACHE_RELATIONSHIP, consumed uint32, err error) {
 	cache.Level = data[0]
 	cache.Associativity = data[1]
 	cache.LineSize = binary.LittleEndian.Uint16(data[2:])
@@ -152,12 +152,12 @@ func byteArrayToRelationCache(data []byte) (cache cacheRelationship, consumed ui
 
 }
 
-func byteArrayToRelationGroup(data []byte) (group groupRelationship, gi []processorGroupInfo, consumed uint32, err error) {
+func byteArrayToRelationGroup(data []byte) (group GROUP_RELATIONSHIP, gi []PROCESSOR_GROUP_INFO, consumed uint32, err error) {
 	group.MaximumGroupCount = binary.LittleEndian.Uint16(data)
 	group.ActiveGroupCount = binary.LittleEndian.Uint16(data[4:])
 	consumed = 24
 	if group.ActiveGroupCount > 0 {
-		groups := make([]processorGroupInfo, group.ActiveGroupCount)
+		groups := make([]PROCESSOR_GROUP_INFO, group.ActiveGroupCount)
 		for i := uint16(0); i < group.ActiveGroupCount; i++ {
 			groups[i].MaximumProcessorCount = data[consumed]
 			consumed++
@@ -171,8 +171,8 @@ func byteArrayToRelationGroup(data []byte) (group groupRelationship, gi []proces
 	return
 }
 
-func computeCoresAndProcessors() (cpuInfo, error) {
-	var cpuInfo cpuInfo
+func computeCoresAndProcessors() (CPU_INFO, error) {
+	var cpuInfo CPU_INFO
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformationEx")
 	var buflen uint32

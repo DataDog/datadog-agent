@@ -10,7 +10,7 @@ import (
 	"unsafe"
 )
 
-func platGetServerInfo(data *byte) (si101 serverInfo101) {
+func platGetServerInfo(data *byte) (si101 SERVER_INFO_101) {
 	var outdata = (*[24]byte)(unsafe.Pointer(data))[:]
 	si101.sv101PlatformID = binary.LittleEndian.Uint32(outdata)
 

@@ -18,9 +18,9 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// serverInfo101 contains server-specific information
+// SERVER_INFO_101 contains server-specific information
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/ns-lmserver-server_info_101
-type serverInfo101 struct {
+type SERVER_INFO_101 struct {
 	sv101PlatformID uint32
 	//nolint:unused
 	sv101Name         string
@@ -68,7 +68,7 @@ const buildNumberKey = "CurrentBuildNumber"
 const majorKey = "CurrentMajorVersionNumber"
 const minorKey = "CurrentMinorVersionNumber"
 
-func netServerGetInfo() (si serverInfo101, err error) {
+func netServerGetInfo() (si SERVER_INFO_101, err error) {
 	var outdata *byte
 	// do additional work so that we don't panic() when the library's
 	// not there (like in a container)

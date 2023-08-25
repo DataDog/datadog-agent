@@ -12,10 +12,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// systemLogicalProcessorInformation describes the relationship
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION describes the relationship
 // between the specified processor set.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information
-type systemLogicalProcessorInformation struct {
+type SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct {
 	ProcessorMask uintptr
 	Relationship  int // enum (int)
 	// in the Windows header, this is a union of a byte, a DWORD,
@@ -24,21 +24,21 @@ type systemLogicalProcessorInformation struct {
 }
 
 // systemLogicalProcessorInformationSize is the size of
-// systemLogicalProcessorInformation struct
+// SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct
 const systemLogicalProcessorInformationSize = 24
 
 func getSystemLogicalProcessorInformationSize() int {
 	return systemLogicalProcessorInformationSize
 }
 
-func byteArrayToProcessorStruct(data []byte) (info systemLogicalProcessorInformation) {
+func byteArrayToProcessorStruct(data []byte) (info SYSTEM_LOGICAL_PROCESSOR_INFORMATION) {
 	info.ProcessorMask = uintptr(binary.LittleEndian.Uint32(data))
 	info.Relationship = int(binary.LittleEndian.Uint32(data[4:]))
 	copy(info.dataunion[0:16], data[8:24])
 	return
 }
 
-func computeCoresAndProcessors() (cpuInfo cpuInfo, err error) {
+func computeCoresAndProcessors() (cpuInfo CPU_INFO, err error) {
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getProcInfo = mod.NewProc("GetLogicalProcessorInformation")
 	var buflen uint32

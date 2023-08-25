@@ -39,11 +39,11 @@ const (
 	RelationGroup = 4
 )
 
-// systemInfo contains information about the current computer system.
+// SYSTEM_INFO contains information about the current computer system.
 // This includes the architecture and type of the processor, the number
 // of processors in the system, the page size, and other such information.
 // see https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/ns-sysinfoapi-system_info
-type systemInfo struct {
+type SYSTEM_INFO struct {
 	wProcessorArchitecture  uint16
 	wReserved               uint16
 	dwPageSize              uint32
@@ -57,8 +57,8 @@ type systemInfo struct {
 	wProcessorRevision      uint16
 }
 
-// cpuInfo contains information about cpu, eg. number of cores, cache size
-type cpuInfo struct {
+// CPU_INFO contains information about cpu, eg. number of cores, cache size
+type CPU_INFO struct {
 	numaNodeCount int    // number of NUMA nodes
 	pkgcount      int    // number of packages (physical CPUS)
 	corecount     int    // total number of cores
@@ -85,7 +85,7 @@ func countBits(num uint64) (count int) {
 	return
 }
 
-func getSystemInfo() (si systemInfo) {
+func getSystemInfo() (si SYSTEM_INFO) {
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var gsi = mod.NewProc("GetSystemInfo")
 
