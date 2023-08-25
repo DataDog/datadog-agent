@@ -707,6 +707,7 @@ var _ Entity = &KubernetesNode{}
 type KubernetesDeployment struct {
 	EntityID
 	EntityMeta
+	LanguagesForContainer map[EntityID][]languagemodels.Language
 }
 
 // GetID implements Entity#GetID.
