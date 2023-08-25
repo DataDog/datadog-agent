@@ -16,6 +16,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,27 +59,68 @@ func TestNodeParser_Parse(t *testing.T) {
 	assert.Equal(t, map[string]string{"test-label": "test-value"}, storedNode.Labels)
 }
 
-func Test_NodeFakeKubernetesClient(t *testing.T) {
+func Test_NodesFakeKubernetesClient(t *testing.T) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
+	objectMeta := metav1.ObjectMeta{
+		Name:   "test-node",
+		Labels: map[string]string{"test-label": "test-value"},
+	}
 
-	// Creating a fake Node
-	_, err := client.CoreV1().Nodes().Create(context.TODO(), &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "fake-node",
-		},
-	}, metav1.CreateOptions{})
+	// Creating a fake node
+	_, err := client.CoreV1().Nodes().Create(context.TODO(), &corev1.Node{ObjectMeta: objectMeta}, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
 	// Use the fake client in kubeapiserver context.
 	wlm := workloadmeta.NewMockStore()
+	config.Datadog.SetDefault("language_detection.enabled", true)
 	ctx := context.Background()
-	_, _, err = newNodeStore(ctx, wlm, client)
-	assert.NoError(t, err)
-	// Use list to confirm it's added to the fake client.
-	Nodes, err := client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-	assert.NoError(t, err)
 
-	assert.Equal(t, 1, len(Nodes.Items))
-	assert.Equal(t, "fake-node", Nodes.Items[0].Name)
+	nodestore, _, err := newNodeStore(ctx, wlm, client)
+	assert.NoError(t, err)
+	stopNodestore := make(chan struct{})
+	go nodestore.Run(stopNodestore)
+
+	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
+	doneCh := make(chan struct{})
+
+	expected := []workloadmeta.EventBundle{
+		{
+			Events: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.KubernetesNode{
+						EntityID: workloadmeta.EntityID{
+							ID:   objectMeta.Name,
+							Kind: workloadmeta.KindKubernetesNode,
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:   objectMeta.Name,
+							Labels: objectMeta.Labels,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	actual := []workloadmeta.EventBundle{}
+	go func() {
+		<-ch
+		bundle := <-ch
+		close(bundle.Ch)
+
+		// nil the bundle's Ch so we can
+		// deep-equal just the events later
+		bundle.Ch = nil
+
+		actual = append(actual, bundle)
+
+		close(doneCh)
+	}()
+
+	<-doneCh
+	close(stopNodestore)
+	wlm.Unsubscribe(ch)
+	assert.Equal(t, expected, actual)
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const dummySubscriber = "dummy-subscriber"
+
 func Test_filterMapStringKey(t *testing.T) {
 	annotationstest := map[string]string{
 		"foo":                               "bar",

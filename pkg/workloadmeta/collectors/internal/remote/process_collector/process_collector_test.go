@@ -285,11 +285,9 @@ func TestCollection(t *testing.T) {
 				numberOfReponse++
 			}
 			go func() {
-				j := 0
 				for i := 0; i < numberOfReponse; i++ {
 					bundle := <-ch
 					close(bundle.Ch)
-					j++
 				}
 				close(doneCh)
 			}()

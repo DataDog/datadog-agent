@@ -69,13 +69,14 @@ func TestDeploymentParser_Parse(t *testing.T) {
 func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
+	objectMeta := metav1.ObjectMeta{
+		Name:      "test-deployment",
+		Namespace: "test-namespace",
+		Labels:    map[string]string{"test-label": "test-value"},
+	}
 
 	// Creating a fake deployment
-	_, err := client.AppsV1().Deployments("default").Create(context.TODO(), &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "fake-deployment",
-		},
-	}, metav1.CreateOptions{})
+	_, err := client.AppsV1().Deployments(objectMeta.Namespace).Create(context.TODO(), &appsv1.Deployment{ObjectMeta: objectMeta}, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
 	// Use the fake client in kubeapiserver context.
@@ -83,13 +84,52 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	config.Datadog.SetDefault("language_detection.enabled", true)
 	ctx := context.Background()
 
-	_, _, err = newDeploymentStore(ctx, wlm, client)
+	deploymentStore, _, err := newDeploymentStore(ctx, wlm, client)
 	assert.NoError(t, err)
+	stopDeploymentStore := make(chan struct{})
+	go deploymentStore.Run(stopDeploymentStore)
 
-	// Use list to confirm it's added to the fake client.
-	deployments, err := client.AppsV1().Deployments("default").List(context.TODO(), metav1.ListOptions{})
-	assert.NoError(t, err)
+	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
+	doneCh := make(chan struct{})
 
-	assert.Equal(t, 1, len(deployments.Items))
-	assert.Equal(t, "fake-deployment", deployments.Items[0].Name)
+	expected := []workloadmeta.EventBundle{
+		{
+			Events: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.KubernetesDeployment{
+						EntityID: workloadmeta.EntityID{
+							ID:   objectMeta.Name,
+							Kind: workloadmeta.KindKubernetesDeployment,
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      objectMeta.Name,
+							Namespace: objectMeta.Namespace,
+							Labels:    objectMeta.Labels,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	actual := []workloadmeta.EventBundle{}
+	go func() {
+		<-ch
+		bundle := <-ch
+		close(bundle.Ch)
+
+		// nil the bundle's Ch so we can
+		// deep-equal just the events later
+		bundle.Ch = nil
+
+		actual = append(actual, bundle)
+
+		close(doneCh)
+	}()
+
+	<-doneCh
+	close(stopDeploymentStore)
+	wlm.Unsubscribe(ch)
+	assert.Equal(t, expected, actual)
 }
