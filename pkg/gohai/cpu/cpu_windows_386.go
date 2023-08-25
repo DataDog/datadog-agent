@@ -15,6 +15,8 @@ import (
 // SYSTEM_LOGICAL_PROCESSOR_INFORMATION describes the relationship
 // between the specified processor set.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information
+//
+//nolint:revive
 type SYSTEM_LOGICAL_PROCESSOR_INFORMATION struct {
 	ProcessorMask uintptr
 	Relationship  int // enum (int)

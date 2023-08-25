@@ -20,6 +20,8 @@ import (
 
 // SERVER_INFO_101 contains server-specific information
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/ns-lmserver-server_info_101
+//
+//nolint:revive
 type SERVER_INFO_101 struct {
 	sv101PlatformID uint32
 	//nolint:unused

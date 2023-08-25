@@ -15,6 +15,8 @@ import (
 // GROUP_AFFINITY represents a processor group-specific affinity,
 // such as the affinity of a thread.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_affinity
+//
+//nolint:revive
 type GROUP_AFFINITY struct {
 	Mask     uintptr
 	Group    uint16
@@ -24,6 +26,8 @@ type GROUP_AFFINITY struct {
 // NUMA_NODE_RELATIONSHIP represents information about a NUMA node
 // in a processor group.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-numa_node_relationship
+//
+//nolint:revive
 type NUMA_NODE_RELATIONSHIP struct {
 	NodeNumber uint32
 	Reserved   [20]uint8
@@ -32,6 +36,8 @@ type NUMA_NODE_RELATIONSHIP struct {
 
 // CACHE_RELATIONSHIP describes cache attributes.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-cache_relationship
+//
+//nolint:revive
 type CACHE_RELATIONSHIP struct {
 	Level         uint8
 	Associativity uint8
@@ -45,6 +51,8 @@ type CACHE_RELATIONSHIP struct {
 // PROCESSOR_GROUP_INFO represents the number and affinity of processors
 // in a processor group.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_group_info
+//
+//nolint:revive
 type PROCESSOR_GROUP_INFO struct {
 	MaximumProcessorCount uint8
 	ActiveProcessorCount  uint8
@@ -54,6 +62,8 @@ type PROCESSOR_GROUP_INFO struct {
 
 // GROUP_RELATIONSHIP represents information about processor groups.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-group_relationship
+//
+//nolint:revive
 type GROUP_RELATIONSHIP struct {
 	MaximumGroupCount uint16
 	ActiveGroupCount  uint16
@@ -64,6 +74,8 @@ type GROUP_RELATIONSHIP struct {
 // PROCESSOR_RELATIONSHIP represents information about affinity
 // within a processor group.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-processor_relationship
+//
+//nolint:revive
 type PROCESSOR_RELATIONSHIP struct {
 	Flags           uint8
 	EfficiencyClass uint8
@@ -75,6 +87,8 @@ type PROCESSOR_RELATIONSHIP struct {
 // SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX contains information about
 // the relationships of logical processors and related hardware.
 // https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex
+//
+//nolint:revive
 type SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX struct {
 	Relationship int
 	Size         uint32

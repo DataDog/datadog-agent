@@ -43,6 +43,8 @@ const (
 // This includes the architecture and type of the processor, the number
 // of processors in the system, the page size, and other such information.
 // see https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/ns-sysinfoapi-system_info
+//
+//nolint:revive
 type SYSTEM_INFO struct {
 	wProcessorArchitecture  uint16
 	wReserved               uint16
@@ -58,6 +60,8 @@ type SYSTEM_INFO struct {
 }
 
 // CPU_INFO contains information about cpu, eg. number of cores, cache size
+//
+//nolint:revive
 type CPU_INFO struct {
 	numaNodeCount int    // number of NUMA nodes
 	pkgcount      int    // number of packages (physical CPUS)
