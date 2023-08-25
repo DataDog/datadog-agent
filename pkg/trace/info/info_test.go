@@ -535,18 +535,6 @@ func TestPublishWatchdogInfo(t *testing.T) {
 		})
 }
 
-func TestPublishRateLimiterStats(t *testing.T) {
-	rateLimiterStats = RateLimiterStats{1.0, 2.0, 3.0, 4.0}
-
-	testExpvarPublish(t, publishRateLimiterStats,
-		map[string]interface{}{
-			"TargetRate":          1.0,
-			"RecentPayloadsSeen":  2.0,
-			"RecentTracesSeen":    3.0,
-			"RecentTracesDropped": 4.0,
-		})
-}
-
 func TestScrubCreds(t *testing.T) {
 	assert := assert.New(t)
 	conf := testInit(t)

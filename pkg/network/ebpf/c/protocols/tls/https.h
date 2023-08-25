@@ -27,6 +27,8 @@
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/go-tls-types.h"
 
+#define HTTPS_PORT 443
+
 /* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS) and */
 /* it's used for classify the subset of protocols that is supported by `classify_protocol_for_dispatcher` */
 static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *buffer, size_t len) {

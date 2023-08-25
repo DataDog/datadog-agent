@@ -54,12 +54,6 @@ type PythonCheck struct {
 	instanceConfig string
 }
 
-// Helper struct for deserializing Python diagnoses into diangosis.Diagnoses
-type diagnosisJSONSerWrap struct {
-	diagnosis.Diagnosis
-	RawError string
-}
-
 // NewPythonCheck conveniently creates a PythonCheck instance
 func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
 	glock, err := newStickyLock()
@@ -365,30 +359,10 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 
 	// Deserialize it
 	strDiagnoses := C.GoString(pyDiagnoses)
-
-	var diagnosesWrap []diagnosisJSONSerWrap
-	err = json.Unmarshal([]byte(strDiagnoses), &diagnosesWrap)
+	var diagnoses []diagnosis.Diagnosis
+	err = json.Unmarshal([]byte(strDiagnoses), &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
-	}
-
-	if len(diagnosesWrap) == 0 {
-		return nil, nil
-	}
-
-	diagnoses := make([]diagnosis.Diagnosis, 0, len(diagnosesWrap))
-	for _, dw := range diagnosesWrap {
-		d := dw.Diagnosis
-
-		if len(d.Name) == 0 {
-			d.Name = c.String()
-		}
-
-		if len(dw.RawError) > 0 {
-			d.RawError = errors.New(dw.RawError)
-		}
-
-		diagnoses = append(diagnoses, d)
 	}
 
 	return diagnoses, nil
