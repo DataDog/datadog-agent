@@ -10,6 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"unsafe"
 
@@ -105,6 +106,10 @@ func (p *protocol) Name() string {
 	return "HTTP2"
 }
 
+const (
+	mapSizeMinValue = 1024
+)
+
 // ConfigureOptions add the necessary options for http2 monitoring to work,
 // to be used by the manager. These are:
 // - Set the `http2_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
@@ -115,16 +120,20 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+
+	// Taking the max between fourth of p.cfg.MaxTrackedConnections to the default lower limit (1024), as it can
+	// introduce a major memory bump if we're using p.cfg.MaxTrackedConnections.
+	mapSize := uint32(math.Max(float64(p.cfg.MaxTrackedConnections)/4, mapSizeMinValue))
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: mapSize,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: mapSize,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: mapSize,
 		EditorFlag: manager.EditMaxEntries,
 	}
 
@@ -133,7 +142,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	events.Configure(eventStream, mgr, opts)
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager, _ protocols.BuildMode) (err error) {
+func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
 		mgr,
