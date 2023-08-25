@@ -44,14 +44,25 @@ func (d *Diagnoses) Add(result string, errorCode string, message string) {
 
 // ReportDiagnosis returns diagnosis metadata
 func (d *Diagnoses) ReportDiagnosis() []metadata.DiagnosisMetadata {
-	d.prevDiagnoses = d.diagnoses
-	d.diagnoses = nil
+	if len(d.prevDiagnoses) > 0 && len(d.diagnoses) == 0 {
+		d.resetDiagnoses()
+		// Sending an empty array of diagnoses
+		return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: []metadata.Diagnosis{}}}
+	}
+
+	d.resetDiagnoses()
 
 	if d.prevDiagnoses == nil {
 		return nil
 	}
 
 	return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: d.prevDiagnoses}}
+}
+
+// resetDiagnoses clears current diagnoses
+func (d *Diagnoses) resetDiagnoses() {
+	d.prevDiagnoses = d.diagnoses
+	d.diagnoses = nil
 }
 
 // ConvertToCLI converts diagnoses to diagnose CLI format

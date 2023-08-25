@@ -33,6 +33,25 @@ func TestReportDeviceDiagnoses(t *testing.T) {
 	assert.Equal(t, expectedMetadata, diagnosisMetadata)
 }
 
+func TestReportDeviceDiagnosesEmptyArray(t *testing.T) {
+	diagnoses := NewDeviceDiagnoses("default:1.2.3.4.5")
+
+	diagnoses.Add("error", "TEST_ERROR_DIAG", "This is a test error diagnosis")
+
+	diagnoses.ReportDiagnosis()
+
+	diagnosisMetadata := diagnoses.ReportDiagnosis()
+
+	expectedMetadata := []metadata.DiagnosisMetadata{{
+		ResourceType: "ndm_device",
+		ResourceID:   "default:1.2.3.4.5",
+		Diagnoses:    []metadata.Diagnosis{},
+	}}
+
+	// Expecting an empty array to reset diagnoses stored in backend
+	assert.Equal(t, expectedMetadata, diagnosisMetadata)
+}
+
 func TestReportCLIDiagnoses(t *testing.T) {
 	diagnoses := NewDeviceDiagnoses("default:1.2.3.4.5")
 

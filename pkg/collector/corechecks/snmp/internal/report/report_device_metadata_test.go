@@ -317,11 +317,17 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		},
 	}
 
+	diagnosis := []metadata.DiagnosisMetadata{{ResourceType: "ndm_device", ResourceID: "1234", Diagnoses: []metadata.Diagnosis{{
+		Severity:  "warn",
+		ErrorCode: "TEST_DIAGNOSIS",
+		Diagnosis: "Test",
+	}}}}
+
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, diagnosis)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
 	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
@@ -330,50 +336,63 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
 	// language=json
 	event := []byte(`
-{
-    "subnet": "127.0.0.0/29",
-    "namespace": "my-ns",
-    "devices": [
-        {
-            "id": "1234",
-            "id_tags": [
-                "device_name:127.0.0.1"
-            ],
-            "tags": [
-                "tag1",
-                "tag2"
-            ],
-            "ip_address": "1.2.3.4",
-            "status":1,
-            "subnet": "127.0.0.0/29"
-        }
-    ],
-    "interfaces": [
-        {
-            "device_id": "1234",
-            "id_tags": [
-                "interface:21"
-            ],
-            "index": 1,
-			"name": "21",
-			"alias": "ifAlias1",
-			"admin_status": 2,
-			"oper_status": 1
-        },
-        {
-            "device_id": "1234",
-            "id_tags": [
-                "interface:22"
-            ],
-            "index": 2,
-            "name": "22",
-			"admin_status": 2,
-			"oper_status": 2
-        }
-    ],
-    "collect_timestamp":1415792726
-}
-`)
+		{
+			"subnet": "127.0.0.0/29",
+			"namespace": "my-ns",
+			"devices": [
+				{
+					"id": "1234",
+					"id_tags": [
+						"device_name:127.0.0.1"
+					],
+					"tags": [
+						"tag1",
+						"tag2"
+					],
+					"ip_address": "1.2.3.4",
+					"status":1,
+					"subnet": "127.0.0.0/29"
+				}
+			],
+			"interfaces": [
+				{
+					"device_id": "1234",
+					"id_tags": [
+						"interface:21"
+					],
+					"index": 1,
+					"name": "21",
+					"alias": "ifAlias1",
+					"admin_status": 2,
+					"oper_status": 1
+				},
+				{
+					"device_id": "1234",
+					"id_tags": [
+						"interface:22"
+					],
+					"index": 2,
+					"name": "22",
+					"admin_status": 2,
+					"oper_status": 2
+				}
+			],
+			"diagnoses": [
+				{
+					"resource_type": "ndm_device",
+					"resource_id": "1234",
+					"diagnoses": [
+						{
+							"severity": "warn",
+							"diagnosis": "Test",
+							"error_code": "TEST_DIAGNOSIS"
+						}
+					]
+				}
+			],
+			"collect_timestamp":1415792726
+		}
+		`)
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
