@@ -43,25 +43,41 @@ existing_comments_response = requests.get(
     API_URL,
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 )
-
+comment_exists = false
 if existing_comments_response.status_code == 200:
     existing_comments = existing_comments_response.json()
     for comment in existing_comments:
         print(comment["user"]["login"])
         if comment["user"]["login"] == "github-actions[bot]" and "Vulnerability Report" in comment["body"]:
             print(comment["body"])
+            comment_exists = true
+            existing_comment = comment
             break
 
-API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('PR_NUMBER')}/comments"
-print(API_URL)
-response = requests.post(
-    API_URL,
-    headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
-    json={"body": output},
-)
+if comment_exists:
+    update_comment_url = f"{API_URL}/{existing_comment['id']}"
+    update_response = requests.patch(
+        update_comment_url,
+        headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
+        json={"body": output},
+    )
+    if update_response.status_code == 200:
+        print("Comment updated successfully.")
+    else:
+        print("Failed to update comment.")
+        print(update_response.text)    
 
-if response.status_code == 201:
-    print("Comment created successfully.")
 else:
-    print("Failed to create comment.")
-    print(response.text)
+    API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('PR_NUMBER')}/comments"
+    print(API_URL)
+    response = requests.post(
+        API_URL,
+        headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
+        json={"body": output},
+    )
+
+    if response.status_code == 201:
+        print("Comment created successfully.")
+    else:
+        print("Failed to create comment.")
+        print(response.text)
