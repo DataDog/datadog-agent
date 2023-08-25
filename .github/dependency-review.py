@@ -56,6 +56,7 @@ if existing_comments_response.status_code == 200:
 
 if comment_exists:
     update_comment_url = f"{API_URL}/{existing_comment['id']}"
+    print(update_comment_url)
     update_response = requests.patch(
         update_comment_url,
         headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
