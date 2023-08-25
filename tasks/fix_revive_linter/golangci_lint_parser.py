@@ -108,3 +108,18 @@ def display_result(filtered_lints):
             output += f"\n{lint[0]}:{lint[1]}:{lint[2]} {lint[3]}{lint[4]}"
         output += "\n"
     return output
+
+def merge_results(results_per_os_x_arch: dict[str: str]):
+    """
+    Merge golangci-lint output
+    """
+    merged_lints_per_linter = {}
+    for os_x_arch, result in results_per_os_x_arch.items():
+        lints_per_linter = parse_file(result)
+        for linter, lints in lints_per_linter.items():
+            if linter not in merged_lints_per_linter:
+                merged_lints_per_linter[linter] = []
+            merged_lints_per_linter[linter] += lints
+    for linter in merged_lints_per_linter:
+        merged_lints_per_linter[linter] = list(set(merged_lints_per_linter[linter]))
+    return merged_lints_per_linter
