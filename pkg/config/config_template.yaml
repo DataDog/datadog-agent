@@ -1172,8 +1172,8 @@ api_key:
   #
   # open_files_limit: 500
 
-  ## @param file_wildcard_selection_mode - string - optional - default: `by_name`
-  ## @env DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE - string - optional - default: `by_name`
+  ## @param file_wildcard_selection_mode - string - optional - default: by_name
+  ## @env DD_LOGS_CONFIG_FILE_WILDCARD_SELECTION_MODE - string - optional - default: by_name
   ## The strategy used to prioritize wildcard matches if they exceed the open file limit.
   ##
   ## Choices are `by_name` and `by_modification_time`.
@@ -1191,7 +1191,7 @@ api_key:
   ## WARNING: `by_modification_time` is less performant than `by_name` and will trigger
   ## more disk I/O at the configured wildcard log paths.
   #
-  # file_wildcard_selection_mode: `by_name`
+  # file_wildcard_selection_mode: by_name
 
 {{ end -}}
 {{- if .TraceAgent }}
