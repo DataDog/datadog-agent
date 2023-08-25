@@ -55,10 +55,10 @@ if existing_comments_response.status_code == 200:
             break
 
 if comment_exists:
-    update_comment_url = f"{API_URL}/{existing_comment['id']}"
-    print(update_comment_url)
+    API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('PR_NUMBER')}/comments/{existing_comment['id']}"
+    print(API_URL)
     update_response = requests.patch(
-        update_comment_url,
+        API_URL,
         headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
         json={"body": output},
     )
