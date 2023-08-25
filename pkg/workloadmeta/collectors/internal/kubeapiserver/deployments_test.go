@@ -66,7 +66,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 	assert.Equal(t, map[string]string{"test-label": "test-value"}, storedDeployment.Labels)
 }
 
-func Test_FakeKubernetesClient(t *testing.T) {
+func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
 
