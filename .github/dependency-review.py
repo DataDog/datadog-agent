@@ -33,6 +33,24 @@ for entry in DEPENDENCY_REVIEW_RESPONSE:
 
 print(output)
 
+
+PR_NUMBER = os.getenv("PR_NUMBER")
+API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{PR_NUMBER}/comments"
+
+# Check if a comment already exists on the PR
+existing_comment = None
+existing_comments_response = requests.get(
+    API_URL,
+    headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
+)
+
+if existing_comments_response.status_code == 200:
+    existing_comments = existing_comments_response.json()
+    for comment in existing_comments:
+        if comment["user"]["login"] == "github-actions" and "Vulnerability Report" in comment["body"]:
+            print(comment["body"])
+            break
+
 API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('PR_NUMBER')}/comments"
 print(API_URL)
 response = requests.post(
