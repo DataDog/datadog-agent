@@ -46,7 +46,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	// Set up our local logger. This is for serverless-init logging, not customer logging.
 	if err := config.SetupLogger(
 		loggerName,
-		"debug", // will be re-set later with the value from the env var
+		"error", // will be re-set later with the value from the env var
 		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
 		"",      // syslog URI
 		false,   // syslog_rfc
