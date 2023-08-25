@@ -57,9 +57,6 @@ var (
 	winbrand             = windows.NewLazyDLL("winbrand.dll")
 	kernel32             = windows.NewLazyDLL("kernel32.dll")
 	procIsWow64Process2  = kernel32.NewProc("IsWow64Process2")
-
-	// errorSuccess is the error returned in case of success
-	errorSuccess windows.Errno
 )
 
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netserverenum
@@ -115,7 +112,7 @@ func fetchOsDescription() (string, error) {
 			// Encode the string "%WINDOWS_LONG%" to UTF-16 and append a null byte for the Windows API
 			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
 			os, _, err := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
-			if err == errorSuccess {
+			if err == windows.ERROR_SUCCESS {
 				defer func() { _, _ = windows.LocalFree(windows.Handle(os)) }()
 				// govet complains about possible misuse of unsafe.Pointer here
 				//nolint:govet

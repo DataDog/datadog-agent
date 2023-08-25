@@ -17,9 +17,6 @@ type Handle uintptr
 // InvalidHandle is the value returned in case of error
 const InvalidHandle Handle = ^Handle(0)
 
-// ERRORMoreData is the error returned when the size is not big enough
-const ERRORMoreData windows.Errno = 234
-
 // this would probably go in a common utilities rather than here
 func convertWindowsStringList(winput []uint16) []string {
 	var retstrings []string
@@ -88,7 +85,7 @@ func getMountPoints(vol string) []string {
 		2,
 		uintptr(unsafe.Pointer(&objlistsize)))
 
-	if status != 0 || errno != ERRORMoreData {
+	if status != 0 || errno != windows.ERROR_MORE_DATA {
 		// unexpected
 		return retval
 	}
