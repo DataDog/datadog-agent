@@ -42,9 +42,6 @@ APM Agent
     Priority sampling rate for '{{ $key }}': {{percent $value}}%
     {{- end}}
     {{- end }}
-    {{- if lt .ratelimiter.TargetRate 1.0}}
-    WARNING: Rate-limiter keep percentage: {{percent .ratelimiter.TargetRate}}%
-    {{- end}}
 
   Writer (previous minute)
   ========================

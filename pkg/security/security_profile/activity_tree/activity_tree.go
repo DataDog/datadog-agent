@@ -508,7 +508,7 @@ func (at *ActivityTree) findBranch(children *[]*ProcessNode, siblings *[]*Proces
 			// are we looking for an exec child ?
 			if branchCursor.IsExecChild && siblings != nil {
 				// if yes, then look for branchCursor in the siblings of the parent of children
-				_, treeNodeToRebaseIndex = at.findProcessCacheEntryInTree(*siblings, branchCursor)
+				matchingNode, treeNodeToRebaseIndex = at.findProcessCacheEntryInTree(*siblings, branchCursor)
 				if treeNodeToRebaseIndex >= 0 {
 
 					// we're about to rebase part of the tree, exit early if this is a dry run
@@ -520,7 +520,11 @@ func (at *ActivityTree) findBranch(children *[]*ProcessNode, siblings *[]*Proces
 					newNodesRoot := at.rebaseTree(siblings, treeNodeToRebaseIndex, children, branch[i+1:], generationType, resolvers)
 
 					// we need to return the node that matched branch[0]
-					return newNodesRoot, i < len(branch)-1
+					if i == len(branch)-1 {
+						return matchingNode, false
+					}
+
+					return newNodesRoot, true
 				}
 			}
 
@@ -541,7 +545,7 @@ func (at *ActivityTree) findBranch(children *[]*ProcessNode, siblings *[]*Proces
 }
 
 // rebaseTree rebases the node identified by "nodeIndexToRebase" in the input "tree" onto a newly created branch made of
-// "branchToRebaseOnto" and appended to "treeToRebaseOnto". New nodes will be tagged with the input "generationType".
+// "branchToInsert" and appended to "treeToRebaseOnto". New nodes will be tagged with the input "generationType".
 // This function returns the top level node, owner of the newly inserted branch that lead to the rebased node
 func (at *ActivityTree) rebaseTree(tree *[]*ProcessNode, treeIndexToRebase int, treeToRebaseOnto *[]*ProcessNode, branchToInsert []*model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
 

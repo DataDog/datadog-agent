@@ -94,8 +94,9 @@ func fetchOsDescription() (string, error) {
 		if procBrandingFormatString.Find() == nil {
 			// Encode the string "%WINDOWS_LONG%" to UTF-16 and append a null byte for the Windows API
 			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
-			os, _, err := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
-			if err == windows.ERROR_SUCCESS {
+			// Don't check for err, as this API doesn't return an error but just a formatted string.
+			os, _, _ := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
+			if os != 0 {
 				defer func() { _, _ = windows.LocalFree(windows.Handle(os)) }()
 				// govet complains about possible misuse of unsafe.Pointer here
 				//nolint:govet

@@ -9,6 +9,7 @@ package filehandles
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
@@ -23,7 +24,7 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	getInt64 = GetInt64
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	fileHandleCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 
