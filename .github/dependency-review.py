@@ -29,9 +29,7 @@ for entry in DEPENDENCY_REVIEW_RESPONSE:
         output += f"\tAdvisory URL: {vulnerability['advisory_url']}\n"        
         output += f"\tSeverity: {vulnerability['severity']}\n"
         output += f"\tAdvisory Summary: {vulnerability['advisory_summary']}\n"
-        references = CVE_INFO.get('references', [])
-        for cve in references:
-            output += f"\tCVE: {cve}\n"
+        output += f"\tCVE: https://nvd.nist.gov/vuln/detail/{CVE_INFO['cve_id']}\n"
 
 print(output)
 
