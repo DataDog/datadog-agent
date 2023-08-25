@@ -80,6 +80,10 @@ type Store interface {
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)
 
+	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
+	// the entity with kind KindKubernetesDeployment and the given ID.
+	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
+
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)

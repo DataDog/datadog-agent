@@ -146,12 +146,22 @@ func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.
 
 // GetKubernetesNode returns metadata about a Kubernetes node.
 func (s *Store) GetKubernetesNode(id string) (*workloadmeta.KubernetesNode, error) {
-	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesPod, id)
+	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesNode, id)
 	if err != nil {
 		return nil, err
 	}
 
 	return entity.(*workloadmeta.KubernetesNode), nil
+}
+
+// GetKubernetesDeployment implements Store#GetKubernetesDeployment
+func (s *Store) GetKubernetesDeployment(id string) (*workloadmeta.KubernetesDeployment, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesDeployment, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.KubernetesDeployment), nil
 }
 
 // GetECSTask returns metadata about an ECS task.
