@@ -21,8 +21,6 @@ import (
 
 const (
 	defaultFlushTimeout = 5 * time.Second
-	loggerName          = "DD_LOG_AGENT"
-	logLevelEnvVar      = "DD_LOG_LEVEL"
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
 	sourceEnvVar        = "DD_SOURCE"
 	sourceName          = "Datadog Agent"
@@ -56,7 +54,6 @@ func CreateConfig(origin string) *Config {
 		FlushTimeout: defaultFlushTimeout,
 		channel:      make(chan *logConfig.ChannelMessage),
 		source:       source,
-		loggerName:   loggerName,
 		isEnabled:    isEnabled(os.Getenv(logEnabledEnvVar)),
 	}
 }
@@ -74,23 +71,6 @@ func Write(conf *Config, msgToSend []byte, isError bool) {
 
 // SetupLog creates the log agent and sets the base tags
 func SetupLog(conf *Config, tags map[string]string) {
-	if err := config.SetupLogger(
-		conf.loggerName,
-		"error", // will be re-set later with the value from the env var
-		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",      // syslog URI
-		false,   // syslog_rfc
-		true,    // log_to_console
-		false,   // log_format_json
-	); err != nil {
-		log.Errorf("Unable to setup logger: %s", err)
-	}
-
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
-			log.Errorf("Unable to change the log level: %s", err)
-		}
-	}
 	serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(tags))
 }
