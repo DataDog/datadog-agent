@@ -18,10 +18,6 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// errorInsufficientBuffer is the error number associated with the
-// "insufficient buffer size" error
-const errorInsufficientBuffer windows.Errno = 122
-
 const registryHive = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"
 
 // see https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex

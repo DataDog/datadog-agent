@@ -47,7 +47,7 @@ func computeCoresAndProcessors() (cpuInfo cpuInfo, err error) {
 	status, _, err := getProcInfo.Call(uintptr(0),
 		uintptr(unsafe.Pointer(&buflen)))
 	if status == 0 {
-		if err != errorInsufficientBuffer {
+		if err != windows.ERROR_INSUFFICIENT_BUFFER {
 			// only error we're expecing here is insufficient buffer
 			// anything else is a failure
 			return
