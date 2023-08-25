@@ -712,7 +712,7 @@ type KubernetesDeployment struct {
 
 // GetID implements Entity#GetID.
 func (d *KubernetesDeployment) GetID() EntityID {
-	return n.EntityID
+	return d.EntityID
 }
 
 // Merge implements Entity#Merge.
