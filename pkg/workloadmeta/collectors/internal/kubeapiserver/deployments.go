@@ -28,8 +28,8 @@ func init() {
 	resourceSpecificGenerator[deploymentStoreName] = newDeploymentStore
 }
 
-func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
-	if !config.Datadog.GetBool("language_detection.enabled") {
+func newDeploymentStore(ctx context.Context, cfg config.Config, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
+	if !cfg.GetBool("language_detection.enabled") {
 		return nil, nil, fmt.Errorf("language detection is enabled") // we might remove this if we want to use deployments info in unified service tagging
 	}
 	deploymentListerWatcher := &cache.ListWatch{

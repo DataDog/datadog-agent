@@ -13,6 +13,7 @@ import (
 
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +31,7 @@ const (
 type collector struct{}
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, *reflectorStore, error)
+type storeGenerator func(context.Context, config.Config, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, *reflectorStore, error)
 
 // resourceSpecificGenerator contains a list of stores and functions to create this store
 var resourceSpecificGenerator = make(map[string]storeGenerator)
@@ -51,7 +52,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 	client := apiserverClient.Cl
 
 	for _, storeBuilder := range resourceSpecificGenerator {
-		reflector, store, err := storeBuilder(ctx, wlmetaStore, client)
+		reflector, store, err := storeBuilder(ctx, config.Datadog, wlmetaStore, client)
 		if err != nil {
 			log.Warnf("failed to start reflector:", err)
 			continue
