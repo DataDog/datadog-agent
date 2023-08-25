@@ -43,14 +43,14 @@ existing_comments_response = requests.get(
     API_URL,
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 )
-comment_exists = false
+comment_exists = False
 if existing_comments_response.status_code == 200:
     existing_comments = existing_comments_response.json()
     for comment in existing_comments:
         print(comment["user"]["login"])
         if comment["user"]["login"] == "github-actions[bot]" and "Vulnerability Report" in comment["body"]:
             print(comment["body"])
-            comment_exists = true
+            comment_exists = True
             existing_comment = comment
             break
 
