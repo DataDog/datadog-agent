@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +31,6 @@ type Config struct {
 	FlushTimeout time.Duration
 	channel      chan *logConfig.ChannelMessage
 	source       string
-	loggerName   config.LoggerName
 	isEnabled    bool
 }
 
