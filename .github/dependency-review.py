@@ -6,7 +6,6 @@ DEPENDENCY_REVIEW_RESPONSE = requests.get(
     f"https://api.github.com/repos/datadog/datadog-agent/dependency-graph/compare/{os.getenv('BASE_REF')}...{os.getenv('HEAD_REF')}",
     headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
 ).json()
-print(DEPENDENCY_REVIEW_RESPONSE)
 output = ""
 output += "### Vulnerability Report\n\n"
 # Loop through each entry from Dependency Review Response
@@ -33,10 +32,8 @@ for entry in DEPENDENCY_REVIEW_RESPONSE:
 
 print(output)
 
-
 PR_NUMBER = os.getenv("PR_NUMBER")
 API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{PR_NUMBER}/comments"
-
 # Check if a comment already exists on the PR
 existing_comment = None
 existing_comments_response = requests.get(
@@ -47,16 +44,13 @@ comment_exists = False
 if existing_comments_response.status_code == 200:
     existing_comments = existing_comments_response.json()
     for comment in existing_comments:
-        print(comment["user"]["login"])
         if comment["user"]["login"] == "github-actions[bot]" and "Vulnerability Report" in comment["body"]:
-            print(comment["body"])
             comment_exists = True
             existing_comment = comment
             break
 
 if comment_exists:
     API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/comments/{existing_comment['id']}"
-    print(API_URL)
     update_response = requests.patch(
         API_URL,
         headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
@@ -66,11 +60,9 @@ if comment_exists:
         print("Comment updated successfully.")
     else:
         print("Failed to update comment.")
-        print(update_response.text)    
-
+        print(response.text)
 else:
-    API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{os.getenv('PR_NUMBER')}/comments"
-    print(API_URL)
+    API_URL = f"https://api.github.com/repos/{os.getenv('GITHUB_REPOSITORY')}/issues/{PR_NUMBER}/comments"
     response = requests.post(
         API_URL,
         headers={"Authorization": f"Bearer {GITHUB_TOKEN}"},
