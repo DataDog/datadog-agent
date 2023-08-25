@@ -238,6 +238,7 @@ namespace Datadog.CustomActions
                 var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
                 var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
                 var isDomainController = _nativeMethods.IsDomainController();
+                var isReadOnlyDomainController = _nativeMethods.IsReadOnlyDomainController();
                 var datadogAgentServiceExists = _serviceController.ServiceExists("datadogagent");
 
                 // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
@@ -340,6 +341,14 @@ namespace Datadog.CustomActions
                     // This case is hit if user specifies a username without a domain part and it does not exist
                     _session.Log("domain part is empty, using default");
                     domain = GetDefaultDomainPart();
+                }
+
+                // User does not exist and we cannot create user account from RODC
+                if (!userFound && isReadOnlyDomainController)
+                {
+                    errorDialogMessage =
+                        "The account does not exist. Domain accounts must already exist when installing on Read-Only Domain Controllers.";
+                    throw new InvalidOperationException(errorDialogMessage);
                 }
 
                 // We are trying to create a user in a domain on a non-domain controller.
