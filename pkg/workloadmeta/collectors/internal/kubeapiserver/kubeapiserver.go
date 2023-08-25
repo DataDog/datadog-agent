@@ -53,7 +53,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 	for _, storeBuilder := range resourceSpecificGenerator {
 		reflector, store, err := storeBuilder(ctx, wlmetaStore, client)
 		if err != nil {
-			log.Warnf("failed to start reflector:", err)
+			log.Warnf("failed to start reflector: %s", err)
 			continue
 		}
 		objectStores = append(objectStores, store)
