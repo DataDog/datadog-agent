@@ -31,7 +31,7 @@ func init() {
 }
 
 func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
-	if config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
+	if !config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
 		return nil, nil, fmt.Errorf("cluster_agent.collect_kubernetes_tags is not enabled")
 	}
 	podListerWatcher := &cache.ListWatch{
