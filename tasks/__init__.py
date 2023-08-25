@@ -4,7 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 
 from invoke import Collection
-from .fix_revive_linter import need_fixing_linters
+from .need_fixing_linters import need_fixing_linters
 
 from . import (
     agent,
