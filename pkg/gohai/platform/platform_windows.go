@@ -18,23 +18,6 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// osVersionInfoEXW contains operating system version information.
-// From winnt.h (see https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoexw)
-// This is used by https://docs.microsoft.com/en-us/windows/win32/devnotes/rtlgetversion
-type osVersionInfoEXW struct {
-	dwOSVersionInfoSize uint32
-	dwMajorVersion      uint32
-	dwMinorVersion      uint32
-	dwBuildNumber       uint32
-	dwPlatformID        uint32
-	szCSDVersion        [128]uint16
-	wServicePackMajor   uint16
-	wServicePackMinor   uint16
-	wSuiteMask          uint16
-	wProductType        uint8
-	wReserved           uint8
-}
-
 // serverInfo101 contains server-specific information
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/ns-lmserver-server_info_101
 type serverInfo101 struct {
@@ -136,12 +119,12 @@ func fetchOsDescription() (string, error) {
 }
 
 func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error) {
-	var osversion osVersionInfoEXW
+	var osversion windows.OsVersionInfoEx
 	status, _, _ := procRtlGetVersion.Call(uintptr(unsafe.Pointer(&osversion)))
 	if status == 0 {
-		major = uint64(osversion.dwMajorVersion)
-		minor = uint64(osversion.dwMinorVersion)
-		build = uint64(osversion.dwBuildNumber)
+		major = uint64(osversion.MajorVersion)
+		minor = uint64(osversion.MinorVersion)
+		build = uint64(osversion.BuildNumber)
 	} else {
 		var regkey registry.Key
 		regkey, err = registry.OpenKey(registry.LOCAL_MACHINE,

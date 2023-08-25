@@ -107,8 +107,7 @@ func getFileSystemInfo() ([]MountInfo, error) {
 
 	buf := make([]uint16, 512)
 	var sz int32 = 512
-	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(sz))
+	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])), uintptr(sz))
 	var findHandle = windows.Handle(fh)
 	var fileSystemInfo []MountInfo
 
