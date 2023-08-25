@@ -12,16 +12,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// cacheDescriptor contains cache related information
-// see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-cache_descriptor
-// type cacheDescriptor struct {
-// 	Level         uint8
-// 	Associativity uint8
-// 	LineSize      uint16
-// 	Size          uint32
-// 	cacheType     uint32
-// }
-
 // systemLogicalProcessorInformation describes the relationship
 // between the specified processor set.
 // see https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-system_logical_processor_information

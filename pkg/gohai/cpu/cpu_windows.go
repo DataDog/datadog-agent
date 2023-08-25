@@ -76,7 +76,6 @@ type cpuInfo struct {
 	maxProcsInGroups int // max number of processors
 	//nolint:unused
 	activeProcsInGroups int // active processors
-
 }
 
 func countBits(num uint64) (count int) {

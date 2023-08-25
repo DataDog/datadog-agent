@@ -68,129 +68,19 @@ const (
 	svTypeWorkstation = uint32(0x00000001)
 	// svTypeServer is for all computers that run the Server service.
 	svTypeServer = uint32(0x00000002)
-	// svTypeSqlserver is for any server that runs an instance of Microsoft SQL Server.
-	// svTypeSqlserver = uint32(0x00000004)
 	// svTypeDomainCtrl is for a server that is primary domain controller.
 	svTypeDomainCtrl = uint32(0x00000008)
 	// svTypeDomainBakctrl is for any server that is a backup domain controller.
 	svTypeDomainBakctrl = uint32(0x00000010)
-	// svTypeTimeSource is for any server that runs the Timesource service.
-	// svTypeTimeSource = uint32(0x00000020)
-	// svTypeAfp is for any server that runs the Apple Filing Protocol (AFP) file service.
-	// svTypeAfp = uint32(0x00000040)
-	// svTypeNovell is for any server that is a Novell server.
-	// svTypeNovell = uint32(0x00000080)
 	// svTypeDomainMember is for any computer that is LAN Manager 2.x domain member.
 	svTypeDomainMember = uint32(0x00000100)
-	// svTypePrintqServer is for any computer that shares a print queue.
-	// svTypePrintqServer = uint32(0x00000200)
-	// svTypeDialinServer is for any server that runs a dial-in service.
-	// svTypeDialinServer = uint32(0x00000400)
-	// svTypeXenixServer is for any server that is a Xenix server.
-	// svTypeXenixServer = uint32(0x00000800)
-	// svTypeServerUnix is for any server that is a UNIX server. This is the same as the svTypeXenixServer.
-	// svTypeServerUnix = svTypeXenixServer
-	// svTypeNt is for a workstation or server.
-	// svTypeNt = uint32(0x00001000)
-	// svTypeWfw is for any computer that runs Windows for Workgroups.
-	// svTypeWfw = uint32(0x00002000)
-	// svTypeServerMfpn is for any server that runs the Microsoft File and Print for NetWare service.
-	// svTypeServerMfpn = uint32(0x00004000)
-	// svTypeServerNt is for any server that is not a domain controller.
-	// svTypeServerNt = uint32(0x00008000)
-	// svTypePotentialBrowser is for any computer that can run the browser service.
-	// svTypePotentialBrowser = uint32(0x00010000)
-	// svTypeBackupBrowser is for a computer that runs a browser service as backup.
-	// svTypeBackupBrowser = uint32(0x00020000)
-	// svTypeMasterBrowser is for a computer that runs the master browser service.
-	// svTypeMasterBrowser = uint32(0x00040000)
-	// svTypeDomainMaster is for a computer that runs the domain master browser.
-	// svTypeDomainMaster = uint32(0x00080000)
-	// svTypeServerOsf is for a computer that runs OSF/1.
-	// svTypeServerOsf = uint32(0x00100000)
-	// svTypeServerVms is for a computer that runs Open Virtual Memory System (VMS).
-	// svTypeServerVms = uint32(0x00200000)
-	// svTypeWindows is for a computer that runs Windows.
-	// svTypeWindows = uint32(0x00400000) /* Windows95 and above */
-	// svTypeDfs is for a computer that is the root of Distributed File System (DFS) tree.
-	// svTypeDfs = uint32(0x00800000)
-	// svTypeClusterNt is for server clusters available in the domain.
-	// svTypeClusterNt = uint32(0x01000000)
-	// svTypeTerminalserver is for a server running the Terminal Server service.
-	// svTypeTerminalserver = uint32(0x02000000)
-	// svTypeClusterVsNt is for cluster virtual servers available in the domain.
-	// svTypeClusterVsNt = uint32(0x04000000)
-	// svTypeDce is for a computer that runs IBM Directory and Security Services (DSS) or equivalent.
-	// svTypeDce = uint32(0x10000000)
-	// svTypeAlternateXport is for a computer that over an alternate transport.
-	// svTypeAlternateXport = uint32(0x20000000)
-	// svTypeLocalListOnly is for any computer maintained in a list by the browser. See the following Remarks section.
-	// svTypeLocalListOnly = uint32(0x40000000)
-	// svTypeDomainEnum is for the primary domain.
-	// svTypeDomainEnum = uint32(0x80000000)
-	// svTypeAll is for all servers. This is a convenience that will return all possible servers
-	// svTypeAll = uint32(0xFFFFFFFF) /* handy for NetServerEnum2 */
 )
 
 const (
-	// imageFileMachineUnknown = uint16(0x0)
-	// imageFileMachineTargetHost is useful for indicating we want to interact with the host and not a WoW guest.
-	// Win10/2016 and above only
-	// imageFileMachineTargetHost = uint16(0x0001)
-	// imageFileMachineI386 is Intel 386.
-	// imageFileMachineI386 = uint16(0x014c)
-	// imageFileMachineR3000 is MIPS little-endian, = uint16(0x160 big-endian
-	// imageFileMachineR3000 = uint16(0x0162)
-	// imageFileMachineR4000 is MIPS little-endian
-	// imageFileMachineR4000 = uint16(0x0166)
-	// imageFileMachineR10000 is MIPS little-endian
-	// imageFileMachineR10000 = uint16(0x0168)
-	// imageFileMachineWcemipsv2 is MIPS little-endian WCE v2
-	// imageFileMachineWcemipsv2 = uint16(0x0169)
-	// imageFileMachineAlpha is Alpha_AXP
-	// imageFileMachineAlpha = uint16(0x0184)
-	// imageFileMachineSh3 is SH3 little-endian
-	// imageFileMachineSh3    = uint16(0x01a2)
-	// imageFileMachineSh3dsp = uint16(0x01a3)
-	// imageFileMachineSh3e is SH3E little-endian
-	// imageFileMachineSh3e = uint16(0x01a4)
-	// imageFileMachineSh4 is SH4 little-endian
-	// imageFileMachineSh4 = uint16(0x01a6)
-	// imageFileMachineSh5 is SH5
-	// imageFileMachineSh5 = uint16(0x01a8)
-	// imageFileMachineArm is ARM Little-Endian
-	// imageFileMachineArm = uint16(0x01c0)
-	// imageFileMachineThumb is ARM Thumb/Thumb-2 Little-Endian
-	// imageFileMachineThumb = uint16(0x01c2)
-	// imageFileMachineArmnt is ARM Thumb-2 Little-Endian
-	// imageFileMachineArmnt = uint16(0x01c4)
-	// imageFileMachineAm33  = uint16(0x01d3)
-	// imageFileMachinePowerpc is IBM PowerPC Little-Endian
-	// imageFileMachinePowerpc   = uint16(0x01F0)
-	// imageFileMachinePowerpcfp = uint16(0x01f1)
-	// imageFileMachineIa64 is Intel 64
-	// imageFileMachineIa64 = uint16(0x0200)
-	// imageFileMachineMips16 is MIPS
-	// imageFileMachineMips16 = uint16(0x0266)
-	// imageFileMachineAlpha64 is ALPHA64
-	// imageFileMachineAlpha64 = uint16(0x0284)
-	// imageFileMachineMipsfpu is MIPS
-	// imageFileMachineMipsfpu = uint16(0x0366)
-	// imageFileMachineMipsfpu16 is MIPS
-	// imageFileMachineMipsfpu16 = uint16(0x0466)
-	// imageFileMachineAxp64     = imageFileMachineAlpha64
-	// imageFileMachineTricore is Infineon
-	// imageFileMachineTricore = uint16(0x0520)
-	// imageFileMachineCef     = uint16(0x0CEF)
-	// imageFileMachineEbc is EFI Byte Code
-	// imageFileMachineEbc = uint16(0x0EBC)
 	// imageFileMachineAmd64 is AMD64 (K8)
 	imageFileMachineAmd64 = uint16(0x8664)
-	// imageFileMachineM32r is M32R little-endian
-	// imageFileMachineM32r = uint16(0x9041)
 	// imageFileMachineArm64 is ARM64 Little-Endian
 	imageFileMachineArm64 = uint16(0xAA64)
-	// imageFileMachineCee   = uint16(0xC0EE)
 )
 const registryHive = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 const productNameKey = "ProductName"
@@ -289,7 +179,6 @@ func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error)
 // the function we're going to use (IsWow64Process2) isn't available prior
 // to win10/2016.  Fail gracefully, and assume we're not on wow in that
 // case
-
 func getNativeArchInfo() string {
 	var nativearch string
 	if runtime.GOARCH == "amd64" {

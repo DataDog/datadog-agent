@@ -21,7 +21,6 @@ const InvalidHandle Handle = ^Handle(0)
 const ERRORMoreData windows.Errno = 234
 
 // this would probably go in a common utilities rather than here
-
 func convertWindowsStringList(winput []uint16) []string {
 	var retstrings []string
 	var rsindex = 0
