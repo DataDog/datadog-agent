@@ -23,14 +23,14 @@ import (
 //
 //nolint:revive
 type SERVER_INFO_101 struct {
-	sv101PlatformID uint32
+	sv101_platform_id uint32
 	//nolint:unused
-	sv101Name         string
-	sv101VersionMajor uint32
-	sv101VersionMinor uint32
-	sv101Type         uint32
+	sv101_name          string
+	sv101_version_major uint32
+	sv101_version_minor uint32
+	sv101_type          uint32
 	//nolint:unused
-	sv101Comment string
+	sv101_comment string
 }
 
 var (
@@ -214,21 +214,21 @@ func (platformInfo *Info) fillPlatformInfo() {
 	family := "Unknown"
 	si, sierr := netServerGetInfo()
 	if sierr == nil {
-		if (si.sv101Type&SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION ||
-			(si.sv101Type&SV_TYPE_SERVER) == SV_TYPE_SERVER {
-			if (si.sv101Type & SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION {
+		if (si.sv101_type&SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION ||
+			(si.sv101_type&SV_TYPE_SERVER) == SV_TYPE_SERVER {
+			if (si.sv101_type & SV_TYPE_WORKSTATION) == SV_TYPE_WORKSTATION {
 				family = "Workstation"
-			} else if (si.sv101Type & SV_TYPE_SERVER) == SV_TYPE_SERVER {
+			} else if (si.sv101_type & SV_TYPE_SERVER) == SV_TYPE_SERVER {
 				family = "Server"
 			}
-			if (si.sv101Type & SV_TYPE_DOMAIN_MEMBER) == SV_TYPE_DOMAIN_MEMBER {
+			if (si.sv101_type & SV_TYPE_DOMAIN_MEMBER) == SV_TYPE_DOMAIN_MEMBER {
 				family = "Domain Joined " + family
 			} else {
 				family = "Standalone " + family
 			}
-		} else if (si.sv101Type & SV_TYPE_DOMAIN_CTRL) == SV_TYPE_DOMAIN_CTRL {
+		} else if (si.sv101_type & SV_TYPE_DOMAIN_CTRL) == SV_TYPE_DOMAIN_CTRL {
 			family = "Domain Controller"
-		} else if (si.sv101Type & SV_TYPE_DOMAIN_BAKCTRL) == SV_TYPE_DOMAIN_BAKCTRL {
+		} else if (si.sv101_type & SV_TYPE_DOMAIN_BAKCTRL) == SV_TYPE_DOMAIN_BAKCTRL {
 			family = "Backup Domain Controller"
 		}
 	}

@@ -12,17 +12,17 @@ import (
 
 func platGetServerInfo(data *byte) (si101 SERVER_INFO_101) {
 	var outdata = (*[24]byte)(unsafe.Pointer(data))[:]
-	si101.sv101PlatformID = binary.LittleEndian.Uint32(outdata)
+	si101.sv101_platform_id = binary.LittleEndian.Uint32(outdata)
 
 	//stringptr := (*[]uint16)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint64(outdata[4:]))))
-	//si101.sv101Name = convertWindowsString(*stringptr)
+	//si101.sv101_name = convertWindowsString(*stringptr)
 
-	si101.sv101VersionMajor = binary.LittleEndian.Uint32(outdata[8:])
-	si101.sv101VersionMinor = binary.LittleEndian.Uint32(outdata[12:])
-	si101.sv101Type = binary.LittleEndian.Uint32(outdata[16:])
+	si101.sv101_version_major = binary.LittleEndian.Uint32(outdata[8:])
+	si101.sv101_version_minor = binary.LittleEndian.Uint32(outdata[12:])
+	si101.sv101_type = binary.LittleEndian.Uint32(outdata[16:])
 
 	//stringptr = (*[]uint16)(unsafe.Pointer(uintptr(binary.LittleEndian.Uint32(outdata[20:]))))
-	//si101.sv101Comment = convertWindowsString(*stringptr)
+	//si101.sv101_comment = convertWindowsString(*stringptr)
 	return
 
 }
