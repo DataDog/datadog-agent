@@ -48,7 +48,6 @@ type Check struct {
 	sender    sender.Sender
 	processor *processors.Processor
 	config    *oconfig.OrchestratorConfig
-	//instance  *oinstance.OrchestratorInstance
 }
 
 // PodFactory returns a new Pod.Check
