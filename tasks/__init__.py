@@ -4,6 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 
 from invoke import Collection
+from .fix_revive_linter import need_fixing_linters
 
 from . import (
     agent,
@@ -32,6 +33,7 @@ from . import (
     trace_agent,
     vscode,
 )
+
 from .build_tags import audit_tag_impact, print_default_build_tags
 from .components import lint_components
 from .fuzz import fuzz
@@ -92,6 +94,7 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
+ns.add_task(need_fixing_linters)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
