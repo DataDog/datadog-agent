@@ -8,6 +8,8 @@ package httpsec
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
@@ -237,9 +239,32 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 
+	tracingEnabled := os.Getenv("DD_APM_TRACING_ENABLED")
+	standalone := tracingEnabled != "true" && tracingEnabled != "1"
+
 	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
+	}
+
+	if standalone {
+		// Manually remove runtime metrics, yuk
+		if language, ok := span.GetMetaTag("language"); ok {
+			for tag := range span.Metrics {
+				if strings.HasPrefix(tag, "runtime."+language+".") {
+					delete(span.Metrics, tag)
+				}
+			}
+		}
+
+		// Manually remove trace metrics, yuk as well
+		for tag := range span.Metrics {
+			if strings.HasPrefix(tag, "trace."+span.Name+".") {
+				delete(span.Meta, tag)
+			}
+		}
+
+		span.SetMetaTag("_dd.compute_stats", "0")
 	}
 }
 
