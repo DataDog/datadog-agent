@@ -18,7 +18,7 @@ from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 
-def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None, verbose=False, golangci_lint_kwargs=""):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
@@ -32,6 +32,7 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
     tags.extend(UNIT_TEST_TAGS)
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
     for target in targets:
@@ -39,7 +40,7 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(set(tags))
         result = ctx.run(
-            f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
+            f'golangci-lint run {verbosity} --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )
@@ -49,14 +50,14 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None, verbose=False):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch, concurrency)
+    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch, concurrency, verbose)
 
     should_fail = False
     for result in results:
