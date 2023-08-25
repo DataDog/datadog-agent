@@ -14,7 +14,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint
+from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
@@ -303,7 +303,12 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        for result in results:
+            # golangci exits with status 1 when it finds an issue
+            if result.exited != 0:
+                raise Exit(code=1)
+        print("golangci-lint found no issues")
 
     if race:
         build_flags += " -race"
