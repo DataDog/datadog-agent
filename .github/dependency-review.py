@@ -26,10 +26,12 @@ for entry in DEPENDENCY_REVIEW_RESPONSE:
             f"https://api.github.com/advisories/{vulnerability['advisory_ghsa_id']}",
             headers={"Authorization": f"Bearer {GITHUB_TOKEN}"}
         ).json()
+        output += f"\tAdvisory URL: {vulnerability['advisory_url']}\n"        
         output += f"\tSeverity: {vulnerability['severity']}\n"
         output += f"\tAdvisory Summary: {vulnerability['advisory_summary']}\n"
-        output += f"\tCVE ID: {CVE_INFO['cve_id']}\n"
-        output += f"\tAdvisory URL: {vulnerability['advisory_url']}\n\n"
+        references = vulnerability.get('references', [])
+        for cve in references:
+            output += f"\tCVE: {cve}\n"
 
 print(output)
 
