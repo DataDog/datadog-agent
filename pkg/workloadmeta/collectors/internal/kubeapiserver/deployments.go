@@ -74,7 +74,7 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 	return &workloadmeta.KubernetesDeployment{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesDeployment,
-			ID:   deployment.Name,
+			ID:   deployment.Name, // not sure if we should use the UID or the name here
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:      deployment.Name,

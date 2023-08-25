@@ -30,7 +30,7 @@ func TestNewDeploymentStore(t *testing.T) {
 		expectErr  bool
 	}{
 		{
-			name: "New Deployment Store Test",
+			name: "New deployment store Test",
 			configFunc: func() config.Config {
 				cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 				cfg.SetDefault("language_detection.enabled", true)
@@ -39,7 +39,7 @@ func TestNewDeploymentStore(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "Fail new deployment with error",
+			name: "Fail new deployment store with error",
 			configFunc: func() config.Config {
 				return config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			},
