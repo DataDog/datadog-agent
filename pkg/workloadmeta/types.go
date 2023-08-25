@@ -711,34 +711,46 @@ type KubernetesDeployment struct {
 }
 
 // GetID implements Entity#GetID.
-func (n *KubernetesDeployment) GetID() EntityID {
+func (d *KubernetesDeployment) GetID() EntityID {
 	return n.EntityID
 }
 
 // Merge implements Entity#Merge.
-func (n *KubernetesDeployment) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesDeployment)
+func (d *KubernetesDeployment) Merge(e Entity) error {
+	dd, ok := e.(*KubernetesDeployment)
 	if !ok {
 		return fmt.Errorf("cannot merge KubernetesDeployment with different kind %T", e)
 	}
 
-	return merge(n, nn)
+	return merge(d, dd)
 }
 
 // DeepCopy implements Entity#DeepCopy.
-func (n KubernetesDeployment) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesDeployment)
-	return &cn
+func (d KubernetesDeployment) DeepCopy() Entity {
+	cd := deepcopy.Copy(d).(KubernetesDeployment)
+	return &cd
 }
 
 // String implements Entity#String
-func (n KubernetesDeployment) String(verbose bool) string {
+func (d KubernetesDeployment) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+	_, _ = fmt.Fprint(&sb, d.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- languages -----------")
+	for container, languages := range d.LanguagesForContainer {
+		var langSb strings.Builder
+		for i, lang := range languages {
+			if i != 0 {
+				_, _ = langSb.WriteString(",")
+			}
+			_, _ = langSb.WriteString(string(lang.Name))
+		}
+		_, _ = fmt.Fprintln(&sb, fmt.Sprintf("%s=>Languages:[%s]", container, langSb.String()))
+	}
 
 	return sb.String()
 }
