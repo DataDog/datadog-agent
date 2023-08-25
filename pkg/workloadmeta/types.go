@@ -133,6 +133,7 @@ const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesNode         Kind = "kubernetes_node"
+	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
