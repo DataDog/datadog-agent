@@ -8,8 +8,10 @@
 package integrations
 
 import (
+	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -78,4 +80,38 @@ func TestShowCommand(t *testing.T) {
 			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
+}
+
+func TestRegexMatch(t *testing.T) {
+	testCases := []struct {
+		regex      *regexp.Regexp
+		text       string
+		matches    bool
+		firstMatch string
+	}{
+		{yamlFileNameRe, "abc_def.yaml", true, "abc_def.yaml"},
+		{yamlFileNameRe, "abcdyaml", false, ""},
+		{yamlFileNameRe, ".yaml", false, ""},
+		{yamlFileNameRe, "ab\\.yaml", false, ""},
+		{yamlFileNameRe, "abc.yaml.disabled", true, "abc.yaml.disabled"},
+
+		{wheelPackageNameRe, "Name: ", false, ""},
+		{wheelPackageNameRe, "Name: datadog postgres", true, "Name: datadog"},
+		{wheelPackageNameRe, "Name:  datadog-postgres", false, ""},
+		{wheelPackageNameRe, "Name: datadog-postgres", true, "Name: datadog-postgres"},
+		{wheelPackageNameRe, "xx Name: datadog-postgres", true, "Name: datadog-postgres"},
+
+		{pep440VersionStringRe, "1.3.4b1", true, "1.3.4b1"},
+		{pep440VersionStringRe, "1.2.3", true, "1.2.3"},
+		{pep440VersionStringRe, "1.2.3aaa", true, "1.2.3aaa"},
+		{pep440VersionStringRe, "1.2.3a4b", false, ""},
+		{pep440VersionStringRe, "1.2", false, ""},
+		{pep440VersionStringRe, "a1.2.3", false, ""},
+	}
+
+	for _, test := range testCases {
+		if assert.Equal(t, test.matches, test.regex.MatchString(test.text), test.text) {
+			assert.Equal(t, test.firstMatch, test.regex.FindString(test.text))
+		}
+	}
 }
