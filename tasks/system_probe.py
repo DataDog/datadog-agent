@@ -484,7 +484,7 @@ def build(
     bundle_ebpf=False,
     kernel_release=None,
     debug=False,
-    strip_object_files=False,
+    strip_object_files=True,
     strip_binary=False,
     with_unit_test=False,
     sbom=True,
@@ -1251,7 +1251,7 @@ def build_object_files(
     arch=CURRENT_ARCH,
     kernel_release=None,
     debug=False,
-    strip_object_files=False,
+    strip_object_files=True,
     with_unit_test=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
@@ -1336,8 +1336,10 @@ def build_cws_object_files(
 
 
 @task
-def object_files(ctx, kernel_release=None, with_unit_test=False):
-    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test)
+def object_files(ctx, kernel_release=None, with_unit_test=False, strip_object_files=True):
+    build_object_files(
+        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, strip_object_files=strip_object_files
+    )
 
 
 def clean_object_files(
