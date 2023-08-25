@@ -22,6 +22,12 @@ func TestTruncateString(t *testing.T) {
 	assert.Equal(t, "ééééé", TruncateUTF8("ééééé", 10))
 	assert.Equal(t, "ééé", TruncateUTF8("ééééé", 6))
 	assert.Equal(t, "", TruncateUTF8("肋", 2))
+	// Testing 4 character split
+	assert.Equal(t, "🠠", TruncateUTF8("🠠a", 4))
+	// Testing 3 character split
+	assert.Equal(t, "⃠⃠", TruncateUTF8("⃠⃠a", 6))
+	// Testing 2 character split
+	assert.Equal(t, "à", TruncateUTF8("àa", 2))
 }
 
 func FuzzTruncateString(f *testing.F) {
