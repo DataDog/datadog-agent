@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add `gce-container-declaration` to default GCE excluded host tags.
