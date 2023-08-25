@@ -28,6 +28,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.ProtocolClassifierEntrySocketFilter,
 	probes.ProtocolClassifierQueuesSocketFilter,
 	probes.ProtocolClassifierDBsSocketFilter,
+	probes.ProtocolClassifierGRPCSocketFilter,
 	probes.TCPSendMsg,
 	probes.TCPSendMsgReturn,
 	probes.TCPSendPage,

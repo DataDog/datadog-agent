@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
@@ -61,7 +62,8 @@ type AgentOptions struct {
 }
 
 type Agent struct {
-	opts AgentOptions
+	senderManager sender.SenderManager
+	opts          AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
 	statuses   map[string]*CheckStatus
@@ -105,7 +107,7 @@ func DefaultRuleFilter(r *Rule) bool {
 	return true
 }
 
-func NewAgent(opts AgentOptions) *Agent {
+func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -132,13 +134,14 @@ func NewAgent(opts AgentOptions) *Agent {
 		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
 	}
 	return &Agent{
-		opts:     opts,
-		statuses: make(map[string]*CheckStatus),
+		senderManager: senderManager,
+		opts:          opts,
+		statuses:      make(map[string]*CheckStatus),
 	}
 }
 
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry()
+	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err

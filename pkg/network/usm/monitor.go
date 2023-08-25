@@ -62,12 +62,13 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
+	cfg *config.Config
+
 	enabledProtocols []protocols.Protocol
 
 	ebpfProgram *ebpfProgram
 
 	processMonitor *monitor.ProcessMonitor
-	httpTLSEnabled bool
 
 	// termination
 	closeFilterFn func()
@@ -126,11 +127,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	state = Running
 
 	usmMonitor := &Monitor{
+		cfg:              c,
 		enabledProtocols: enabledProtocols,
 		ebpfProgram:      mgr,
 		closeFilterFn:    closeFilterFn,
 		processMonitor:   processMonitor,
-		httpTLSEnabled:   c.EnableHTTPSMonitoring,
 	}
 
 	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
@@ -213,7 +214,7 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.httpTLSEnabled {
+	if m.cfg.EnableHTTPSMonitoring || m.cfg.EnableIstioMonitoring {
 		err = m.processMonitor.Initialize()
 	}
 
