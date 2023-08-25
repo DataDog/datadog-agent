@@ -47,6 +47,7 @@ existing_comments_response = requests.get(
 if existing_comments_response.status_code == 200:
     existing_comments = existing_comments_response.json()
     for comment in existing_comments:
+        print(comment["user"]["login"])
         if comment["user"]["login"] == "github-actions" and "Vulnerability Report" in comment["body"]:
             print(comment["body"])
             break
