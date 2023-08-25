@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 )
 
-type ApiClient interface {
+type myApiClient interface {
+	GetAppLog(string) (*datadog.LogsListResponse, error)
 	GetAppSignal(string) (*datadog.SecurityMonitoringSignalsListResponse, error)
 	CreateCWSSignalRule(string, string, string, []string) (*datadog.SecurityMonitoringRuleResponse, error)
 	CreateCWSAgentRule(string, string, string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error)
@@ -24,12 +25,12 @@ type ApiClient interface {
 	DownloadPolicies() (string, error)
 }
 
-type apiClient struct {
-	*datadog.APIClient
+type MyApiClient struct {
+	api *datadog.APIClient
 	ctx context.Context
 }
 
-func NewApiClient() apiClient {
+func NewApiClient() MyApiClient {
 	apiKey, _ := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	appKey, _ := runner.GetProfile().SecretStore().Get(parameters.APPKey)
 	fmt.Println("api_key:", apiKey, "app_key:", appKey)
@@ -48,14 +49,40 @@ func NewApiClient() apiClient {
 
 	cfg := datadog.NewConfiguration()
 
-	apiClient := apiClient{
-		APIClient: datadog.NewAPIClient(cfg),
-		ctx:       ctx,
+	apiClient := MyApiClient{
+		api: datadog.NewAPIClient(cfg),
+		ctx: ctx,
 	}
 	return apiClient
 }
 
-func (c apiClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
+func (c MyApiClient) GetAppLog(query string) (*datadog.LogsListResponse, error) {
+	sort := datadog.LOGSSORT_TIMESTAMP_ASCENDING
+
+	body := datadog.LogsListRequest{
+		Filter: &datadog.LogsQueryFilter{
+			From:  datadog.PtrString("now-15mn"),
+			Query: &query,
+			To:    datadog.PtrString("now"),
+		},
+		Page: &datadog.LogsListRequestPage{
+			Limit: datadog.PtrInt32(25),
+		},
+		Sort: &sort,
+	}
+	request := datadog.ListLogsOptionalParameters{
+		Body: &body,
+	}
+
+	result, _, err := c.api.LogsApi.ListLogs(c.ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (c MyApiClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
 	now := time.Now().UTC()
 	queryFrom := now.Add(-15 * time.Minute)
 	sort := datadog.SECURITYMONITORINGSIGNALSSORT_TIMESTAMP_ASCENDING
@@ -76,7 +103,7 @@ func (c apiClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignal
 		Body: &body,
 	}
 
-	result, _, err := c.SecurityMonitoringApi.SearchSecurityMonitoringSignals(c.ctx, request)
+	result, _, err := c.api.SecurityMonitoringApi.SearchSecurityMonitoringSignals(c.ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +111,7 @@ func (c apiClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignal
 	return &result, nil
 }
 
-func (c apiClient) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadog.SecurityMonitoringRuleResponse, error) {
+func (c MyApiClient) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadog.SecurityMonitoringRuleResponse, error) {
 	if tags == nil {
 		tags = []string{}
 	}
@@ -127,7 +154,7 @@ func (c apiClient) CreateCwsSignalRule(name string, msg string, agentRuleID stri
 		Type: &monitoringRuleType,
 	}
 
-	response, _, err := c.SecurityMonitoringApi.CreateSecurityMonitoringRule(c.ctx, body)
+	response, _, err := c.api.SecurityMonitoringApi.CreateSecurityMonitoringRule(c.ctx, body)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +162,7 @@ func (c apiClient) CreateCwsSignalRule(name string, msg string, agentRuleID stri
 	return &response, nil
 }
 
-func (c apiClient) CreateCWSAgentRule(name string, msg string, secl string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error) {
+func (c MyApiClient) CreateCWSAgentRule(name string, msg string, secl string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error) {
 
 	body := datadog.CloudWorkloadSecurityAgentRuleCreateRequest{
 		Data: datadog.CloudWorkloadSecurityAgentRuleCreateData{
@@ -149,7 +176,7 @@ func (c apiClient) CreateCWSAgentRule(name string, msg string, secl string) (*da
 		},
 	}
 
-	response, _, err := c.CloudWorkloadSecurityApi.CreateCloudWorkloadSecurityAgentRule(c.ctx, body)
+	response, _, err := c.api.CloudWorkloadSecurityApi.CreateCloudWorkloadSecurityAgentRule(c.ctx, body)
 	if err != nil {
 		return nil, err
 	}
@@ -157,16 +184,16 @@ func (c apiClient) CreateCWSAgentRule(name string, msg string, secl string) (*da
 	return &response, nil
 }
 
-func (c apiClient) DeleteSignalRule(ruleId string) error {
-	_, err := c.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleId)
+func (c MyApiClient) DeleteSignalRule(ruleId string) error {
+	_, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleId)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c apiClient) DeleteAgentRule(ruleId string) error {
-	_, err := c.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleId)
+func (c MyApiClient) DeleteAgentRule(ruleId string) error {
+	_, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleId)
 	if err != nil {
 		return err
 	}

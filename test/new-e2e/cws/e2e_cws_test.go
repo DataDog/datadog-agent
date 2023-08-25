@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -26,7 +27,7 @@ import (
 
 type agentSuite struct {
 	e2e.Suite[e2e.AgentEnv]
-	apiClient     apiClient
+	apiClient     cws.MyApiClient
 	signalRuleId  string
 	agentRuleID   string
 	filename      string
@@ -75,9 +76,9 @@ func (a *agentSuite) TearDownSuite() {
 	a.Suite.TearDownSuite()
 }
 
-func (a *agentSuite) TestRulesCreation() {
+func (a *agentSuite) TestOpenSignal() {
 
-	a.apiClient = NewApiClient()
+	a.apiClient = cws.NewApiClient()
 
 	// Create CWS Agent rule
 	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, "open.file.path == \"/tmp\"")
@@ -122,12 +123,18 @@ func (a *agentSuite) TestRulesCreation() {
 	// Check that the newly created rule is in the policies
 	assert.Contains(a.T(), a.policies, a.desc, "The policies should contain the created rule")
 
-	// Push the policies
-	a.Env().VM.Execute(fmt.Sprintf("echo %s > %s", a.policies, cws.POLICIES_PATH))
+	// Push policies
+	a.Env().VM.Execute(fmt.Sprintf("echo %s > temp.txt\nsudo cp temp.txt %s", strconv.Quote(a.policies), cws.POLICIES_PATH))
 
 	// Reload policies
-	a.Env().VM.Execute(fmt.Sprintf("%s runtime policy reload", cws.SEC_AGENT_PATH))
+	a.Env().VM.Execute(fmt.Sprintf("sudo %s runtime policy reload", cws.SEC_AGENT_PATH))
+	a.Env().VM.Execute("rm temp.txt")
 
 	// Check `downloaded` ruleset_loaded
+	result, err := cws.WaitAppLogs(a.apiClient, "rule_id:ruleset_loaded  @policies.source:file")
+	if err != nil {
+		fmt.Println("Error", err)
+	}
+	assert.EqualValues(a.T(), "", result, "Ruleset should be loaded")
 
 }

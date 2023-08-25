@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 	"github.com/cenkalti/backoff"
 )
 
@@ -29,18 +30,18 @@ func WaitAgentLogs(vm *client.VM, agentName string, pattern string) error {
 	return err
 }
 
-// func WaitAppLogs(apiClient cws.ApiClient, query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
-// 	var resp *datadog.SecurityMonitoringSignalsListResponse
-// 	err := backoff.Retry(func() error {
-// 		tmpResp, err := apiClient.GetAppSignal(query)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		if tmpResp.NotEmpty() {
-// 			resp = tmpResp
-// 			return nil
-// 		}
-// 		return errors.New("no log found")
-// 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-// 	return resp, err
-// }
+func WaitAppLogs(apiClient MyApiClient, query string) (*datadog.LogsListResponse, error) {
+	var resp *datadog.LogsListResponse
+	err := backoff.Retry(func() error {
+		tmpResp, err := apiClient.GetAppLog(query)
+		if err != nil {
+			return err
+		}
+		if len(tmpResp.Data) > 0 {
+			resp = tmpResp
+			return nil
+		}
+		return errors.New("no log found")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	return resp, err
+}
