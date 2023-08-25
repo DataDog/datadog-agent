@@ -14,7 +14,7 @@ IGNITION_BASE64=$(base64 -w 0 ignition.json)
 
 REGION="${REGION:-us-east-1}"
 UPDATE_STREAM="${UPDATE_STREAM:-stable}"
-if [ -z "$AMI"]; then
+if [ -z "${AMI+x}" ]; then
   AMI="$(curl "https://builds.coreos.fedoraproject.org/streams/${UPDATE_STREAM}.json" | jq -r ".architectures.x86_64.images.aws.regions.\"$REGION\".image")"
 fi
 ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
