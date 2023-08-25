@@ -601,6 +601,47 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+func TestGetDeployment(t *testing.T) {
+	s := newTestStore()
+
+	deployment := &KubernetesDeployment{
+		EntityID: EntityID{
+			Kind: KindKubernetesDeployment,
+			ID:   "datadog-cluster-agent",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: deployment,
+		},
+	})
+
+	retrievedDeployment, err := s.GetKubernetesDeployment("datadog-cluster-agent")
+	if err != nil {
+		t.Errorf("expected to find deployment %q, not found", retrievedDeployment.ID)
+	}
+
+	if !reflect.DeepEqual(deployment, retrievedDeployment) {
+		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: deployment,
+		},
+	})
+
+	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
+	if err == nil || !errors.IsNotFound(err) {
+		t.Errorf("expected deployment %q to be absent. found or had errors. err: %q", deployment.ID, err)
+	}
+}
+
 func TestGetProcess(t *testing.T) {
 	s := newTestStore()
 
