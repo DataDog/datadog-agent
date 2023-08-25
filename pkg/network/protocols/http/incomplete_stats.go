@@ -101,8 +101,10 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	tx = ebpfTxCopy
 
 	if tx.StatusCode() == 0 {
+		b.telemetry.joiner.requests.Add(1)
 		parts.requests = append(parts.requests, tx)
 	} else {
+		b.telemetry.joiner.responses.Add(1)
 		parts.responses = append(parts.responses, tx)
 	}
 }
@@ -127,6 +129,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 			request := parts.requests[i]
 			response := parts.responses[j]
 			if request.RequestStarted() > response.ResponseLastSeen() {
+				b.telemetry.joiner.responsesDropped.Add(1)
 				j++
 				continue
 			}
@@ -137,6 +140,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 			joined = append(joined, request)
 			i++
 			j++
+			b.telemetry.joiner.requestJoined.Add(1)
 		}
 
 		// now that we have finished matching requests and responses
@@ -149,6 +153,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 				b.data[key] = parts
 				break
 			}
+			b.telemetry.joiner.agedRequest.Add(1)
 			i++
 		}
 	}

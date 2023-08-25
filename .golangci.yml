@@ -54,6 +54,11 @@ issues:
     - text: "package github.com/golang/protobuf/proto is deprecated: .*"
       linters: [staticcheck]
 
+  # We're enabling the revive and the gosimple linters on the whole codebase
+  # TODO [After 7.48.0 freeze removal]: Remove the new-from-rev key
+  # TODO [After 7.48.0 freeze removal]: Tweak the KUBERNETES_MEMORY_LIMIT in .tests_linux_ebpf for runners not to fail running on the whole codebase (and not just the small diff induced by new-from-rev).
+  new-from-rev: f40667d3841c6339be0d00d53e54a4a63f43f11e
+
 linters:
   disable-all: true
   enable:
@@ -68,6 +73,7 @@ linters:
     - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - depguard    # Depguard is useful for preventing specific packages from being used
     - bodyclose   # checks whether HTTP response body is closed successfully
+    - gosimple    # Linter for Go source code that specializes in simplifying code.
 
 linters-settings:
   depguard:
@@ -98,7 +104,3 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
-  revive:
-    rules:
-      - name: package-comments
-        disabled: true

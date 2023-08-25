@@ -12,9 +12,10 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/prometheus/client_golang/prometheus"
 	sdk "go.opentelemetry.io/otel/sdk/metric"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
@@ -27,6 +28,8 @@ type Component interface {
 	Reset()
 	// RegisterCollector Registers a Collector with the prometheus registry
 	RegisterCollector(c prometheus.Collector)
+	// UnregisterCollector unregisters a Collector with the prometheus registry
+	UnregisterCollector(c prometheus.Collector) bool
 	// Meter returns a new OTEL meter
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
 
