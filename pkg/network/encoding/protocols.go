@@ -43,9 +43,10 @@ func formatProtocolStack(originalStack protocols.Stack, staticTags uint64) *mode
 		stack = addProtocol(stack, originalStack.Api)
 	}
 
-	return &model.ProtocolStack{
-		Stack: stack,
-	}
+	fps := formatProtocolSt.Get().(*model.ProtocolStack)
+	fps.Stack = stack
+
+	return fps
 }
 
 func addProtocol(stack []model.ProtocolType, proto protocols.ProtocolType) []model.ProtocolType {

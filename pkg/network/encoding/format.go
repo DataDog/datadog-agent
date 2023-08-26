@@ -26,6 +26,24 @@ var connPool = sync.Pool{
 	},
 }
 
+var modelAddressPool = sync.Pool{
+	New: func() interface{} {
+		return new(model.Addr)
+	},
+}
+
+var formatIPTrans = sync.Pool{
+	New: func() interface{} {
+		return new(model.IPTranslation)
+	},
+}
+
+var formatProtocolSt = sync.Pool{
+	New: func() interface{} {
+		return new(model.ProtocolStack)
+	},
+}
+
 // RouteIdx stores the route and the index into the route collection for a route
 type RouteIdx struct {
 	Idx   int32
@@ -147,6 +165,21 @@ func FormatCORETelemetry(telByAsset map[string]int32) map[string]model.COREResul
 func returnToPool(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {
+			if c.IpTranslation != nil {
+				formatIPTrans.Put(c.IpTranslation)
+			}
+
+			if c.Laddr != nil {
+				modelAddressPool.Put(c.Laddr)
+			}
+			if c.Raddr != nil {
+				modelAddressPool.Put(c.Raddr)
+			}
+
+			if c.Protocol != nil {
+				formatProtocolSt.Put(c.Protocol)
+			}
+
 			c.Reset()
 			connPool.Put(c)
 		}
@@ -164,7 +197,12 @@ func formatAddr(addr util.Address, port uint16, containerID string, ipc ipCache)
 		return nil
 	}
 
-	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port), ContainerId: containerID}
+	ma := modelAddressPool.Get().(*model.Addr)
+	ma.Ip = ipc.Get(addr)
+	ma.Port = int32(port)
+	ma.ContainerId = containerID
+
+	return ma
 }
 
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
@@ -220,12 +258,13 @@ func formatIPTranslation(ct *network.IPTranslation, ipc ipCache) *model.IPTransl
 		return nil
 	}
 
-	return &model.IPTranslation{
-		ReplSrcIP:   ipc.Get(ct.ReplSrcIP),
-		ReplDstIP:   ipc.Get(ct.ReplDstIP),
-		ReplSrcPort: int32(ct.ReplSrcPort),
-		ReplDstPort: int32(ct.ReplDstPort),
-	}
+	ipt := formatIPTrans.Get().(*model.IPTranslation)
+	ipt.ReplSrcIP = ipc.Get(ct.ReplSrcIP)
+	ipt.ReplDstIP = ipc.Get(ct.ReplDstIP)
+	ipt.ReplSrcPort = int32(ct.ReplSrcPort)
+	ipt.ReplDstPort = int32(ct.ReplDstPort)
+
+	return ipt
 }
 
 func formatRouteIdx(v *network.Via, routes map[string]RouteIdx) int32 {
