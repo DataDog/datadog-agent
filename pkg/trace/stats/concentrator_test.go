@@ -85,6 +85,7 @@ func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual [
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
+		e.CustomTags = []string{""}
 		expectedM[NewAggregationFromGroup(e).BucketsAggregationKey] = e
 	}
 	for _, a := range actual {
@@ -627,6 +628,49 @@ func TestPeerServiceStats(t *testing.T) {
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			assert.Equal("", st.PeerService)
+		}
+	})
+}
+
+func TestCustomTagStats(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 100,
+	}
+
+	customTagSp := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+		Meta:     map[string]string{"costcenter": "canada", "georegion": "amer"},
+	}
+	t.Run("enabled", func(t *testing.T) {
+		spans := []*pb.Span{sp, customTagSp}
+		traceutil.ComputeTopLevel(spans)
+		testTrace := toProcessedTrace(spans, "none", "")
+		c := NewTestConcentrator(now)
+
+		c.customTags = map[string][]string{
+			"postgres.query": {"costcenter", "georegion"}}
+
+		c.addNow(testTrace, "")
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+		for _, st := range stats.Stats[0].Stats[0].Stats {
+			if st.Name == "postgres.query" {
+				assert.Equal([]string([]string{"costcenter:canada", "georegion:amer"}), st.CustomTags)
+			}
 		}
 	})
 }

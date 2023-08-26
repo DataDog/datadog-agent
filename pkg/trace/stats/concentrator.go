@@ -48,6 +48,7 @@ type Concentrator struct {
 	agentVersion           string
 	peerSvcAggregation     bool // flag to enable peer.service aggregation
 	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
+	customTags             map[string][]string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -69,8 +70,21 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentVersion:           conf.AgentVersion,
 		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+		customTags:             conf.CustomTags,
 	}
+	c.customTags = conf.CustomTags
+
 	return &c
+}
+
+func (c *Concentrator) SetCustomTags(tags map[string][]string) {
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for spanName, newCustomTags := range tags {
+		c.customTags[spanName] = newCustomTags
+	}
 }
 
 // Start starts the concentrator.
@@ -201,7 +215,10 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
+
+		//c.mu.Lock()
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation, c.customTags)
+		//c.mu.Unlock()
 	}
 }
 

@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -44,7 +45,10 @@ func wrapPayloads(p []*proto.ClientStatsPayload) *proto.StatsPayload {
 	}
 }
 
-func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64) *proto.ClientStatsPayload {
+func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64, customKey CustomTagKey) *proto.ClientStatsPayload {
+
+	splitCustomTags := strings.Split(string(customKey), ",")
+
 	return &proto.ClientStatsPayload{
 		Env:     "test-env",
 		Version: "test-version",
@@ -64,6 +68,7 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, dura
 						Hits:           hits,
 						Errors:         errors,
 						Duration:       duration,
+						CustomTags:     splitCustomTags,
 					},
 				},
 			},
@@ -138,6 +143,7 @@ func agg2Counts(insertionTime time.Time, p *proto.ClientStatsPayload) *proto.Cli
 			stat.TopLevelHits = 0
 			stat.OkSummary = nil
 			stat.ErrorSummary = nil
+			stat.CustomTags = nil
 		}
 	}
 	return p
@@ -328,11 +334,11 @@ func TestCountAggregation(t *testing.T) {
 			a := newTestAggregator()
 			testTime := time.Unix(time.Now().Unix(), 0)
 
-			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
-			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
-			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100, "")
+			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300, "")
+			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3, "")
 			keyDefault := BucketsAggregationKey{}
-			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
+			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4, "")
 
 			assert.Len(a.out, 0)
 			a.add(testTime, deepCopy(c1))
@@ -437,11 +443,11 @@ func TestCountAggregationPeerService(t *testing.T) {
 			a.peerSvcAggregation = tc.enablePeerSvcAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
-			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
-			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
-			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100, "")
+			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300, "")
+			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3, "")
 			keyDefault := BucketsAggregationKey{}
-			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
+			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4, "")
 
 			assert.Len(a.out, 0)
 			a.add(testTime, deepCopy(c1))
@@ -486,6 +492,15 @@ func TestNewBucketAggregationKeyPeerService(t *testing.T) {
 		assert := assert.New(t)
 		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, true)
 		assert.Equal(BucketsAggregationKey{Service: "a", PeerService: "remote-test"}, r)
+	})
+}
+
+func TestNewCustomTagKeyAggregation(t *testing.T) {
+	t.Run("enabled", func(t *testing.T) {
+		assert := assert.New(t)
+		customTags := [2]string{"costcenter", "georegion"}
+		r := NewCustomTagKey(customTags[:])
+		assert.Equal(CustomTagKey("costcenter,georegion"), r)
 	})
 }
 

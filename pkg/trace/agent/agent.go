@@ -113,7 +113,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
-	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
+	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler, agnt.Concentrator)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector)
 	return agnt
 }

@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -145,6 +146,42 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 	return endpoints
 }
 
+func applyCustomTagsConfig(customTagsMap map[string][]string) map[string][]string {
+	// Create a set to store tags that exist in the "*" span
+	tagsInAsterisk := make(map[string]bool)
+
+	// Iterate through the "*" span and add its tags to the set
+	if asteriskTags, found := customTagsMap["*"]; found {
+		for _, tag := range asteriskTags {
+			tagsInAsterisk[tag] = true
+		}
+	}
+
+	// Iterate through each span and remove tags that exist in the "*" span
+	for span, customTags := range customTagsMap {
+		if span != "*" {
+			uniqueTags := make([]string, 0, len(customTags))
+			for _, tag := range customTags {
+				if !tagsInAsterisk[tag] {
+					// If the tag doesn't exist in "*" span, keep it in the current span
+					uniqueTags = append(uniqueTags, tag)
+				}
+			}
+			sort.Strings(uniqueTags)
+			customTagsMap[span] = uniqueTags
+		}
+	}
+
+	// Remove the "*" span itself if it is empty after processing other spans
+	if asteriskTags, found := customTagsMap["*"]; found && len(asteriskTags) == 0 {
+		delete(customTagsMap, "*")
+	}
+
+	sort.Strings(customTagsMap["*"])
+
+	return customTagsMap
+}
+
 func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
@@ -221,6 +258,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
+
+	var customTagsMap = core.GetStringMapStringSlice("apm_config.custom_tags")
+	c.CustomTags = applyCustomTagsConfig(customTagsMap)
+
 	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.extra_sample_rate") {

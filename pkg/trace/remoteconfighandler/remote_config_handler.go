@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	reflect "reflect"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
@@ -34,6 +36,10 @@ type rareSampler interface {
 	SetEnabled(enabled bool)
 }
 
+type concentrator interface {
+	SetCustomTags(map[string][]string)
+}
+
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
 	remoteClient                  config.RemoteClient
@@ -43,9 +49,25 @@ type RemoteConfigHandler struct {
 	agentConfig                   *config.AgentConfig
 	configState                   *state.AgentConfigState
 	configSetEndpointFormatString string
+	concentrator                  concentrator
 }
 
-func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
+func mapsAreEqual(map1, map2 map[string][]string) bool {
+	if len(map1) != len(map2) {
+		return false
+	}
+
+	for key, value1 := range map1 {
+		value2, exists := map2[key]
+		if !exists || !reflect.DeepEqual(value1, value2) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler, concentrator concentrator) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
 		return nil
 	}
@@ -61,6 +83,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		prioritySampler: prioritySampler,
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
+		concentrator:    concentrator,
 		agentConfig:     conf,
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
@@ -75,6 +98,7 @@ func (h *RemoteConfigHandler) Start() {
 	if h == nil {
 		return
 	}
+	log.Info("RC client started")
 
 	h.remoteClient.Start()
 	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
@@ -82,9 +106,10 @@ func (h *RemoteConfigHandler) Start() {
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig) {
+	log.Info("found an update in agent config")
 	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
 	if err != nil {
-		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
+		log.Info("couldn't merge the agent config from remote configuration: %s", err)
 		return
 	}
 
@@ -111,6 +136,25 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
 			if err == nil {
 				resp.Body.Close()
+			}
+		}
+	}
+
+	prefix := "datadog/2/AGENT_CONFIG/custom_tags"
+
+	for key, value := range updates {
+		if ok := strings.HasPrefix(key, prefix); ok {
+			log.Info("Custom tags remote config update exists")
+
+			var outerMap map[string]map[string][]string
+			json.Unmarshal(value.Config, &outerMap)
+			for _, customTags := range outerMap {
+				for spanName, tagValues := range customTags {
+					log.Info("Adding custom tag(s) %s to span %s through remote config", spanName, tagValues)
+					h.concentrator.SetCustomTags(customTags)
+					h.configState.LatestCustomTags = customTags
+
+				}
 			}
 		}
 	}

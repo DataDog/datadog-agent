@@ -18,6 +18,7 @@ const (
 	tagStatusCode  = "http.status_code"
 	tagSynthetics  = "synthetics"
 	tagPeerService = "peer.service"
+	allSpanNames   = "*"
 	tagSpanKind    = "span.kind"
 )
 
@@ -25,6 +26,7 @@ const (
 type Aggregation struct {
 	BucketsAggregationKey
 	PayloadAggregationKey
+	CustomTagKey
 }
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
@@ -47,6 +49,17 @@ type PayloadAggregationKey struct {
 	ContainerID string
 }
 
+type CustomTagKey string
+
+func NewCustomTagKey(customTags []string) CustomTagKey {
+	var tags []string
+
+	for _, tag := range customTags {
+		tags = append(tags, strings.TrimSpace(tag))
+	}
+	return CustomTagKey(strings.Join(tags, ","))
+}
+
 func getStatusCode(s *pb.Span) uint32 {
 	code, ok := traceutil.GetMetric(s, tagStatusCode)
 	if ok {
@@ -66,8 +79,36 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTagConf map[string][]string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
+
+	customTagSlice := []string{}
+
+	spanTags, ok := customTagConf[s.Name]
+
+	if ok {
+		for k := range spanTags {
+			tags, ok := s.Meta[spanTags[k]]
+
+			if ok {
+				customTagSlice = append(customTagSlice, spanTags[k]+":"+tags)
+			}
+		}
+	}
+
+	AllSpanNameTags, ok := customTagConf[allSpanNames]
+
+	if ok {
+		for k := range AllSpanNameTags {
+			tags, ok := s.Meta[AllSpanNameTags[k]]
+
+			if ok {
+				customTagSlice = append(customTagSlice, AllSpanNameTags[k]+":"+tags)
+			}
+		}
+	}
+	customKey := NewCustomTagKey(customTagSlice)
+
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
@@ -79,15 +120,22 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 			StatusCode: getStatusCode(s),
 			Synthetics: synthetics,
 		},
+		CustomTagKey: customKey,
 	}
 	if enablePeerSvcAgg {
 		agg.PeerService = s.Meta[tagPeerService]
 	}
+	log.Info("custom tags: " + agg.CustomTagKey)
+
 	return agg
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
+
+	separator := ","
+	joinedCustomTags := strings.Join(g.CustomTags, separator)
+
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:    g.Resource,
@@ -98,5 +146,6 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			StatusCode:  g.HTTPStatusCode,
 			Synthetics:  g.Synthetics,
 		},
+		CustomTagKey: CustomTagKey(joinedCustomTags),
 	}
 }

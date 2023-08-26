@@ -54,6 +54,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
 	config.SetKnown("apm_config.features")
+	config.SetKnown("apm_config.custom_tags")
 
 	bindVectorOptions(config, Traces)
 
@@ -153,6 +154,14 @@ func setupAPM(config Config) {
 		var out []map[string]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.replace_tags" can not be parsed: %v`, err)
+		}
+		return out
+	})
+
+	config.SetEnvKeyTransformer("apm_config.custom_tags", func(in string) interface{} {
+		var out []map[string][]string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.custom_tags" can not be parsed: %v`, err)
 		}
 		return out
 	})

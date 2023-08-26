@@ -7,6 +7,7 @@ package stats
 
 import (
 	"math/rand"
+	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -59,6 +60,31 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 	if err != nil {
 		return &pb.ClientGroupedStats{}, err
 	}
+
+	splitCustomTags := strings.Split(string(a.CustomTagKey), ",")
+
+	log.Info("statsraw custom tags: " + strings.Join(splitCustomTags, ","))
+
+	var stats = &pb.ClientGroupedStats{
+		Service:        a.Service,
+		Name:           a.Name,
+		Resource:       a.Resource,
+		HTTPStatusCode: a.StatusCode,
+		Type:           a.Type,
+		Hits:           round(s.hits),
+		Errors:         round(s.errors),
+		Duration:       round(s.duration),
+		TopLevelHits:   round(s.topLevelHits),
+		OkSummary:      okSummary,
+		ErrorSummary:   errSummary,
+		Synthetics:     a.Synthetics,
+		PeerService:    a.PeerService,
+		SpanKind:       a.SpanKind,
+		CustomTags:     splitCustomTags,
+	}
+
+	//	log.Info(stats)
+
 	return &pb.ClientGroupedStats{
 		Service:        a.Service,
 		Name:           a.Name,
@@ -74,7 +100,9 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		PeerService:    a.PeerService,
 		SpanKind:       a.SpanKind,
+		CustomTags:     splitCustomTags,
 	}, nil
+
 }
 
 func newGroupedStats() *groupedStats {
@@ -146,11 +174,12 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) {
+func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTags map[string][]string) {
+
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg)
+	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, customTags)
 	sb.add(s, weight, isTop, aggr)
 }
 
