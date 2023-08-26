@@ -147,7 +147,6 @@ pkg/util/winutil/**/_obj/
 build.out/
 
 # windows resource files
-pkg/util/winutil/messagestrings/*.h
 pkg/util/winutil/messagestrings/*.rc
 pkg/util/winutil/messagestrings/*.bin
 
