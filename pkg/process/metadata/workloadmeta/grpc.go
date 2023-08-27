@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"net"
 	"strconv"
 	"sync"
@@ -64,7 +65,8 @@ func (l *GRPCServer) consumeProcessDiff(diff *ProcessCacheDiff) ([]*pbgo.Process
 
 	unsetEvents := make([]*pbgo.ProcessEventUnset, len(diff.deletion))
 	for i, proc := range diff.deletion {
-		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: proc.Pid}
+		pid, _ := strconv.Atoi(proc.ID)
+		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: int32(pid)}
 	}
 
 	return setEvents, unsetEvents
@@ -195,17 +197,20 @@ func getGRPCStreamPort(cfg config.ConfigReader) int {
 	return grpcPort
 }
 
-func processEntityToEventSet(proc *ProcessEntity) *pbgo.ProcessEventSet {
+func processEntityToEventSet(proc *workloadmeta.Process) *pbgo.ProcessEventSet {
 	var language *pbgo.Language
 	if proc.Language != nil {
 		language = &pbgo.Language{Name: string(proc.Language.Name)}
 	}
 
+	// ID is converted to a string and then back again, so this should never fail.
+	pid, _ := strconv.Atoi(proc.ID)
+
 	return &pbgo.ProcessEventSet{
-		Pid:          proc.Pid,
+		Pid:          int32(pid),
 		ContainerId:  proc.ContainerId,
 		Nspid:        proc.NsPid,
-		CreationTime: proc.CreationTime,
+		CreationTime: proc.CreationTime.UnixMilli(),
 		Language:     language,
 	}
 }

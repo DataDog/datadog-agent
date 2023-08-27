@@ -7,23 +7,30 @@ package workloadmeta
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/constraints"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
-	Pid1 = 1000
-	Pid2 = 1001
-	Pid3 = 1002
-	Pid4 = 1003
+	Pid1    = 1000
+	Pid1Str = "1000"
+	Pid2    = 1001
+	Pid2Str = "1001"
+	Pid3    = 1002
+	Pid3Str = "1002"
+	Pid4    = 1003
+	Pid4Str = "1003"
 )
 
 func testProc(pid int32, cmdline []string) *procutil.Process {
@@ -68,18 +75,18 @@ func TestExtractor(t *testing.T) {
 	// Extractor cache should have all processes
 	procs, cacheVersion := extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(1), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*workloadmeta.Process{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
-			Pid:          proc1.Pid,
+			EntityID:     entityIdFromPid(proc1.Pid),
 			NsPid:        proc1.NsPid,
-			CreationTime: proc1.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc1.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
-			Pid:          proc2.Pid,
+			EntityID:     entityIdFromPid(proc2.Pid),
 			NsPid:        proc2.NsPid,
-			CreationTime: proc2.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc2.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
@@ -89,23 +96,23 @@ func TestExtractor(t *testing.T) {
 	diff := <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(1), diff.cacheVersion)
 	// Events are generated through map range which doesn't have a deterministic order
-	assert.ElementsMatch(t, []*ProcessEntity{
+	assert.ElementsMatch(t, []*workloadmeta.Process{
 		{
-			Pid:          proc1.Pid,
+			EntityID:     entityIdFromPid(proc1.Pid),
 			NsPid:        proc1.NsPid,
-			CreationTime: proc1.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc1.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
 		{
-			Pid:          proc2.Pid,
+			EntityID:     entityIdFromPid(proc2.Pid),
 			NsPid:        proc2.NsPid,
-			CreationTime: proc2.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc2.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
 	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+	assert.ElementsMatch(t, []*workloadmeta.Process{}, diff.deletion)
 
 	// Assert that if no process is created or terminated, the cache is not updated nor a diff generated
 	extractor.Extract(map[int32]*procutil.Process{
@@ -115,18 +122,18 @@ func TestExtractor(t *testing.T) {
 
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(1), cacheVersion) // cache version doesn't change
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*workloadmeta.Process{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
-			Pid:          proc1.Pid,
+			EntityID:     entityIdFromPid(proc1.Pid),
 			NsPid:        proc1.NsPid,
-			CreationTime: proc1.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc1.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
-			Pid:          proc2.Pid,
+			EntityID:     entityIdFromPid(proc2.Pid),
 			NsPid:        proc2.NsPid,
-			CreationTime: proc2.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc2.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
@@ -141,11 +148,11 @@ func TestExtractor(t *testing.T) {
 
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(2), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*workloadmeta.Process{
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
-			Pid:          proc2.Pid,
+			EntityID:     entityIdFromPid(proc2.Pid),
 			NsPid:        proc2.NsPid,
-			CreationTime: proc2.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc2.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
@@ -153,12 +160,12 @@ func TestExtractor(t *testing.T) {
 
 	diff = <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(2), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	assert.ElementsMatch(t, []*workloadmeta.Process{}, diff.creation)
+	assert.ElementsMatch(t, []*workloadmeta.Process{
 		{
-			Pid:          Pid1,
+			EntityID:     entityIdFromPid(Pid1),
 			NsPid:        proc1.NsPid,
-			CreationTime: proc1.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc1.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
@@ -172,18 +179,18 @@ func TestExtractor(t *testing.T) {
 
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(3), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*workloadmeta.Process{
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
-			Pid:          proc2.Pid,
+			EntityID:     entityIdFromPid(proc2.Pid),
 			NsPid:        proc2.NsPid,
-			CreationTime: proc2.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc2.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid3, proc3.Stats.CreateTime): {
-			Pid:          proc3.Pid,
+			EntityID:     entityIdFromPid(proc3.Pid),
 			NsPid:        proc3.NsPid,
-			CreationTime: proc3.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc3.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
 			ContainerId:  ctrId1,
 		},
@@ -191,11 +198,11 @@ func TestExtractor(t *testing.T) {
 
 	diff = <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(3), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	assert.ElementsMatch(t, []*workloadmeta.Process{
 		{
-			Pid:          Pid3,
+			EntityID:     entityIdFromPid(Pid3),
 			NsPid:        proc3.NsPid,
-			CreationTime: proc3.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc3.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
 			ContainerId:  ctrId1,
 		},
@@ -210,18 +217,18 @@ func TestExtractor(t *testing.T) {
 
 	procs, cacheVersion = extractor.GetAllProcessEntities()
 	assert.Equal(t, int32(4), cacheVersion)
-	assert.Equal(t, map[string]*ProcessEntity{
+	assert.Equal(t, map[string]*workloadmeta.Process{
 		hashProcess(Pid3, proc3.Stats.CreateTime): {
-			Pid:          proc3.Pid,
+			EntityID:     entityIdFromPid(proc3.Pid),
 			NsPid:        proc3.NsPid,
-			CreationTime: proc3.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc3.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
 			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid4, proc4.Stats.CreateTime): {
-			Pid:          proc4.Pid,
+			EntityID:     entityIdFromPid(proc4.Pid),
 			NsPid:        proc4.NsPid,
-			CreationTime: proc4.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc4.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId2,
 		},
@@ -229,20 +236,20 @@ func TestExtractor(t *testing.T) {
 
 	diff = <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(4), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	assert.ElementsMatch(t, []*workloadmeta.Process{
 		{
-			Pid:          Pid4,
+			EntityID:     entityIdFromPid(Pid4),
 			NsPid:        proc4.NsPid,
-			CreationTime: proc4.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc4.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId2,
 		},
 	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{
+	assert.ElementsMatch(t, []*workloadmeta.Process{
 		{
-			Pid:          Pid2,
+			EntityID:     entityIdFromPid(proc2.Pid),
 			NsPid:        proc2.NsPid,
-			CreationTime: proc2.Stats.CreateTime,
+			CreationTime: time.UnixMilli(proc2.Stats.CreateTime),
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
@@ -283,16 +290,16 @@ func TestLateContainerId(t *testing.T) {
 	})
 	assert.EqualValues(t, &ProcessCacheDiff{
 		cacheVersion: 1,
-		creation: []*ProcessEntity{
+		creation: []*workloadmeta.Process{
 			{
-				Pid:          proc1.Pid,
+				EntityID:     entityIdFromPid(proc1.Pid),
 				ContainerId:  "",
 				NsPid:        proc1.NsPid,
-				CreationTime: proc1.Stats.CreateTime,
+				CreationTime: time.UnixMilli(proc1.Stats.CreateTime),
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
+		deletion: []*workloadmeta.Process{},
 	}, <-extractor.ProcessCacheDiff())
 
 	var (
@@ -307,15 +314,22 @@ func TestLateContainerId(t *testing.T) {
 	})
 	assert.EqualValues(t, &ProcessCacheDiff{
 		cacheVersion: 2,
-		creation: []*ProcessEntity{
+		creation: []*workloadmeta.Process{
 			{
-				Pid:          proc1.Pid,
+				EntityID:     entityIdFromPid(proc1.Pid),
 				ContainerId:  ctrId1,
 				NsPid:        proc1.NsPid,
-				CreationTime: proc1.Stats.CreateTime,
+				CreationTime: time.UnixMilli(proc1.Stats.CreateTime),
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
+		deletion: []*workloadmeta.Process{},
 	}, <-extractor.ProcessCacheDiff())
+}
+
+func entityIdFromPid[T constraints.Integer](pid T) workloadmeta.EntityID {
+	return workloadmeta.EntityID{
+		Kind: workloadmeta.KindProcess,
+		ID:   strconv.Itoa(int(pid)),
+	}
 }

@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"sort"
 	"testing"
 	"time"
@@ -249,15 +250,15 @@ func TestStreamVersioning(t *testing.T) {
 func TestProcessEntityToEventSet(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
-		process *ProcessEntity
+		process *workloadmeta.Process
 		event   *pbgo.ProcessEventSet
 	}{
 		{
 			desc: "process with detected language",
-			process: &ProcessEntity{
-				Pid:          40,
+			process: &workloadmeta.Process{
+				EntityID:     workloadmeta.EntityID{ID: "40"},
 				NsPid:        1,
-				CreationTime: 5311456,
+				CreationTime: time.UnixMilli(5311456),
 				Language: &languagemodels.Language{
 					Name: languagemodels.Python,
 				},
@@ -271,10 +272,10 @@ func TestProcessEntityToEventSet(t *testing.T) {
 		},
 		{
 			desc: "process without detected language",
-			process: &ProcessEntity{
-				Pid:          40,
+			process: &workloadmeta.Process{
+				EntityID:     workloadmeta.EntityID{ID: "40"},
 				NsPid:        1,
-				CreationTime: 5311456,
+				CreationTime: time.UnixMilli(5311456),
 			},
 			event: &pbgo.ProcessEventSet{
 				Pid:          40,
