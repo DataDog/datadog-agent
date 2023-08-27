@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"net"
 	"strconv"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // DuplicateConnectionErr is an error that explains the connection was closed because another client tried to connect
@@ -28,7 +28,7 @@ var DuplicateConnectionErr = errors.New("the stream was closed because another c
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
 	config    config.ConfigReader
-	extractor *WorkloadMetaExtractor
+	extractor ProcessSource
 	server    *grpc.Server
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
 	addr net.Addr
@@ -45,7 +45,7 @@ var (
 )
 
 // NewGRPCServer creates a new instance of a GRPCServer
-func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
+func NewGRPCServer(config config.ConfigReader, extractor ProcessSource) *GRPCServer {
 	l := &GRPCServer{
 		config:      config,
 		extractor:   extractor,
