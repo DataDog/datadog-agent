@@ -507,7 +507,8 @@ func startAgent(
 			// Subscribe to `AGENT_INTEGRATION` product
 			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
 				rcScheduler := state.NewRemoteConfigScheduler()
-				if err := rcScheduler.Start(common.Coll); err != nil {
+				scheduler := collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
+				if err := rcScheduler.Start(scheduler); err != nil {
 					pkglog.Errorf("Failed to start the RC agent integration scheduler: %s", err)
 				} else {
 					rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)

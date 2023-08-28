@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
@@ -34,12 +33,12 @@ func NewRemoteConfigScheduler() *RemoteConfigScheduler {
 }
 
 // Start creates the remote-config scheduler
-func (sc *RemoteConfigScheduler) Start(coll *collector.Collector) error {
+func (sc *RemoteConfigScheduler) Start(scheduler *collector.CheckScheduler) error {
 	if sc.scheduler != nil {
 		return fmt.Errorf("Remote-config scheduler is already initiated")
 	}
 
-	sc.scheduler = collector.InitCheckScheduler(coll, aggregator.GetSenderManager())
+	sc.scheduler = scheduler
 	return nil
 }
 
