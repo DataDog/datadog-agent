@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 var _ Logger = (*buflogger)(nil)
@@ -93,3 +95,8 @@ func (b *buflogger) Criticalf(format string, params ...interface{}) error {
 
 // Flush implements Logger.
 func (b *buflogger) Flush() {}
+
+// GetLogLevel implements Logger.
+func (b *buflogger) GetLogLevel() (log.Level, error) {
+	return log.DebugLvl, nil
+}

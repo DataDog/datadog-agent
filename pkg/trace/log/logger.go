@@ -7,6 +7,8 @@ package log
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 var (
@@ -31,21 +33,7 @@ func IsSet() bool {
 }
 
 // Logger implements the core logger interface.
-type Logger interface {
-	Trace(v ...interface{})
-	Tracef(format string, params ...interface{})
-	Debug(v ...interface{})
-	Debugf(format string, params ...interface{})
-	Info(v ...interface{})
-	Infof(format string, params ...interface{})
-	Warn(v ...interface{}) error
-	Warnf(format string, params ...interface{}) error
-	Error(v ...interface{}) error
-	Errorf(format string, params ...interface{}) error
-	Critical(v ...interface{}) error
-	Criticalf(format string, params ...interface{}) error
-	Flush()
-}
+type Logger = log.Component
 
 // Trace formats message using the default formats for its operands
 // and writes to log with level = Trace
@@ -193,3 +181,6 @@ func (noopLogger) Criticalf(format string, params ...interface{}) error { return
 
 // Flush implements Logger.
 func (noopLogger) Flush() {}
+
+// GetLogLevel implements Logger.
+func (noopLogger) GetLogLevel() (log.Level, error) { return log.Off, nil }

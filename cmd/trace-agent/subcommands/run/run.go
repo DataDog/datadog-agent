@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -316,6 +317,12 @@ func (corelogger) Criticalf(format string, params ...interface{}) error {
 
 // Flush implements Logger.
 func (corelogger) Flush() { log.Flush() }
+
+// GetLogLevel implements Logger
+func (corelogger) GetLogLevel() (logcomp.Level, error) {
+	lvl, err := log.GetLogLevel()
+	return logcomp.Level(lvl), err
+}
 
 func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
