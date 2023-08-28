@@ -95,7 +95,7 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
-	lineLimit := config.LogLineMaxSize(pkgConfig.Datadog)
+	lineLimit := config.MaxMessageSize(pkgConfig.Datadog)
 	detectedPattern := &DetectedPattern{}
 
 	outputFn := func(m *message.Message) { outputChan <- m }

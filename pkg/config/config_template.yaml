@@ -1193,12 +1193,13 @@ api_key:
   #
   # file_wildcard_selection_mode: `by_name`
 
-  ## @param log_line_max_size - integer - optional - default: 256
-  ## @env DD_LOG_LINE_MAX_SIZE - integer - optional - default : 256
-  ## The maximum size of single log in kilobytes.
-  ## If a line is bigger than this limit, it will be truncated.
+  ## @param max_message_size - integer - optional - default: 256000
+  ## @env DD_MAX_MESSAGE_SIZE - integer - optional - default : 256000
+  ## The maximum size of single log message in bytes. If maxMessageSize exceeds 
+  ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
+  # https://docs.datadoghq.com/api/latest/logs/
   #
-  # log_line_max_size: 256
+  # max_message_size: 256000
 
 {{ end -}}
 {{- if .TraceAgent }}
