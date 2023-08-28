@@ -1,18 +1,18 @@
-package state
+package collector
 
 import (
 	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RemoteConfigScheduler is the structure used to run checks with RC
 type RemoteConfigScheduler struct {
-	scheduler     *collector.CheckScheduler
+	scheduler     *CheckScheduler
 	runningChecks []integration.Config
 }
 
@@ -33,7 +33,7 @@ func NewRemoteConfigScheduler() *RemoteConfigScheduler {
 }
 
 // Start creates the remote-config scheduler
-func (sc *RemoteConfigScheduler) Start(scheduler *collector.CheckScheduler) error {
+func (sc *RemoteConfigScheduler) Start(scheduler *CheckScheduler) error {
 	if sc.scheduler != nil {
 		return fmt.Errorf("Remote-config scheduler is already initiated")
 	}
@@ -43,7 +43,7 @@ func (sc *RemoteConfigScheduler) Start(scheduler *collector.CheckScheduler) erro
 }
 
 // IntegrationScheduleCallback is called at every AGENT_INTEGRATIONS to schedule/unschedule integrations
-func (sc *RemoteConfigScheduler) IntegrationScheduleCallback(updates map[string]RawConfig) {
+func (sc *RemoteConfigScheduler) IntegrationScheduleCallback(updates map[string]state.RawConfig) {
 	// Unschedule every integrations, even if they haven't changed
 	sc.scheduler.Unschedule(sc.runningChecks)
 	sc.runningChecks = make([]integration.Config, 0)

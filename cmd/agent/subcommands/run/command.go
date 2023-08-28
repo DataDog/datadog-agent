@@ -66,7 +66,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -506,7 +505,7 @@ func startAgent(
 
 			// Subscribe to `AGENT_INTEGRATION` product
 			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
-				rcScheduler := state.NewRemoteConfigScheduler()
+				rcScheduler := collector.NewRemoteConfigScheduler()
 				scheduler := collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 				if err := rcScheduler.Start(scheduler); err != nil {
 					pkglog.Errorf("Failed to start the RC agent integration scheduler: %s", err)
