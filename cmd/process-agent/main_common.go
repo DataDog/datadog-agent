@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	wlmExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -257,6 +258,7 @@ func initMisc(deps miscDeps) error {
 	tagger.SetDefaultTagger(t)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
+	grpcServer := wlmExtractor.NewGRPCServer(deps.Config, wlmExtractor.NewWorkloadMetaSource(store))
 
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
@@ -280,6 +282,11 @@ func initMisc(deps miscDeps) error {
 				if err != nil {
 					return err
 				}
+
+				err = grpcServer.Start()
+				if err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -292,6 +299,10 @@ func initMisc(deps miscDeps) error {
 			}
 
 			stopApp()
+
+			if collector.Enabled(deps.Config) {
+				grpcServer.Stop()
+			}
 
 			return nil
 		},

@@ -11,7 +11,7 @@ type ProcessSource interface {
 	ProcessCacheDiff() <-chan *ProcessCacheDiff
 }
 
-type workloadMetaSource struct {
+type WorkloadMetaSource struct {
 	mutex        *sync.Mutex
 	diff         chan *ProcessCacheDiff
 	store        workloadmeta.Store
@@ -19,16 +19,16 @@ type workloadMetaSource struct {
 	evts         chan workloadmeta.EventBundle
 }
 
-func NewWorkloadMetaSource(store workloadmeta.Store) workloadMetaSource {
-	return workloadMetaSource{
+func NewWorkloadMetaSource(store workloadmeta.Store) *WorkloadMetaSource {
+	return &WorkloadMetaSource{
 		mutex: &sync.Mutex{},
 		diff:  make(chan *ProcessCacheDiff, 1),
 		store: store,
 	}
 }
 
-func (w *workloadMetaSource) Start() {
-	w.evts = w.store.Subscribe("workloadMetaSource", workloadmeta.NormalPriority, workloadmeta.NewFilter([]workloadmeta.Kind{
+func (w *WorkloadMetaSource) Start() {
+	w.evts = w.store.Subscribe("WorkloadMetaSource", workloadmeta.NormalPriority, workloadmeta.NewFilter([]workloadmeta.Kind{
 		workloadmeta.KindProcess,
 	}, workloadmeta.SourceAll, workloadmeta.EventTypeAll))
 	go func() {
@@ -44,11 +44,11 @@ func (w *workloadMetaSource) Start() {
 	}()
 }
 
-func (w *workloadMetaSource) Stop() {
+func (w *WorkloadMetaSource) Stop() {
 	w.store.Unsubscribe(w.evts)
 }
 
-func (w *workloadMetaSource) GetAllProcessEntities() (map[string]*workloadmeta.Process, int32) {
+func (w *WorkloadMetaSource) GetAllProcessEntities() (map[string]*workloadmeta.Process, int32) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 
@@ -60,7 +60,7 @@ func (w *workloadMetaSource) GetAllProcessEntities() (map[string]*workloadmeta.P
 	return result, w.cacheVersion
 }
 
-func (w *workloadMetaSource) ProcessCacheDiff() <-chan *ProcessCacheDiff {
+func (w *WorkloadMetaSource) ProcessCacheDiff() <-chan *ProcessCacheDiff {
 	return w.diff
 }
 
