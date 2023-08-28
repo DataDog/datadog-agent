@@ -104,7 +104,7 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 		},
 		Env:     getOrDefault(deployment.Labels, ddkube.EnvTagLabelKey, ""),
 		Service: getOrDefault(deployment.Labels, ddkube.ServiceTagLabelKey, ""),
-		Version: getOrDefault(deployment.Labels, ddkube.VersionTagLabelKey+"version", ""),
+		Version: getOrDefault(deployment.Labels, ddkube.VersionTagLabelKey, ""),
 	}
 }
 
