@@ -1193,6 +1193,13 @@ api_key:
   #
   # file_wildcard_selection_mode: `by_name`
 
+  ## @param log_line_max_size - integer - optional - default: 256
+  ## @env DD_LOG_LINE_MAX_SIZE - integer - optional - default : 256
+  ## The maximum size of single log in kilobytes.
+  ## If a line is bigger than this limit, it will be truncated.
+  #
+  # log_line_max_size: 256
+
 {{ end -}}
 {{- if .TraceAgent }}
 

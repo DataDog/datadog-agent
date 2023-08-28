@@ -344,3 +344,9 @@ func TaggerWarmupDuration(coreConfig pkgConfig.ConfigReader) time.Duration {
 func AggregationTimeout(coreConfig pkgConfig.ConfigReader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).aggregationTimeout()
 }
+
+// LogLineMaxSize is used to configure the log content length limit
+// If a line is bigger than this limit, it will be truncated.
+func LogLineMaxSize(coreConfig pkgConfig.ConfigReader) int {
+	return defaultLogsConfigKeys(coreConfig).logLineMaxSize()
+}

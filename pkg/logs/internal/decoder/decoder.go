@@ -20,10 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultContentLenLimit represents the max size for a line,
-// if a line is bigger than this limit, it will be truncated.
-const defaultContentLenLimit = 256 * 1000
-
 // NewInput returns a new input.
 func NewInput(content []byte) *message.Message {
 	return &message.Message{
@@ -99,7 +95,7 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
-	lineLimit := defaultContentLenLimit
+	lineLimit := config.LogLineMaxSize(pkgConfig.Datadog)
 	detectedPattern := &DetectedPattern{}
 
 	outputFn := func(m *message.Message) { outputChan <- m }

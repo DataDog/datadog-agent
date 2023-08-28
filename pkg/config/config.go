@@ -98,6 +98,10 @@ const (
 	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
 	// in the core agent if the process check is disabled.
 	DefaultLocalProcessCollectorInterval = 1 * time.Minute
+
+	// DefaultLogLineMax is the default value for log_line_max_size in bytes
+	// If a line is bigger than this limit, it will be truncated.
+	DefaultLogLineMaxSize = 256 * 1000
 )
 
 // Datadog is the global configuration object
@@ -877,6 +881,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	// maximum log size in kilobytes
+	config.BindEnvAndSetDefault("logs_config.log_line_max_size", 256)
 
 	// increase the number of files that can be tailed in parallel:
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
