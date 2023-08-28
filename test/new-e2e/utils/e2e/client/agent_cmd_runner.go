@@ -78,7 +78,7 @@ func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string
 	return strings.Trim(output, "\n")
 }
 
-func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) (string, error) {
+func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) string {
 	output, err := agent.executeCommand("secret", commandArgs...)
 	require.NoError(agent.t, err)
 	return output
