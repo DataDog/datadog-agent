@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -178,7 +179,12 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 
 // Enabled returns whether the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
-	return ddconfig.GetBool("language_detection.enabled")
+	enabled := ddconfig.GetBool("language_detection.enabled")
+	if enabled && runtime.GOOS == "darwin" {
+		log.Warn("Language detection is not supported on macOS")
+		return false
+	}
+	return enabled
 }
 
 func hashProcess(pid int32, createTime int64) string {
