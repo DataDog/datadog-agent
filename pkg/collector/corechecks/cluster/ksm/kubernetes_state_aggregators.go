@@ -36,8 +36,6 @@ var renamedResource = map[string]string{
 	"gpu_intel_com_i915": "gpu",
 }
 
-const MIG_RESOURCE = "mig"
-
 type counterAggregator struct {
 	ddMetricName  string
 	ksmMetricName string
@@ -183,7 +181,7 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 
 func renameMig(resource string) string {
 	if strings.HasPrefix(resource, "nvidia_com_mig") {
-		return MIG_RESOURCE
+		return "gpu"
 	}
 	return resource
 }

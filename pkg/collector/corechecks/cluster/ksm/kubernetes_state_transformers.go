@@ -41,19 +41,22 @@ var allowedResources = map[string]string{
 }
 
 // resourceDDName returns the datadog name of the given resource with possibly extra tags
-func resourceDDName(resource string) (string, bool, []string) {
+func resourceDDName(resource string) (string, []string, bool) {
+	// Handle most resources
 	if ddname, allowed := allowedResources[resource]; allowed {
-		return ddname, allowed, nil
+		return ddname, nil, allowed
 	}
+
+	// Handle Nvidia MIG formatted as nvidia_com_mig_(Xc_)Yg_Zgb
 	if strings.HasPrefix(resource, "nvidia_com_mig") {
 		var extraTag []string
 		splitStr := strings.Split(resource, "mig_")
 		if len(splitStr) == 2 {
-			extraTag = []string{fmt.Sprintf("mig_profile:%s", splitStr[1])}
+			extraTag = []string{fmt.Sprintf("mig_profile:%s", strings.Replace(splitStr[1], "_", "-", 2))}
 		}
-		return MIG_RESOURCE, true, extraTag
+		return "gpu", extraTag, true
 	}
-	return "", false, nil
+	return "", nil, false
 }
 
 // defaultMetricTransformers returns a map that contains KSM metric names and their corresponding transformer functions
@@ -266,7 +269,7 @@ func submitContainerResourceMetric(s sender.Sender, name string, metric ksmstore
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
 	}
-	if ddname, allowed, extraTags := resourceDDName(resource); allowed {
+	if ddname, extraTags, allowed := resourceDDName(resource); allowed {
 		tags = append(tags, extraTags...)
 		s.Gauge(ksmMetricPrefix+"container."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
 		return
@@ -293,7 +296,7 @@ func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMe
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
 	} else {
-		if ddname, allowed, extraTags := resourceDDName(resource); allowed {
+		if ddname, extraTags, allowed := resourceDDName(resource); allowed {
 			tags = append(tags, extraTags...)
 			s.Gauge(ksmMetricPrefix+"node."+ddname+"_"+metricSuffix, metric.Val, hostname, tags)
 		} else {

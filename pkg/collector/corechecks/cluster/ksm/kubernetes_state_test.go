@@ -683,13 +683,13 @@ func TestProcessMetrics(t *testing.T) {
 			metricTransformers: defaultMetricTransformers(),
 			expected: []metricsExpected{
 				{
-					name:     "kubernetes_state.node.mig_capacity",
+					name:     "kubernetes_state.node.gpu_capacity",
 					val:      4,
-					tags:     []string{"node:nodename", "resource:nvidia_com_mig_2c_4g_20gb", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google", "mig_profile:2c_4g_20gb"},
+					tags:     []string{"node:nodename", "resource:nvidia_com_mig_2c_4g_20gb", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google", "mig_profile:2c-4g-20gb"},
 					hostname: "nodename",
 				},
 				{
-					name: "kubernetes_state.node.mig_capacity.total",
+					name: "kubernetes_state.node.gpu_capacity.total",
 					val:  4,
 					tags: []string{},
 				},
