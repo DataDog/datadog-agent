@@ -413,3 +413,26 @@ def go_fix(ctx, fix=None):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
                 ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")
+
+
+@task
+def check_symbols(ctx, binary_path, patterns, vstudio_root=None):
+    from .msi import _get_vs_build_command
+    import sys
+
+    if sys.platform != 'win32':
+        print(f"check-symbols not implemented on {sys.platform}")
+        # Exit with success code so as not to fail the CI
+        Exit(code=0)
+
+    if type(patterns) == str:
+        cmd_pattern = patterns
+    else:
+        cmd_pattern = patterns.join('|')
+
+    cmd = _get_vs_build_command(
+        f'powershell -C "(dumpbin /SYMBOLS {binary_path} | Select-String -Pattern \"{cmd_pattern}\").Length"'
+    )
+    process_res = ctx.run(cmd, warn=True)
+    if not process_res:
+        raise Exit("Failed to run check symbol command.", code=1)
