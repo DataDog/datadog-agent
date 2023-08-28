@@ -24,7 +24,7 @@ func benchmarkSingleLineHandler(b *testing.B, logs int) {
 		messages[i] = getDummyMessageWithLF(fmt.Sprintf("This is a log test line to benchmark the logs agent %d", i))
 	}
 
-	h := NewSingleLineHandler(func(*message.Message) {}, coreConfig.DefaultMaxMessageSize)
+	h := NewSingleLineHandler(func(*message.Message) {}, coreConfig.DefaultMaxMessageSizeBytes)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -41,7 +41,7 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 	}
 
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
-	h := NewAutoMultilineHandler(func(*message.Message) {}, coreConfig.DefaultMaxMessageSize, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
+	h := NewAutoMultilineHandler(func(*message.Message) {}, coreConfig.DefaultMaxMessageSizeBytes, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
