@@ -546,9 +546,9 @@ build do
     block do
       # Removing tests that don't need to be shipped in the embedded folder
       if windows?
-        delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
+        delete "#{python_2_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
       else
-        delete "#{install_dir}/embedded/lib/python3.9/site-packages/Cryptodome/SelfTest/"
+        delete "#{install_dir}/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest/"
       end
     end
   end
