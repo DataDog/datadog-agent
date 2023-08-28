@@ -8,8 +8,15 @@
 package languagedetection
 
 import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"golang.org/x/sys/unix"
 	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
@@ -33,16 +40,45 @@ func handleDetectorError(err error) {
 	}
 }
 
-func DetectWithPrivileges(procs []languagemodels.Process) []languagemodels.Language {
+type PrivilegedLanguageDetector struct {
+	hostProc      string
+	binaryIdCache *simplelru.LRU[binaryID, languagemodels.Language]
+	detectors     []languagemodels.Detector
+}
+
+func NewPrivilegedLanguageDetector() PrivilegedLanguageDetector {
+	lru, _ := simplelru.NewLRU[binaryID, languagemodels.Language](1000, nil) // Only errors if the size is negative, so it's safe to ignore
+
+	return PrivilegedLanguageDetector{
+		detectors:     detectorsWithPrivilege,
+		hostProc:      kernel.ProcFSRoot(),
+		binaryIdCache: lru,
+	}
+}
+
+func (l PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) []languagemodels.Language {
 	languages := make([]languagemodels.Language, len(procs))
 	for i, proc := range procs {
-		for _, detector := range detectorsWithPrivilege {
+		bin, err := l.getBinID(proc)
+		if err != nil {
+			handleDetectorError(err)
+			log.Debug("failed to get binID:", err)
+			continue
+		}
+
+		if lang, ok := l.binaryIdCache.Get(bin); ok {
+			languages[i] = lang
+			continue
+		}
+
+		for _, detector := range l.detectors {
 			lang, err := detector.DetectLanguage(proc)
 			if err != nil {
 				handleDetectorError(err)
 				continue
 			}
 			languages[i] = lang
+			l.binaryIdCache.Add(bin, lang)
 		}
 	}
 	return languages
@@ -52,4 +88,32 @@ func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detecto
 	oldDetectors := detectorsWithPrivilege
 	t.Cleanup(func() { detectorsWithPrivilege = oldDetectors })
 	detectorsWithPrivilege = newDetectors
+}
+
+func (l PrivilegedLanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {
+	procPath := filepath.Join(l.hostProc, strconv.Itoa(int(process.GetPid())))
+	exePath := filepath.Join(procPath, "exe")
+	binPath, err := os.Readlink(exePath)
+	if err != nil {
+		return binaryID{}, fmt.Errorf("readlink %s: %v", exePath, err)
+	}
+
+	binPath = filepath.Join(procPath, "root", binPath)
+
+	var stat syscall.Stat_t
+	err = syscall.Stat(binPath, &stat)
+	if err != nil {
+		return binaryID{}, fmt.Errorf("stat binary path %s: %v", binPath, err)
+	}
+
+	return binaryID{
+		major: unix.Major(stat.Dev),
+		minor: unix.Minor(stat.Dev),
+		ino:   stat.Ino,
+	}, nil
+}
+
+type binaryID struct {
+	major, minor uint32
+	ino          uint64
 }

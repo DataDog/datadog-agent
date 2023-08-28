@@ -26,18 +26,22 @@ var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
-		return languageDetectionModule{}, nil
+		return languageDetectionModule{
+			languageDetector: languagedetection.NewPrivilegedLanguageDetector(),
+		}, nil
 	},
 }
 
-type languageDetectionModule struct{}
+type languageDetectionModule struct {
+	languageDetector languagedetection.PrivilegedLanguageDetector
+}
 
 func (l languageDetectionModule) GetStats() map[string]interface{} {
 	return nil
 }
 
 func (l languageDetectionModule) Register(router *module.Router) error {
-	router.HandleFunc("/detect", detectLanguage)
+	router.HandleFunc("/detect", l.detectLanguage)
 	return nil
 }
 
@@ -66,7 +70,7 @@ func handleError(writer http.ResponseWriter, status int, err error) {
 	writer.WriteHeader(status)
 }
 
-func detectLanguage(writer http.ResponseWriter, request *http.Request) {
+func (l languageDetectionModule) detectLanguage(writer http.ResponseWriter, request *http.Request) {
 	b, err := io.ReadAll(request.Body)
 	if err != nil {
 		handleError(writer, http.StatusInternalServerError, fmt.Errorf("read request body: %v", err))
@@ -85,7 +89,7 @@ func detectLanguage(writer http.ResponseWriter, request *http.Request) {
 		procs = append(procs, proc)
 	}
 
-	resp := toDetectLanguageResponse(languagedetection.DetectWithPrivileges(procs))
+	resp := toDetectLanguageResponse(l.languageDetector.DetectWithPrivileges(procs))
 	b, err = proto.Marshal(resp)
 	if err != nil {
 		handleError(writer, http.StatusInternalServerError, fmt.Errorf("seralize response: %v", err))
