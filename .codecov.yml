@@ -10,4 +10,5 @@ coverage:
     patch: off
 
 ignore:
-  - "pkg/trace/testutil"  # don't include test files
+  - "pkg/trace/testutil"  # code only used in tests
+  - "pkg/trace/log"       # logging utilities with no customer facing impact. Nothing to test.
