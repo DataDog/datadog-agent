@@ -346,6 +346,6 @@ func AggregationTimeout(coreConfig pkgConfig.ConfigReader) time.Duration {
 }
 
 // MaxMessageSize is used to cap the maximum log message size in bytes
-func MaxMessageSize(coreConfig pkgConfig.ConfigReader) int {
-	return defaultLogsConfigKeys(coreConfig).maxMessageSize()
+func MaxMessageSizeBytes(coreConfig pkgConfig.ConfigReader) int {
+	return defaultLogsConfigKeys(coreConfig).maxMessageSizeBytes()
 }

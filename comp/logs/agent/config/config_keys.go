@@ -95,8 +95,8 @@ func (l *LogsConfigKeys) logsNoSSL() bool {
 	return l.getConfig().GetBool(l.getConfigKey("logs_no_ssl"))
 }
 
-func (l *LogsConfigKeys) maxMessageSize() int {
-	return l.getConfig().GetInt(l.getConfigKey("max_message_size"))
+func (l *LogsConfigKeys) maxMessageSizeBytes() int {
+	return l.getConfig().GetInt(l.getConfigKey("max_message_size_bytes"))
 }
 
 func (l *LogsConfigKeys) devModeNoSSL() bool {

@@ -99,8 +99,8 @@ const (
 	// in the core agent if the process check is disabled.
 	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 
-	// DefaultMaxMessageSize is the default value for max_message_size in bytes
-	// If a log message is bigger than this limit, it will be truncated.
+	// DefaultMaxMessageSize is the default value for max_message_size_bytes
+	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
 	DefaultMaxMessageSize = 256 * 1000
 )
 
@@ -882,7 +882,7 @@ func InitConfig(config Config) {
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// maximum log message size in bytes
-	config.BindEnvAndSetDefault("logs_config.max_message_size", 256_000)
+	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", 256_000)
 
 	// increase the number of files that can be tailed in parallel:
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
