@@ -56,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -65,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -501,6 +503,16 @@ func startAgent(
 		} else {
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
+
+			// Subscribe to `AGENT_INTEGRATION` product
+			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
+				rcScheduler := state.NewRemoteConfigScheduler()
+				if err := rcScheduler.Start(common.Coll); err != nil {
+					pkglog.Errorf("Failed to start the RC agent integration scheduler: %s", err)
+				} else {
+					rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)
+				}
+			}
 		}
 	}
 

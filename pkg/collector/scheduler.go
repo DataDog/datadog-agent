@@ -84,6 +84,23 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	}
 }
 
+// ScheduleWithErrors schedules a config to checks and returns any error
+func (s *CheckScheduler) ScheduleWithErrors(config integration.Config) map[string]error {
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
+	scheduleErrs := map[string]error{}
+	for _, c := range checks {
+		_, err := s.collector.RunCheck(c)
+		if err != nil {
+			log.Errorf("Unable to run Check %s: %v", c, err)
+			errorStats.setRunError(c.ID(), err.Error())
+			scheduleErrs[string(c.ID())] = err
+			continue
+		}
+	}
+
+	return scheduleErrs
+}
+
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
