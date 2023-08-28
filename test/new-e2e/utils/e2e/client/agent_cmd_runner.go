@@ -72,7 +72,7 @@ func (agent *AgentCommandRunner) ConfigCheck(commandArgs ...AgentArgsOption) str
 	return agent.executeCommand("configcheck", commandArgs...)
 }
 
-// IsReady runs status command and returns true the command return a non-zero exit code.
+// IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
 func (a *Agent) IsReady() bool {
 	_, err := a.executeAgentCmdWithError([]string{"status"})
