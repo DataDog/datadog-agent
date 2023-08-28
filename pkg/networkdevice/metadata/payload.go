@@ -130,9 +130,9 @@ type NetflowExporter struct {
 
 // Diagnosis contain data for a diagnosis
 type Diagnosis struct {
-	Severity  string `json:"severity"`
-	Diagnosis string `json:"diagnosis"`
-	ErrorCode string `json:"error_code"`
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+	Code     string `json:"code"`
 }
 
 // DiagnosisMetadata contains diagnoses info

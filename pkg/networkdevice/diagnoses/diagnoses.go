@@ -35,11 +35,11 @@ func NewDeviceDiagnoses(deviceID string) *Diagnoses {
 }
 
 // Add adds a diagnoses
-func (d *Diagnoses) Add(result string, errorCode string, message string) {
+func (d *Diagnoses) Add(result string, code string, message string) {
 	d.diagnoses = append(d.diagnoses, metadata.Diagnosis{
-		Severity:  result,
-		ErrorCode: errorCode,
-		Diagnosis: message,
+		Severity: result,
+		Code:     code,
+		Message:  message,
 	})
 }
 
@@ -73,8 +73,8 @@ func (d *Diagnoses) ConvertToCLI() []diagnosis.Diagnosis {
 	for _, diag := range d.prevDiagnoses {
 		cliDiagnoses = append(cliDiagnoses, diagnosis.Diagnosis{
 			Result:    severityMap[diag.Severity],
-			Name:      fmt.Sprintf("%s - %s - %s", d.resourceType, d.resourceID, diag.ErrorCode),
-			Diagnosis: diag.Diagnosis,
+			Name:      fmt.Sprintf("%s - %s - %s", d.resourceType, d.resourceID, diag.Code),
+			Diagnosis: diag.Message,
 		})
 	}
 

@@ -318,9 +318,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	}
 
 	diagnosis := []metadata.DiagnosisMetadata{{ResourceType: "ndm_device", ResourceID: "1234", Diagnoses: []metadata.Diagnosis{{
-		Severity:  "warn",
-		ErrorCode: "TEST_DIAGNOSIS",
-		Diagnosis: "Test",
+		Severity: "warn",
+		Code:     "TEST_DIAGNOSIS",
+		Message:  "Test",
 	}}}}
 
 	layout := "2006-01-02 15:04:05"

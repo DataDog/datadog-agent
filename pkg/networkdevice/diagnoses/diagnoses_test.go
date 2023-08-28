@@ -24,9 +24,9 @@ func TestReportDeviceDiagnoses(t *testing.T) {
 		ResourceID:   "default:1.2.3.4.5",
 		Diagnoses: []metadata.Diagnosis{
 			{
-				Severity:  "error",
-				ErrorCode: "TEST_ERROR_DIAG",
-				Diagnosis: "This is a test error diagnosis",
+				Severity: "error",
+				Code:     "TEST_ERROR_DIAG",
+				Message:  "This is a test error diagnosis",
 			},
 		}}}
 
