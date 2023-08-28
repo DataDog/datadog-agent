@@ -101,7 +101,6 @@ func NewRunner(config ddconfig.ConfigReader, sysCfg *sysconfig.Config, hostInfo 
 		cfg.ProcessModuleEnabled = processModuleEnabled
 		cfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = sysCfg.SocketAddress
-		cfg.GRPCSocketFilePath = sysCfg.GRPCSocketFilePath
 		cfg.GRPCServerEnabled = sysCfg.GRPCServerEnabled
 	}
 

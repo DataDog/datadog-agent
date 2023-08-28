@@ -140,7 +140,7 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 
 	opts := []grpc.DialOption{
 		grpc.WithContextDialer(func(_ context.Context, _ string) (nnet.Conn, error) {
-			return nnet.Dial(net.NetType, c.syscfg.GRPCSocketFilePath)
+			return nnet.Dial(net.NetType, c.syscfg.SocketAddress)
 		}),
 		grpc.WithInsecure(),
 	}

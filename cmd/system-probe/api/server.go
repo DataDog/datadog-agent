@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,17 +33,13 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	}
 
 	var grpcServer *grpc.Server
-	var grpcConn net.Conn
+	var srv *http.Server
 
+	mux := gorilla.NewRouter()
 	if cfg.GRPCServerEnabled {
-		grpcConn, err = net.NewListener(cfg.GRPCSocketFilePath)
-		if err != nil {
-			return fmt.Errorf("error creating IPC socket: %s", err)
-		}
 		grpcServer = grpc.NewServer(grpc.MaxRecvMsgSize(MaxGRPCServerMessage), grpc.MaxSendMsgSize(MaxGRPCServerMessage))
 	}
 
-	mux := gorilla.NewRouter()
 	err = module.Register(cfg, mux, grpcServer, modules.All)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
@@ -62,21 +59,21 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
+	if cfg.GRPCServerEnabled {
+		srv = grpcutil.NewMuxedGRPCServer(
+			cfg.SocketAddress,
+			nil,
+			grpcServer,
+			mux,
+		)
+	}
+
 	go func() {
-		err = http.Serve(conn.GetListener(), mux)
+		err = srv.Serve(conn.GetListener())
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("error creating HTTP server: %s", err)
 		}
 	}()
-
-	if cfg.GRPCServerEnabled {
-		go func() {
-			err = grpcServer.Serve(grpcConn.GetListener())
-			if err != nil {
-				log.Errorf("error creating grpc server: %s", err)
-			}
-		}()
-	}
 
 	return nil
 }
