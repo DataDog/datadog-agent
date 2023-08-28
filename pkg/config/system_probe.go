@@ -246,6 +246,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
 	// (temporary) enable submitting DNS stats by query type.
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_dns_by_querytype"), false)
+	// connection aggregation with port rollups
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_port_rollups"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)

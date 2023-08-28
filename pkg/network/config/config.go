@@ -250,6 +250,9 @@ type Config struct {
 	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
+
+	// EnablePortRollups enables aggregating connections by rolling up ephemeral ports
+	EnablePortRollups bool
 }
 
 func join(pieces ...string) string {
@@ -333,6 +336,8 @@ func New() *Config {
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+
+		EnablePortRollups: cfg.GetBool(join(netNS, "enable_port_rollups")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
