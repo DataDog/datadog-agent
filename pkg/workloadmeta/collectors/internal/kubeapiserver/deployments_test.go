@@ -116,3 +116,42 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	}
 	TestFakeHelper(t, cfg, createResource, newDeploymentStore, expected)
 }
+
+func Test_Deployment_FilteredOut(t *testing.T) {
+	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetDefault("language_detection.enabled", true)
+
+	filteredOutObjectMeta := metav1.ObjectMeta{
+		Name:      "test-deployment-filtered-out",
+		Namespace: "test-namespace",
+		Labels:    map[string]string{"test-label": "test-value"},
+	}
+	objectMeta := metav1.ObjectMeta{
+		Name:      "test-deployment",
+		Namespace: "test-namespace",
+		Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
+	}
+	createResource := func(cl *fake.Clientset) error {
+		_, err := cl.AppsV1().Deployments(objectMeta.Namespace).Create(context.TODO(), &appsv1.Deployment{ObjectMeta: filteredOutObjectMeta}, metav1.CreateOptions{})
+		require.NoError(t, err)
+		_, err = cl.AppsV1().Deployments(objectMeta.Namespace).Create(context.TODO(), &appsv1.Deployment{ObjectMeta: objectMeta}, metav1.CreateOptions{})
+		return err
+	}
+	expected := []workloadmeta.EventBundle{
+		{
+			Events: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.KubernetesDeployment{
+						EntityID: workloadmeta.EntityID{
+							ID:   objectMeta.Name,
+							Kind: workloadmeta.KindKubernetesDeployment,
+						},
+						Env: "env",
+					},
+				},
+			},
+		},
+	}
+	TestFakeHelper(t, cfg, createResource, newDeploymentStore, expected)
+}

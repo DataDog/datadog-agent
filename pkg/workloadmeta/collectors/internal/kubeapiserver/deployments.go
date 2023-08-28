@@ -24,10 +24,33 @@ import (
 )
 
 const deploymentStoreName = "deployments-store"
-const deploymentLabelSelector = ddkube.EnvTagLabelKey + "!=," + ddkube.ServiceTagLabelKey + "!=," + ddkube.VersionTagLabelKey + "!="
 
 func init() {
 	resourceSpecificGenerator[deploymentStoreName] = newDeploymentStore
+}
+
+// deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
+type deploymentFilter struct{}
+
+func (f *deploymentFilter) filteredOut(obj metav1.Object) bool {
+	labels := obj.GetLabels()
+	if _, ok := labels[ddkube.EnvTagLabelKey]; ok {
+		return false
+	}
+
+	if _, ok := labels[ddkube.ServiceTagLabelKey]; ok {
+		return false
+	}
+
+	if _, ok := labels[ddkube.VersionTagLabelKey]; ok {
+		return false
+	}
+
+	// if _, ok := deployment.Annotations["tags.datadog.com/languages"] { // stub, exact annotation will need to be defined in the future
+	// 	return false
+	// }
+
+	return true
 }
 
 func newDeploymentStore(ctx context.Context, cfg config.Config, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
@@ -36,11 +59,9 @@ func newDeploymentStore(ctx context.Context, cfg config.Config, wlm workloadmeta
 	}
 	deploymentListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			options.LabelSelector = deploymentLabelSelector
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			options.LabelSelector = deploymentLabelSelector
 			return client.AppsV1().Deployments(metav1.NamespaceAll).Watch(ctx, options)
 		},
 	}
@@ -61,6 +82,7 @@ func newDeploymentReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
 		parser:      newdeploymentParser(),
+		filter:      &deploymentFilter{},
 	}
 
 	return store
