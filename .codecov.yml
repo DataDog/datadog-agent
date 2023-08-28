@@ -8,3 +8,6 @@ coverage:
   status:
     project: off
     patch: off
+
+ignore:
+  - "pkg/trace/testutil"  # don't include test files
