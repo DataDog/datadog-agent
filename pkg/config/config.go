@@ -99,9 +99,9 @@ const (
 	// in the core agent if the process check is disabled.
 	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 
-	// DefaultMaxMessageSize is the default value for max_message_size_bytes
+	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
-	DefaultMaxMessageSize = 256 * 1000
+	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
 // Datadog is the global configuration object

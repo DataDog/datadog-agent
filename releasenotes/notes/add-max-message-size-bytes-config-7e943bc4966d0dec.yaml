@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    `max_message_size_bytes` (bytes) can now be configured in `logs_config`
+    `max_message_size_bytes` can now be configured in `logs_config`
