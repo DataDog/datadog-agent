@@ -50,7 +50,7 @@ func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 		select {
 		case <-rcp.isLeaderNotif:
 			log.Info("Got a leader notification, polling from remote-config")
-			rcp.process(rcp.client.GetConfigs(state.ProductAPMTracing))
+			rcp.process(rcp.client.GetConfigs(state.ProductAPMTracing), nil)
 		case <-stopCh:
 			log.Info("Shutting down remote-config patch provider")
 			rcp.client.Close()
@@ -66,7 +66,7 @@ func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan PatchRequest
 }
 
 // process is the event handler called by the RC client on config updates
-func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig) {
+func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	log.Infof("Got %d updates from remote-config", len(update))
 	var valid, invalid float64
 	for path, config := range update {

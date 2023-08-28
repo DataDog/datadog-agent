@@ -46,7 +46,7 @@ func (mr *MockRemoteClientMockRecorder) Close() *gomock.Call {
 }
 
 // Subscribe mocks base method.
-func (m *MockRemoteClient) Subscribe(arg0 string, arg1 func(map[string]state.RawConfig)) {
+func (m *MockRemoteClient) Subscribe(arg0 string, arg1 func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Subscribe", arg0, arg1)
 }
