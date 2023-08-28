@@ -93,7 +93,9 @@ func getSystemInfo() (si SYSTEM_INFO) {
 	var mod = windows.NewLazyDLL("kernel32.dll")
 	var gsi = mod.NewProc("GetSystemInfo")
 
-	_, _, _ = gsi.Call(uintptr(unsafe.Pointer(&si)))
+	// syscall does not fail
+	//nolint:errcheck
+	gsi.Call(uintptr(unsafe.Pointer(&si)))
 	return
 }
 
@@ -106,7 +108,7 @@ func getCPUInfo() *Info {
 		registryHive,
 		registry.QUERY_VALUE)
 	if err == nil {
-		defer func() { _ = k.Close() }()
+		defer k.Close()
 
 		dw, _, err := k.GetIntegerValue("~MHz")
 		cpuInfo.Mhz = utils.NewValueFrom(float64(dw), err)

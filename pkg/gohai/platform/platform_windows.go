@@ -88,7 +88,9 @@ func netServerGetInfo() (si SERVER_INFO_101, err error) {
 	if status != uintptr(0) {
 		return
 	}
-	defer func() { _, _, _ = procNetAPIBufferFree.Call(uintptr(unsafe.Pointer(outdata))) }()
+	// ignore free errors
+	//nolint:errcheck
+	defer procNetAPIBufferFree.Call(uintptr(unsafe.Pointer(outdata)))
 	return platGetServerInfo(outdata), nil
 }
 
@@ -103,7 +105,9 @@ func fetchOsDescription() (string, error) {
 			// Don't check for err, as this API doesn't return an error but just a formatted string.
 			os, _, _ := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
 			if os != 0 {
-				defer func() { _, _ = windows.LocalFree(windows.Handle(os)) }()
+				// ignore free errors
+				//nolint:errcheck
+				defer windows.LocalFree(windows.Handle(os))
 				// govet complains about possible misuse of unsafe.Pointer here
 				//nolint:govet
 				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
@@ -115,7 +119,7 @@ func fetchOsDescription() (string, error) {
 		registryHive,
 		registry.QUERY_VALUE)
 	if err == nil {
-		defer func() { _ = k.Close() }()
+		defer k.Close()
 		os, _, err := k.GetStringValue(productNameKey)
 		if err == nil {
 			return os, nil
@@ -140,7 +144,7 @@ func fetchWindowsVersion() (major uint64, minor uint64, build uint64, err error)
 		if err != nil {
 			return
 		}
-		defer func() { _ = regkey.Close() }()
+		defer regkey.Close()
 		major, _, err = regkey.GetIntegerValue(majorKey)
 		if err != nil {
 			return

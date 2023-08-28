@@ -112,7 +112,9 @@ func getFileSystemInfo() ([]MountInfo, error) {
 	var fileSystemInfo []MountInfo
 
 	if findHandle != InvalidHandle {
-		defer func() { _, _, _ = findClose.Call(fh) }()
+		// ignore close error
+		//nolint:errcheck
+		defer findClose.Call(fh)
 		moreData := true
 		for moreData {
 			outstring := convertWindowsString(buf)
