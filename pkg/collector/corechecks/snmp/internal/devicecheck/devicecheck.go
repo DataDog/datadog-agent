@@ -41,7 +41,7 @@ const (
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
 	deviceHostnamePrefix    = "device:"
-	checkDurationThreshold  = 5 // Five seconds
+	checkDurationThreshold  = 30 // Thirty seconds
 )
 
 // define timeNow as variable to make it possible to mock it during test
