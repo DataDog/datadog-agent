@@ -98,6 +98,7 @@ func (l *LogsConfigKeys) logsNoSSL() bool {
 func (l *LogsConfigKeys) logLineMaxSize() int {
 	key := l.getConfigKey("log_line_max_size")
 	logLineMaxSize := l.getConfig().GetInt(key)
+	// max content length limit is 1MB
 	if logLineMaxSize < 1 || 1000 < logLineMaxSize {
 		log.Warnf("Invalid %s: %v should be in [1, 1000] kilobytes, fallback on %v bytes", key, logLineMaxSize, coreConfig.DefaultLogLineMaxSize)
 	}
