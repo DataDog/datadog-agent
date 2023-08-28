@@ -2016,6 +2016,7 @@ func TestFilterConnections(t *testing.T) {
 		require.Len(t, kept, len(conns))
 		for i := 0; i < len(kept); i++ {
 			assert.Equal(t, kept[i], conns[i])
+			assert.Equal(t, &kept[i], &conns[i])
 		}
 	})
 
