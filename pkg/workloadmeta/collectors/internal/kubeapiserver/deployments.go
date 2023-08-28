@@ -19,12 +19,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const deploymentStoreName = "deployments-store"
-const deploymentLabelSelector = "tags.datadoghq.com/env!=,tags.datadoghq.com/service!=,tags.datadoghq.com/version!="
-const datadogTagPrefix = "tags.datadoghq.com/"
+const deploymentLabelSelector = ddkube.EnvTagLabelKey + "!=," + ddkube.ServiceTagLabelKey + "!=," + ddkube.VersionTagLabelKey + "!="
 
 func init() {
 	resourceSpecificGenerator[deploymentStoreName] = newDeploymentStore
@@ -80,9 +80,9 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Name, // not sure if we should use the UID or the name here
 		},
-		Env:     getOrDefault(deployment.Labels, datadogTagPrefix+"env", ""),
-		Service: getOrDefault(deployment.Labels, datadogTagPrefix+"service", ""),
-		Version: getOrDefault(deployment.Labels, datadogTagPrefix+"version", ""),
+		Env:     getOrDefault(deployment.Labels, ddkube.EnvTagLabelKey, ""),
+		Service: getOrDefault(deployment.Labels, ddkube.ServiceTagLabelKey, ""),
+		Version: getOrDefault(deployment.Labels, ddkube.VersionTagLabelKey+"version", ""),
 	}
 }
 
