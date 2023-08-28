@@ -34,7 +34,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	wlmExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -49,6 +48,7 @@ import (
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
+	processAgentCollectors "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/process-agent"
 )
 
 const (
@@ -209,7 +209,7 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 }
 
 func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
-	return anyChecksEnabled(checks) || collector.Enabled(cfg)
+	return anyChecksEnabled(checks) || processAgentCollectors.ProcessCollectorEnabled(cfg)
 }
 
 type miscDeps struct {
@@ -257,7 +257,6 @@ func initMisc(deps miscDeps) error {
 	}
 	tagger.SetDefaultTagger(t)
 
-	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 	grpcServer := wlmExtractor.NewGRPCServer(deps.Config, wlmExtractor.NewWorkloadMetaSource(store))
 
 	// appCtx is a context that cancels when the OnStop hook is called
@@ -277,12 +276,7 @@ func initMisc(deps miscDeps) error {
 				return err
 			}
 
-			if collector.Enabled(deps.Config) {
-				err := processCollectionServer.Start(appCtx, store)
-				if err != nil {
-					return err
-				}
-
+			if processAgentCollectors.ProcessCollectorEnabled(deps.Config) {
 				err = grpcServer.Start()
 				if err != nil {
 					return err
@@ -300,7 +294,7 @@ func initMisc(deps miscDeps) error {
 
 			stopApp()
 
-			if collector.Enabled(deps.Config) {
+			if processAgentCollectors.ProcessCollectorEnabled(deps.Config) {
 				grpcServer.Stop()
 			}
 

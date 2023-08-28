@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package collector
+package process
 
 import (
 	"context"
@@ -34,7 +34,7 @@ const testCid = "containersAreAwesome"
 type collectorTest struct {
 	probe     *mocks.Probe
 	clock     *clock.Mock
-	collector *Collector
+	collector *collector
 	store     *workloadmeta.MockStore
 	stream    pbgo.ProcessEntityStream_StreamEntitiesClient
 }
@@ -74,7 +74,9 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	cfg.Set("language_detection.enabled", true)
 
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(cfg)
+
 	grpcServer := workloadmetaExtractor.NewGRPCServer(cfg, wlmExtractor)
+	grpcServer.Start()
 
 	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
@@ -83,11 +85,9 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 
 	mockClock := clock.NewMock()
 
-	c := &Collector{
-		ddConfig:        cfg,
+	c := &collector{
+		ddconfig:        cfg,
 		processData:     mockProcessData,
-		wlmExtractor:    wlmExtractor,
-		grpcServer:      grpcServer,
 		pidToCid:        make(map[int]string),
 		collectionClock: mockClock,
 	}

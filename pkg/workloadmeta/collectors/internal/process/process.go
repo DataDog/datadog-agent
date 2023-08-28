@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package collector
+package process
 
 import (
 	"context"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -17,34 +18,32 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const collectorId = "local-process"
 
-// NewProcessCollector creates a new process collector.
-func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collector {
-	return &Collector{
-		sysprobeConfig:  sysProbeConfig,
-		ddConfig:        coreConfig,
-		collectionClock: clock.New(),
-		pidToCid:        make(map[int]string),
-		probe:           procutil.NewProcessProbe(),
+func init() {
+	workloadmeta.RegisterCollector(collectorId, func() workloadmeta.Collector {
+		return newProcessCollector()
+	})
+}
+
+// newProcessCollector creates a new process collector.
+func newProcessCollector() *collector {
+	return &collector{
+		pidToCid: make(map[int]string),
 	}
 }
 
-// Collector collects processes to send to the remote process collector in the core agent.
+// collector collects processes to send to the remote process collector in the core agent.
 // It is only intended to be used when language detection is enabled, and the process check is disabled.
-type Collector struct {
-	ddConfig       config.ConfigReader
-	sysprobeConfig config.ConfigReader
+type collector struct {
+	ddconfig       config.Config
+	sysprobeConfig config.Config
 
 	processData *checks.ProcessData
-
-	wlmExtractor *workloadmetaExtractor.WorkloadMetaExtractor
-	grpcServer   *workloadmetaExtractor.GRPCServer
 
 	pidToCid  map[int]string
 	procCache map[string]*workloadmeta.Process
@@ -54,14 +53,21 @@ type Collector struct {
 	collectionClock clock.Clock
 }
 
-func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	err := c.grpcServer.Start()
-	if err != nil {
-		return err
+func (c *collector) Pull(ctx context.Context) error {
+	return nil
+}
+
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
+	if Enabled(config.Datadog) {
+		return dderrors.NewDisabled(collectorId, "either language detection is disabled or process collection is enabled")
+
 	}
+	c.sysprobeConfig = config.SystemProbe
+	c.ddconfig = config.Datadog
+	c.probe = procutil.NewProcessProbe()
 
 	collectionTicker := c.collectionClock.Ticker(
-		c.ddConfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
+		c.ddconfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
 	)
 
 	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
@@ -72,8 +78,7 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	return nil
 }
 
-func (c *Collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
-	defer c.grpcServer.Stop()
+func (c *collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
 	defer store.Unsubscribe(containerEvt)
 	defer collectionTicker.Stop()
 
@@ -84,7 +89,7 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Store, container
 		case evt := <-containerEvt:
 			c.handleContainerEvent(evt)
 		case <-collectionTicker.C:
-			err := c.processData.Fetch()
+			err := c.collectProcesses(store)
 			if err != nil {
 				log.Error("Error fetching process data:", err)
 			}
@@ -95,8 +100,12 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Store, container
 	}
 }
 
-func (c *Collector) collectProcesses(store workloadmeta.Store) {
-	procs, _ := c.probe.ProcessesByPID(time.Now(), false)
+func (c *collector) collectProcesses(store workloadmeta.Store) error {
+	procs, err := c.probe.ProcessesByPID(time.Now(), false)
+	if err != nil {
+		return err
+	}
+
 	newEntities := make([]*workloadmeta.Process, 0, len(procs))
 	newProcs := make([]languagemodels.Process, 0, len(procs))
 	newCache := make(map[string]*workloadmeta.Process, len(procs))
@@ -121,10 +130,10 @@ func (c *Collector) collectProcesses(store workloadmeta.Store) {
 	// If no process has been created, terminated, or updated, there's no need to update the cache
 	// or generate a new diff
 	if len(newProcs) == 0 && len(deadProcs) == 0 && len(newEntities) == 0 {
-		return
+		return nil
 	}
 
-	languages := languagedetection.DetectLanguage(newProcs, c.ddConfig)
+	languages := languagedetection.DetectLanguage(newProcs, c.sysprobeConfig)
 	for i, lang := range languages {
 		pid := newProcs[i].GetPid()
 		proc := procs[pid]
@@ -167,12 +176,14 @@ func (c *Collector) collectProcesses(store workloadmeta.Store) {
 			Entity: proc,
 		})
 	}
+	store.Notify(evts)
+	return nil
 }
 
 // Pull is unused at the moment used due to the short frequency in which it is called.
 // In the future, we should use it to poll for processes that have been collected and store them in workload-meta.
 
-func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
+func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	defer close(evt.Ch)
 
 	for _, evt := range evt.Events {
@@ -187,8 +198,6 @@ func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 			delete(c.pidToCid, ent.PID)
 		}
 	}
-
-	c.wlmExtractor.SetLastPidToCid(c.pidToCid)
 }
 
 // Enabled checks to see if we should enable the local process collector.
