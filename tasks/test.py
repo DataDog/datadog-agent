@@ -129,8 +129,8 @@ def install_tools(ctx):
         ### go get <package>
         print(
             color_message(
-                "In case of issue, you might want to try disabling go workspaces by setting the environment variable GOWORK=off, or even deleting go.work and go.work.sum",
-                "red",
+                "WARNING: In case of issue, you might want to try disabling go workspaces by setting the environment variable GOWORK=off, or even deleting go.work and go.work.sum",
+                "orange",
             )
         )
 
