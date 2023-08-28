@@ -15,7 +15,6 @@ const (
 	OTLPLogsEnabled           = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPCensusReceiverSection = OTLPSection + ".opencensus"
 	OTLPMetricsSubSectionKey  = "metrics"
 	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
 	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
@@ -88,16 +87,6 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_aggregation_metrics")
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
-
-	// OpenCensus settings
-	config.BindEnv(OTLPSection + ".opencensus.endpoint")
-	config.BindEnv(OTLPSection + ".opencensus.transport")
-	config.BindEnv(OTLPSection + ".opencensus.max_recv_msg_size_mib")
-	config.BindEnv(OTLPSection + ".opencensus.max_concurrent_streams")
-	config.BindEnv(OTLPSection + ".opencensus.read_buffer_size")
-	config.BindEnv(OTLPSection + ".opencensus.write_buffer_size")
-	config.BindEnv(OTLPSection + ".opencensus.include_metadata")
-	config.BindEnv(OTLPSection + ".opencensus.cors_allowed_origin")
 
 	// Debug settings
 	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated
