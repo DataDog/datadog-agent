@@ -101,17 +101,18 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	tx = ebpfTxCopy
 
 	if tx.StatusCode() == 0 {
+		b.telemetry.joiner.requests.Add(1)
 		parts.requests = append(parts.requests, tx)
 	} else {
+		b.telemetry.joiner.responses.Add(1)
 		parts.responses = append(parts.responses, tx)
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
+func (b *incompleteBuffer) Flush(nowNano int64) []Transaction {
 	var (
 		joined   []Transaction
 		previous = b.data
-		nowUnix  = now.UnixNano()
 	)
 
 	b.data = make(map[types.ConnectionKey]*txParts)
@@ -127,6 +128,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 			request := parts.requests[i]
 			response := parts.responses[j]
 			if request.RequestStarted() > response.ResponseLastSeen() {
+				b.telemetry.joiner.responsesDropped.Add(1)
 				j++
 				continue
 			}
@@ -137,18 +139,20 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 			joined = append(joined, request)
 			i++
 			j++
+			b.telemetry.joiner.requestJoined.Add(1)
 		}
 
 		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
-			if b.shouldKeep(parts.requests[i], nowUnix) {
+			if b.shouldKeep(parts.requests[i], nowNano) {
 				keep := parts.requests[i:]
 				parts := newTXParts()
 				parts.requests = append(parts.requests, keep...)
 				b.data[key] = parts
 				break
 			}
+			b.telemetry.joiner.agedRequest.Add(1)
 			i++
 		}
 	}

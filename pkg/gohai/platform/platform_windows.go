@@ -10,7 +10,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"syscall"
 	"unicode/utf16"
 	"unsafe"
 
@@ -51,7 +50,7 @@ var (
 	// ERROR_SUCCESS is the error returned in case of success
 	//
 	//nolint:revive
-	ERROR_SUCCESS syscall.Errno
+	ERROR_SUCCESS windows.Errno
 )
 
 // see https://learn.microsoft.com/en-us/windows/win32/api/lmserver/nf-lmserver-netserverenum
@@ -194,11 +193,11 @@ func fetchOsDescription() (string, error) {
 		if procBrandingFormatString.Find() == nil {
 			// Encode the string "%WINDOWS_LONG%" to UTF-16 and append a null byte for the Windows API
 			magicString := utf16.Encode([]rune("%WINDOWS_LONG%" + "\x00"))
-			os, _, err := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
-			if err == ERROR_SUCCESS {
-				// ignore free errors
+			// Don't check for err, as this API doesn't return an error but just a formatted string.
+			os, _, _ := procBrandingFormatString.Call(uintptr(unsafe.Pointer(&magicString[0])))
+			if os != 0 {
 				//nolint:errcheck
-				defer syscall.LocalFree(syscall.Handle(os))
+				defer windows.LocalFree(windows.Handle(os))
 				// govet complains about possible misuse of unsafe.Pointer here
 				//nolint:govet
 				return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(os))), nil
