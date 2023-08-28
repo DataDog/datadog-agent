@@ -99,7 +99,7 @@ const (
 	// in the core agent if the process check is disabled.
 	DefaultLocalProcessCollectorInterval = 1 * time.Minute
 
-	// DefaultLogLineMax is the default value for log_line_max_size in bytes
+	// DefaultLogLineMaxSize is the default value for log_line_max_size in bytes
 	// If a line is bigger than this limit, it will be truncated.
 	DefaultLogLineMaxSize = 256 * 1000
 )
