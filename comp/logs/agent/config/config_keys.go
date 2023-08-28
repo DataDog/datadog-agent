@@ -99,7 +99,7 @@ func (l *LogsConfigKeys) logLineMaxSize() int {
 	key := l.getConfigKey("log_line_max_size")
 	logLineMaxSize := l.getConfig().GetInt(key)
 	if logLineMaxSize < 1 || 1000 < logLineMaxSize {
-		log.Warnf("Invalid %s: %v should be in [1, 1000] kilobytes, fallback on %v", key, logLineMaxSize, coreConfig.DefaultLogLineMaxSize)
+		log.Warnf("Invalid %s: %v should be in [1, 1000] kilobytes, fallback on %v bytes", key, logLineMaxSize, coreConfig.DefaultLogLineMaxSize)
 	}
 	return logLineMaxSize * 1000
 }
