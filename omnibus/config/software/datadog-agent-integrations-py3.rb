@@ -542,6 +542,15 @@ build do
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       command "#{python} -m pip check"
     end
+
+    block do
+      # Removing tests that don't need to be shipped in the embedded folder
+      if windows?
+        delete "#{python_2_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
+      else
+        delete "#{install_dir}/embedded/lib/python2.7/site-packages/Cryptodome/SelfTest/"
+      end
+    end
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
