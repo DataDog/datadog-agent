@@ -11,6 +11,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// RemoteConfigScheduler is the structure used to run checks with RC
 type RemoteConfigScheduler struct {
 	scheduler     *collector.CheckScheduler
 	runningChecks []integration.Config
