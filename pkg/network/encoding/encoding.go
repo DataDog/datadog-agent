@@ -90,8 +90,8 @@ func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	}
 }
 
-// CleanConnectionModeler cleans all encoders resources.
-func (c *ConnectionsModeler) CleanConnectionModeler() {
+// Close cleans all encoders resources.
+func (c *ConnectionsModeler) Close() {
 	c.httpEncoder.Close()
 	c.http2Encoder.Close()
 	c.kafkaEncoder.Close()

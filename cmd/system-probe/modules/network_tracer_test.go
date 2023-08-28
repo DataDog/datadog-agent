@@ -62,6 +62,7 @@ func TestDecode(t *testing.T) {
 	connectionsModeler := encoding.NewConnectionsModeler(in)
 	payload := connectionsModeler.ModelConnections(in)
 	defer encoding.Cleanup(payload)
+	defer connectionsModeler.Close()
 	expected, err := marshaller.Marshal(payload)
 	require.NoError(t, err)
 

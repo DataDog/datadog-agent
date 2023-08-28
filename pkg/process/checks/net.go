@@ -175,7 +175,7 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("unable to get respinse from grpc server due to: %v", err)
+			return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
 		}
 
 		batch, err := unmarshaler.Unmarshal(res.Data)

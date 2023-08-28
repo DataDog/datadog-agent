@@ -127,7 +127,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		cs.Conns = cs.Conns[:finalBatchSize]
 
 		payload := connectionsModeler.ModelConnections(cs)
-		connectionsModeler.CleanConnectionModeler()
+		connectionsModeler.Close()
 		// get the conns for a batch by the marshaler
 		conns, err := marshaler.Marshal(payload)
 		encoding.Cleanup(payload)
@@ -360,7 +360,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 	connectionsModeler := encoding.NewConnectionsModeler(cs)
 	payload := connectionsModeler.ModelConnections(cs)
 	defer encoding.Cleanup(payload)
-	defer connectionsModeler.CleanConnectionModeler()
+	defer connectionsModeler.Close()
 
 	buf, err := marshaler.Marshal(payload)
 	if err != nil {
