@@ -1995,6 +1995,57 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, delta.Kafka, 2)
 }
 
+func TestFilterConnections(t *testing.T) {
+	t.Run("filter", func(t *testing.T) {
+		var conns []ConnectionStats
+		for i := 0; i < 100; i++ {
+			conns = append(conns, ConnectionStats{})
+		}
+
+		var kept []ConnectionStats
+		conns = filterConnections(conns, func(c *ConnectionStats) bool {
+			if rand.Int()%2 == 0 {
+				// keep
+				kept = append(kept, *c)
+				return true
+			}
+
+			return false
+		})
+
+		require.Len(t, kept, len(conns))
+		for i := 0; i < len(kept); i++ {
+			assert.Equal(t, kept[i], conns[i])
+		}
+	})
+
+	t.Run("stable pointer", func(t *testing.T) {
+		var conns []ConnectionStats
+		for i := 0; i < 100; i++ {
+			conns = append(conns, ConnectionStats{})
+		}
+
+		var kept []ConnectionStats
+		var keptPtrs []*ConnectionStats
+		conns = filterConnections(conns, func(c *ConnectionStats) bool {
+			if rand.Int()%2 == 0 {
+				// keep
+				kept = append(kept, *c)
+				keptPtrs = append(keptPtrs, c)
+				return true
+			}
+
+			return false
+		})
+
+		for i := 0; i < len(keptPtrs); i++ {
+			assert.Equal(t, *keptPtrs[i], kept[i])
+			assert.Equal(t, keptPtrs[i], &conns[i])
+			assert.Equal(t, kept[i], conns[i])
+		}
+	})
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {
