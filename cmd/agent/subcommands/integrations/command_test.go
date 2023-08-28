@@ -107,11 +107,28 @@ func TestRegexMatch(t *testing.T) {
 		{pep440VersionStringRe, "1.2.3a4b", false, ""},
 		{pep440VersionStringRe, "1.2", false, ""},
 		{pep440VersionStringRe, "a1.2.3", false, ""},
+		{pep440VersionStringRe, "1.2.3\\d", false, ""},
 	}
 
 	for _, test := range testCases {
 		if assert.Equal(t, test.matches, test.regex.MatchString(test.text), test.text) {
 			assert.Equal(t, test.firstMatch, test.regex.FindString(test.text))
 		}
+	}
+
+	pep440MatchNamesTest := "1.3.4b1"
+	matches := pep440VersionStringRe.FindStringSubmatch(pep440MatchNamesTest)
+	require.NotNil(t, matches)
+	require.Len(t, matches, 4)
+	require.Equal(t, pep440MatchNamesTest, matches[0])
+
+	for subexpName, expected := range map[string]string{
+		"release":          "1.3.4",
+		"preReleaseType":   "b",
+		"preReleaseNumber": "1",
+	} {
+		subexpIndex := pep440VersionStringRe.SubexpIndex(subexpName)
+		require.NotEqual(t, -1, subexpIndex)
+		require.Equal(t, expected, matches[subexpIndex])
 	}
 }
