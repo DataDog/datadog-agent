@@ -8,6 +8,7 @@ package client
 import (
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,14 +72,16 @@ func (agent *AgentCommandRunner) Health() (string, error) {
 	return output, err
 }
 
-func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) (string, error) {
+func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string {
 	output, err := agent.executeCommand("hostname", commandArgs...)
-	return output, err
+	require.NoError(agent.t, err)
+	return strings.Trim(output, "\n")
 }
 
 func (agent *AgentCommandRunner) Secret(commandArgs ...AgentArgsOption) (string, error) {
 	output, err := agent.executeCommand("secret", commandArgs...)
-	return output, err
+	require.NoError(agent.t, err)
+	return output
 }
 
 // IsReady runs status command and returns true if the agent is ready.

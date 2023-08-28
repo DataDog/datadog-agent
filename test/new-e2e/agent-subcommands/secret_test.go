@@ -23,10 +23,8 @@ func TestAgentSecretSuite(t *testing.T) {
 
 func (v *agentSecretSuite) TestAgentSecretNotEnabledByDefault() {
 	v.UpdateEnv(e2e.AgentStackDef(nil))
-	v.Env().VM.Execute("sudo systemctl restart datadog-agent")
 
-	secret, err := v.Env().Agent.Secret()
-	assert.NoError(v.T(), err)
+	secret := v.Env().Agent.Secret()
 
 	assert.Contains(v.T(), secret, "No secret_backend_command set")
 }
@@ -34,8 +32,7 @@ func (v *agentSecretSuite) TestAgentSecretNotEnabledByDefault() {
 func (v *agentSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo")))
 
-	output, err := v.Env().Agent.Secret()
-	assert.NoError(v.T(), err)
+	output := v.Env().Agent.Secret()
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
@@ -53,8 +50,7 @@ host_aliases:
 	v.Env().VM.Execute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
 	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false), agentparams.WithAgentConfig(config)))
 
-	output, err := v.Env().Agent.Secret()
-	assert.NoError(v.T(), err)
+	output := v.Env().Agent.Secret()
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /tmp/bin/secret.sh")
@@ -64,5 +60,6 @@ host_aliases:
 	assert.Contains(v.T(), output, "Group: dd-agent")
 	assert.Contains(v.T(), output, "Number of secrets decrypted: 1")
 	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases'")
+	// assert we don't output the decrypted secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }
