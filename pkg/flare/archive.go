@@ -25,13 +25,14 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	host "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -71,7 +72,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
 		fb.RegisterDirPerm(systemProbeConfigBPFDir)
 	}
@@ -87,8 +88,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
-	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) { return functionOutputToBytes(diagnose.RunAll), nil })
-	fb.AddFileFromFunc("connectivity.log", getDatadogConnectivity)
+	fb.AddFileFromFunc("diagnose.log", getDiagnoses)
 	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
@@ -101,7 +101,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	getRegistryJSON(fb)
 
 	getVersionHistory(fb)
-	fb.CopyFile(filepath.Join(config.FileUsedDir(), "install_info"))
+	fb.CopyFile(installinfo.GetFilePath(config.Datadog))
 
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)
@@ -298,10 +298,21 @@ func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url s
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDatadogConnectivity() ([]byte, error) {
+func getDiagnoses() ([]byte, error) {
 	fct := func(w io.Writer) error {
-		return connectivity.RunDatadogConnectivityDiagnose(w, false)
+		// Run agent diagnose command to be verbose and remote. If Agent is running small performance hit
+		// since this code will get diagnoses using Agent’s local port listener (instead of calling a
+		// function directly since the caller and callee are in the same process).However, the same code
+		// will continue to work well because agent diagnose command works locally as well (if it cannot
+		// connect to the running Agent).
+		diagCfg := diagnosis.Config{
+			Verbose:  true,
+			RunLocal: false,
+		}
+
+		return diagnose.RunStdOut(w, diagCfg)
 	}
+
 	return functionOutputToBytes(fct), nil
 }
 

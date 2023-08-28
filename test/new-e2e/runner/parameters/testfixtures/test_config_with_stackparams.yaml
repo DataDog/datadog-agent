@@ -1,0 +1,12 @@
+configParams:
+  aws:
+    account: "kiki"
+    keyPairName: "totoro"
+    publicKeyPath: "/Users/totoro/.ssh/id_rsa.pub"
+    teamTag: "miyazaki"
+  agent:
+    apiKey: "00000000000000000000000000000000"
+options:
+stackParams:
+  ddinfra:
+    "agent/foo": 42

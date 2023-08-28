@@ -8,6 +8,7 @@
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 10
+#define HTTP2_MAX_FRAMES_TO_FILTER 500
 
 // A limit of max headers which we process in the request/response.
 #define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 20
@@ -18,8 +19,7 @@
 #define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 3
 
 // Maximum size for the path buffer.
-// NOTE: we may need to change the max size.
-#define HTTP2_MAX_PATH_LEN 30
+#define HTTP2_MAX_PATH_LEN 160
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
@@ -28,7 +28,7 @@
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.
-#define HTTP2_BATCH_SIZE 10
+#define HTTP2_BATCH_SIZE 17
 
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
@@ -38,13 +38,10 @@
 // 1 << 7 - 1
 #define MAX_7_BITS 127
 
-typedef enum {
-    kMethod = 2,
-    kPath = 4,
-    kStatus = 9,
-} static_table_key_t;
+#define HTTP2_CONTENT_TYPE_IDX 31
 
-typedef enum {
+typedef enum
+{
     kGET = 2,
     kPOST = 3,
     kEmptyPath = 4,
@@ -59,12 +56,7 @@ typedef enum {
 } static_table_value_t;
 
 typedef struct {
-    static_table_key_t key;
-    static_table_value_t value;
-} static_table_entry_t;
-
-typedef struct {
-    char buffer[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+    char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
     __u8 string_len;
 } dynamic_table_entry_t;
 
@@ -75,7 +67,7 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
-    __u32  stream_id;
+    __u32 stream_id;
 } http2_stream_key_t;
 
 typedef struct {
@@ -88,7 +80,7 @@ typedef struct {
     __u8 path_size;
     bool request_end_of_stream;
 
-    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__ ((aligned (8)));
+    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
 } http2_stream_t;
 
 typedef struct {
@@ -96,11 +88,12 @@ typedef struct {
     http2_stream_key_t http2_stream_key;
 } http2_ctx_t;
 
-typedef enum {
-    kStaticHeader  = 0,
+typedef enum
+{
+    kStaticHeader = 0,
     kExistingDynamicHeader = 1,
     kNewDynamicHeader = 2,
-} __attribute__ ((packed)) http2_header_type_t;
+} __attribute__((packed)) http2_header_type_t;
 
 typedef struct {
     __u32 index;
@@ -110,14 +103,14 @@ typedef struct {
 } http2_header_t;
 
 typedef struct {
+    struct http2_frame frame;
     __u32 offset;
-    __u8 iteration;
-} http2_tail_call_state_t;
+} http2_frame_with_offset;
 
-typedef enum {
-    HEADER_ERROR = 0,
-    HEADER_NOT_INTERESTING,
-    HEADER_INTERESTING,
-} parse_result_t;
+typedef struct {
+    __u8 iteration;
+    __u8 frames_count;
+    http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__ ((aligned (8)));
+} http2_tail_call_state_t;
 
 #endif

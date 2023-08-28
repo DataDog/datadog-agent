@@ -16,7 +16,9 @@ venv3[78]/
 **/debug.test
 # files
 .DS_Store
+# *.cov could be removed in OCT 2023, replaced by **/coverage.out
 *.cov
+**/coverage.out
 *.pyc
 *.swp
 *.exe
@@ -30,9 +32,6 @@ Dockerfiles/cluster-agent/nosys-seccomp
 .env
 .envrc
 .python-version
-
-#file generated at build time by message compiler
-agentmsg.h
 
 # go-generated files
 datadog.yaml
@@ -92,22 +91,12 @@ cmd/agent/android/app/build
 platform.pk8
 
 # trace agent windows artifacts
-cmd/trace-agent/windows_resources/trace-agent-msg.rc
-cmd/trace-agent/windows_resources/*.bin
 pkg/trace/info/git_version.go
-trace-agent-msg.h
 
-# process agent artifacts
-cmd/process-agent/windows_resources/process-agent-msg.rc
-cmd/process-agent/windows_resources/*.bin
-process-agent-msg.h
 # process agent test artifacts
 pkg/process/config/logs
 
 # sysprobe artifacts
-cmd/system-probe/windows_resources/system-probe-msg.rc
-cmd/system-probe/windows_resources/*.bin
-system-probe-msg.h
 **/.ninja_log
 **/.ninja_deps
 *.ninja
@@ -116,6 +105,7 @@ pkg/ebpf/bytecode/build/**/*.d
 pkg/ebpf/bytecode/runtime/conntrack.go
 pkg/ebpf/bytecode/runtime/http.go
 pkg/ebpf/bytecode/runtime/usm.go
+pkg/ebpf/bytecode/runtime/shared-libraries.go
 pkg/ebpf/bytecode/runtime/offsetguess-test.go
 pkg/ebpf/bytecode/runtime/oom-kill.go
 pkg/ebpf/bytecode/runtime/runtime-security.go
@@ -155,6 +145,11 @@ pkg/util/winutil/**/_obj/
 
 # windows container build output
 build.out/
+
+# windows resource files
+pkg/util/winutil/messagestrings/*.h
+pkg/util/winutil/messagestrings/*.rc
+pkg/util/winutil/messagestrings/*.bin
 
 # dev VM
 .vagrant

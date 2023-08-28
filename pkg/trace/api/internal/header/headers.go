@@ -54,4 +54,12 @@ const (
 	// RatesPayloadVersion contains the version of sampling rates.
 	// If both agent and client have the same version, the agent won't return rates in API response.
 	RatesPayloadVersion = "Datadog-Rates-Payload-Version"
+
+	// SendTrueHTTPStatus can be sent by the client to signal to the agent that
+	// it wants to receive the "real" status in the response. By default, the agent
+	// will send a 200 OK response for every payload, even those dropped due to
+	// intake limits.
+	// Any value set in this header will cause the agent to send a 429 code to a client
+	// when the payload cannot be submitted.
+	SendRealHTTPStatus = "Datadog-Send-Real-Http-Status"
 )

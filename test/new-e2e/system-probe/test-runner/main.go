@@ -33,6 +33,7 @@ type TestConfig struct {
 	retryCount      int
 	includePackages []string
 	excludePackages []string
+	runTests        string
 }
 
 const (
@@ -47,6 +48,7 @@ const (
 )
 
 var BaseEnv = map[string]interface{}{
+	"GITLAB_CI":                "true", // force color output support to be detected
 	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
 	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/protocols/tls/java"),
 }
@@ -111,7 +113,7 @@ func pathToPackage(path string) string {
 	return dir
 }
 
-func buildCommandArgs(junitPath string, jsonPath string, file string, retryCnt int) []string {
+func buildCommandArgs(junitPath string, jsonPath string, file string, testConfig *TestConfig) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
@@ -127,10 +129,14 @@ func buildCommandArgs(junitPath string, jsonPath string, file string, retryCnt i
 		"--format", "dots",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
-		fmt.Sprintf("--rerun-fails=%d", retryCnt),
+		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
+	}
+
+	if testConfig.runTests != "" {
+		args = append(args, "-test.run", testConfig.runTests)
 	}
 
 	return args
@@ -233,7 +239,7 @@ func testPass(testConfig *TestConfig) error {
 			getCIVisibilityDir(XMLDir),
 			getCIVisibilityDir(JSONDir),
 			file,
-			testConfig.retryCount,
+			testConfig,
 		)
 		cmd := exec.Command(GoTestSum, args...)
 
@@ -285,6 +291,7 @@ func buildTestConfiguration() *TestConfig {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
 	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
+	runTestsPtr := flag.String("run-tests", "", "Regex for running specific tests")
 
 	flag.Parse()
 
@@ -302,6 +309,7 @@ func buildTestConfiguration() *TestConfig {
 		retryCount:      *retryPtr,
 		includePackages: packagesLs,
 		excludePackages: excludeLs,
+		runTests:        *runTestsPtr,
 	}
 }
 

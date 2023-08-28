@@ -10,17 +10,20 @@ package cpu
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
-func CPUInfo() (map[string]string, error) {
-	return map[string]string{
-		"cpu_logical_processors": "1",
-	}, nil
+func CPUInfo() *gohaicpu.Info {
+	return &gohaicpu.Info{
+		CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
+	}
 }
 
 func TestCPUCheckWindows(t *testing.T) {
@@ -36,7 +39,7 @@ func TestCPUCheckWindows(t *testing.T) {
 	}
 
 	cpuCheck := new(Check)
-	cpuCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)

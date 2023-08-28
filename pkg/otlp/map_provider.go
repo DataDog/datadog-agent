@@ -31,9 +31,6 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	smap := map[string]interface{}{
 		buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
 	}
-	if cfg.OpenCensusEnabled {
-		smap[buildKey("service", "pipelines", "traces", "receivers")] = []interface{}{"otlp", "opencensus"}
-	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)
@@ -49,12 +46,16 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	smap := map[string]interface{}{
 		buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
 	}
-	if cfg.OpenCensusEnabled {
-		smap[buildKey("service", "pipelines", "metrics", "receivers")] = []interface{}{"otlp", "opencensus"}
-	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)
+	}
+	return baseMap, err
+}
+func buildLogsMap() (*confmap.Conf, error) {
+	baseMap, err := configutils.NewMapFromYAMLString(defaultLogsConfig)
+	if err != nil {
+		return nil, err
 	}
 	return baseMap, err
 }
@@ -62,9 +63,6 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 	rcvs := map[string]interface{}{
 		"otlp": cfg.OTLPReceiverConfig,
-	}
-	if cfg.OpenCensusEnabled {
-		rcvs["opencensus"] = cfg.OpenCensusReceiverConfig
 	}
 	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
 }
@@ -86,6 +84,13 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
+	if cfg.LogsEnabled {
+		logsMap, err := buildLogsMap()
+		errs = append(errs, err)
+
+		err = retMap.Merge(logsMap)
+		errs = append(errs, err)
+	}
 	if cfg.shouldSetLoggingSection() {
 		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
@@ -102,6 +107,14 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		}
 		if cfg.TracesEnabled {
 			key := buildKey("service", "pipelines", "traces", "exporters")
+			if v, ok := retMap.Get(key).([]interface{}); ok {
+				m[key] = append(v, "logging")
+			} else {
+				m[key] = []interface{}{"logging"}
+			}
+		}
+		if cfg.LogsEnabled {
+			key := buildKey("service", "pipelines", "logs", "exporters")
 			if v, ok := retMap.Get(key).([]interface{}); ok {
 				m[key] = append(v, "logging")
 			} else {

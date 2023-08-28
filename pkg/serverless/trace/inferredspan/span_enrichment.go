@@ -241,6 +241,18 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
 	}
+
+	traceContext := extractTraceContext(eventRecord)
+	if traceContext == nil {
+		log.Debug("No trace context found")
+		return
+	}
+	if traceContext.TraceID != nil {
+		inferredSpan.Span.TraceID = *traceContext.TraceID
+	}
+	if traceContext.ParentID != nil {
+		inferredSpan.Span.ParentID = *traceContext.ParentID
+	}
 }
 
 // EnrichInferredSpanWithEventBridgeEvent uses the parsed event

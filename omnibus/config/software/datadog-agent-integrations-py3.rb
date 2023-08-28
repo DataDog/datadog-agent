@@ -16,9 +16,6 @@ dependency 'snowflake-connector-python-py3'
 dependency 'confluent-kafka-python'
 
 if arm?
-  # psycopg2 doesn't come with pre-built wheel on the arm architecture.
-  # to compile from source, it requires the `pg_config` executable present on the $PATH
-  dependency 'postgresql'
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
@@ -27,10 +24,19 @@ if arm?
 end
 
 if osx?
+  dependency 'postgresql'
   dependency 'unixodbc'
 end
 
 if linux?
+  # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
+  #   to compile from source, it requires the `pg_config` executable present on the $PATH
+  # * We also need it to build psycopg[c] Python dependency
+  # * Note: because having unixodbc already built breaks postgresql build,
+  #   we made unixodbc depend on postgresql to ensure proper build order.
+  #   If we're ever removing/changing one of these dependencies, we need to
+  #   take this into account.
+  dependency 'postgresql'
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
@@ -48,6 +54,11 @@ whitelist_file "embedded/lib/python3.9/site-packages/psycopg2"
 whitelist_file "embedded/lib/python3.9/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
+
+gcc_version = ENV['GCC_VERSION']
+if gcc_version.nil? || gcc_version.empty?
+  gcc_version = '10.4.0'
+end
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -94,11 +105,24 @@ if arm?
   blacklist_packages.push(/^pymqi==/)
 end
 
+if redhat? && !arm?
+  # RPM builds are done on CentOS 6 which is based on glibc v2.12 however newer libraries require v2.17, see:
+  # https://blog.rust-lang.org/2022/08/01/Increasing-glibc-kernel-requirements.html
+  dependency 'pydantic-core-py3'
+  blacklist_packages.push(/^pydantic-core==/)
+end
+
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
 # even when doing a 32 bit build.  Do a specific check for the 32 bit
 # build
 if arm? || !_64_bit? || (windows? && windows_arch_i386?)
   blacklist_packages.push(/^orjson==/)
+end
+
+if linux?
+  # We need to use cython<3.0.0 to build oracledb
+  dependency 'oracledb-py3'
+  blacklist_packages.push(/^oracledb==/)
 end
 
 final_constraints_file = 'final_constraints-py3.txt'
@@ -161,13 +185,10 @@ build do
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
+
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
-    }
-    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    specific_build_env = {
-      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
@@ -180,6 +201,33 @@ build do
     # See: https://github.com/python/cpython/blob/v3.8.8/Lib/distutils/sysconfig.py#L227
     if linux? || windows?
       nix_build_env["CFLAGS"] += " -std=c99"
+    end
+
+    # We only have gcc 10.4.0 on linux for now
+    if linux?
+      nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
+      nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
+    end
+
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+    }
+
+    # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
+    # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
+    if redhat? && !arm?
+        specific_build_env["cryptography"] = nix_build_env.merge(
+            {
+                "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
+                "PIP_NO_BINARY" => ":all:",
+                "OPENSSL_DIR" => "#{install_dir}/embedded/",
+                # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
+                # We force reinstall it from source to be sure we use the flag
+                "PIP_NO_CACHE_DIR" => "off",
+                "PIP_FORCE_REINSTALL" => "1",
+            }
+        )
     end
 
     #
@@ -220,15 +268,19 @@ build do
       end
 
       if !blacklist_flag
+        # on non windows OS, we use the c version of the psycopg installation
+        if line.start_with?('psycopg[binary]') && !windows?
+          line.sub! 'psycopg[binary]', 'psycopg[c]'
+        end
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line
             lib_req["req_lines"].push(line)
           end
+        end
         # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
         # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
         requirements.push(line)
-        end
       end
     end
 

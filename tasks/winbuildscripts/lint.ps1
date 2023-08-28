@@ -7,8 +7,8 @@ if ($Env:TARGET_ARCH -eq "x64") {
 }
 & $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
 
-$Env:BUILD_ROOT=(Get-Location).Path
-$Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
+$LINT_ROOT=(Get-Location).Path
+$Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;$Env:VSTUDIO_ROOT\VC\Tools\Llvm\bin"
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
@@ -18,21 +18,14 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 
 & inv -e deps
+& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
-& inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
+& inv -e rtloader.format --raise-if-changed
 $err = $LASTEXITCODE
-Write-Host Build result is $err
+Write-Host Format result is $err
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader make failed $err"
-    [Environment]::Exit($err)
-}
-
-& inv -e rtloader.install
-$err = $LASTEXITCODE
-Write-Host rtloader install result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "rtloader install failed $err"
-    [Environment]::Exit($err)
+  Write-Host -ForegroundColor Red "rtloader format failed $err"
+  [Environment]::Exit($err)
 }
 
 & inv -e install-tools

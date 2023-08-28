@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
@@ -27,20 +28,20 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 )
 
 var (
 	pipelineError = atomic.NewError(nil)
 )
 
-func getComponents(s serializer.MetricSerializer) (
+func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (
 	otelcol.Factories,
 	error,
 ) {
@@ -53,17 +54,22 @@ func getComponents(s serializer.MetricSerializer) (
 
 	receivers, err := receiver.MakeFactoryMap(
 		otlpreceiver.NewFactory(),
-		opencensusreceiver.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	exporters, err := exporter.MakeFactoryMap(
+	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
 		loggingexporter.NewFactory(),
-	)
+	}
+
+	if logsAgentChannel != nil {
+		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
+	}
+
+	exporters, err := exporter.MakeFactoryMap(exporterFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -97,17 +103,14 @@ func getBuildInfo() (component.BuildInfo, error) {
 type PipelineConfig struct {
 	// OTLPReceiverConfig is the OTLP receiver configuration.
 	OTLPReceiverConfig map[string]interface{}
-	// OpenCensusEnabled reports whether the OpenCensus receiver is enabled.
-	// WARNING: This feature is for internal use and may be removed in a minor version.
-	OpenCensusEnabled bool
-	// OpenCensusReceiverConfig specifies the configuration for the OpenCensus receiver.
-	OpenCensusReceiverConfig map[string]interface{}
 	// TracePort is the trace Agent OTLP port.
 	TracePort uint
 	// MetricsEnabled states whether OTLP metrics support is enabled.
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
+	// LogsEnabled states whether OTLP logs support is enabled.
+	LogsEnabled bool
 	// Debug contains debug configurations.
 	Debug map[string]interface{}
 	// Metrics contains configuration options for the serializer metrics exporter
@@ -152,13 +155,13 @@ type CollectorStatus struct {
 }
 
 // NewPipeline defines a new OTLP pipeline.
-func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, error) {
+func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
 	}
 
-	factories, err := getComponents(s)
+	factories, err := getComponents(s, logsAgentChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get components: %w", err)
 	}
@@ -188,14 +191,20 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		return nil, err
 	}
 
-	if cfg.OpenCensusEnabled {
-		log.Warn("The OpenCensus receiver is for internal use only and may be removed without notice.")
-	}
 	return &Pipeline{col}, nil
+}
+
+func recoverAndStoreError() {
+	if r := recover(); r != nil {
+		err := fmt.Errorf("OTLP pipeline had a panic: %v", r)
+		pipelineError.Store(err)
+		log.Errorf(err.Error())
+	}
 }
 
 // Run the OTLP pipeline.
 func (p *Pipeline) Run(ctx context.Context) error {
+	defer recoverAndStoreError()
 	return p.col.Run(ctx)
 }
 
@@ -205,8 +214,8 @@ func (p *Pipeline) Stop() {
 }
 
 // BuildAndStart builds and starts an OTLP pipeline
-func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
-	p, err := NewPipelineFromAgentConfig(cfg, s)
+func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
+	p, err := NewPipelineFromAgentConfig(cfg, s, logsAgentChannel)
 	if err != nil {
 		return nil, err
 	}
@@ -220,14 +229,17 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 	return p, nil
 }
 
-func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
+func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()
 	}
+	if err := checkAndUpdateCfg(pcfg, logsAgentChannel); err != nil {
+		return nil, err
+	}
 
-	p, err := NewPipeline(pcfg, s)
+	p, err := NewPipeline(pcfg, s, logsAgentChannel)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
 		return nil, pipelineError.Load()

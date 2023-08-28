@@ -144,7 +144,7 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 	}
 
 	if err != nil {
-		response := fmt.Sprintf("Error: could not deserialize response body -- Please contact support by email.")
+		response := "Error: could not deserialize response body -- Please contact support by email."
 		sample := string(b)
 		if len(sample) > 150 {
 			sample = sample[:150]

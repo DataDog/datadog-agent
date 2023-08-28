@@ -92,11 +92,12 @@ func initStatus(deps dependencies) error {
 	status.UpdateDockerSocket(dockerSock)
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := deps.SysProbeConfig.Object().EnabledModules[sysconfig.ProcessModule]
+	_, processModuleEnabled := deps.SysProbeConfig.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
 	eps, err := endpoint.GetAPIEndpoints(deps.Config)
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
+	languageDetectionEnabled := deps.Config.GetBool("language_detection.enabled")
+	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
 	return nil
 }

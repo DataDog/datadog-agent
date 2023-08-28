@@ -18,6 +18,7 @@ import (
 	"go.uber.org/atomic"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -25,6 +26,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -143,7 +145,7 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
-func (c *APMCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err
@@ -231,6 +233,11 @@ func (c *APMCheck) InitConfig() string {
 // InstanceConfig returns the instance config for the APM check
 func (c *APMCheck) InstanceConfig() string {
 	return c.instanceConfig
+}
+
+// GetDiagnoses returns the diagnoses of the check
+func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }
 
 func init() {

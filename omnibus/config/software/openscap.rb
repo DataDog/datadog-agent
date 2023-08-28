@@ -39,6 +39,10 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
+  # Fixes since release 1.3.8
+  patch source: "0005-Fix-leak-of-filename-in-oval_agent_new_session.patch", env: env
+  patch source: "0006-Fix-leak-of-item-in-probe_item_collect.patch", env: env
+
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
   patch source: "session_result_reset.patch", env: env # add a function to reset results from session
   patch source: "session_reset_syschar.patch", env: env # also reset system characteristics
@@ -49,6 +53,7 @@ build do
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
+  patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

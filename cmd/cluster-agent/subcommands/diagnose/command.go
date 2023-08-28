@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -41,5 +42,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(log log.Component, config config.Component) error {
-	return diagnose.RunAll(color.Output)
+	diagCfg := diagnosis.Config{
+		Verbose:  false,
+		RunLocal: false,
+	}
+	return diagnose.RunStdOut(color.Output, diagCfg)
 }

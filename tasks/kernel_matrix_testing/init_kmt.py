@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from .download import download_kernel_packages, download_rootfs
-from .tool import Exit
+from .tool import info
 
 KMT_DIR = os.path.join("/", "home", "kernel-version-testing")
 KMT_ROOTFS_DIR = os.path.join(KMT_DIR, "rootfs")
@@ -82,14 +82,8 @@ def get_active_branch_name():
             return line.partition("refs/heads/")[2].replace("/", "-")
 
 
-def check_and_get_stack(stack, branch):
-    if stack is None and not branch:
-        raise Exit("Stack name required if not using current branch")
-
-    if stack and branch:
-        raise Exit("Cannot specify stack when branch parameter is set")
-
-    if branch:
+def check_and_get_stack(stack):
+    if stack is None:
         stack = get_active_branch_name()
 
     if not stack.endswith("-ddvm"):
@@ -130,3 +124,8 @@ def init_kernel_matrix_testing_system(ctx, lite):
         download_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
         download_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
         gen_ssh_key(ctx)
+
+    # build docker compile image
+    ctx.run("cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep 'docker:' | cut -d ':' -f 3)")
+    info(f"[+] User '{os.getlogin()}' in group 'docker'")
+    ctx.run("docker build -f ../datadog-agent-buildimages/system-probe_x64/Dockerfile -t kmt:compile .")

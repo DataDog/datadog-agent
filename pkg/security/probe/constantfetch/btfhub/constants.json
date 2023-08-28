@@ -1,5 +1,5 @@
 {
-	"commit": "ead2ff641ec299f58cf5bdfc3d51902bc136a53e",
+	"commit": "dc09ecb6214acb85736fe590a49998d45dd9a6ff",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -7466,6 +7466,27 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.318-240.529.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.318-241.531.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.320-242.534.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 4
 		},
@@ -8048,6 +8069,27 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.314-238.539.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.318-240.529.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.318-241.531.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.320-242.534.amzn2.x86_64",
 			"cindex": 7
 		},
 		{
@@ -9454,6 +9496,13 @@
 			"distrib": "centos",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.95.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.el7.x86_64",
 			"cindex": 33
 		},
@@ -9776,6 +9825,20 @@
 			"distrib": "debian",
 			"version": "10",
 			"arch": "arm64",
+			"uname_release": "4.19.0-25-arm64",
+			"cindex": 43
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
+			"uname_release": "4.19.0-25-rt-arm64",
+			"cindex": 44
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
 			"uname_release": "5.10.0-0.deb10.17-arm64",
 			"cindex": 45
 		},
@@ -9896,6 +9959,27 @@
 			"version": "10",
 			"arch": "arm64",
 			"uname_release": "5.10.0-0.deb10.23-rt-arm64",
+			"cindex": 46
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
+			"uname_release": "5.10.0-0.deb10.24-arm64",
+			"cindex": 45
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
+			"uname_release": "5.10.0-0.deb10.24-cloud-arm64",
+			"cindex": 45
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
+			"uname_release": "5.10.0-0.deb10.24-rt-arm64",
 			"cindex": 46
 		},
 		{
@@ -10070,6 +10154,27 @@
 			"distrib": "debian",
 			"version": "10",
 			"arch": "x86_64",
+			"uname_release": "4.19.0-25-amd64",
+			"cindex": 49
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "4.19.0-25-cloud-amd64",
+			"cindex": 49
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "4.19.0-25-rt-amd64",
+			"cindex": 50
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
 			"uname_release": "5.10.0-0.deb10.17-amd64",
 			"cindex": 51
 		},
@@ -10190,6 +10295,27 @@
 			"version": "10",
 			"arch": "x86_64",
 			"uname_release": "5.10.0-0.deb10.23-rt-amd64",
+			"cindex": 52
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "5.10.0-0.deb10.24-amd64",
+			"cindex": 51
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "5.10.0-0.deb10.24-cloud-amd64",
+			"cindex": 51
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "5.10.0-0.deb10.24-rt-amd64",
 			"cindex": 52
 		},
 		{
@@ -12415,6 +12541,27 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "arm64",
+			"uname_release": "4.14.35-2047.528.2.1.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.528.2.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.529.1.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
 			"uname_release": "4.14.35-2048.el7uek.aarch64",
 			"cindex": 76
 		},
@@ -13515,6 +13662,20 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.92.1.0.2.el7.x86_64",
+			"cindex": 81
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.95.1.0.1.el7.x86_64",
+			"cindex": 81
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.95.1.0.2.el7.x86_64",
 			"cindex": 81
 		},
 		{
@@ -14754,6 +14915,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.1.12-124.76.2.el7uek.x86_64",
+			"cindex": 82
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.1.12-124.77.2.el7uek.x86_64",
 			"cindex": 82
 		},
 		{
@@ -17232,6 +17400,34 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.528.1.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.528.2.1.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.528.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.529.1.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.529.2.el7uek.x86_64",
 			"cindex": 85
 		},
 		{
@@ -26121,6 +26317,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-117-generic",
 			"cindex": 96
 		},
@@ -26535,6 +26738,13 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-212-generic",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-213-generic",
 			"cindex": 129
 		},
 		{
@@ -29586,6 +29796,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1158-azure",
 			"cindex": 140
 		},
@@ -29636,6 +29853,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1166-azure",
+			"cindex": 140
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1167-azure",
 			"cindex": 140
 		},
 		{

@@ -12,6 +12,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/fx"
 
+	"github.com/prometheus/client_golang/prometheus"
+	sdk "go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,6 +26,10 @@ type Component interface {
 	Handler() http.Handler
 	// Reset resets all tracked telemetry
 	Reset()
+	// RegisterCollector Registers a Collector with the prometheus registry
+	RegisterCollector(c prometheus.Collector)
+	// UnregisterCollector unregisters a Collector with the prometheus registry
+	UnregisterCollector(c prometheus.Collector) bool
 	// Meter returns a new OTEL meter
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
 
@@ -60,6 +67,9 @@ type Component interface {
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
+
+	GetRegistry() *prometheus.Registry
+	GetMeterProvider() *sdk.MeterProvider
 }
 
 // Module defines the fx options for this component.
@@ -70,4 +80,5 @@ var Module = fxutil.Component(
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),
+	fx.Provide(func(m Mock) Component { return m }),
 )

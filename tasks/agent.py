@@ -21,10 +21,12 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
+from .process_agent import build as process_agent_build
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
 from .ssm import get_pfx_pass, get_signing_cert
+from .trace_agent import build as trace_agent_build
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -32,11 +34,10 @@ from .utils import (
     generate_config,
     get_build_flags,
     get_version,
-    get_version_numeric_only,
-    get_win_py_runtime_var,
     has_both_python,
     load_release_versions,
 )
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -136,29 +137,21 @@ def build(
     )
 
     if sys.platform == 'win32':
-        py_runtime_var = get_win_py_runtime_var(python_runtimes)
-
-        windres_target = "pe-x86-64"
-
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        # This generates the manifest resource. The manifest resource is necessary for
-        # being able to load the ancient C-runtime that comes along with Python 2.7
-        # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        build_maj, build_min, build_patch = ver.split(".")
-
-        command = f"windmc --target {windres_target} -r cmd/agent cmd/agent/agentmsg.mc "
-        ctx.run(command, env=env)
-
-        command = f"windres --target {windres_target} --define {py_runtime_var}=1 --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} --define BUILD_ARCH_{arch}=1"
-        command += "-i cmd/agent/agent.rc -O coff -o cmd/agent/rsrc.syso"
-        ctx.run(command, env=env)
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/agent/windows_resources/agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/agent/rsrc.syso",
+        )
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -280,6 +273,23 @@ def run(
 
 
 @task
+def exec(
+    ctx,
+    subcommand,
+    config_path=None,
+):
+    """
+    Execute 'agent <subcommand>' against the currently running Agent.
+
+    This works against an agent run via `inv agent.run`.
+    Basically this just simplifies creating the path for both the agent binary and config.
+    """
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} -c {config_path} {subcommand}")
+
+
+@task
 def system_tests(_):
     """
     Run the system testsuite.
@@ -326,9 +336,22 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False, signed_pull=False):
+def hacky_dev_image_build(
+    ctx,
+    base_image=None,
+    target_image="agent",
+    target_tag="latest",
+    process_agent=False,
+    trace_agent=False,
+    push=False,
+    signed_pull=False,
+):
     os.environ["DELVE"] = "1"
     build(ctx)
+    if process_agent:
+        process_agent_build(ctx)
+    if trace_agent:
+        trace_agent_build(ctx)
 
     if base_image is None:
         import requests
@@ -346,6 +369,12 @@ def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False
             if ver > latest_release:
                 latest_release = ver
         base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+
+    copy_extra_agents = ""
+    if process_agent:
+        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+    if trace_agent:
+        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -382,6 +411,8 @@ ENV DELVE_PAGER=less
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent /opt/datadog-agent/bin/agent/agent
+COPY dev/lib/libdatadog-agent-* /opt/datadog-agent/embedded/lib/
+{copy_extra_agents}
 RUN agent completion bash > /usr/share/bash-completion/completions/agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
@@ -389,13 +420,14 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         )
         dockerfile.flush()
 
+        target_image_name = f'{target_image}:{target_tag}'
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image}')
+            ctx.run(f'docker push {target_image_name}')
 
 
 @task
@@ -491,6 +523,11 @@ def get_omnibus_env(
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
+
+    # We need to override the workers variable in omnibus build when running on Kubernetes runners,
+    # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
+    if os.environ.get('KUBERNETES_CPU_REQUEST'):
+        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
 
     return env
 

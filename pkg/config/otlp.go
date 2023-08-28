@@ -11,9 +11,10 @@ const (
 	OTLPTracesSubSectionKey   = "traces"
 	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
 	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
+	OTLPLogsSubSectionKey     = "logs"
+	OTLPLogsEnabled           = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPCensusReceiverSection = OTLPSection + ".opencensus"
 	OTLPMetricsSubSectionKey  = "metrics"
 	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
 	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
@@ -27,6 +28,7 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
+	config.BindEnvAndSetDefault(OTLPLogsEnabled, false)
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go
@@ -66,7 +68,8 @@ func setupOTLPEnvironmentVariables(config Config) {
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.span_name_remappings", map[string]string{})
 	config.BindEnv("otlp_config.traces.span_name_as_resource_name")
-	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.)
+	config.BindEnvAndSetDefault("otlp_config.traces.probabilistic_sampler.sampling_percentage", 100.,
+		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 
 	// HTTP settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.http.endpoint")
@@ -84,16 +87,6 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_aggregation_metrics")
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
-
-	// OpenCensus settings
-	config.BindEnv(OTLPSection + ".opencensus.endpoint")
-	config.BindEnv(OTLPSection + ".opencensus.transport")
-	config.BindEnv(OTLPSection + ".opencensus.max_recv_msg_size_mib")
-	config.BindEnv(OTLPSection + ".opencensus.max_concurrent_streams")
-	config.BindEnv(OTLPSection + ".opencensus.read_buffer_size")
-	config.BindEnv(OTLPSection + ".opencensus.write_buffer_size")
-	config.BindEnv(OTLPSection + ".opencensus.include_metadata")
-	config.BindEnv(OTLPSection + ".opencensus.cors_allowed_origin")
 
 	// Debug settings
 	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated

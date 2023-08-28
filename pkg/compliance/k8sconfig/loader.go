@@ -15,7 +15,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -130,7 +129,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		if err != nil {
 			l.pushError(err)
 		} else {
-			b, err = ioutil.ReadAll(io.LimitReader(f, maxSize))
+			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)
 			}
@@ -167,6 +166,7 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 	if !ok {
 		return nil
 	}
+
 	var content interface{}
 	switch filepath.Ext(name) {
 	case ".yaml", ".yml":
@@ -190,6 +190,36 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 		Mode:    uint32(info.Mode()),
 		Content: content,
 	}
+}
+
+func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
+	meta := l.loadConfigFileMeta(name)
+	if meta == nil {
+		return nil
+	}
+	content, ok := meta.Content.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	if kind, _ := content["kind"]; kind != "KubeletConfiguration" {
+		l.pushError(fmt.Errorf(`kubelet configuration loaded from %q is expected to be of kind "KubeletConfiguration"`, name))
+		return nil
+	}
+	// specifically parse key/cert files path to load their associated meta info.
+	if keyPath, ok := content["tlsPrivateKeyFile"].(string); ok {
+		content["tlsPrivateKeyFile"] = l.loadKeyFileMeta(keyPath)
+	}
+	if certPath, ok := content["tlsCertFile"].(string); ok {
+		content["tlsCertFile"] = l.loadCertFileMeta(certPath)
+	}
+	if authentication, ok := content["authentication"].(map[string]interface{}); ok {
+		if x509, ok := authentication["x509"].(map[string]interface{}); ok {
+			if clientCAFile, ok := x509["clientCAFile"].(string); ok {
+				x509["clientCAFile"] = l.loadCertFileMeta(clientCAFile)
+			}
+		}
+	}
+	return meta
 }
 
 func (l *loader) loadAdmissionConfigFileMeta(name string) *K8sAdmissionConfigFileMeta {

@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
@@ -37,6 +38,7 @@ var (
 
 // Runner is the object in charge of running all the checks
 type Runner struct {
+	senderManager       sender.SenderManager
 	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
@@ -49,10 +51,11 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner() *Runner {
+func NewRunner(senderManager sender.SenderManager) *Runner {
 	numWorkers := config.Datadog.GetInt("check_runners")
 
 	r := &Runner{
+		senderManager:       senderManager,
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
@@ -112,6 +115,7 @@ func (r *Runner) AddWorker() {
 // addWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
+		r.senderManager,
 		r.id,
 		int(workerIDGenerator.Inc()),
 		r.pendingChecksChan,

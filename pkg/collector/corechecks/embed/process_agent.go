@@ -18,6 +18,7 @@ import (
 	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -25,6 +26,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -144,7 +146,7 @@ func (c *ProcessAgentCheck) run() error {
 }
 
 // Configure the ProcessAgentCheck
-func (c *ProcessAgentCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
 	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
 	if enabled := config.Datadog.GetBool("process_config.process_collection.enabled"); !enabled {
@@ -223,6 +225,11 @@ func (c *ProcessAgentCheck) Cancel() {}
 // GetSenderStats returns the stats from the last run of the check, but there aren't any yet
 func (c *ProcessAgentCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.NewSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses of the check
+func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }
 
 func init() {

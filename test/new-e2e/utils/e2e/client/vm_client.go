@@ -21,7 +21,7 @@ type vmClient struct {
 	t      *testing.T
 }
 
-func newVMClient(t *testing.T, sshKey string, connection *utils.Connection) (*vmClient, error) {
+func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection) (*vmClient, error) {
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
