@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package diagnoses implements the diagnosis collection for NDM resources
 package diagnoses
 
 import (
