@@ -76,6 +76,7 @@ func (sc *RemoteConfigScheduler) IntegrationScheduleCallback(updates map[string]
 		pkglog.Infof("Scheduled %d instances of %s check with remote-config", len(d.Instances), d.Name)
 		if len(scheduleErrs) == 0 {
 			// TODO: apply state ok
+			pkglog.Errorf("There were error while scheduling remote-configuration checks")
 		}
 		sc.runningChecks = append(sc.runningChecks, configToSchedule)
 	}
