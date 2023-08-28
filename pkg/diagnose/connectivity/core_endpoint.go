@@ -41,7 +41,7 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
-				RawError:    err,
+				RawError:    err.Error(),
 			},
 		}
 	}
@@ -49,7 +49,6 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	client := forwarder.NewHTTPClient(config.Datadog)
-	ctx := context.Background()
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
@@ -58,9 +57,7 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 			for _, endpointInfo := range endpointsInfo {
 				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 				httpTraces := []string{}
-				if diagCfg.Verbose {
-					ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(httpTraces))
-				}
+				ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
 
 				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 
@@ -76,12 +73,12 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 					d.Result = diagnosis.DiagnosisFail
 					d.Diagnosis = fmt.Sprintf("Connection to `%s` failed\n%s", logURL, report)
 					d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
-					d.RawError = err
+					d.RawError = reportErr.Error()
 				}
 
-				// Add http trace on error or if in verbose mode
+				// Prepend http trace on error or if in verbose mode
 				if len(httpTraces) > 0 && (diagCfg.Verbose || reportErr != nil) {
-					d.Diagnosis += strings.Join(httpTraces, "\n")
+					d.Diagnosis = fmt.Sprintf("\n%s\n%s", strings.Join(httpTraces, "\n"), d.Diagnosis)
 				}
 				diagnoses = append(diagnoses, d)
 			}

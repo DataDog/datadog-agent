@@ -1,6 +1,4 @@
 otlp_config:
-  opencensus:
-    endpoint: 0.0.0.0:55678
   receiver:
     protocols:
       http:
