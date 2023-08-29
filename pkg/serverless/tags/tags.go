@@ -240,10 +240,9 @@ func getRuntime(procPath string, osReleasePath string, varName string, retries i
 		}
 		foundRuntimes := proc.SearchProcsForEnvVariable(procPath, varName)
 		runtime = cleanRuntimes(foundRuntimes)
-		runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
 		counter++
 	}
-	log.Debugf("finding the lambda runtime took %v. found runtime: %s", time.Since(start), runtime)
+	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
 	if len(runtime) == 0 {
 		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
 	}
@@ -251,6 +250,7 @@ func getRuntime(procPath string, osReleasePath string, varName string, retries i
 		log.Debug("could not find a valid runtime, defaulting to unknown")
 		runtime = "unknown"
 	}
+	log.Debugf("finding the lambda runtime took %v. found runtime: %s", time.Since(start), runtime)
 	return runtime
 }
 
