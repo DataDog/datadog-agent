@@ -41,7 +41,6 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.93
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
 	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
@@ -559,6 +558,7 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.94
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000

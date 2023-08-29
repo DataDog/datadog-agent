@@ -288,16 +288,16 @@ func getClientID(req *http.Request) string {
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
-	buf, err := marshaler.Marshal(cs)
+	w.Header().Set("Content-type", marshaler.ContentType())
+
+	err := marshaler.Marshal(cs, w)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
 		return
 	}
 
-	w.Header().Set("Content-type", marshaler.ContentType())
-	w.Write(buf) //nolint:errcheck
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
 func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
