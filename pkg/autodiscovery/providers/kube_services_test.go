@@ -207,7 +207,7 @@ func TestInvalidateIfChanged(t *testing.T) {
 			invalidate: true,
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			ctx := context.Background()
 			provider := &KubeServiceConfigProvider{upToDate: true}
 			provider.invalidateIfChanged(tc.old, tc.obj)

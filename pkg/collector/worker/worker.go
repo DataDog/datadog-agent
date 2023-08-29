@@ -149,8 +149,7 @@ func (w *Worker) Run() {
 		utilizationTracker.CheckStarted()
 
 		// Run the check
-		var checkErr error
-		checkErr = check.Run()
+		checkErr := check.Run()
 
 		utilizationTracker.CheckFinished()
 

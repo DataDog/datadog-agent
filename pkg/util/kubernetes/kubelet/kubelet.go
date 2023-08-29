@@ -420,7 +420,7 @@ func IsPodReady(pod *Pod) bool {
 // isPodStatic identifies whether a pod is static or not based on an annotation
 // Static pods can be sent to the kubelet from files or an http endpoint.
 func isPodStatic(pod *Pod) bool {
-	if source, ok := pod.Metadata.Annotations[configSourceAnnotation]; ok == true && (source == "file" || source == "http") {
+	if source, ok := pod.Metadata.Annotations[configSourceAnnotation]; ok && (source == "file" || source == "http") {
 		return len(pod.Status.Containers) == 0
 	}
 	return false

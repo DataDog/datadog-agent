@@ -93,11 +93,8 @@ func (c *Concentrator) Run() {
 	log.Debug("Starting concentrator")
 
 	go func() {
-		for {
-			select {
-			case inputs := <-c.In:
-				c.Add(inputs)
-			}
+		for inputs := range c.In {
+			c.Add(inputs)
 		}
 	}()
 	for {

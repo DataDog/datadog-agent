@@ -84,7 +84,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		_ = <-sigs
+		<-sigs
 		done <- true
 	}()
 

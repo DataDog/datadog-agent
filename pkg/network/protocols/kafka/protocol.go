@@ -93,7 +93,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager, _ protocols.BuildMode) error {
+func (p *protocol) PreStart(mgr *manager.Manager) error {
 	var err error
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStreamName,

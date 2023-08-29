@@ -63,7 +63,7 @@ func mockPdhAddEnglishCounter(hQuery PDH_HQUERY, szFullCounterPath string, dwUse
 	ndx := int(hQuery)
 	var thisQuery mockQuery
 	var ok bool
-	if thisQuery, ok = openQueries[ndx]; ok == false {
+	if thisQuery, ok = openQueries[ndx]; !ok {
 		return uint32(PDH_INVALID_PATH)
 	}
 	counterIndex++
@@ -211,5 +211,4 @@ func RemoveCounterInstance(clss, inst string) {
 func AddCounterInstance(clss, inst string) {
 	activeAvailableCounters.instancesByClass[clss] =
 		append(activeAvailableCounters.instancesByClass[clss], inst)
-	return
 }

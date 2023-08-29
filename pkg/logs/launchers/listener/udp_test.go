@@ -27,7 +27,7 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
 	listener.Start()
 
-	conn, err := net.Dial("udp", fmt.Sprintf("%s", listener.tailer.Conn.LocalAddr()))
+	conn, err := net.Dial("udp", listener.tailer.Conn.LocalAddr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
