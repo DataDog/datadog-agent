@@ -234,6 +234,9 @@ func getRuntime(procPath string, osReleasePath string, varName string, retries i
 	runtime := ""
 	counter := 0
 	start := time.Now()
+	// Retry as the process holding the runtime env var is sometimes not up during extension init.
+	// This predominantly happens with csharp lambdas.
+	// The max possible wait is 25ms + time taken for proc/env var search, usually ~28ms total.
 	for len(runtime) == 0 && counter <= retries {
 		if counter > 0 {
 			time.Sleep(5 * time.Millisecond)
