@@ -392,7 +392,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
     ],
     "collect_timestamp":1415792726
 }
-		`)
+`)
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
