@@ -1846,7 +1846,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	stats, err := tr.GetStats()
+	stats, err := tr.getStats(bpfMapStats)
 	require.NoError(t, err)
 
 	mapsTelemetry, ok := stats[telemetry.EBPFMapTelemetryNS].(map[string]interface{})
@@ -1904,7 +1904,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
 
-	stats, err := tr.GetStats()
+	stats, err := tr.getStats(bpfHelperStats)
 	require.NoError(t, err)
 
 	helperTelemetry, ok := stats[telemetry.EBPFHelperTelemetryNS].(map[string]interface{})

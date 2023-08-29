@@ -204,7 +204,7 @@ func FetchAllOIDsUsingGetNext(session Session) []string {
 			}
 		}
 
-		if alreadySeenOIDs[curRequestOid] == true {
+		if alreadySeenOIDs[curRequestOid] {
 			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT
 			log.Debug("error: received non sequential OIDs")
 			break

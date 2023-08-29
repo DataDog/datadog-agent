@@ -158,7 +158,6 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 
 	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res))
 	log.Errorf("Flare zipfile successfully created: " + filePath + "\n" + res)
-	return
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function

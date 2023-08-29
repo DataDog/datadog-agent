@@ -229,9 +229,7 @@ func expvarConfigureErrors() interface{} {
 	configureErrorsCopy := map[string][]string{}
 	for k, v := range configureErrors {
 		errors := []string{}
-		for i := range v {
-			errors = append(errors, v[i])
-		}
+		errors = append(errors, v...)
 		configureErrorsCopy[k] = errors
 	}
 
@@ -258,9 +256,7 @@ func expvarPy3Warnings() interface{} {
 	py3WarningsCopy := map[string][]string{}
 	for k, v := range py3Warnings {
 		warnings := []string{}
-		for i := range v {
-			warnings = append(warnings, v[i])
-		}
+		warnings = append(warnings, v...)
 		py3WarningsCopy[k] = warnings
 	}
 

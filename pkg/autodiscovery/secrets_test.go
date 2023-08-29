@@ -33,7 +33,7 @@ type MockSecretDecrypt struct {
 func (m *MockSecretDecrypt) getDecryptFunc() func([]byte, string) ([]byte, error) {
 	return func(data []byte, origin string) ([]byte, error) {
 		for n, scenario := range m.scenarios {
-			if bytes.Compare(data, scenario.expectedData) == 0 && origin == scenario.expectedOrigin {
+			if bytes.Equal(data, scenario.expectedData) && origin == scenario.expectedOrigin {
 				m.scenarios[n].called++
 				return scenario.returnedData, scenario.returnedError
 			}

@@ -255,8 +255,8 @@ func TestRenameInvalidate(t *testing.T) {
 func TestRenameReuseInode(t *testing.T) {
 	// xfs has changed the inode reuse feature in 5.15
 	// https://lkml.iu.edu/hypermail/linux/kernel/2108.3/07604.html
-	checkKernelCompatibility(t, ">= 5.15 kernels", func(kv *kernel.Version) bool {
-		return kv.Code >= kernel.Kernel5_15
+	checkKernelCompatibility(t, ">= 5.15 kernels or EL9", func(kv *kernel.Version) bool {
+		return kv.Code >= kernel.Kernel5_15 || kv.IsRH9Kernel()
 	})
 
 	ruleDefs := []*rules.RuleDefinition{{

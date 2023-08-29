@@ -138,7 +138,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		// protocol, we directly parse it as a float64. This avoids
 		// pulling a slice from the float64List and greatly improve
 		// performances.
-		if bytes.Index(rawValue, colonSeparator) == -1 {
+		if !bytes.Contains(rawValue, colonSeparator) {
 			value, err = parseFloat64(rawValue)
 		} else {
 			values, err = p.parseFloat64List(rawValue)
