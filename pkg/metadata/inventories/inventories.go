@@ -100,6 +100,7 @@ const (
 	AgentUSMEnabled                      AgentMetadataName = "feature_usm_enabled"
 	AgentUSMKafkaEnabled                 AgentMetadataName = "feature_usm_kafka_enabled"
 	AgentUSMJavaTLSEnabled               AgentMetadataName = "feature_usm_java_tls_enabled"
+	AgentUSMIstioEnabled                 AgentMetadataName = "feature_usm_istio_enabled"
 	AgentUSMHTTP2Enabled                 AgentMetadataName = "feature_usm_http2_enabled"
 	AgentUSMHTTPStatsByStatusCodeEnabled AgentMetadataName = "feature_usm_http_by_status_code_enabled"
 	AgentUSMGoTLSEnabled                 AgentMetadataName = "feature_usm_go_tls_enabled"
@@ -473,6 +474,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentRemoteConfigEnabled, cfg.GetBool("remote_configuration.enabled"))
 	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
+	SetAgentMetadata(AgentUSMIstioEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_istio_monitoring"))
 	SetAgentMetadata(AgentUSMHTTPStatsByStatusCodeEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
 	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
 	SetAgentMetadata(AgentDIEnabled, config.SystemProbe.GetBool("dynamic_instrumentation.enabled"))

@@ -29,7 +29,6 @@ import (
 )
 
 const (
-	deleteDelayTime                      = 5 * time.Second
 	numAllowedMountIDsToResolvePerPeriod = 75
 	fallbackLimiterPeriod                = 5 * time.Second
 	redemptionTime                       = 5 * time.Second

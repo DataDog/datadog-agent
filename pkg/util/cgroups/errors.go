@@ -42,6 +42,13 @@ type FileSystemError struct {
 	Err      error
 }
 
+func newFileSystemError(path string, err error) *FileSystemError {
+	return &FileSystemError{
+		FilePath: path,
+		Err:      err,
+	}
+}
+
 func (e *FileSystemError) Error() string {
 	return fmt.Sprintf("fs error, path: %s, err: %s", e.FilePath, e.Err.Error())
 }
