@@ -1,1 +1,1 @@
-from .fix_revive_linter import need_fixing_linters
+from .need_fixing_linters import need_fixing_linters
