@@ -1194,7 +1194,7 @@ api_key:
   # file_wildcard_selection_mode: `by_name`
 
   ## @param max_message_size_bytes - integer - optional - default: 256000
-  ## @env DD_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
+  ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
   ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds 
   ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
   # https://docs.datadoghq.com/api/latest/logs/
