@@ -8,11 +8,8 @@
 
 int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, int dr_type, int key) {
     switch (dr_type) {
-    case DR_KPROBE:
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, key);
-        break;
-    case DR_FENTRY:
-        bpf_tail_call_compat(ctx, &dentry_resolver_fentry_progs, key);
+    case DR_KPROBE_OR_FENTRY:
+        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_progs, key);
         break;
     case DR_TRACEPOINT:
         bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
@@ -93,8 +90,7 @@ exit:
 
 int __attribute__((always_inline)) select_dr_key(int dr_type, int kprobe_key, int tracepoint_key) {
     switch (dr_type) {
-    case DR_KPROBE:
-    case DR_FENTRY:
+    case DR_KPROBE_OR_FENTRY:
         return kprobe_key;
     default: // DR_TRACEPOINT
         return tracepoint_key;
