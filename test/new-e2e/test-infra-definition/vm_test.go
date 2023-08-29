@@ -26,24 +26,24 @@ func TestVMSuite(t *testing.T) {
 }
 
 func (v *vmSuite) TestWithImageName() {
-	requested_ami := "ami-05fab674de2157a80"
+	requestedAmi := "ami-05fab674de2157a80"
 	v.UpdateEnv(e2e.EC2VMStackDef(
-		ec2params.WithImageName(requested_ami, os.ARM64Arch, ec2os.AmazonLinuxOS)))
+		ec2params.WithImageName(requestedAmi, os.ARM64Arch, ec2os.AmazonLinuxOS)))
 
 	vm := v.Env().VM
 	metadata := client.NewEC2Metadata(vm)
-	require.Equal(v.T(), requested_ami, metadata.Get("ami-id"))
+	require.Equal(v.T(), requestedAmi, metadata.Get("ami-id"))
 	require.Equal(v.T(), "aarch64\n", vm.Execute("uname -m"))
 	require.Contains(v.T(), vm.Execute("grep PRETTY_NAME /etc/os-release"), "Amazon Linux")
 }
 
 func (v *vmSuite) TestWithInstanceType() {
-	instance_type := "t3.medium"
-	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithInstanceType(instance_type)))
+	instanceType := "t3.medium"
+	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithInstanceType(instanceType)))
 
 	vm := v.Env().VM
 	metadata := client.NewEC2Metadata(vm)
-	require.Equal(v.T(), instance_type, metadata.Get("instance-type"))
+	require.Equal(v.T(), instanceType, metadata.Get("instance-type"))
 }
 
 func (v *vmSuite) TestWithArch() {

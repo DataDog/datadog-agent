@@ -63,22 +63,22 @@ func (v *agentSuite) TestWithAgentConfig() {
 	}
 }
 
-func (s *agentSuite) TestWithTelemetry() {
-	s.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithTelemetry()))
+func (v *agentSuite) TestWithTelemetry() {
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithTelemetry()))
 
-	status := s.Env().Agent.Status()
-	require.Contains(s.T(), status.Content, "go_expvar")
+	status := v.Env().Agent.Status()
+	require.Contains(v.T(), status.Content, "go_expvar")
 
-	s.UpdateEnv(e2e.AgentStackDef(nil))
-	status = s.Env().Agent.Status()
-	require.NotContains(s.T(), status.Content, "go_expvar")
+	v.UpdateEnv(e2e.AgentStackDef(nil))
+	status = v.Env().Agent.Status()
+	require.NotContains(v.T(), status.Content, "go_expvar")
 }
 
-func (s *agentSuite) TestWithLogs() {
-	config := s.Env().Agent.Config()
-	require.Contains(s.T(), config, "logs_enabled: false")
+func (v *agentSuite) TestWithLogs() {
+	config := v.Env().Agent.Config()
+	require.Contains(v.T(), config, "logs_enabled: false")
 
-	s.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithLogs()))
-	config = s.Env().Agent.Config()
-	require.Contains(s.T(), config, "logs_enabled: true")
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithLogs()))
+	config = v.Env().Agent.Config()
+	require.Contains(v.T(), config, "logs_enabled: true")
 }
