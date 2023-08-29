@@ -1563,7 +1563,7 @@ tags:
   ],
   "diagnoses": [
     {
-      "resource_type": "ndm_device",
+      "resource_type": "device",
       "resource_id": "default:1.2.3.4",
       "diagnoses": [
         {
@@ -1666,7 +1666,7 @@ tags:
   ],
   "diagnoses": [
 	{
-	  "resource_type": "ndm_device",
+	  "resource_type": "device",
 	  "resource_id": "default:1.2.3.5",
 	  "diagnoses": [
 		{

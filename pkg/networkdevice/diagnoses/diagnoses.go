@@ -29,7 +29,7 @@ var severityMap = map[string]diagnosis.Result{
 // NewDeviceDiagnoses returns a new Diagnoses for a NDM device resource
 func NewDeviceDiagnoses(deviceID string) *Diagnoses {
 	return &Diagnoses{
-		resourceType: "ndm_device",
+		resourceType: "device",
 		resourceID:   deviceID,
 	}
 }
@@ -73,7 +73,7 @@ func (d *Diagnoses) ConvertToCLI() []diagnosis.Diagnosis {
 	for _, diag := range d.prevDiagnoses {
 		cliDiagnoses = append(cliDiagnoses, diagnosis.Diagnosis{
 			Result:    severityMap[diag.Severity],
-			Name:      fmt.Sprintf("%s - %s - %s", d.resourceType, d.resourceID, diag.Code),
+			Name:      fmt.Sprintf("NDM %s - %s - %s", d.resourceType, d.resourceID, diag.Code),
 			Diagnosis: diag.Message,
 		})
 	}

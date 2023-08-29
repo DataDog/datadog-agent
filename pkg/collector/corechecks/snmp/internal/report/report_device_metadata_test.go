@@ -317,7 +317,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 		},
 	}
 
-	diagnosis := []metadata.DiagnosisMetadata{{ResourceType: "ndm_device", ResourceID: "1234", Diagnoses: []metadata.Diagnosis{{
+	diagnosis := []metadata.DiagnosisMetadata{{ResourceType: "device", ResourceID: "1234", Diagnoses: []metadata.Diagnosis{{
 		Severity: "warn",
 		Code:     "TEST_DIAGNOSIS",
 		Message:  "Test",
@@ -379,7 +379,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
     ],
     "diagnoses": [
       {
-        "resource_type": "ndm_device",
+        "resource_type": "device",
         "resource_id": "1234",
         "diagnoses": [
           {

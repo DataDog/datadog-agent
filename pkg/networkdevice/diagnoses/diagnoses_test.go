@@ -20,7 +20,7 @@ func TestReportDeviceDiagnoses(t *testing.T) {
 	diagnosisMetadata := diagnoses.Report()
 
 	expectedMetadata := []metadata.DiagnosisMetadata{{
-		ResourceType: "ndm_device",
+		ResourceType: "device",
 		ResourceID:   "default:1.2.3.4.5",
 		Diagnoses: []metadata.Diagnosis{
 			{
@@ -43,7 +43,7 @@ func TestReportDeviceDiagnosesEmptyArray(t *testing.T) {
 	diagnosisMetadata := diagnoses.Report()
 
 	expectedMetadata := []metadata.DiagnosisMetadata{{
-		ResourceType: "ndm_device",
+		ResourceType: "device",
 		ResourceID:   "default:1.2.3.4.5",
 		Diagnoses:    []metadata.Diagnosis{},
 	}}
@@ -62,7 +62,7 @@ func TestReportCLIDiagnoses(t *testing.T) {
 
 	expected := []diagnosis.Diagnosis{{
 		Result:    diagnosis.DiagnosisFail,
-		Name:      "ndm_device - default:1.2.3.4.5 - TEST_ERROR_DIAG",
+		Name:      "NDM device - default:1.2.3.4.5 - TEST_ERROR_DIAG",
 		Diagnosis: "This is a test error diagnosis",
 	}}
 
