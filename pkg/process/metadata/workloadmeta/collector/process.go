@@ -19,22 +19,25 @@ import (
 
 const collectorId = "local-process"
 
-func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
-	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
+// NewProcessCollector creates a new process collector.
+func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collector {
+	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
-	processData := checks.NewProcessData(ddConfig)
+	processData := checks.NewProcessData(coreConfig)
 	processData.Register(wlmExtractor)
 
 	return &Collector{
-		ddConfig:        ddConfig,
+		ddConfig:        coreConfig,
 		wlmExtractor:    wlmExtractor,
-		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
+		grpcServer:      workloadmetaExtractor.NewGRPCServer(coreConfig, wlmExtractor),
 		processData:     processData,
 		collectionClock: clock.New(),
 		pidToCid:        make(map[int]string),
 	}
 }
 
+// Collector collects processes to send to the remote process collector in the core agent.
+// It is only intended to be used when language detection is enabled, and the process check is disabled.
 type Collector struct {
 	ddConfig config.ConfigReader
 
@@ -113,14 +116,14 @@ func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 
 // Enabled checks to see if we should enable the local process collector.
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
-// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `workloadmeta.remote_process_collector.enabled`
+// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
 func Enabled(cfg config.ConfigReader) bool {
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
 
-	if !cfg.GetBool("workloadmeta.remote_process_collector.enabled") {
+	if !cfg.GetBool("language_detection.enabled") {
 		return false
 	}
 	return true

@@ -27,6 +27,18 @@ type Process struct {
 	Stats *Stats
 }
 
+func (p *Process) GetPid() int32 {
+	return p.Pid
+}
+
+func (p *Process) GetCommand() string {
+	return p.Comm
+}
+
+func (p *Process) GetCmdline() []string {
+	return p.Cmdline
+}
+
 // DeepCopy creates a deep copy of Process
 func (p *Process) DeepCopy() *Process {
 	copy := &Process{

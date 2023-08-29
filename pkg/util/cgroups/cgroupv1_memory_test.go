@@ -57,6 +57,7 @@ total_unevictable 0`
 	sampleMemoryFailCnt   = "0"
 	sampleMemoryKmemUsage = "4444160"
 	sampleMemorySoftLimit = "9223372036854771712" // No limit
+	sampleMaxUsageInBytes = "400000000"
 )
 
 func createCgroupV1FakeMemoryFiles(cfs *cgroupMemoryFS, cg *cgroupV1) {
@@ -65,6 +66,7 @@ func createCgroupV1FakeMemoryFiles(cfs *cgroupMemoryFS, cg *cgroupV1) {
 	cfs.setCgroupV1File(cg, "memory", "memory.failcnt", sampleMemoryFailCnt)
 	cfs.setCgroupV1File(cg, "memory", "memory.kmem.usage_in_bytes", sampleMemoryKmemUsage)
 	cfs.setCgroupV1File(cg, "memory", "memory.soft_limit_in_bytes", sampleMemorySoftLimit)
+	cfs.setCgroupV1File(cg, "memory", "memory.max_usage_in_bytes", sampleMaxUsageInBytes)
 }
 
 func TestCgroupV1MemoryStats(t *testing.T) {
@@ -84,7 +86,7 @@ func TestCgroupV1MemoryStats(t *testing.T) {
 	cfs.enableControllers("memory")
 	err = cgFoo1.GetMemoryStats(stats)
 	assert.NoError(t, err)
-	assert.Equal(t, len(tr.errors), 5)
+	assert.Equal(t, len(tr.errors), 6)
 	assert.Equal(t, "", cmp.Diff(MemoryStats{}, *stats))
 
 	// Test reading files in memory controller, all files present
@@ -112,5 +114,6 @@ func TestCgroupV1MemoryStats(t *testing.T) {
 		OOMEvents:    pointer.Ptr(uint64(0)),
 		Limit:        pointer.Ptr(uint64(67108864)),
 		KernelMemory: pointer.Ptr(uint64(4444160)),
+		Peak:         pointer.Ptr(uint64(400000000)),
 	}, *stats))
 }

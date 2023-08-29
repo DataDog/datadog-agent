@@ -83,6 +83,13 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
         .fork.is_thread = 1,
     };
 
+    u32 kthread_key = 0;
+    u32 *is_kthread = bpf_map_lookup_elem(&is_new_kthread, &kthread_key);
+    if (is_kthread) {
+        syscall.fork.is_kthread = *is_kthread;
+        *is_kthread = 0;
+    }
+
     u64 input;
     LOAD_CONSTANT("do_fork_input", input);
 
@@ -106,12 +113,27 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("kernel_thread")
+int hook_kernel_thread(ctx_t *ctx) {
+    u32 index = 0;
+    u32 value = 1;
+    bpf_map_update_elem(&is_new_kthread, &index, &value, BPF_ANY);
+    return 0;
+}
+
+HOOK_ENTRY("user_mode_thread")
+int hook_user_mode_thread(ctx_t *ctx) {
+    u32 index = 0;
+    u32 value = 1;
+    bpf_map_update_elem(&is_new_kthread, &index, &value, BPF_ANY);
+    return 0;
+}
+
 HOOK_ENTRY("kernel_clone")
 int hook_kernel_clone(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
 
-#ifndef USE_FENTRY
 HOOK_ENTRY("do_fork")
 int hook_do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
@@ -121,7 +143,6 @@ HOOK_ENTRY("_do_fork")
 int hook__do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
-#endif
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
@@ -131,7 +152,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall) {
+    if (!syscall || syscall->fork.is_kthread) {
         u32 value = 1;
         // mark as ignored fork not from syscall, ex: kworkers
         bpf_map_update_elem(&pid_ignored, &pid, &value, BPF_ANY);
@@ -298,12 +319,10 @@ int hook_exit_itimers(ctx_t *ctx) {
     return 0;
 }
 
-#ifndef USE_FENTRY
 HOOK_ENTRY("prepare_binprm")
 int hook_prepare_binprm(ctx_t *ctx) {
     return fill_exec_context();
 }
-#endif
 
 HOOK_ENTRY("bprm_execve")
 int hook_bprm_execve(ctx_t *ctx) {

@@ -5,7 +5,7 @@
 .k8s_e2e_template:
   stage: e2e
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   dependencies: []
   variables:
     LANG: C.UTF-8
@@ -65,6 +65,8 @@ k8s-e2e-tags-7:
   - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
   - export DATADOG_AGENT_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_app_key --with-decryption --query "Parameter.Value" --out text)
   - export DATADOG_AGENT_RC_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_rc_key --with-decryption --query "Parameter.Value" --out text)
+  # workaround until CWS is able to support 6.4 kernel correctly
+  - export AMI=ami-083a735d0245929cd
 
 k8s-e2e-cws-dev:
   extends: .k8s_e2e_template

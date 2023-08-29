@@ -33,9 +33,6 @@ Dockerfiles/cluster-agent/nosys-seccomp
 .envrc
 .python-version
 
-#file generated at build time by message compiler
-agentmsg.h
-
 # go-generated files
 datadog.yaml
 system-probe.yaml
@@ -94,22 +91,12 @@ cmd/agent/android/app/build
 platform.pk8
 
 # trace agent windows artifacts
-cmd/trace-agent/windows_resources/trace-agent-msg.rc
-cmd/trace-agent/windows_resources/*.bin
 pkg/trace/info/git_version.go
-trace-agent-msg.h
 
-# process agent artifacts
-cmd/process-agent/windows_resources/process-agent-msg.rc
-cmd/process-agent/windows_resources/*.bin
-process-agent-msg.h
 # process agent test artifacts
 pkg/process/config/logs
 
 # sysprobe artifacts
-cmd/system-probe/windows_resources/system-probe-msg.rc
-cmd/system-probe/windows_resources/*.bin
-system-probe-msg.h
 **/.ninja_log
 **/.ninja_deps
 *.ninja
@@ -158,6 +145,11 @@ pkg/util/winutil/**/_obj/
 
 # windows container build output
 build.out/
+
+# windows resource files
+pkg/util/winutil/messagestrings/*.h
+pkg/util/winutil/messagestrings/*.rc
+pkg/util/winutil/messagestrings/*.bin
 
 # dev VM
 .vagrant

@@ -48,7 +48,6 @@ jobs:
         run: |
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
           echo $PATH
-          inv -e rtloader.make
+          powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           inv -e rtloader.format --raise-if-changed
-          inv -e rtloader.install
           inv -e lint-go

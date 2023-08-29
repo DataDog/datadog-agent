@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -34,13 +35,10 @@ func newSenders(aggregator *BufferedAggregator) *senders {
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
 func (s *senders) SetSender(sender sender.Sender, id checkid.ID) error {
+	if s == nil {
+		return errors.New("Demultiplexer was not initialized")
+	}
 	return s.senderPool.setSender(sender, id)
-}
-
-// cleanSenders cleans the senders list, used in unit tests.
-func (s *senders) cleanSenders() {
-	s.senderPool.senders = make(map[checkid.ID]sender.Sender)
-	s.senderInit = sync.Once{}
 }
 
 // GetSender returns a sender.Sender with passed ID, properly registered with the aggregator

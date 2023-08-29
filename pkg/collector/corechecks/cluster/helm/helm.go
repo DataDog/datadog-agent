@@ -96,10 +96,10 @@ func factory() check.Check {
 }
 
 // Configure configures the Helm check
-func (hc *HelmCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	hc.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := hc.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := hc.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -174,19 +174,23 @@ func (hc *HelmCheck) Cancel() {
 
 func (hc *HelmCheck) setupInformers() error {
 	secretInformer := hc.informerFactory.Core().V1().Secrets()
-	secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
 		UpdateFunc: hc.updateSecret,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to secret informer: %v", err)
+	}
 	go secretInformer.Informer().Run(hc.informersStopCh)
 
 	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
-	configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addConfigmap,
 		DeleteFunc: hc.deleteConfigmap,
 		UpdateFunc: hc.updateConfigmap,
-	})
+	}); err != nil {
+		log.Errorf("cannot add event handler to config map informer: %v", err)
+	}
 	go configmapInformer.Informer().Run(hc.informersStopCh)
 
 	return apiserver.SyncInformers(
