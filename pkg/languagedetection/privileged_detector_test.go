@@ -57,7 +57,13 @@ func TestPrivilegedDetectorCaching(t *testing.T) {
 		assert.True(t, d.binaryIDCache.Contains(binID))
 	})
 	t.Run("reuse existing cache entry", func(t *testing.T) {
-		// Note that forkExecForTest spawns a sh process not a go process
+		/*
+			The process that is spawned is not a go process, so if DetectWithPrivileges returns a go process then the cache was used.
+
+			This was done because it was believed that stubbing out `simplelru.LRUCache` was not the best solution here because:
+			- `simplelru.LRUCache` has 10 methods which all have to be stubbed out, and add unnecessary bloat to the tests.
+			- `simplelru.LRUCache` is an external dependency; if the interface ever changed then the test would have to be fixed.
+		*/
 		cmd1 := cmdWrapper{forkExecForTest(t)}
 		d := NewPrivilegedLanguageDetector()
 
