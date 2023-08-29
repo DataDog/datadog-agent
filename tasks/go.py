@@ -37,7 +37,7 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
     for target in targets:
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(set(tags))
+        tags_arg = " ".join(sorted(set(tags)))
         result = ctx.run(
             f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
             env=env,
@@ -49,25 +49,19 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+def golangci_lint(
+    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None  # noqa: U100
+):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
+    DEPRECATED
+    Please use inv lint-go instead
     """
-    results = run_golangci_lint(ctx, targets, rtloader_root, build_tags, build, arch, concurrency)
-
-    should_fail = False
-    for result in results:
-        # golangci exits with status 1 when it finds an issue
-        if result.exited != 0:
-            should_fail = True
-
-    if should_fail:
-        raise Exit(code=1)
-    else:
-        print("golangci-lint found no issues")
+    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
+    raise Exit(code=1)
 
 
 @task
@@ -318,7 +312,7 @@ def generate_protobuf(ctx):
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():
-        for (src, io_gen) in files:
+        for src, io_gen in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
             ctx.run(f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}")

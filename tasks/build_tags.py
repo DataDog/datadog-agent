@@ -197,7 +197,11 @@ build_tags = {
 
 
 def compute_build_tags_for_flavor(
-    build: str, arch: str, build_include: List[str], build_exclude: List[str], flavor: AgentFlavor = AgentFlavor.base
+    build: str,
+    arch: str,
+    build_include: List[str],
+    build_exclude: List[str],
+    flavor: AgentFlavor = AgentFlavor.base,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
