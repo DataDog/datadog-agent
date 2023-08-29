@@ -4,7 +4,7 @@ This module defines a parser for golangci-lint output.
 
 import re
 import os
-from codeowners import CodeOwners
+from ..libs.pipeline_notifications import read_owners
 
 # Example lint message
 # "pointer.go:6:1: package-comments: should have a package comment (revive)"
@@ -15,14 +15,6 @@ LINT_PATTERN = re.compile("^([^:]+):([0-9]+):([0-9]+): (([^:]+): )?(.+) \\((.+)\
 MODULE_PATTERN = re.compile("^.*Linters for module ([^ ]+) failed \\((.+)\\).*$")
 
 CODEOWNERS_FILE_PATH = ".github/CODEOWNERS"
-
-def read_owners(owners_file: str):
-    """
-    Parses the CODEOWNERS file.
-    """
-    with open(owners_file, 'r', encoding="utf-8") as f:
-        codeowners = CodeOwners(f.read())
-    return codeowners
 
 
 def parse_file(golangci_lint_output: str):
