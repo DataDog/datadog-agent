@@ -8,10 +8,12 @@ package utils
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -111,4 +113,33 @@ func GetMainEndpoint(c config.ConfigReader, prefix string, ddURLKey string) stri
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
 func GetInfraEndpoint(c config.ConfigReader) string {
 	return GetMainEndpoint(c, infraURLPrefix, "dd_url")
+}
+
+// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
+// version (see AddAgentVersionToDomain).
+var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+
+// getDomainPrefix provides the right prefix for agent X.Y.Z
+func getDomainPrefix(app string) string {
+	v, _ := version.Agent()
+	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+}
+
+// AddAgentVersionToDomain prefixes the domain with the agent version: X-Y-Z.domain
+func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
+	u, err := url.Parse(DDURL)
+	if err != nil {
+		return "", err
+	}
+
+	// we don't update unknown URLs (ie: proxy or custom DD domain)
+	if !ddURLRegexp.MatchString(u.Host) {
+		return DDURL, nil
+	}
+
+	subdomain := strings.Split(u.Host, ".")[0]
+	newSubdomain := getDomainPrefix(app)
+
+	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
+	return u.String(), nil
 }
