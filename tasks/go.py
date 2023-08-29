@@ -49,7 +49,9 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
 
 
 @task
-def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+def golangci_lint(
+    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None  # noqa: U100
+):
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 
