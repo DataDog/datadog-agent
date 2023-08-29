@@ -150,5 +150,4 @@ func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]strin
 	for k, v := range tags {
 		span.SetMetaTag(k, v)
 	}
-
 }

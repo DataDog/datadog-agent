@@ -21,6 +21,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const (
+	defaultMaximumCRDQuota = 10000
+)
+
 // NewCRCollectorVersion builds the group of collector versions.
 func NewCRCollectorVersion(resource string, groupVersion string) (*CRCollector, error) {
 	return NewCRCollector(resource, groupVersion)
@@ -49,7 +53,7 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 			IsManifestProducer:        true,
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
-			Name:                      fmt.Sprintf("%s", name),
+			Name:                      name,
 			NodeType:                  orchestrator.K8sCR,
 			Version:                   groupVersion,
 		},
@@ -84,6 +88,9 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 	list, err := c.lister.List(labels.Everything())
 	if err != nil {
 		return nil, collectors.NewListingError(err)
+	}
+	if len(list) > defaultMaximumCRDQuota {
+		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, defaultMaximumCRDQuota))
 	}
 
 	ctx := &processors.ProcessorContext{

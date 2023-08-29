@@ -80,7 +80,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
-			assert.True(t, time.Now().Sub(createdAt) > 3*time.Second)
+			assert.True(t, time.Since(createdAt) > 3*time.Second)
 
 			test.validateOpenSchema(t, event)
 		})

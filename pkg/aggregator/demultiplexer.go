@@ -6,14 +6,15 @@
 package aggregator
 
 import (
+	"errors"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,6 +26,38 @@ import (
 //
 // The plan is to deprecated this global instance at some point.
 var demultiplexerInstance Demultiplexer
+
+// TODO: (components): Remove this method when SenderManager will be a component
+func GetSenderManager() sender.SenderManager {
+	return demultiplexerInstanceWrapper{}
+}
+
+// TODO: (components): Remove this struct at the same time as GetSenderManager()
+//
+// demultiplexerInstanceWrapper is a small wrapper to make sure `demultiplexerInstance`
+// is initialized when calling the methods of SenderManager.
+// If GetSenderManager() would return directly the demultiplexerInstance, then the instance
+// can be null and raise an issue when calling GetSender() even if demultiplexerInstance was initialized
+// in the meantime.
+type demultiplexerInstanceWrapper struct{}
+
+func (demultiplexerInstanceWrapper) GetSender(id checkid.ID) (sender.Sender, error) {
+	return demultiplexerInstance.GetSender(id)
+}
+func (demultiplexerInstanceWrapper) SetSender(sender sender.Sender, id checkid.ID) error {
+	return demultiplexerInstance.SetSender(sender, id)
+}
+func (demultiplexerInstanceWrapper) DestroySender(id checkid.ID) {
+	if demultiplexerInstance != nil {
+		demultiplexerInstance.DestroySender(id)
+	}
+}
+func (demultiplexerInstanceWrapper) GetDefaultSender() (sender.Sender, error) {
+	if demultiplexerInstance == nil {
+		return nil, errors.New("Demultiplexer was not initialized")
+	}
+	return demultiplexerInstance.GetDefaultSender()
+}
 
 var demultiplexerInstanceMu sync.Mutex
 
@@ -72,12 +105,7 @@ type Demultiplexer interface {
 
 	// Senders API, mainly used by collectors/checks
 	// --
-
-	GetSender(id checkid.ID) (sender.Sender, error)
-	SetSender(sender.Sender, checkid.ID) error
-	DestroySender(id checkid.ID)
-	GetDefaultSender() (sender.Sender, error)
-	cleanSenders()
+	sender.SenderManager
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.

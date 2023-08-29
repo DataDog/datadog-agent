@@ -633,13 +633,13 @@ func TestFullYamlConfig(t *testing.T) {
 			Name:    "http.method",
 			Pattern: "\\?.*$",
 			Repl:    "GET",
-			Re:      regexp.MustCompile("\\?.*$"),
+			Re:      regexp.MustCompile(`\?.*$`),
 		},
 		{
 			Name:    "http.url",
 			Pattern: "\\?.*$",
 			Repl:    "!",
-			Re:      regexp.MustCompile("\\?.*$"),
+			Re:      regexp.MustCompile(`\?.*$`),
 		},
 		{
 			Name:    "error.stack",

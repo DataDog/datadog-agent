@@ -19,13 +19,13 @@ var checkRunData []byte
 
 func TestCheckRun(t *testing.T) {
 	t.Run("parseCheckRunPayload should return error on invalid data", func(t *testing.T) {
-		checks, err := parseCheckRunPayload(api.Payload{Data: []byte(""), Encoding: encodingDeflate})
+		checks, err := ParseCheckRunPayload(api.Payload{Data: []byte(""), Encoding: encodingDeflate})
 		assert.Error(t, err)
 		assert.Empty(t, checks)
 	})
 
 	t.Run("parseCheckRunPayload should return valid checks on valid ", func(t *testing.T) {
-		checks, err := parseCheckRunPayload(api.Payload{Data: checkRunData, Encoding: encodingDeflate})
+		checks, err := ParseCheckRunPayload(api.Payload{Data: checkRunData, Encoding: encodingDeflate})
 		assert.NoError(t, err)
 		assert.Equal(t, 12, len(checks))
 		assert.Equal(t, "snmp.can_check", checks[0].name())

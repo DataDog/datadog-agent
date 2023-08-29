@@ -19,22 +19,25 @@ import (
 
 const collectorId = "local-process"
 
-func NewProcessCollector(ddConfig config.ConfigReader) *Collector {
-	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
+// NewProcessCollector creates a new process collector.
+func NewProcessCollector(coreConfig, sysProbeConfig config.ConfigReader) *Collector {
+	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
-	processData := checks.NewProcessData(ddConfig)
+	processData := checks.NewProcessData(coreConfig)
 	processData.Register(wlmExtractor)
 
 	return &Collector{
-		ddConfig:        ddConfig,
+		ddConfig:        coreConfig,
 		wlmExtractor:    wlmExtractor,
-		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
+		grpcServer:      workloadmetaExtractor.NewGRPCServer(coreConfig, wlmExtractor),
 		processData:     processData,
 		collectionClock: clock.New(),
 		pidToCid:        make(map[int]string),
 	}
 }
 
+// Collector collects processes to send to the remote process collector in the core agent.
+// It is only intended to be used when language detection is enabled, and the process check is disabled.
 type Collector struct {
 	ddConfig config.ConfigReader
 

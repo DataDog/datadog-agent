@@ -44,9 +44,9 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
+			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))
 		} else {
-			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
+			fmt.Fprintf(w, "Failed to query the agent (running?): %s\n", err)
 		}
 		return err
 	}
@@ -65,14 +65,14 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 
 	// Print warmup message
 	if cr.Warmup {
-		fmt.Fprintln(w, fmt.Sprintf("=== %s in progress ===", color.BlueString("Warmup")))
+		fmt.Fprintf(w, "=== %s in progress ===\n", color.BlueString("Warmup"))
 		fmt.Fprintln(w, "No configuration has been processed yet")
 		fmt.Fprintln(w, "")
 	}
 
 	// Print dangling configs
 	if len(cr.Dangling) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("=== %s configurations ===", color.RedString("Unassigned")))
+		fmt.Fprintf(w, "=== %s configurations ===\n", color.RedString("Unassigned"))
 		for _, c := range cr.Dangling {
 			PrintConfig(w, c, checkName)
 		}
@@ -81,11 +81,11 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 
 	// Print summary of agents
 	if len(cr.Nodes) == 0 {
-		fmt.Fprintln(w, fmt.Sprintf("=== %s agent reporting ===", color.RedString("Zero")))
+		fmt.Fprintf(w, "=== %s agent reporting ===\n", color.RedString("Zero"))
 		fmt.Fprintln(w, "No check will be dispatched until agents report to the cluster-agent")
 		return nil
 	}
-	fmt.Fprintln(w, fmt.Sprintf("=== %d agents reporting ===", len(cr.Nodes)))
+	fmt.Fprintf(w, "=== %d agents reporting ===\n", len(cr.Nodes))
 	sort.Slice(cr.Nodes, func(i, j int) bool { return cr.Nodes[i].Name < cr.Nodes[j].Name })
 	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(table, "\nName\tRunning checks")
@@ -99,7 +99,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		if len(node.Configs) == 0 {
 			continue
 		}
-		fmt.Fprintln(w, fmt.Sprintf("\n===== Checks on %s =====", color.HiMagentaString(node.Name)))
+		fmt.Fprintf(w, "\n===== Checks on %s =====\n", color.HiMagentaString(node.Name))
 		for _, c := range node.Configs {
 			PrintConfig(w, c, checkName)
 		}
@@ -131,9 +131,9 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
+			fmt.Fprintf(w, "The agent ran into an error while checking config: %s\n", string(r))
 		} else {
-			fmt.Fprintln(w, fmt.Sprintf("Failed to query the agent (running?): %s", err))
+			fmt.Fprintf(w, "Failed to query the agent (running?): %s\n", err)
 		}
 		return err
 	}
@@ -144,7 +144,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	}
 
 	// Print summary of pod-backed endpointschecks
-	fmt.Fprintln(w, fmt.Sprintf("\n===== %d Pod-backed Endpoints-Checks scheduled =====", len(cr.Configs)))
+	fmt.Fprintf(w, "\n===== %d Pod-backed Endpoints-Checks scheduled =====\n", len(cr.Configs))
 	for _, c := range cr.Configs {
 		PrintConfig(w, c, checkName)
 	}

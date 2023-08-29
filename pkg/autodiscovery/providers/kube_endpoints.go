@@ -209,7 +209,6 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 		// Invalidate only when subsets change
 		k.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
 	}
-	return
 }
 
 // setUpToDate is a thread-safe method to update the upToDate value

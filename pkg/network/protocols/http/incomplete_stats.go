@@ -15,7 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-const defaultMinAge = 30 * time.Second
+const (
+	defaultMinAge    = 30 * time.Second
+	defaultArraySize = 5
+)
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
@@ -53,10 +56,10 @@ type txParts struct {
 	responses []Transaction
 }
 
-func newTXParts() *txParts {
+func newTXParts(requestCapacity, responseCapacity int) *txParts {
 	return &txParts{
-		requests:  make([]Transaction, 0, 5),
-		responses: make([]Transaction, 0, 5),
+		requests:  make([]Transaction, 0, requestCapacity),
+		responses: make([]Transaction, 0, responseCapacity),
 	}
 }
 
@@ -84,7 +87,7 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 			return
 		}
 
-		parts = newTXParts()
+		parts = newTXParts(defaultArraySize, defaultArraySize)
 		b.data[key] = parts
 	}
 
@@ -101,17 +104,18 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	tx = ebpfTxCopy
 
 	if tx.StatusCode() == 0 {
+		b.telemetry.joiner.requests.Add(1)
 		parts.requests = append(parts.requests, tx)
 	} else {
+		b.telemetry.joiner.responses.Add(1)
 		parts.responses = append(parts.responses, tx)
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
+func (b *incompleteBuffer) Flush(nowNano int64) []Transaction {
 	var (
 		joined   []Transaction
 		previous = b.data
-		nowUnix  = now.UnixNano()
 	)
 
 	b.data = make(map[types.ConnectionKey]*txParts)
@@ -127,6 +131,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 			request := parts.requests[i]
 			response := parts.responses[j]
 			if request.RequestStarted() > response.ResponseLastSeen() {
+				b.telemetry.joiner.responsesDropped.Add(1)
 				j++
 				continue
 			}
@@ -137,18 +142,28 @@ func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 			joined = append(joined, request)
 			i++
 			j++
+			b.telemetry.joiner.requestJoined.Add(1)
 		}
 
 		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
-			if b.shouldKeep(parts.requests[i], nowUnix) {
-				keep := parts.requests[i:]
-				parts := newTXParts()
-				parts.requests = append(parts.requests, keep...)
-				b.data[key] = parts
+			if b.shouldKeep(parts.requests[i], nowNano) {
+				// if `i` is 0, then we are keeping all requests and zeroing the responses.
+				// We're dropping the responses as either they are too old, or already matched to a request by the loop
+				// above.
+				if i == 0 {
+					b.data[key] = parts
+					b.data[key].responses = parts.responses[:0]
+				} else {
+					keep := parts.requests[i:]
+					parts := newTXParts(len(keep), defaultArraySize)
+					parts.requests = append(parts.requests, keep...)
+					b.data[key] = parts
+				}
 				break
 			}
+			b.telemetry.joiner.agedRequest.Add(1)
 			i++
 		}
 	}

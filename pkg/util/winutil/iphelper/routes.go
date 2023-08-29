@@ -133,10 +133,7 @@ func GetIPv4RouteTable() (table []MIB_IPFORWARDROW, err error) {
 	count := uint32(binary.LittleEndian.Uint32(rawbuf))
 
 	entries := (*[1 << 24]MIB_IPFORWARDROW)(unsafe.Pointer(&rawbuf[4]))[:count:count]
-	for _, entry := range entries {
-
-		table = append(table, entry)
-	}
+	table = append(table, entries...)
 	return table, nil
 
 }

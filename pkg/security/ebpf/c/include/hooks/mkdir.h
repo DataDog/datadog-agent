@@ -81,7 +81,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0;
-    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MKDIR_CALLBACK_KPROBE_KEY : DR_MKDIR_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.callback = select_dr_key(dr_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
     syscall->resolver.sysretval = retval;
@@ -157,19 +157,10 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_mkdir_callback")
-int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
-    return dr_mkdir_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_mkdir_callback")
-int fentry_dr_mkdir_callback(ctx_t *ctx) {
+int tail_call_target_dr_mkdir_callback(ctx_t *ctx) {
     return dr_mkdir_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_mkdir_callback")
 int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {

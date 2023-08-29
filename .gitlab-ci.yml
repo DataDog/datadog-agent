@@ -37,12 +37,8 @@ include:
   - /.gitlab/functional_test_junit_upload.yml
   - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
-  # FIXME: our current Gitlab version doesn't support importing a file more than once
-  # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-  # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/publish_job_templates.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
 
@@ -153,19 +149,19 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_BUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_WINBUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_ARMBUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18619612-163f3d1
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_BUILDERS: v18823563-572898a
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: b26f1d056477
 

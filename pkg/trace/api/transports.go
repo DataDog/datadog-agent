@@ -68,17 +68,15 @@ func newForwardingTransport(
 ) *forwardingTransport {
 	targets := []*url.URL{mainEndpoint}
 	apiKeys := []string{mainEndpointKey}
-	if additionalEndpoints != nil {
-		for endpoint, keys := range additionalEndpoints {
-			u, err := url.Parse(endpoint)
-			if err != nil {
-				log.Errorf("Error parsing additional intake URL %s: %v", endpoint, err)
-				continue
-			}
-			for _, key := range keys {
-				targets = append(targets, u)
-				apiKeys = append(apiKeys, strings.TrimSpace(key))
-			}
+	for endpoint, keys := range additionalEndpoints {
+		u, err := url.Parse(endpoint)
+		if err != nil {
+			log.Errorf("Error parsing additional intake URL %s: %v", endpoint, err)
+			continue
+		}
+		for _, key := range keys {
+			targets = append(targets, u)
+			apiKeys = append(apiKeys, strings.TrimSpace(key))
 		}
 	}
 	return &forwardingTransport{rt, targets, apiKeys}
