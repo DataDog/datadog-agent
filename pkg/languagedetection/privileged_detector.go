@@ -67,6 +67,7 @@ func (l PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.
 		}
 
 		if lang, ok := l.binaryIdCache.Get(bin); ok {
+			log.Tracef("Pid %v already detected as %v, skipping", proc.GetPid(), lang.Name)
 			languages[i] = lang
 			continue
 		}
