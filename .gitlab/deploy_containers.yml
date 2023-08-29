@@ -2,11 +2,8 @@
 # deploy containers stage
 # Contains jobs which deploy Agent 6 & 7 to staging repositories and to Dockerhub / GCR.
 
-# FIXME: our current Gitlab version doesn't support importing a file more than once
-# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
-# include:
-#   - /.gitlab/docker_common/publish_job_templates.yml
+include:
+  - /.gitlab/docker_common/publish_job_templates.yml
 
 #
 # Image tagging & manifest publication
