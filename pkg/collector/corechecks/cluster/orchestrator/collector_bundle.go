@@ -326,7 +326,7 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 	for _, collector := range cb.collectors {
 		if collector.Metadata().IsSkipped {
-			log.Warnf("Collector %s is skipped: %s", collector.Metadata().FullName(), collector.Metadata().SkippedReason)
+			_ = cb.check.Warnf("Collector %s is skipped: %s", collector.Metadata().FullName(), collector.Metadata().SkippedReason)
 			continue
 		}
 
