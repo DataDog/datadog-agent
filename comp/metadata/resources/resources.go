@@ -96,7 +96,12 @@ func newResourcesProvider(deps dependencies) provides {
 var collectResources = gohaiResourcesCollect
 
 func gohaiResourcesCollect() (interface{}, error) {
-	return new(processes.Processes).Collect()
+	info, err := processes.CollectInfo()
+	if err != nil {
+		return nil, err
+	}
+	processes, _, err := info.AsJSON()
+	return processes, err
 }
 
 func (r *resources) collect(_ context.Context) time.Duration {

@@ -86,7 +86,10 @@ var collectors = []Collector{
 			return platform.CollectInfo(), nil
 		},
 	},
-	&processes.Processes{},
+	&CollectorV2[processes.Info]{
+		name:    "processes",
+		collect: processes.CollectInfo,
+	},
 }
 
 var options struct {
