@@ -9,9 +9,6 @@ package languagedetection
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,8 +16,12 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

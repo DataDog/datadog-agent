@@ -8,11 +8,13 @@
 package languagedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 func forkExecForTest(t *testing.T) *exec.Cmd {
