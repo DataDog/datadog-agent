@@ -541,7 +541,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		log.Tracef("number of collected metrics with SQL_ID %+v", len(statementMetrics))
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 		SQLCount = len(statementMetricsAll)
-		//sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), "", c.tags)
 
 		// query metrics cache
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)

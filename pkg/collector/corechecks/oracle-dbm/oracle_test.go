@@ -21,7 +21,6 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"math"
 	"testing"
 	"time"
@@ -131,8 +130,8 @@ func initAndStartAgentDemultiplexer(t *testing.T) {
 	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
 }
 
-func getUsedPGA(db *sqlx.DB) (uint64, error) {
-	var pga uint64
+func getUsedPGA(db *sqlx.DB) (float64, error) {
+	var pga float64
 	err := chk.db.Get(&pga, `SELECT 
 	sum(p.pga_used_mem)
 FROM   v$session s,
@@ -173,7 +172,7 @@ func TestChkRun(t *testing.T) {
 		assert.NoError(t, err, "check run with %s driver", driver)
 
 		pgaBefore, err := getUsedPGA(chk.db)
-		assert.NoError(t, err, "running statement with %s driver", driver)
+		assert.NoError(t, err, "get used pga with %s driver", driver)
 
 		sessionBefore, _ := getSession(chk.db)
 		_, err = chk.db.Exec(`begin
@@ -186,8 +185,9 @@ func TestChkRun(t *testing.T) {
 
 		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 		chk.Run()
-		pgaAfter, _ := getUsedPGA(chk.db)
-		growth := math.Round(float64(pgaAfter-pgaBefore) / 1024 / 1024)
+		pgaAfter, err := getUsedPGA(chk.db)
+		assert.NoError(t, err, "get used pga with %s driver", driver)
+		growth := math.Round((pgaAfter - pgaBefore) / 1024 / 1024)
 		assert.Less(t, growth, float64(50), "PGA used changed between two consecutive runs")
 
 		sessionAfter, _ := getSession(chk.db)
