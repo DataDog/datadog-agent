@@ -58,7 +58,7 @@ require (
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.7.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.7.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.7.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.7.0
 	github.com/DataDog/sketches-go v1.4.2
@@ -560,7 +560,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.94
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.1
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/typeurl/v2 v2.1.1
