@@ -62,15 +62,15 @@ func getFileSystemInfo() ([]MountInfo, error) {
 //
 // This behavior is inspired by what df does
 // https://github.com/coreutils/coreutils/blob/73ba9f71e159d48d8fa490096aa4b8b7cc27ae5a/src/df.c#L775-L797
-func replaceDev(old, new MountInfo) bool {
-	if strings.ContainsRune(new.Name, '/') && !strings.ContainsRune(old.Name, '/') {
+func replaceDev(oldMount, newMount MountInfo) bool {
+	if strings.ContainsRune(newMount.Name, '/') && !strings.ContainsRune(oldMount.Name, '/') {
 		return true
 	}
-	if len(old.MountedOn) > len(new.MountedOn) {
+	if len(oldMount.MountedOn) > len(newMount.MountedOn) {
 		return true
 	}
 
-	return old.Name != new.Name && old.MountedOn == new.MountedOn
+	return oldMount.Name != newMount.Name && oldMount.MountedOn == newMount.MountedOn
 }
 
 // getFileSystemInfoWithMounts is an internal method to help testing with test mounts and mocking syscalls
