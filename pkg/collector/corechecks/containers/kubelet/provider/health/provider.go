@@ -66,7 +66,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		}
 	}
 	// Report metrics
-	if is_ok == true {
+	if is_ok {
 		sender.ServiceCheck(service_check_base, servicecheck.ServiceCheckOK, "", p.config.Tags, "")
 	} else {
 		msg := fmt.Sprintf("Kubelet health check failed, http response code = %d", responseCode)

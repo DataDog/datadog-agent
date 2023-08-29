@@ -146,7 +146,7 @@ func TestParseV2CPUStat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stats := CPUStats{}
-			err := parseV2CPUStat(&stats)([]byte(tt.inputKey), []byte(tt.inputVal))
+			err := parseV2CPUStat(&stats)(tt.inputKey, tt.inputVal)
 			assert.ErrorIs(t, err, tt.wantErr)
 			assert.Empty(t, cmp.Diff(tt.want, &stats))
 		})
@@ -191,7 +191,7 @@ func TestParseV2CPUMax(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stats := CPUStats{}
-			err := parseV2CPUMax(&stats)([]byte(tt.inputKey), []byte(tt.inputVal))
+			err := parseV2CPUMax(&stats)(tt.inputKey, tt.inputVal)
 			assert.ErrorIs(t, err, tt.wantErr)
 			assert.Empty(t, cmp.Diff(tt.want, &stats))
 		})

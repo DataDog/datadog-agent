@@ -117,29 +117,3 @@ func TestCgroupV1MemoryStats(t *testing.T) {
 		Peak:         pointer.Ptr(uint64(400000000)),
 	}, *stats))
 }
-
-func BenchmarkMemory(b *testing.B) {
-	cfs := newCgroupMemoryFS("/test/fs/cgroup")
-
-	var err error
-	stats := &MemoryStats{}
-
-	// Test failure if controller missing (memory is missing)
-	cgFoo1 := cfs.createCgroupV1("foo1", containerCgroupKubePod(false))
-
-	// Test reading files in memory controller, all files missing (memsw not counted as considered optional)
-	tr.reset()
-	cfs.enableControllers("memory")
-
-	// Test reading files in memory controller, all files present
-	createCgroupV1FakeMemoryFiles(cfs, cgFoo1)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err = cgFoo1.GetMemoryStats(stats)
-		if err != nil {
-			b.Errorf("error getting memory stats: %v", err)
-		}
-	}
-}

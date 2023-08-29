@@ -57,6 +57,14 @@ Orchestrator Explorer
     {{ $element.NodeType }}
       Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
 {{end}}
+{{- if .SkippedResources }}
+  =================
+  Skipped Resources
+  =================
+  {{- range $name, $reason := .SkippedResources}}
+    {{$name}} : {{$reason}}
+  {{- end}}
+{{- end}}
 {{- if .ManifestCollection }}
   =====================
   Manifest Buffer Stats

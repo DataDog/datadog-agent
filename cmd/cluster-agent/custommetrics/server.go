@@ -120,12 +120,12 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 
 // Config creates the configuration containing the required parameters to communicate with the APIServer as an APIService
 func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
-	if a.FlagSet.Lookup("cert-dir").Changed == false {
+	if !a.FlagSet.Lookup("cert-dir").Changed {
 		// Ensure backward compatibility. Was hardcoded before.
 		// Config flag is now to be added to the map `external_metrics_provider.config` as, `cert-dir`.
 		a.SecureServing.ServerCert.CertDirectory = "/etc/datadog-agent/certificates"
 	}
-	if a.FlagSet.Lookup("secure-port").Changed == false {
+	if !a.FlagSet.Lookup("secure-port").Changed {
 		// Ensure backward compatibility. 443 by default, but will error out if incorrectly set.
 		// refer to apiserver code in k8s.io/apiserver/pkg/server/option/serving.go
 		a.SecureServing.BindPort = config.Datadog.GetInt("external_metrics_provider.port")

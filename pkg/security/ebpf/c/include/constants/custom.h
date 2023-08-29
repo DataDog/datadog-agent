@@ -44,9 +44,8 @@ enum MONITOR_KEYS {
 #define DR_MAX_SEGMENT_LENGTH 255
 #define DR_NO_CALLBACK -1
 
-#define DR_KPROBE     1
-#define DR_FENTRY     2
-#define DR_TRACEPOINT 3
+#define DR_KPROBE_OR_FENTRY     1
+#define DR_TRACEPOINT           2
 
 enum DENTRY_RESOLVER_KEYS {
     DR_DENTRY_RESOLVER_KERN_KEY,

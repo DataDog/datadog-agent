@@ -140,8 +140,6 @@ func LogMessage(message *C.char, logLevel C.int) {
 	default: // unknown log level
 		log.Info(goMsg)
 	}
-
-	return
 }
 
 // SetExternalTags adds a set of tags for a given hostname to the External Host

@@ -55,7 +55,7 @@ func TestBucket_RemoveJob(t *testing.T) {
 		10*time.Second,
 		func() bool {
 			select {
-			case _ = <-finalized:
+			case <-finalized:
 				return true
 			default:
 				return false

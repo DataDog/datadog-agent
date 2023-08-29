@@ -48,3 +48,15 @@ func (r *CallbackRecorder) CallsForPathID(pathID PathIdentifier) int {
 
 	return r.callsByPathID[pathID]
 }
+
+// TotalCalls returns the total number of calls the callback has received
+func (r *CallbackRecorder) TotalCalls() int {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+
+	total := 0
+	for _, count := range r.callsByPathID {
+		total += count
+	}
+	return total
+}

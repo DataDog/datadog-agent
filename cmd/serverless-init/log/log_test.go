@@ -7,7 +7,6 @@ package log
 
 import (
 	"bytes"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -85,12 +84,8 @@ func TestCustomWriterPreventBufferOverflow(t *testing.T) {
 	}
 
 	go func() {
-		var originalStdout = os.Stdout
-		null, _ := os.Open(os.DevNull)
-		os.Stdout = null
 		cw.writeWithMaxBufferSize(testContentChunk1, testMaxBufferSize)
 		cw.writeWithMaxBufferSize(testContentChunk2, testMaxBufferSize)
-		os.Stdout = originalStdout
 	}()
 
 	var messages [][]byte

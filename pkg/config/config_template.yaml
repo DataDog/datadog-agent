@@ -414,26 +414,36 @@ api_key:
 #
 # collect_gce_tags: true
 
-## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
-## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings
+## @param exclude_gce_tags - list of strings - optional - default: ["bosh_settings" ,"cli-cert" ,"common-psm1" ,"configure-sh" ,"containerd-configure-sh" ,"disable-address-manager" ,"disable-legacy-endpoints" ,"enable-oslogin" ,"gce-container-declaration" ,"google-container-manifest" ,"ipsec-cert" ,"k8s-node-setup-psm1" ,"kube-env" ,"kubeconfig" ,"kubelet-config" ,"serial-port-logging-enable" ,"shutdown-script" ,"ssh-keys" ,"sshKeys" ,"ssl-cert" ,"startup-script" ,"user-data" ,"windows-keys" ,"windows-startup-script-ps1"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: bosh_settings cli-cert common-psm1 configure-sh containerd-configure-sh disable-address-manager disable-legacy-endpoints enable-oslogin gce-container-declaration google-container-manifest ipsec-cert k8s-node-setup-psm1 kube-env kubeconfig kubelet-config serial-port-logging-enable shutdown-script ssh-keys sshKeys ssl-cert startup-script user-data windows-keys windows-startup-script-ps1
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
 # exclude_gce_tags:
-#   - "kube-env"
-#   - "kubelet-config"
-#   - "containerd-configure-sh"
-#   - "startup-script"
-#   - "shutdown-script"
-#   - "configure-sh"
-#   - "sshKeys"
-#   - "ssh-keys"
-#   - "user-data"
-#   - "cli-cert"
-#   - "ipsec-cert"
-#   - "ssl-cert"
-#   - "google-container-manifest"
 #   - "bosh_settings"
+#   - "cli-cert"
+#   - "common-psm1"
+#   - "configure-sh"
+#   - "containerd-configure-sh"
+#   - "disable-address-manager"
+#   - "disable-legacy-endpoints"
+#   - "enable-oslogin"
+#   - "gce-container-declaration"
+#   - "google-container-manifest"
+#   - "ipsec-cert"
+#   - "k8s-node-setup-psm1"
+#   - "kube-env"
+#   - "kubeconfig"
+#   - "kubelet-config"
+#   - "serial-port-logging-enable"
+#   - "shutdown-script"
+#   - "ssh-keys"
+#   - "sshKeys"
+#   - "ssl-cert"
+#   - "startup-script"
+#   - "user-data"
+#   - "windows-keys"
+#   - "windows-startup-script-ps1"
 
 ## @param gce_send_project_id_tag - bool - optional - default: false
 ## @env DD_GCE_SEND_PROJECT_ID_TAG - bool - optional - default: false
@@ -1016,7 +1026,7 @@ api_key:
     # oid_batch_size: 5
 
     ## @param interface_configs - map - optional
-    ## This option is used to override interface inbound/outbound speed.
+    ## This option is used to override interface inbound/outbound speed and add interface tags
     ## Example:
     ## interface_configs:
     ##   "10.0.0.1":              # target device IP address
@@ -1024,6 +1034,9 @@ api_key:
     ##       match_value: "eth0"  # (required) the value to match
     ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
     ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+    ##       tags:                # (optional) interface level tags
+    ##         - "testTagKey:testTagValue"
+    ##         - "tagKey2:tagValue2"
     #
     # interface_config:
     #   "10.0.0.1":
@@ -1040,6 +1053,12 @@ api_key:
     #       match_value: eth3
     #       in_speed: 50
     #       out_speed: 25
+    #   "10.0.0.3":
+    #     - match_field: name
+    #       match_value: eth4
+    #       tags:
+    #         - "monitored:true"
+    #         - "customKey:customValue"
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional

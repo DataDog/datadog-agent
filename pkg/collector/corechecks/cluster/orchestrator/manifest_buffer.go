@@ -20,14 +20,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	bufferExpVars      = expvar.NewMap("orchestrator-manifest-buffer")
-	bufferedManifest   = map[orchestrator.NodeType]*expvar.Int{}
-	manifestFlushed    = &expvar.Int{}
-	bufferFlushedTotal = &expvar.Int{}
+	bufferExpVars           = expvar.NewMap("orchestrator-manifest-buffer")
+	bufferedManifest        = map[orchestrator.NodeType]*expvar.Int{}
+	manifestFlushed         = &expvar.Int{}
+	bufferFlushedTotal      = &expvar.Int{}
+	tlmBufferedManifest     = telemetry.NewCounter("orchestrator", "manifest_buffered", []string{"orchestrator", "resource"}, "Number of manifest buffered")
+	tlmManifestFlushed      = telemetry.NewCounter("orchestrator", "manifest_flushed", nil, "Number of manifest flushed")
+	tlmManifestFlushedTotal = telemetry.NewCounter("orchestrator", "manifest_flushed_total", nil, "Number of times the buffer is flushed")
 )
 
 func init() {
@@ -157,8 +161,11 @@ func BufferManifestProcessResult(messages []model.MessageBody, buffer *ManifestB
 func setManifestStats(manifests []interface{}) {
 	// Number of manifests flushed
 	manifestFlushed.Set(int64(len(manifests)))
+	tlmManifestFlushed.Add(float64(len(manifests)))
+
 	// Number of times the buffer is flushed
 	bufferFlushedTotal.Add(1)
+	tlmManifestFlushedTotal.Inc()
 	// Number of manifests flushed per resource in total
 	for _, m := range manifests {
 		nodeType := orchestrator.NodeType(m.(*model.Manifest).Type)
@@ -167,5 +174,6 @@ func setManifestStats(manifests []interface{}) {
 			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])
 		}
 		bufferedManifest[nodeType].Add(1)
+		tlmBufferedManifest.Inc(nodeType.TelemetryTags()...)
 	}
 }
