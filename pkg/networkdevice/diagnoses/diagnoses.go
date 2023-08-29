@@ -43,8 +43,8 @@ func (d *Diagnoses) Add(result string, code string, message string) {
 	})
 }
 
-// ReportDiagnosis returns diagnosis metadata
-func (d *Diagnoses) ReportDiagnosis() []metadata.DiagnosisMetadata {
+// Report returns diagnosis metadata
+func (d *Diagnoses) Report() []metadata.DiagnosisMetadata {
 	if len(d.prevDiagnoses) > 0 && len(d.diagnoses) == 0 {
 		d.resetDiagnoses()
 		// Sending an empty array of diagnoses

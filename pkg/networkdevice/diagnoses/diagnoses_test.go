@@ -17,7 +17,7 @@ func TestReportDeviceDiagnoses(t *testing.T) {
 
 	diagnoses.Add("error", "TEST_ERROR_DIAG", "This is a test error diagnosis")
 
-	diagnosisMetadata := diagnoses.ReportDiagnosis()
+	diagnosisMetadata := diagnoses.Report()
 
 	expectedMetadata := []metadata.DiagnosisMetadata{{
 		ResourceType: "ndm_device",
@@ -38,9 +38,9 @@ func TestReportDeviceDiagnosesEmptyArray(t *testing.T) {
 
 	diagnoses.Add("error", "TEST_ERROR_DIAG", "This is a test error diagnosis")
 
-	diagnoses.ReportDiagnosis()
+	diagnoses.Report()
 
-	diagnosisMetadata := diagnoses.ReportDiagnosis()
+	diagnosisMetadata := diagnoses.Report()
 
 	expectedMetadata := []metadata.DiagnosisMetadata{{
 		ResourceType: "ndm_device",
@@ -56,7 +56,7 @@ func TestReportCLIDiagnoses(t *testing.T) {
 	diagnoses := NewDeviceDiagnoses("default:1.2.3.4.5")
 
 	diagnoses.Add("error", "TEST_ERROR_DIAG", "This is a test error diagnosis")
-	diagnoses.ReportDiagnosis()
+	diagnoses.Report()
 
 	diagnosesCLI := diagnoses.ConvertToCLI()
 

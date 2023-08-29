@@ -149,7 +149,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
 		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
 
-		deviceDiagnosis := d.diagnoses.ReportDiagnosis()
+		deviceDiagnosis := d.diagnoses.Report()
 
 		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, deviceDiagnosis)
 	}
