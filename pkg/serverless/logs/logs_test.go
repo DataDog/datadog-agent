@@ -215,6 +215,8 @@ func TestProcessMessageValid(t *testing.T) {
 		Tags: metricTags,
 	}
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	lc.processMessage(&message)
 
@@ -463,6 +465,8 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.lastRequestID = lastRequestID
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	go lc.processMessage(message)
 
@@ -750,6 +754,8 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 		invocationStartTime: time.Now(),
 		invocationEndTime:   time.Now().Add(10 * time.Millisecond),
 	}
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
 
 	reportLogMessageOne := LambdaLogAPIMessage{
 		objectRecord: platformObjectRecord{
