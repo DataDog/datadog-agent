@@ -1,9 +1,6 @@
 ---
-# FIXME: our current Gitlab version doesn't support importing a file more than once
-# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
-# include:
-#   - /.gitlab/docker_common/publish_job_templates.yml
+include:
+  - /.gitlab/docker_common/publish_job_templates.yml
 
 dev_branch-a6:
   extends: .docker_publish_job_definition
@@ -233,7 +230,7 @@ single_machine_performance-nightly-amd64-a7:
   variables:
     IMG_REGISTRIES: internal-aws-smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
-    IMG_DESTINATIONS: 08450328-agent:nightly-${COMMIT_TIME}-${CI_COMMIT_SHA}-7-amd64
+    IMG_DESTINATIONS: 08450328-agent:nightly-${CI_COMMIT_SHA}-7-amd64
 
 # deploys nightlies to agent-dev
 dev_nightly-dogstatsd:

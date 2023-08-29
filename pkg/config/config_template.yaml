@@ -414,26 +414,36 @@ api_key:
 #
 # collect_gce_tags: true
 
-## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
-## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings
+## @param exclude_gce_tags - list of strings - optional - default: ["bosh_settings" ,"cli-cert" ,"common-psm1" ,"configure-sh" ,"containerd-configure-sh" ,"disable-address-manager" ,"disable-legacy-endpoints" ,"enable-oslogin" ,"gce-container-declaration" ,"google-container-manifest" ,"ipsec-cert" ,"k8s-node-setup-psm1" ,"kube-env" ,"kubeconfig" ,"kubelet-config" ,"serial-port-logging-enable" ,"shutdown-script" ,"ssh-keys" ,"sshKeys" ,"ssl-cert" ,"startup-script" ,"user-data" ,"windows-keys" ,"windows-startup-script-ps1"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: bosh_settings cli-cert common-psm1 configure-sh containerd-configure-sh disable-address-manager disable-legacy-endpoints enable-oslogin gce-container-declaration google-container-manifest ipsec-cert k8s-node-setup-psm1 kube-env kubeconfig kubelet-config serial-port-logging-enable shutdown-script ssh-keys sshKeys ssl-cert startup-script user-data windows-keys windows-startup-script-ps1
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
 # exclude_gce_tags:
-#   - "kube-env"
-#   - "kubelet-config"
-#   - "containerd-configure-sh"
-#   - "startup-script"
-#   - "shutdown-script"
-#   - "configure-sh"
-#   - "sshKeys"
-#   - "ssh-keys"
-#   - "user-data"
-#   - "cli-cert"
-#   - "ipsec-cert"
-#   - "ssl-cert"
-#   - "google-container-manifest"
 #   - "bosh_settings"
+#   - "cli-cert"
+#   - "common-psm1"
+#   - "configure-sh"
+#   - "containerd-configure-sh"
+#   - "disable-address-manager"
+#   - "disable-legacy-endpoints"
+#   - "enable-oslogin"
+#   - "gce-container-declaration"
+#   - "google-container-manifest"
+#   - "ipsec-cert"
+#   - "k8s-node-setup-psm1"
+#   - "kube-env"
+#   - "kubeconfig"
+#   - "kubelet-config"
+#   - "serial-port-logging-enable"
+#   - "shutdown-script"
+#   - "ssh-keys"
+#   - "sshKeys"
+#   - "ssl-cert"
+#   - "startup-script"
+#   - "user-data"
+#   - "windows-keys"
+#   - "windows-startup-script-ps1"
 
 ## @param gce_send_project_id_tag - bool - optional - default: false
 ## @env DD_GCE_SEND_PROJECT_ID_TAG - bool - optional - default: false

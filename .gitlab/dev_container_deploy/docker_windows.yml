@@ -1,9 +1,6 @@
 ---
-# FIXME: our current Gitlab version doesn't support importing a file more than once
-# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
-# include:
-#   - /.gitlab/docker_common/publish_job_templates.yml
+include:
+  - /.gitlab/docker_common/publish_job_templates.yml
 
 dev_branch-a7-windows:
   extends: .docker_publish_job_definition

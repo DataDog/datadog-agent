@@ -24,7 +24,7 @@ func InitMetadataAsTags(metadataAsTags map[string]string) (map[string]string, ma
 		delete(metadataAsTags, label)
 		pattern := strings.ToLower(label)
 		metadataAsTags[pattern] = value
-		if strings.Index(pattern, "*") != -1 {
+		if strings.Contains(pattern, "*") {
 			g, err := glob.Compile(pattern)
 			if err != nil {
 				log.Errorf("Failed to compile glob for [%s]: %v", pattern, err)

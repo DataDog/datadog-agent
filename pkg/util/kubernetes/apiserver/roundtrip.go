@@ -41,7 +41,7 @@ func (rt *CustomRoundTripper) RoundTrip(request *http.Request) (*http.Response, 
 	response, err := rt.rt.RoundTrip(request)
 	if err, ok := err.(net.Error); ok && err.Timeout() || errors.Is(err, context.DeadlineExceeded) {
 		clientTimeouts.Inc()
-		log.Warnf("timeout trying to make the request in %v (kubernetes_apiserver_client_timeout: %v)", time.Now().Sub(start), rt.timeout)
+		log.Warnf("timeout trying to make the request in %v (kubernetes_apiserver_client_timeout: %v)", time.Since(start), rt.timeout)
 	}
 
 	return response, err
