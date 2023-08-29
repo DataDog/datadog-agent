@@ -6,7 +6,7 @@ import re
 import os
 from codeowners import CodeOwners
 
-# example lint message
+# Example lint message
 # "pointer.go:6:1: package-comments: should have a package comment (revive)"
 LINT_PATTERN = re.compile("^([^:]+):([0-9]+):([0-9]+): (([^:]+): )?(.+) \\((.+)\\)$")
 
@@ -58,10 +58,6 @@ def parse_file(golangci_lint_output: str):
         if linter not in lints_per_linter:
             lints_per_linter[linter] = []
         lints_per_linter[linter].append((base_path, row, col, lint, descr))
-
-    ## Uncomment to get the number of lints per linter
-    # for linter, lints in lints_per_linter.items():
-    #     print(f"{linter}: {len(lints)}")
 
     return lints_per_linter
 
