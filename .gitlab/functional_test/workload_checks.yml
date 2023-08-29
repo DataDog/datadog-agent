@@ -20,10 +20,7 @@ single-machine-performance-workload-checks:
     REPLICAS: 5
   allow_failure: true
   script:
-    # Compute the commit time from CI_COMMIT_SHA, must match the calculation on
-    # `docker_publish_job_definition`.
     - git fetch origin
-    - CI_COMMIT_TIME=$(git show -s --format=%ct $CI_COMMIT_SHA)
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
@@ -37,7 +34,7 @@ single-machine-performance-workload-checks:
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
     - chmod +x smp
     # Copy the baseline SHA to SMP for debugging purposes later
-    - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:nightly-${CI_COMMIT_TIME}-${CI_COMMIT_SHA}-7-amd64
+    - TARGET_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:nightly-${CI_COMMIT_SHA}-7-amd64
     - echo "${TARGET_SHA}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"

@@ -230,7 +230,7 @@ single_machine_performance-nightly-amd64-a7:
   variables:
     IMG_REGISTRIES: internal-aws-smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
-    IMG_DESTINATIONS: 08450328-agent:nightly-${COMMIT_TIME}-${CI_COMMIT_SHA}-7-amd64
+    IMG_DESTINATIONS: 08450328-agent:nightly-${CI_COMMIT_SHA}-7-amd64
 
 # deploys nightlies to agent-dev
 dev_nightly-dogstatsd:
