@@ -16,6 +16,7 @@ import (
 	"go.uber.org/atomic"
 )
 
+// NewServerlessLogsAgent creates a new instance of the logs agent for serverless
 func NewServerlessLogsAgent() ServerlessLogsAgent {
 	logsAgent := &agent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),

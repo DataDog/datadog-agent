@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 )
 
+// MockServerlessLogsAgent a mock version of the logs agent for serverless
 type MockServerlessLogsAgent interface {
 	ServerlessLogsAgent
 
@@ -26,6 +27,7 @@ func (m *mockLogsAgent) SetFlushDelay(delay time.Duration) {
 	m.flushDelay = delay
 }
 
+// NewMockServerlessLogsAgent creates a new mock serverless logs agent
 func NewMockServerlessLogsAgent() MockServerlessLogsAgent {
 	return &mockLogsAgent{
 		hasFlushed:      false,

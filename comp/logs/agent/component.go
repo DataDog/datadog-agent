@@ -31,7 +31,7 @@ type Component interface {
 	GetPipelineProvider() pipeline.Provider
 }
 
-// A compat version of the component for the serverless agent
+// ServerlessLogsAgent is a compat version of the component for the serverless agent
 type ServerlessLogsAgent interface {
 	Component
 	Start() error
