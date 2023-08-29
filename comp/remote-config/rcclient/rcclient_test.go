@@ -57,6 +57,7 @@ func (m *mockLogLevelRuntimeSettings) GetSource() settings.Source {
 	return m.source
 }
 
+// nolint: revive
 func applyEmpty(s string, as state.ApplyStatus) {}
 
 func TestAgentConfigCallback(t *testing.T) {

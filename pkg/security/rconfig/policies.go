@@ -73,7 +73,8 @@ func (r *RCPolicyProvider) Start() {
 	r.client.Start()
 }
 
-func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+// nolint: revive
+func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
 	r.Lock()
 	r.lastDefaults = configs
 	r.Unlock()
@@ -83,7 +84,8 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Raw
 	r.debouncer.Call()
 }
 
-func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+// nolint: revive
+func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
 	r.Lock()
 	r.lastCustoms = configs
 	r.Unlock()

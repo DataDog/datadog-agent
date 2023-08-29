@@ -66,7 +66,8 @@ func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan PatchRequest
 }
 
 // process is the event handler called by the RC client on config updates
-func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+// nolint: revive
+func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, applyState func(string, state.ApplyStatus)) {
 	log.Infof("Got %d updates from remote-config", len(update))
 	var valid, invalid float64
 	for path, config := range update {
