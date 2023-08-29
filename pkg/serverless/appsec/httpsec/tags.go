@@ -156,7 +156,7 @@ func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]strin
 		ips     []string
 	)
 	for _, hdr := range ipHeaders {
-		if v, _ := reqHeaders[hdr]; len(v) > 0 {
+		if v := reqHeaders[hdr]; len(v) > 0 {
 			headers = append(headers, hdr)
 			ips = append(ips, v...)
 		}

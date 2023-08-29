@@ -436,9 +436,7 @@ func TestSubscribe(t *testing.T) {
 
 func collectEvents(wg *sync.WaitGroup, events *[]types.EntityEvent, ch chan []types.EntityEvent) {
 	for chEvents := range ch {
-		for _, event := range chEvents {
-			*events = append(*events, event)
-		}
+		*events = append(*events, chEvents...)
 	}
 
 	wg.Done()
