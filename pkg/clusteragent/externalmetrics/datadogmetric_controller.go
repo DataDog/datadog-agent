@@ -109,7 +109,6 @@ func (c *DatadogMetricController) Run(ctx context.Context) {
 	log.Infof("Started DatadogMetric Controller (cache sync finished)")
 	<-ctx.Done()
 	log.Infof("Stopping DatadogMetric Controller")
-	return
 }
 
 func (c *DatadogMetricController) worker() {

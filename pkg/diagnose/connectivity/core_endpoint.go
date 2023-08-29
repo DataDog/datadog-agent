@@ -18,14 +18,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/fatih/color"
-
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -44,7 +41,7 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
-				RawError:    err,
+				RawError:    err.Error(),
 			},
 		}
 	}
@@ -52,7 +49,6 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	client := forwarder.NewHTTPClient(config.Datadog)
-	ctx := context.Background()
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
@@ -60,6 +56,9 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 		for _, apiKey := range domainResolver.GetAPIKeys() {
 			for _, endpointInfo := range endpointsInfo {
 				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+				httpTraces := []string{}
+				ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
+
 				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 
 				// Check if there is a response and if it's valid
@@ -74,58 +73,18 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 					d.Result = diagnosis.DiagnosisFail
 					d.Diagnosis = fmt.Sprintf("Connection to `%s` failed\n%s", logURL, report)
 					d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
-					d.RawError = err
+					d.RawError = reportErr.Error()
+				}
+
+				// Prepend http trace on error or if in verbose mode
+				if len(httpTraces) > 0 && (diagCfg.Verbose || reportErr != nil) {
+					d.Diagnosis = fmt.Sprintf("\n%s\n%s", strings.Join(httpTraces, "\n"), d.Diagnosis)
 				}
 				diagnoses = append(diagnoses, d)
 			}
 		}
 	}
 	return diagnoses
-}
-
-// RunDatadogConnectivityDiagnose sends requests to all known endpoints for all domains
-// to check if there are connectivity issues between Datadog and these endpoints
-func RunDatadogConnectivityDiagnose(writer io.Writer, noTrace bool) error {
-
-	// Create domain resolvers
-	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
-	if err != nil {
-		return log.Error("Misconfiguration of agent endpoints: ", err)
-	}
-
-	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	client := forwarder.NewHTTPClient(config.Datadog)
-	ctx := context.Background()
-
-	// Send requests to all endpoints for all domains
-	fmt.Fprintln(writer, "\n================ Starting connectivity diagnosis ================")
-	for _, domainResolver := range domainResolvers {
-		// Go through all API Keys of a domain and send an HTTP request on each endpoint
-		for _, apiKey := range domainResolver.GetAPIKeys() {
-			for _, endpointInfo := range endpointsInfo {
-				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-				if !noTrace {
-					ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace(writer))
-				}
-
-				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
-				fmt.Fprintf(writer, "\n======== '%v' ========\n", color.BlueString(logURL))
-
-				// Check if there is a response and if it's valid
-				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
-
-				var statusString string
-				if reportErr == nil {
-					statusString = color.GreenString("PASS")
-				} else {
-					statusString = color.RedString("FAIL")
-				}
-				fmt.Fprintf(writer, "%s====> %v\n", report, statusString)
-			}
-		}
-	}
-
-	return nil
 }
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
@@ -180,7 +139,7 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 	var verifyReport string = ""
 	var newErr error = nil
 	if statusCode >= 400 {
-		newErr = fmt.Errorf("Bad Request")
+		newErr = fmt.Errorf("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))
 	}
 
@@ -201,7 +160,8 @@ func noResponseHints(err error) string {
 
 	if parsedURL.Scheme == "http" {
 		if strings.Contains(err.Error(), "EOF") {
-			return fmt.Sprintf("Hint: received an empty reply from the server. You are maybe trying to contact an HTTPS endpoint using an HTTP url: '%v'\n", scrubber.ScrubLine(endpoint))
+			return fmt.Sprintf("Hint: received an empty reply from the server. You are maybe trying to contact an HTTPS endpoint using an HTTP url: '%v'\n",
+				scrubber.ScrubLine(endpoint))
 		}
 	}
 

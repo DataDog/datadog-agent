@@ -53,7 +53,7 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 			IsManifestProducer:        true,
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
-			Name:                      fmt.Sprintf("%s", name),
+			Name:                      name,
 			NodeType:                  orchestrator.K8sCR,
 			Version:                   groupVersion,
 		},

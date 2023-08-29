@@ -34,7 +34,7 @@ type eventPlatformDebugEvent struct {
 func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, formatTable bool) {
 	series, sketches := p.aggregator.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Series"))
 
 		if formatTable {
 			headers, data := series.MarshalStrings()
@@ -65,7 +65,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		}
 	}
 	if len(sketches) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Sketches"))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
 		fmt.Println(string(j))
 		checkFileOutput.WriteString(string(j) + "\n")
@@ -73,7 +73,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 
 	serviceChecks := p.aggregator.GetServiceChecks()
 	if len(serviceChecks) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Service Checks"))
 
 		if formatTable {
 			headers, data := serviceChecks.MarshalStrings()
@@ -106,7 +106,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 
 	events := p.aggregator.GetEvents()
 	if len(events) != 0 {
-		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
+		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Events"))
 		checkFileOutput.WriteString("=== Events ===\n")
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
@@ -118,7 +118,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 			if translated, ok := stats.EventPlatformNameTranslations[k]; ok {
 				k = translated
 			}
-			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString(k)))
+			fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString(k))
 			checkFileOutput.WriteString(fmt.Sprintf("=== %s ===\n", k))
 			j, _ := json.MarshalIndent(v, "", "  ")
 			fmt.Println(string(j))

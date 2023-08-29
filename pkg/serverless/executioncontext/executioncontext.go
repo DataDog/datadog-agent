@@ -112,7 +112,7 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 
 		// TODO Astuyve - refactor this to use initTime
 		// from TelemetryAPI
-		if time.Now().Sub(ec.initTime) > 10*time.Second {
+		if time.Since(ec.initTime) > 10*time.Second {
 			ec.wasProactiveInit = true
 			ec.wasColdStart = false
 		} else {

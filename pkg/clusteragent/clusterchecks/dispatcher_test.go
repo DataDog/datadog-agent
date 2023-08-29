@@ -8,7 +8,6 @@
 package clusterchecks
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -231,26 +230,26 @@ func TestProcessNodeStatus(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-func TestGetLeastBusyNode(t *testing.T) {
+func TestGetNodeWithLessChecks(t *testing.T) {
 	dispatcher := newDispatcher()
 
 	// No node registered -> empty string
-	assert.Equal(t, "", dispatcher.getLeastBusyNode())
+	assert.Equal(t, "", dispatcher.getNodeWithLessChecks())
 
 	// 1 config on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("A"), "node1")
 	dispatcher.addConfig(generateIntegration("B"), "node2")
 	dispatcher.addConfig(generateIntegration("C"), "node2")
-	assert.Equal(t, "node1", dispatcher.getLeastBusyNode())
+	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks())
 
 	// 3 configs on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("D"), "node1")
 	dispatcher.addConfig(generateIntegration("E"), "node1")
-	assert.Equal(t, "node2", dispatcher.getLeastBusyNode())
+	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks())
 
 	// Add an empty node3
 	dispatcher.processNodeStatus("node3", "10.0.0.3", types.NodeStatus{})
-	assert.Equal(t, "node3", dispatcher.getLeastBusyNode())
+	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks())
 
 	requireNotLocked(t, dispatcher.store)
 }
@@ -510,7 +509,7 @@ func TestExtraTags(t *testing.T) {
 		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
 		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			mockConfig := config.Mock(t)
 			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig)
 			mockConfig.Set("cluster_name", tc.clusterNameConfig)
@@ -570,7 +569,36 @@ func (d *dummyClientStruct) GetRunnerStats(IP string) (types.CLCRunnersStats, er
 	return stats[IP], nil
 }
 
+func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
+	workers := map[string]types.Workers{
+		"10.0.0.1": {
+			Count: 1,
+			Instances: map[string]types.WorkerInfo{
+				"worker_1": {
+					Utilization: 0.1,
+				},
+			},
+		},
+		"10.0.0.2": {
+			Count: 2,
+			Instances: map[string]types.WorkerInfo{
+				"worker_1": {
+					Utilization: 0.1,
+				},
+				"worker_2": {
+					Utilization: 0.2,
+				},
+			},
+		},
+	}
+
+	return workers[IP], nil
+}
+
 func TestUpdateRunnersStats(t *testing.T) {
+	mockConfig := config.Mock(t)
+	mockConfig.Set("cluster_checks.rebalance_with_utilization", true)
+
 	dispatcher := newDispatcher()
 	status := types.NodeStatus{LastChange: 10}
 	dispatcher.store.active = true
@@ -598,11 +626,13 @@ func TestUpdateRunnersStats(t *testing.T) {
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.1", node1.clientIP)
 	assert.EqualValues(t, types.CLCRunnersStats{}, node1.clcRunnerStats)
+	assert.Zero(t, node1.workers)
 
 	node2, found := dispatcher.store.getNodeStore("node2")
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.2", node2.clientIP)
 	assert.EqualValues(t, types.CLCRunnersStats{}, node2.clcRunnerStats)
+	assert.Zero(t, node2.workers)
 
 	dispatcher.updateRunnersStats()
 
@@ -610,11 +640,13 @@ func TestUpdateRunnersStats(t *testing.T) {
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.1", node1.clientIP)
 	assert.EqualValues(t, stats1, node1.clcRunnerStats)
+	assert.Equal(t, 1, node1.workers)
 
 	node2, found = dispatcher.store.getNodeStore("node2")
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.2", node2.clientIP)
 	assert.EqualValues(t, stats2, node2.clcRunnerStats)
+	assert.Equal(t, 2, node2.workers)
 
 	// Switch node1 and node2 stats
 	_ = dispatcher.processNodeStatus("node2", "10.0.0.1", status)

@@ -262,5 +262,4 @@ func (cp *cachedProcess) close() {
 		windows.CloseHandle(cp.procHandle)
 		cp.procHandle = windows.Handle(0)
 	}
-	return
 }

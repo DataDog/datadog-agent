@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.18
+go 1.20
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -19,7 +19,6 @@ retract (
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
-	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
@@ -42,19 +41,18 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.93
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
-	github.com/DataDog/datadog-agent/pkg/gohai v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.3.0
-	github.com/DataDog/datadog-operator v1.0.3
+	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.2.15
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
@@ -97,7 +95,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.3
-	github.com/davecgh/go-spew v1.1.1
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v24.0.2+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
@@ -127,7 +125,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.3
-	github.com/hashicorp/consul/api v1.21.0
+	github.com/hashicorp/consul/api v1.24.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.5
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
@@ -297,7 +295,7 @@ require (
 	github.com/aquasecurity/table v1.8.0 // indirect
 	github.com/aquasecurity/tml v0.6.1 // indirect
 	github.com/arduino/go-apt-client v0.0.0-20190812130613-5613f843fdc8 // indirect
-	github.com/armon/go-metrics v0.4.0 // indirect
+	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
 	github.com/aws/aws-sdk-go-v2 v1.18.1 // indirect
@@ -373,7 +371,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-hclog v1.2.0 // indirect
+	github.com/hashicorp/go-hclog v1.5.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
@@ -452,7 +450,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/common v0.44.0
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
@@ -560,7 +558,8 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-beta.1
+	github.com/DataDog/agent-payload/v5 v5.0.94
+	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
@@ -569,7 +568,6 @@ require (
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.75.0
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
 )
@@ -580,7 +578,6 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
@@ -590,14 +587,10 @@ require (
 	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.75.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.75.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus v0.75.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/sigstore/rekor v1.2.2 // indirect
-	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect

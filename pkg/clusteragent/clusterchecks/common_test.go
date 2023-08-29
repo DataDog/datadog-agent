@@ -86,12 +86,10 @@ type mockedPluggableAutoConfig struct {
 
 func (m *mockedPluggableAutoConfig) AddScheduler(name string, s scheduler.Scheduler, replay bool) {
 	m.Called(name, s, replay)
-	return
 }
 
 func (m *mockedPluggableAutoConfig) RemoveScheduler(name string) {
 	m.Called(name)
-	return
 }
 
 type fakeLeaderEngine struct {

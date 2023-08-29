@@ -78,7 +78,7 @@ func addDefaultCollector(name string, sch *Scheduler) error {
 			return nil
 		}
 		err := sch.AddCollector(name, cInfo.interval)
-		if err != nil && cInfo.ignoreError == false {
+		if err != nil && !cInfo.ignoreError {
 			log.Warnf("Could not add metadata provider for %s: %v", name, err)
 			return err
 		}

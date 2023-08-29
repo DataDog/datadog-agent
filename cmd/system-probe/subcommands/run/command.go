@@ -13,6 +13,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"os/user"
 	"syscall"
 	"time"
 
@@ -220,6 +221,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
+	logUserAndGroupID(log)
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		log.Info("system probe not enabled. exiting")
@@ -338,4 +340,21 @@ func setupInternalProfiling(cfg ddconfig.ConfigReader, configPrefix string, log 
 
 func isValidPort(port int) bool {
 	return port > 0 && port < 65536
+}
+
+func logUserAndGroupID(log log.Component) {
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Warnf("error fetching current user: %s", err)
+		return
+	}
+	uid := currentUser.Uid
+	gid := currentUser.Gid
+	log.Infof("current user id/name: %s/%s", uid, currentUser.Name)
+	currentGroup, err := user.LookupGroupId(gid)
+	if err == nil {
+		log.Infof("current group id/name: %s/%s", gid, currentGroup.Name)
+	} else {
+		log.Warnf("unable to resolve group: %s", err)
+	}
 }

@@ -33,8 +33,6 @@ typedef unsigned long long ctx_t;
 #define CTX_PARMRET(ctx, argc) (u64)(ctx[argc])
 #define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, 1)
 
-#define DR_KPROBE_OR_FENTRY DR_FENTRY
-
 #else
 
 typedef struct pt_regs ctx_t;
@@ -66,8 +64,6 @@ typedef struct pt_regs ctx_t;
 
 #define CTX_PARMRET(ctx, _argc) PT_REGS_RC(ctx)
 #define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, _)
-
-#define DR_KPROBE_OR_FENTRY DR_KPROBE
 
 #endif
 

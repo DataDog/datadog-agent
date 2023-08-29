@@ -28,22 +28,22 @@ HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
     return 0;
 }
 
-HOOK_ENTRY("kill_pid_info")
-int hook_kill_pid_info(ctx_t *ctx) {
+HOOK_ENTRY("check_kill_permission")
+int hook_check_kill_permission(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SIGNAL);
-    if (!syscall || syscall->signal.pid) {
+    if (!syscall) {
         return 0;
     }
 
-    struct pid *pid = (struct pid *)CTX_PARM3(ctx);
-    if (!pid) {
+    struct task_struct *task = (struct task_struct *)CTX_PARM3(ctx);
+    if (!task) {
         return 0;
     }
-    syscall->signal.pid = get_root_nr_from_pid_struct(pid);
+
+    syscall->signal.pid = get_root_nr_from_task_struct(task);
 
     return 0;
 }
-
 
 /* hook here to grab the EPERM retval */
 HOOK_EXIT("check_kill_permission")
