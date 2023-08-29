@@ -6,6 +6,7 @@
 package cpu
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
@@ -16,7 +17,7 @@ func getSysctl[U any, V any](call func(string) (U, error), cast func(U) V, key s
 	value, err := call(key)
 	// sysctl returns ENOENT when the key doesn't exists on the device
 	// eg. on ARM, the frequency and the family don't exist
-	if err == unix.ENOENT {
+	if errors.Is(err, unix.ENOENT) {
 		err = utils.ErrNotCollectable
 	}
 	return utils.NewValueFrom(cast(value), err)

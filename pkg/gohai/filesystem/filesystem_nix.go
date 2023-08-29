@@ -22,7 +22,7 @@ type fsInfoGetter func(*mountinfo.Info) (uint64, error)
 func sizeKB(mount *mountinfo.Info) (uint64, error) {
 	var statfs unix.Statfs_t
 	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
-		return 0, fmt.Errorf("statfs %s: %v", mount.Source, err)
+		return 0, fmt.Errorf("statfs %s: %w", mount.Source, err)
 	}
 
 	sizeKB := statfs.Blocks * uint64(statfs.Bsize) / 1024
