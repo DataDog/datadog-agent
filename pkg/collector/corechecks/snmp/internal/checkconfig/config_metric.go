@@ -180,7 +180,7 @@ func RegexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate 
 // normalizeRegexReplaceValue normalize regex value to keep compatibility with Python
 // Converts \1 into $1, \2 into $2, etc
 func normalizeRegexReplaceValue(val string) string {
-	re := regexp.MustCompile("\\\\(\\d+)")
+	re := regexp.MustCompile(`\\(\d+)`)
 	return re.ReplaceAllString(val, "$$$1")
 }
 

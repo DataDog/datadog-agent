@@ -1,11 +1,13 @@
 using System;
 using System.Linq;
 using System.Security.Principal;
+using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
+using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
 {
@@ -214,19 +216,27 @@ namespace Datadog.CustomActions
                 {
                     try
                     {
-                        var svcNames = _serviceController.Services.FirstOrDefault(svc => svc.ServiceName == service);
-                        if (svcNames != null)
+                        var svc = _serviceController.Services.FirstOrDefault(svc => svc.ServiceName == service);
+                        if (svc != null)
                         {
+                            _session.Log($"Service {service} status: {svc.Status}");
+                            if (svc.Status == ServiceControllerStatus.Stopped)
+                            {
+                                // Service is already stopped
+                                continue;
+                            }
                             using var actionRecord = new Record(
                                 "Stop Datadog services",
-                                $"Stopping {svcNames.DisplayName} service",
+                                $"Stopping {svc.DisplayName} service",
                                 ""
                             );
                             _session.Message(InstallMessage.ActionStart, actionRecord);
                             _session.Log($"Stopping service {service}");
                             _serviceController.StopService(service, TimeSpan.FromMinutes(3));
 
-                            _session.Log($"Service {service} status: {svcNames.Status}");
+                            // Refresh to get new status
+                            svc.Refresh();
+                            _session.Log($"Service {service} status: {svc.Status}");
                         }
                         else
                         {

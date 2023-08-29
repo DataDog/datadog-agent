@@ -157,19 +157,10 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_mkdir_callback")
-int kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
-    return dr_mkdir_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_mkdir_callback")
-int fentry_dr_mkdir_callback(ctx_t *ctx) {
+int tail_call_target_dr_mkdir_callback(ctx_t *ctx) {
     return dr_mkdir_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_mkdir_callback")
 int tracepoint_dr_mkdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {

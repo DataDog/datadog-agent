@@ -9,5 +9,7 @@ namespace Datadog.CustomActions.Interfaces
 
         ServiceControllerStatus Status { get; }
         ServiceStartMode StartType { get; }
+
+        void Refresh();
     }
 }

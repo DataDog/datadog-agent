@@ -215,19 +215,10 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_rename_callback")
-int kprobe_dr_rename_callback(struct pt_regs *ctx) {
-    return dr_rename_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_rename_callback")
-int fentry_dr_rename_callback(ctx_t *ctx) {
+int tail_call_target_dr_rename_callback(ctx_t *ctx) {
     return dr_rename_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_rename_callback")
 int tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {

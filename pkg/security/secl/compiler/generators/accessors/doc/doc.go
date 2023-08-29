@@ -223,9 +223,7 @@ func mergeConstants(one []constants, two []constants) []constants {
 	var output []constants
 
 	// add constants from one to output
-	for _, consts := range one {
-		output = append(output, consts)
-	}
+	output = append(output, one...)
 
 	// check if the constants from two should be appended or merged
 	for _, constsTwo := range two {

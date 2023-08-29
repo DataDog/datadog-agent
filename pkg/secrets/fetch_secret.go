@@ -140,7 +140,7 @@ func fetchSecret(secretsHandle []string) (map[string]string, error) {
 	res := map[string]string{}
 	for _, sec := range secretsHandle {
 		v, ok := secrets[sec]
-		if ok == false {
+		if !ok {
 			return nil, fmt.Errorf("secret handle '%s' was not decrypted by the secret_backend_command", sec)
 		}
 

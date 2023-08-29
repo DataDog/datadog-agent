@@ -44,7 +44,7 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait ti
 				log.Warnf("couldn't sync informer %s in %v (kube_cache_sync_timeout_seconds: %v)", name, end.Sub(start), timeoutConfig)
 				return fmt.Errorf("couldn't sync informer %s in %v", name, end.Sub(start))
 			}
-			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
+			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Since(start), informers[name].LastSyncResourceVersion())
 			return nil
 		})
 	}
