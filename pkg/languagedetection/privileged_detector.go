@@ -16,11 +16,12 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 var detectorsWithPrivilege = []languagemodels.Detector{
