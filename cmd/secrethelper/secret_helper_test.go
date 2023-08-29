@@ -161,7 +161,7 @@ func TestReadSecrets(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var w bytes.Buffer
 			err := readSecrets(strings.NewReader(test.in), &w, path, test.usePrefixes, newKubeClientFunc)
-			out := string(w.Bytes())
+			out := w.String()
 
 			if test.out != "" {
 				assert.JSONEq(t, test.out, out)

@@ -201,7 +201,7 @@ func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
 	if !ok {
 		return nil
 	}
-	if kind, _ := content["kind"]; kind != "KubeletConfiguration" {
+	if kind := content["kind"]; kind != "KubeletConfiguration" {
 		l.pushError(fmt.Errorf(`kubelet configuration loaded from %q is expected to be of kind "KubeletConfiguration"`, name))
 		return nil
 	}

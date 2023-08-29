@@ -67,7 +67,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	events := c.parsePods(updatedPods)
 
-	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
+	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {
