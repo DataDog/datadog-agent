@@ -996,7 +996,6 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 
 	tr := setupTracer(t, cfg)
 
@@ -1030,7 +1029,6 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 
 	tr := setupTracer(t, cfg)
 
@@ -1065,7 +1063,6 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPStatsByStatusCode = true
 
 	tr := setupTracer(t, cfg)
@@ -1101,7 +1098,6 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPStatsByStatusCode = true
 
 	tr := setupTracer(t, cfg)

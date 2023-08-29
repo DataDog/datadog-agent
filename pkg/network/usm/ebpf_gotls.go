@@ -161,7 +161,7 @@ type GoTLSProgram struct {
 var _ subprogram = &GoTLSProgram{}
 
 func newGoTLSProgram(c *config.Config) *GoTLSProgram {
-	if !c.EnableHTTPSMonitoring || !c.EnableGoTLSSupport {
+	if !c.EnableGoTLSSupport {
 		return nil
 	}
 
