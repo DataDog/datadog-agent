@@ -201,5 +201,6 @@ test/fakeintake/build/*
 # dev container
 .devcontainer/
 
-# Allow Regression Detector material to ignore excludes
+# Allow Single Machine Performance material to ignore excludes
 !test/regression/**
+!test/workload-checks/**
