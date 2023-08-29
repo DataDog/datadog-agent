@@ -110,8 +110,14 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
     return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 }
 
+// Returns true if the given http transaction should be flushed to the user mode.
+// We flush a transaction if:
+//   1. We got a new request (packet_type == HTTP_REQUEST) and previously (in the given transaction) we had either a
+//      request (http->request_started != 0) or a response (http->response_status_code). This is equivalent to flush
+//      a transaction if we have a new request, and the given transaction is not clean.
+//   2. We got a new response (packet_type == HTTP_RESPONSE) and the given transaction already contains a response
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
-    return (packet_type == HTTP_REQUEST && http->request_started) ||
+    return (packet_type == HTTP_REQUEST && (http->request_started || http->response_status_code)) ||
         (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
