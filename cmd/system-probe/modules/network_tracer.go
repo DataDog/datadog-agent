@@ -267,7 +267,7 @@ func (nt *networkTracer) Close() {
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Now().Sub(start)}
+	args := []interface{}{client, count, connectionsCount, time.Since(start)}
 	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
 	switch {
 	case count <= 5, count%20 == 0:

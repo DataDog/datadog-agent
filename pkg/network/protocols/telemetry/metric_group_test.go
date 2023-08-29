@@ -35,7 +35,7 @@ func TestMetricGroupSummary(t *testing.T) {
 	metricGroup.NewCounter("m2", "tag:bar").Add(20)
 
 	assert.Regexp(t,
-		regexp.MustCompile("m1\\[tag:foo\\]=10\\([0-9.]+/s\\) m2\\[tag:bar\\]=20\\([0-9.]+/s\\)"),
+		regexp.MustCompile(`m1\[tag:foo\]=10\([0-9.]+/s\) m2\[tag:bar\]=20\([0-9.]+/s\)`),
 		metricGroup.Summary(),
 	)
 }

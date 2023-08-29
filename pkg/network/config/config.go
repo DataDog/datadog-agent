@@ -87,6 +87,9 @@ type Config struct {
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
+	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
+	EnableIstioMonitoring bool
+
 	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
 	// traffic done through Go's standard library's TLS implementation
 	EnableGoTLSSupport bool
@@ -299,6 +302,7 @@ func New() *Config {
 		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableIstioMonitoring: cfg.GetBool(join(smNS, "enable_istio_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 

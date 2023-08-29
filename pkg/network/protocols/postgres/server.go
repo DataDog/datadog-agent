@@ -23,5 +23,5 @@ func RunServer(t testing.TB, serverAddr string, serverPort string) error {
 
 	dir, _ := testutil.CurDir()
 
-	return protocolsUtils.RunDockerServer(t, "postgres", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*\\[1].*database system is ready to accept connections"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "postgres", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(`.*\[1].*database system is ready to accept connections`), protocolsUtils.DefaultTimeout)
 }

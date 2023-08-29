@@ -94,7 +94,6 @@ func (iiscfg *DynamicIISConfig) Start() error {
 func (iiscfg *DynamicIISConfig) Stop() {
 	iiscfg.stopChannel <- true
 	iiscfg.wg.Wait()
-	return
 }
 
 type iisVirtualDirectory struct {

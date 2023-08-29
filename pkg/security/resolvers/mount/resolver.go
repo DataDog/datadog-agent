@@ -29,7 +29,6 @@ import (
 )
 
 const (
-	deleteDelayTime                      = 5 * time.Second
 	numAllowedMountIDsToResolvePerPeriod = 75
 	fallbackLimiterPeriod                = 5 * time.Second
 	redemptionTime                       = 5 * time.Second
@@ -264,7 +263,7 @@ func (mr *Resolver) insert(m *model.Mount) {
 
 func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 	entry, exists := mr.redemption.Get(mountID)
-	if !exists || time.Now().Sub(entry.insertedAt) > redemptionTime {
+	if !exists || time.Since(entry.insertedAt) > redemptionTime {
 		return nil
 	}
 	return entry.mount

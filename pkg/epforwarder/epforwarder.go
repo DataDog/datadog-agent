@@ -242,7 +242,7 @@ func diagnose(diagnoseCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
-				RawError:    err,
+				RawError:    err.Error(),
 			})
 			continue
 		}
@@ -263,7 +263,7 @@ func diagnose(diagnoseCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Name:        name,
 				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
 				Remediation: "Please validate Agent configuration and firewall to access " + url,
-				RawError:    err,
+				RawError:    err.Error(),
 			})
 		}
 	}

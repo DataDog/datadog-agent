@@ -72,6 +72,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	setCacheInformationDCAMode(status)
 	setCollectionIsWorkingDCAMode(status)
 	setManifestBufferInformationDCAMode(status)
+	setSkippedResourcesInformationDCAMode(status)
 
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
@@ -190,4 +191,21 @@ func setManifestBufferInformationDCAMode(status map[string]interface{}) {
 	delete(manifestBuffer, "BufferFlushed")
 	status["ManifestBuffer"] = manifestBuffer
 
+}
+
+func setSkippedResourcesInformationDCAMode(status map[string]interface{}) {
+	skippedResourcesJSON := []byte(expvar.Get("orchestrator-skipped-resources").String())
+	skippedResources := make(map[string]string)
+	err := json.Unmarshal(skippedResourcesJSON, &skippedResources)
+	if err != nil {
+		return
+	}
+
+	skippedResourcesFiltered := make(map[string]string)
+	for informerName, reason := range skippedResources {
+		if reason != "" {
+			skippedResourcesFiltered[informerName] = reason
+		}
+	}
+	status["SkippedResources"] = skippedResourcesFiltered
 }

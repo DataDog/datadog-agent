@@ -28,7 +28,7 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	listener := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
 	listener.Start()
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s", listener.listener.Addr()))
+	conn, err := net.Dial("tcp", listener.listener.Addr().String())
 	assert.Nil(t, err)
 	defer conn.Close()
 
@@ -48,7 +48,7 @@ func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing
 	listener := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 100)
 	listener.Start()
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s", listener.listener.Addr()))
+	conn, err := net.Dial("tcp", listener.listener.Addr().String())
 	assert.Nil(t, err)
 
 	var msg *message.Message
