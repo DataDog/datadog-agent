@@ -75,8 +75,6 @@ func (s *agentSuite) TestWithTelemetry() {
 }
 
 func (s *agentSuite) TestWithLogs() {
-	s.UpdateEnv(e2e.AgentStackDef(nil))
-
 	config := s.Env().Agent.Config()
 	require.Contains(s.T(), config, "logs_enabled: false")
 

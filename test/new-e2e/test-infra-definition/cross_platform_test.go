@@ -27,7 +27,7 @@ func TestCrossPlatformSuite(t *testing.T) {
 func (s *crossPlatformSuite) TestUbuntuOS() {
 	os := ec2os.UbuntuOS
 	s.subTestInstallAgentVersion(os)
-	s.subTestInstalAgent(os)
+	s.subTestInstallAgent(os)
 }
 
 func (s *crossPlatformSuite) TestWindows() {
@@ -36,7 +36,7 @@ func (s *crossPlatformSuite) TestWindows() {
 	// the end of the function.
 	os := ec2os.WindowsOS
 	s.subTestInstallAgentVersion(os)
-	s.subTestInstalAgent(os)
+	s.subTestInstallAgent(os)
 }
 
 func (s *crossPlatformSuite) TestOtherOSES() {
@@ -51,11 +51,11 @@ func (s *crossPlatformSuite) TestOtherOSES() {
 			continue
 		}
 
-		s.subTestInstalAgent(os)
+		s.subTestInstallAgent(os)
 	}
 }
 
-func (s *crossPlatformSuite) subTestInstalAgent(os ec2os.Type) {
+func (s *crossPlatformSuite) subTestInstallAgent(os ec2os.Type) {
 	s.T().Run(fmt.Sprintf("Test install agent %v", os), func(t *testing.T) {
 		s.UpdateEnv(e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(os)}))
 		output := s.Env().Agent.Status().Content
