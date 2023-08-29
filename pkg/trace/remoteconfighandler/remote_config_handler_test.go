@@ -222,7 +222,7 @@ func TestLogLevel(t *testing.T) {
 	h.onAgentConfigUpdate(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layer,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
-	}, applyEmpty)
+	}, remoteClient.UpdateApplyStatus)
 
 	ctrl.Finish()
 }
