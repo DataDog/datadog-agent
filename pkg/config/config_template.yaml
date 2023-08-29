@@ -1191,7 +1191,7 @@ api_key:
   ## WARNING: `by_modification_time` is less performant than `by_name` and will trigger
   ## more disk I/O at the configured wildcard log paths.
   #
-  # file_wildcard_selection_mode: `by_name`
+  # file_wildcard_selection_mode: by_name
 
 {{ end -}}
 {{- if .TraceAgent }}
