@@ -225,7 +225,7 @@ func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[st
 
 func remapDNSStatsByDomain(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
 	old := c.DnsStatsByDomain
-	if old == nil || len(old) == 0 {
+	if len(old) == 0 {
 		return
 	}
 	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)

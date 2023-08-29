@@ -49,7 +49,7 @@ func TestPopulateDeviceField(t *testing.T) {
 			"",
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			s := &metrics.Serie{Tags: tagset.CompositeTagsFromSlice(tc.Tags)}
 
 			// Run a few times to ensure stability
@@ -116,7 +116,7 @@ func TestPopulateResources(t *testing.T) {
 			nil,
 		},
 	} {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run("", func(t *testing.T) {
 			s := &metrics.Serie{Tags: tagset.CompositeTagsFromSlice(tc.Tags)}
 
 			// Run a few times to ensure stability
@@ -462,9 +462,7 @@ func TestPayloadsSeries(t *testing.T) {
 
 	unrolledSeries := Series{}
 	for _, series := range splitSeries {
-		for _, s := range series {
-			unrolledSeries = append(unrolledSeries, s)
-		}
+		unrolledSeries = append(unrolledSeries, series...)
 	}
 
 	newLength := len(unrolledSeries)

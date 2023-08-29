@@ -23,7 +23,7 @@ func ReadKubernetesSecret(kubeClient kubernetes.Interface, path string) s.Secret
 	splitName := strings.Split(path, "/")
 
 	if len(splitName) != 3 {
-		return s.Secret{ErrorMsg: fmt.Sprintf("invalid format. Use: \"namespace/name/key\"")}
+		return s.Secret{ErrorMsg: "invalid format. Use: \"namespace/name/key\""}
 	}
 
 	namespace, name, key := splitName[0], splitName[1], splitName[2]

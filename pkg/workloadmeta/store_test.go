@@ -1227,7 +1227,6 @@ func TestNoDataRace(t *testing.T) {
 
 	go func() {
 		_, _ = s.GetContainer("456")
-		return
 	}()
 
 	s.handleEvents([]CollectorEvent{

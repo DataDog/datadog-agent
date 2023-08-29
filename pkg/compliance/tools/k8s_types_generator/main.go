@@ -462,7 +462,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 			log.Fatal(err)
 		}
 		r := tar.NewReader(g)
-		for true {
+		for {
 			header, err := r.Next()
 			if err == io.EOF {
 				break

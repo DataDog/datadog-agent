@@ -174,45 +174,38 @@ func (a *Agent) FlushSync() {
 
 func (a *Agent) work() {
 	for {
-		select {
-		case p, ok := <-a.In:
-			if !ok {
-				return
-			}
-			a.Process(p)
+		p, ok := <-a.In
+		if !ok {
+			return
 		}
+		a.Process(p)
 	}
 
 }
 
 func (a *Agent) loop() {
-	for {
-		select {
-		case <-a.ctx.Done():
-			log.Info("Exiting...")
-			if err := a.Receiver.Stop(); err != nil {
-				log.Error(err)
-			}
-			for _, stopper := range []interface{ Stop() }{
-				a.Concentrator,
-				a.ClientStatsAggregator,
-				a.TraceWriter,
-				a.StatsWriter,
-				a.PrioritySampler,
-				a.ErrorsSampler,
-				a.NoPrioritySampler,
-				a.RareSampler,
-				a.EventProcessor,
-				a.OTLPReceiver,
-				a.obfuscator,
-				a.obfuscator,
-				a.cardObfuscator,
-				a.DebugServer,
-			} {
-				stopper.Stop()
-			}
-			return
-		}
+	<-a.ctx.Done()
+	log.Info("Exiting...")
+	if err := a.Receiver.Stop(); err != nil {
+		log.Error(err)
+	}
+	for _, stopper := range []interface{ Stop() }{
+		a.Concentrator,
+		a.ClientStatsAggregator,
+		a.TraceWriter,
+		a.StatsWriter,
+		a.PrioritySampler,
+		a.ErrorsSampler,
+		a.NoPrioritySampler,
+		a.RareSampler,
+		a.EventProcessor,
+		a.OTLPReceiver,
+		a.obfuscator,
+		a.obfuscator,
+		a.cardObfuscator,
+		a.DebugServer,
+	} {
+		stopper.Stop()
 	}
 }
 
