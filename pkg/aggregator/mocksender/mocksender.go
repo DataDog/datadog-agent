@@ -51,7 +51,7 @@ func (m *MockSender) SetSenderManager(senderManager sender.SenderManager) {
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric
