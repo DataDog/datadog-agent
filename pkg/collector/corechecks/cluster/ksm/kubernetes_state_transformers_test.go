@@ -1094,6 +1094,92 @@ func Test_limitrangeTransformer(t *testing.T) {
 	}
 }
 
+func Test_containerLastTerminatedReasonTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "OOMKilled",
+			args: args{
+				name: "kube_pod_container_status_last_terminated_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "OOMKilled",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:OOMKilled"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.last_terminated",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:OOMKilled"},
+			},
+		},
+		{
+			name: "ContainerCannotRun",
+			args: args{
+				name: "kube_pod_container_status_last_terminated_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "ContainerCannotRun",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:ContainerCannotRun"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.last_terminated",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:ContainerCannotRun"},
+			},
+		},
+		{
+			name: "Error",
+			args: args{
+				name: "kube_pod_container_status_last_terminated_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "Error",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:Error"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.last_terminated",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:Error"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			currentTime := time.Now()
+			containerTerminatedReasonTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
 func Test_nodeUnschedulableTransformer(t *testing.T) {
 	tests := []struct {
 		name     string
