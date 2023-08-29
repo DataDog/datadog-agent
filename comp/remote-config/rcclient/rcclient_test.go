@@ -57,6 +57,8 @@ func (m *mockLogLevelRuntimeSettings) GetSource() settings.Source {
 	return m.source
 }
 
+func applyEmpty(s string, as state.ApplyStatus) {}
+
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
 	mockSettings := &mockLogLevelRuntimeSettings{logLevel: "info", source: settings.SourceDefault}
@@ -86,7 +88,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
-	}, func(s string, as state.ApplyStatus) {})
+	}, applyEmpty)
 	assert.Equal(t, "debug", mockSettings.logLevel)
 	assert.Equal(t, settings.SourceRC, mockSettings.source)
 
@@ -95,7 +97,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
-	}, func(s string, as state.ApplyStatus) {})
+	}, applyEmpty)
 	assert.Equal(t, "info", mockSettings.logLevel)
 	assert.Equal(t, settings.SourceConfig, mockSettings.source)
 
@@ -105,7 +107,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
-	}, func(s string, as state.ApplyStatus) {})
+	}, applyEmpty)
 	// Log level should still be "info" because it was enforced by the user
 	assert.Equal(t, "info", mockSettings.logLevel)
 	// Source should still be CLI as it has priority over RC
@@ -117,7 +119,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
-	}, func(s string, as state.ApplyStatus) {})
+	}, applyEmpty)
 	assert.Equal(t, "debug", mockSettings.logLevel)
 	assert.Equal(t, settings.SourceRC, mockSettings.source)
 
@@ -125,7 +127,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
-	}, func(s string, as state.ApplyStatus) {})
+	}, applyEmpty)
 	assert.Equal(t, "debug", mockSettings.logLevel)
 	assert.Equal(t, settings.SourceCLI, mockSettings.source)
 }
