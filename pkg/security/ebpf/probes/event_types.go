@@ -112,6 +112,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("_do_fork", fentry, withSkipIfFentry(true)),
 				kprobeOrFentry("do_fork", fentry, withSkipIfFentry(true)),
 				kprobeOrFentry("kernel_clone", fentry),
+				kprobeOrFentry("kernel_thread", fentry),
+				kprobeOrFentry("user_mode_thread", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("cgroup_tasks_write", fentry, withSkipIfFentry(true)),
@@ -237,7 +239,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			// Link
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("vfs_link", fentry),
-				kprobeOrFentry("filename_create", fentry),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					kprobeOrFentry("filename_create", fentry),
+					kprobeOrFentry("security_path_link", fentry),
+					kprobeOrFentry("security_path_mkdir", fentry),
+				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", fentry, EntryAndExit|SupportFentry|SupportFexit)},
@@ -289,7 +295,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"mkdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("vfs_mkdir", fentry),
-				kprobeOrFentry("filename_create", fentry),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					kprobeOrFentry("filename_create", fentry),
+					kprobeOrFentry("security_path_link", fentry),
+					kprobeOrFentry("security_path_mkdir", fentry),
+				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdir", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdirat", fentry, EntryAndExit|SupportFentry|SupportFexit)},

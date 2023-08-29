@@ -16,10 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 )
 
 func TestGoDetector(t *testing.T) {
-	currentLanguageInfo, err := (&GoDetector{}).DetectLanguage(os.Getpid())
+	proc := &languagedetection.Process{Pid: int32(os.Getpid())}
+	currentLanguageInfo, err := NewGoDetector().DetectLanguage(proc)
 	require.NoError(t, err)
 
 	assert.Equal(t, languagemodels.Go, currentLanguageInfo.Name)

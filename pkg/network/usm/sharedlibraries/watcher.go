@@ -23,7 +23,7 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,12 +73,12 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 	return &Watcher{
 		wg:             sync.WaitGroup{},
 		done:           make(chan struct{}),
-		procRoot:       util.GetProcRoot(),
+		procRoot:       kernel.ProcFSRoot(),
 		rules:          rules,
 		loadEvents:     ebpfProgram.GetPerfHandler(),
 		processMonitor: monitor.GetProcessMonitor(),
 		ebpfProgram:    ebpfProgram,
-		registry:       utils.NewFileRegistry(),
+		registry:       utils.NewFileRegistry("shared_libraries"),
 
 		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
 		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
@@ -135,12 +135,12 @@ func (w *Watcher) Start() {
 		return
 	}
 
-	thisPID, err := util.GetRootNSPID()
+	thisPID, err := kernel.RootNSPID()
 	if err != nil {
 		log.Warnf("Watcher Start can't get root namespace pid %s", err)
 	}
 
-	_ = util.WithAllProcs(w.procRoot, func(pid int) error {
+	_ = kernel.WithAllProcs(w.procRoot, func(pid int) error {
 		if pid == thisPID { // don't scan ourself
 			return nil
 		}

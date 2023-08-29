@@ -863,6 +863,54 @@ func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
 	}
 }
 
+func TestProcessLogMessageLogsNoRequestID(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+	orphanLogsChan := make(chan []LambdaLogAPIMessage, maxBufferedLogs)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetArnFromExtensionResponse("my-arn")
+
+	logCollection := &LambdaLogsCollector{
+		logsEnabled: true,
+		out:         logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext: mockExecutionContext,
+		orphanLogsChan:   orphanLogsChan,
+	}
+
+	logMessages := []LambdaLogAPIMessage{
+		{
+			stringRecord: "hi, log 0",
+		},
+		{
+			stringRecord: "hi, log 1",
+		},
+		{
+			stringRecord: "hi, log 2",
+		},
+	}
+	go logCollection.processLogMessages(logMessages)
+
+	select {
+	case <-logChannel:
+		assert.Fail(t, "We should not have received logs")
+	case <-time.After(100 * time.Millisecond):
+		// nothing to do here
+	}
+
+	select {
+	case received := <-orphanLogsChan:
+		for _, msg := range received {
+			assert.Equal(t, "", msg.objectRecord.requestID)
+		}
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
 func TestServeHTTPInvalidPayload(t *testing.T) {
 	logChannel := make(chan []LambdaLogAPIMessage)
 
@@ -1105,6 +1153,13 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -1125,6 +1180,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
@@ -1185,6 +1241,13 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Tags: []string{},
 	}
 
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
 	doneMessage := &LambdaLogAPIMessage{
 		time:    endTime,
 		logType: logTypePlatformRuntimeDone,
@@ -1205,6 +1268,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
 	lc.invocationStartTime = startTime
 
+	lc.processMessage(startMessage)
 	lc.processMessage(doneMessage)
 	lc.processMessage(reportMessage)
 
@@ -1238,4 +1302,30 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
 	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
 	assert.Len(t, timedMetrics, 0)
+}
+
+func TestMultipleStartLogCollection(t *testing.T) {
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	defer demux.Stop(false)
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+	tags := Tags{
+		Tags: metricTags,
+	}
+	computeEnhancedMetrics := true
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+
+	// start log collection multiple times
+	for i := 0; i < 5; i++ {
+		// due to process_once, we should only set the log collector's context once from the execution context
+		lc.Start()
+		mockExecutionContext.SetArnFromExtensionResponse(fmt.Sprintf("arn-%v", i))
+	}
+	assert.Equal(t, arn, lc.arn)
 }

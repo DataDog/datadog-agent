@@ -12,8 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
+// AgentMetadataName is an enum type containing all defined keys for
+// SetAgentMetadata.
+type AgentMetadataName string
+
 // AgentMetadata contains metadata provided by the agent itself
-type AgentMetadata map[string]interface{}
+type AgentMetadata map[AgentMetadataName]interface{}
 
 // CheckMetadata contains metadata provided by all integrations.
 // Each check has an entry in the top level map, each containing an array with

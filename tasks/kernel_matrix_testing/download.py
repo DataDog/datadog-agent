@@ -13,8 +13,8 @@ except ImportError:
 
 url_base = "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/"
 rootfs_amd64 = {
-    "bullseye.qcow2.amd64-DEV.qcow2",
-    "buster.qcow2.amd64-DEV.qcow2",
+    "custom-bullseye.amd64.qcow2",
+    "custom-buster.amd64.qcow2",
     "jammy-server-cloudimg-amd64.qcow2",
     "focal-server-cloudimg-amd64.qcow2",
     "bionic-server-cloudimg-amd64.qcow2",
@@ -22,10 +22,14 @@ rootfs_amd64 = {
     "amzn2-kvm-2.0-amd64-5.4.qcow2",
     "amzn2-kvm-2.0-amd64-5.10.qcow2",
     "amzn2-kvm-2.0-amd64-5.15.qcow2",
+    "Fedora-Cloud-Base-35.amd64.qcow2",
+    "Fedora-Cloud-Base-36.amd64.qcow2",
+    "Fedora-Cloud-Base-37.amd64.qcow2",
+    "Fedora-Cloud-Base-38.amd64.qcow2",
 }
 
 rootfs_arm64 = {
-    "bullseye.qcow2.arm64-DEV.qcow2",
+    "custom-bullseye.arm64.qcow2",
     "jammy-server-cloudimg-arm64.qcow2",
     "focal-server-cloudimg-arm64.qcow2",
     "bionic-server-cloudimg-arm64.qcow2",
@@ -33,6 +37,10 @@ rootfs_arm64 = {
     "amzn2-kvm-2.0-arm64-5.4.qcow2",
     "amzn2-kvm-2.0-arm64-5.10.qcow2",
     "amzn2-kvm-2.0-arm64-5.15.qcow2",
+    "Fedora-Cloud-Base-35.arm64.qcow2",
+    "Fedora-Cloud-Base-36.arm64.qcow2",
+    "Fedora-Cloud-Base-37.arm64.qcow2",
+    "Fedora-Cloud-Base-38.arm64.qcow2",
 }
 
 archs_mapping = {
@@ -51,8 +59,9 @@ def requires_update(rootfs_dir, image):
     sum_url = url_base + image + ".sum"
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
+    debug(f"[debug] new_sum: {new_sum}")
 
-    if not os.path.exists(f"{image}.sum"):
+    if not os.path.exists(os.path.join(rootfs_dir, f"{image}.sum")):
         return True
 
     with open(os.path.join(rootfs_dir, f"{image}.sum")) as f:
@@ -83,6 +92,10 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             debug(f"[debug] updating {f} from S3.")
             to_download.append(f)
 
+    if len(to_download) == 0:
+        warn("[-] No update required for rootfs images")
+        return
+
     # download files to be updates
     fd, path = tempfile.mkstemp()
     try:
@@ -90,9 +103,9 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
                 # download package entry
-                tmp.write(url_base + f"{f}.tar.gz" + "\n")
+                tmp.write(url_base + f + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={f}.tar.gz\n")
+                tmp.write(f" out={f}\n")
                 # download sum entry
                 tmp.write(url_base + f"{f}.sum\n")
                 tmp.write(f" dir={rootfs_dir}\n")
@@ -107,20 +120,6 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             raise Exit("Failed to download image files")
     finally:
         os.remove(path)
-
-    # extract tar.gz files
-    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec tar xzvf $(basename {{}}) -C {rootfs_dir} \\;")
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx, rootfs_dir, backup_dir)
-        raise Exit("Failed to remove uncompress archives")
-
-    # remove tar.gz
-    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec rm -f {{}} \\;")
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx, rootfs_dir, backup_dir)
-        raise Exit("Failed to remove compressed archives")
 
     # set permissions
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \\;")
@@ -192,7 +191,7 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
         raise Exit(f"failed to copy kernel headers to shared dir {kernel_headers_dir}")
 
 
-def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir):
+def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, no_backup):
     arch = archs_mapping[platform.machine()]
     kernel_packages_sum = f"kernel-packages-{arch}.sum"
     kernel_packages_tar = f"kernel-packages-{arch}.tar"
@@ -207,13 +206,14 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
         return
 
     # backup kernel-packges
-    karch = karch_mapping[archs_mapping[platform.machine()]]
-    ctx.run(
-        f"find {kernel_packages_dir} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
-    )
-    ctx.run(f"cd {kernel_packages_dir} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
-    ctx.run(f"cp {kernel_packages_dir}/{kernel_packages_tar} {backup_dir}")
-    info("[+] Backed up current kernel packages")
+    if not no_backup:
+        karch = karch_mapping[archs_mapping[platform.machine()]]
+        ctx.run(
+            f"find {kernel_packages_dir} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
+        )
+        ctx.run(f"cd {kernel_packages_dir} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
+        ctx.run(f"cp {kernel_packages_dir}/{kernel_packages_tar} {backup_dir}")
+        info("[+] Backed up current kernel packages")
 
     # clean kernel packages directory
     ctx.run(f"rm -rf {kernel_packages_dir}/*")
@@ -228,10 +228,11 @@ def revert_rootfs(ctx, rootfs_dir, backup_dir):
     ctx.run(f"find {backup_dir} -name *qcow2 -type f -exec mv {{}} {rootfs_dir}/ \\;")
 
 
-def update_rootfs(ctx, rootfs_dir, backup_dir):
+def update_rootfs(ctx, rootfs_dir, backup_dir, no_backup):
     # backup rootfs
-    ctx.run(f"find {rootfs_dir} -name *qcow2 -type f -exec cp {{}} {backup_dir}/ \\;")
-    info("[+] Backed up rootfs")
+    if not no_backup:
+        ctx.run(f"find {rootfs_dir} -name *qcow2 -type f -exec cp {{}} {backup_dir}/ \\;")
+        info("[+] Backed up rootfs")
 
     download_rootfs(ctx, rootfs_dir, backup_dir, revert=True)
 

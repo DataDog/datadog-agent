@@ -26,13 +26,11 @@ int hook_io_allocate_scq_urings(ctx_t *ctx) {
     return 0;
 }
 
-#ifndef USE_FENTRY
 HOOK_ENTRY("io_sq_offload_start")
 int hook_io_sq_offload_start(ctx_t *ctx) {
     void *ioctx = (void *)CTX_PARM1(ctx);
     cache_ioctx_pid_tgid(ioctx);
     return 0;
 }
-#endif
 
 #endif

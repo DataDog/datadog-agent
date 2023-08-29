@@ -167,5 +167,5 @@ func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
-	return NewFileRegistry()
+	return NewFileRegistry("")
 }

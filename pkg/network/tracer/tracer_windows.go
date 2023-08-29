@@ -211,12 +211,16 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 	}
 }
 
-// GetStats returns a map of statistics about the current tracer's internal state
-func (t *Tracer) GetStats() (map[string]interface{}, error) {
+func (t *Tracer) getStats() (map[string]interface{}, error) {
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
 	}
 	return stats, nil
+}
+
+// GetStats returns a map of statistics about the current tracer's internal state
+func (t *Tracer) GetStats() (map[string]interface{}, error) {
+	return t.getStats()
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging

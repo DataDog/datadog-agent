@@ -10,6 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"unsafe"
 
@@ -37,11 +38,14 @@ type protocol struct {
 }
 
 const (
-	inFlightMap    = "http2_in_flight"
-	dynamicTable   = "http2_dynamic_table"
-	staticTable    = "http2_static_table"
-	filterTailCall = "socket__http2_filter"
-	eventStream    = "http2"
+	inFlightMap          = "http2_in_flight"
+	dynamicTable         = "http2_dynamic_table"
+	dynamicTableCounter  = "http2_dynamic_counter_table"
+	http2IterationsTable = "http2_iterations"
+	staticTable          = "http2_static_table"
+	filterTailCall       = "socket__http2_filter"
+	parserTailCall       = "socket__http2_frames_parser"
+	eventStream          = "http2"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -56,6 +60,12 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: staticTable,
 		},
+		{
+			Name: dynamicTableCounter,
+		},
+		{
+			Name: http2IterationsTable,
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -63,6 +73,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP2),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: parserTailCall,
 			},
 		},
 	},
@@ -89,6 +106,10 @@ func (p *protocol) Name() string {
 	return "HTTP2"
 }
 
+const (
+	mapSizeMinValue = 1024
+)
+
 // ConfigureOptions add the necessary options for http2 monitoring to work,
 // to be used by the manager. These are:
 // - Set the `http2_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
@@ -96,10 +117,26 @@ func (p *protocol) Name() string {
 // We also configure the http2 event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+
+	// Taking the max between fourth of p.cfg.MaxTrackedConnections to the default lower limit (1024), as it can
+	// introduce a major memory bump if we're using p.cfg.MaxTrackedConnections.
+	mapSize := uint32(math.Max(float64(p.cfg.MaxTrackedConnections)/4, mapSizeMinValue))
+	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
+		MaxEntries: mapSize,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
+		MaxEntries: mapSize,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
+		MaxEntries: mapSize,
+		EditorFlag: manager.EditMaxEntries,
+	}
+
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
