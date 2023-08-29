@@ -77,10 +77,7 @@ def filter_lints(lints_per_linter, filter_team: str=None, filter_linters: str=No
             else:
                 # Filter only the lints owned by the filter_team
                 for lint in lints_per_linter[linter]:
-                    if codeowners.of(lint[0]) == []:
-                        continue
-                    team_owning_the_lint = codeowners.of(lint[0])[0][1]
-                    if team_owning_the_lint == filter_team:
+                    if ('TEAM', filter_team) in codeowners.of(lint[0]):
                         filtered_lints[linter].append(lint)
     return filtered_lints
 
