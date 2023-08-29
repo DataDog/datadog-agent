@@ -71,15 +71,17 @@ func (l PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.
 			continue
 		}
 
+		var lang languagemodels.Language
 		for _, detector := range l.detectors {
-			lang, err := detector.DetectLanguage(proc)
+			var err error
+			lang, err = detector.DetectLanguage(proc)
 			if err != nil {
 				handleDetectorError(err)
 				continue
 			}
 			languages[i] = lang
-			l.binaryIdCache.Add(bin, lang)
 		}
+		l.binaryIdCache.Add(bin, lang)
 	}
 	return languages
 }
