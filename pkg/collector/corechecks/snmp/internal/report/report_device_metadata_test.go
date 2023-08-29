@@ -336,62 +336,62 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
 	// language=json
 	event := []byte(`
-		{
-			"subnet": "127.0.0.0/29",
-			"namespace": "my-ns",
-			"devices": [
-				{
-					"id": "1234",
-					"id_tags": [
-						"device_name:127.0.0.1"
-					],
-					"tags": [
-						"tag1",
-						"tag2"
-					],
-					"ip_address": "1.2.3.4",
-					"status":1,
-					"subnet": "127.0.0.0/29"
-				}
-			],
-			"interfaces": [
-				{
-					"device_id": "1234",
-					"id_tags": [
-						"interface:21"
-					],
-					"index": 1,
-					"name": "21",
-					"alias": "ifAlias1",
-					"admin_status": 2,
-					"oper_status": 1
-				},
-				{
-					"device_id": "1234",
-					"id_tags": [
-						"interface:22"
-					],
-					"index": 2,
-					"name": "22",
-					"admin_status": 2,
-					"oper_status": 2
-				}
-			],
-			"diagnoses": [
-				{
-					"resource_type": "ndm_device",
-					"resource_id": "1234",
-					"diagnoses": [
-						{
-							"severity": "warn",
-							"message": "Test",
-							"code": "TEST_DIAGNOSIS"
-						}
-					]
-				}
-			],
-			"collect_timestamp":1415792726
-		}
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": [
+                "device_name:127.0.0.1"
+            ],
+            "tags": [
+                "tag1",
+                "tag2"
+            ],
+            "ip_address": "1.2.3.4",
+            "status":1,
+            "subnet": "127.0.0.0/29"
+        }
+    ],
+    "interfaces": [
+        {
+            "device_id": "1234",
+            "id_tags": [
+                "interface:21"
+            ],
+            "index": 1,
+			"name": "21",
+			"alias": "ifAlias1",
+			"admin_status": 2,
+			"oper_status": 1
+        },
+        {
+            "device_id": "1234",
+            "id_tags": [
+                "interface:22"
+            ],
+            "index": 2,
+            "name": "22",
+			"admin_status": 2,
+			"oper_status": 2
+        }
+    ],
+    "diagnoses": [
+      {
+        "resource_type": "ndm_device",
+        "resource_id": "1234",
+        "diagnoses": [
+          {
+            "severity": "warn",
+            "message": "Test",
+            "code": "TEST_DIAGNOSIS"
+          }
+        ]
+      }
+    ],
+    "collect_timestamp":1415792726
+}
 		`)
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
