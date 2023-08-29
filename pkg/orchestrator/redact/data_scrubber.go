@@ -96,7 +96,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 			if matchIndex >= 0 {
 				before := cmd[:matchIndex] // /etc/vaultd/ from /etc/vaultd/secret/haproxy-crt.pem
 				// skip paths /etc/vaultd/secrets/haproxy-crt.pem -> we don't want to match if one of the below chars are in before
-				if strings.IndexAny(before, "/:=$") >= 0 {
+				if strings.ContainsAny(before, "/:=$") {
 					break
 				}
 

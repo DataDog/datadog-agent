@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"expvar"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,6 +27,13 @@ import (
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
 	defaultMaximumCRDs      = 100
+)
+
+var (
+	skippedResourcesExpVars = expvar.NewMap("orchestrator-skipped-resources")
+	skippedResources        = map[string]*expvar.String{}
+
+	tlmSkippedResources = telemetry.NewCounter("orchestrator", "skipped_resources", []string{"name"}, "Skipped resources in orchestrator check")
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way
@@ -97,8 +106,6 @@ func (cb *CollectorBundle) prepareCollectors() {
 	}
 
 	cb.importCollectorsFromInventory()
-
-	return
 }
 
 // skipImportingDefaultCollectors skips importing the default collectors if the collector list is explicitly set to an
@@ -263,11 +270,17 @@ func (cb *CollectorBundle) Initialize() error {
 	informerSynced := map[cache.SharedInformer]struct{}{}
 
 	for _, collector := range cb.collectors {
+		collectorFullName := collector.Metadata().FullName()
+
+		// init metrics
+		skippedResources[collectorFullName] = &expvar.String{}
+		skippedResourcesExpVars.Set(collectorFullName, skippedResources[collectorFullName])
+
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
 
 		if _, found := informerSynced[informer]; !found {
-			informersToSync[apiserver.InformerName(collector.Metadata().FullName())] = informer
+			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			informerSynced[informer] = struct{}{}
 			// we run each enabled informer individually, because starting them through the factory
 			// would prevent us from restarting them again if the check is unscheduled/rescheduled
@@ -277,7 +290,29 @@ func (cb *CollectorBundle) Initialize() error {
 		}
 	}
 
-	return apiserver.SyncInformers(informersToSync, cb.extraSyncTimeout)
+	errors := apiserver.SyncInformersReturnErrors(informersToSync, cb.extraSyncTimeout)
+
+	for informerName, err := range errors {
+		if err != nil {
+			cb.skipCollector(informerName, err)
+		}
+	}
+
+	return nil
+}
+
+func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, err error) {
+	for _, collector := range cb.collectors {
+		collectorFullName := collector.Metadata().FullName()
+		if apiserver.InformerName(collectorFullName) == informerName {
+			collector.Metadata().IsSkipped = true
+			collector.Metadata().SkippedReason = err.Error()
+
+			// emit metrics
+			skippedResources[collectorFullName].Set(err.Error())
+			tlmSkippedResources.Inc(collectorFullName)
+		}
+	}
 }
 
 // Run is used to sequentially run all collectors in the bundle.
@@ -290,6 +325,11 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 	}
 
 	for _, collector := range cb.collectors {
+		if collector.Metadata().IsSkipped {
+			log.Warnf("Collector %s is skipped: %s", collector.Metadata().FullName(), collector.Metadata().SkippedReason)
+			continue
+		}
+
 		runStartTime := time.Now()
 
 		result, err := collector.Run(cb.runCfg)

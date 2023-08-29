@@ -64,7 +64,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 						OID:     "1.3.6.1.2.1.1.5.0",
 						Name:    "sysName",
 						Match:   "(\\w)(\\w+)",
-						pattern: regexp.MustCompile("(\\w)(\\w+)"),
+						pattern: regexp.MustCompile(`(\w)(\w+)`),
 						Tags: map[string]string{
 							"some_tag": "some_tag_value",
 							"prefix":   "\\1",
@@ -125,7 +125,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
 									Name:                 "ifName",
 									ExtractValue:         "(Row\\d)",
-									ExtractValueCompiled: regexp.MustCompile("(Row\\d)"),
+									ExtractValueCompiled: regexp.MustCompile(`(Row\d)`),
 								},
 							},
 							"mac_address": {

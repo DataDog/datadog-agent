@@ -29,6 +29,8 @@ import (
 
 const (
 	datadogConfigPath = "/var/task/datadog.yaml"
+	logLevelEnvVar    = "DD_LOG_LEVEL"
+	loggerName        = "SERVERLESS_INIT"
 )
 
 func main() {

@@ -124,9 +124,7 @@ func getClusterAgentDeployment() ([]byte, error) {
 // getDeployedHelmConfigmap returns the configmap for a given release.
 // Only a single release for a given name can be deployed at one time.
 func getDeployedHelmConfigmap(cl *apiserver.APIClient, name string, namespace string) (*v1.ConfigMap, error) {
-	var selector string
-
-	selector = labels.Set{
+	selector := labels.Set{
 		"owner":  "helm",
 		"status": "deployed",
 		"name":   name,
@@ -144,9 +142,7 @@ func getDeployedHelmConfigmap(cl *apiserver.APIClient, name string, namespace st
 // getDeployedHelmSecret returns the secret for a given release.
 // Only a single release for a given name can be deployed at one time.
 func getDeployedHelmSecret(cl *apiserver.APIClient, name string, namespace string) (*v1.Secret, error) {
-	var selector string
-
-	selector = labels.Set{
+	selector := labels.Set{
 		"owner":  "helm",
 		"status": "deployed",
 		"name":   name,

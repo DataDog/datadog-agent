@@ -15,15 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	defaultFlushTimeout = 5 * time.Second
-	loggerName          = "DD_LOG_AGENT"
-	logLevelEnvVar      = "DD_LOG_LEVEL"
 	logEnabledEnvVar    = "DD_LOGS_ENABLED"
 	sourceEnvVar        = "DD_SOURCE"
 	sourceName          = "Datadog Agent"
@@ -35,7 +32,6 @@ type Config struct {
 	FlushTimeout time.Duration
 	channel      chan *logConfig.ChannelMessage
 	source       string
-	loggerName   config.LoggerName
 	isEnabled    bool
 }
 
@@ -57,7 +53,6 @@ func CreateConfig(origin string) *Config {
 		FlushTimeout: defaultFlushTimeout,
 		channel:      make(chan *logConfig.ChannelMessage),
 		source:       source,
-		loggerName:   loggerName,
 		isEnabled:    isEnabled(os.Getenv(logEnabledEnvVar)),
 	}
 }
@@ -75,23 +70,6 @@ func Write(conf *Config, msgToSend []byte, isError bool) {
 
 // SetupLog creates the log agent and sets the base tags
 func SetupLog(conf *Config, tags map[string]string) logsAgent.ServerlessLogsAgent {
-	if err := config.SetupLogger(
-		conf.loggerName,
-		"error", // will be re-set later with the value from the env var
-		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",      // syslog URI
-		false,   // syslog_rfc
-		true,    // log_to_console
-		false,   // log_format_json
-	); err != nil {
-		log.Errorf("Unable to setup logger: %s", err)
-	}
-
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
-			log.Errorf("Unable to change the log level: %s", err)
-		}
-	}
 	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.channel, sourceName, conf.source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(tags))
 	return logsAgent

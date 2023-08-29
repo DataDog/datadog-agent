@@ -19,7 +19,6 @@ retract (
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
-	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
@@ -42,7 +41,6 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.93
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
 	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
@@ -560,6 +558,7 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.94
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000

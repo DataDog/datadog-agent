@@ -42,10 +42,8 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStat) []RequestSummary {
 		switch key.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			byRequestAPI["produce"] = requestStat.Count
-			break
 		case kafka.FetchAPIKey:
 			byRequestAPI["fetch"] = requestStat.Count
-			break
 		}
 
 		debug := RequestSummary{
