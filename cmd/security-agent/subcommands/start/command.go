@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -204,7 +205,11 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, t
 
 	hostnameDetected, err := utils.GetHostname()
 	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
+		log.Warnf("Could not resolve hostname from core-agent: %v", err)
+		hostnameDetected, err = hostname.Get(ctx)
+		if err != nil {
+			return log.Errorf("Error while getting hostname, exiting: %v", err)
+		}
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
 

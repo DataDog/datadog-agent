@@ -239,7 +239,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			// Link
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("vfs_link", fentry),
-				kprobeOrFentry("filename_create", fentry),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					kprobeOrFentry("filename_create", fentry),
+					kprobeOrFentry("security_path_link", fentry),
+					kprobeOrFentry("security_path_mkdir", fentry),
+				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", fentry, EntryAndExit|SupportFentry|SupportFexit)},
@@ -291,7 +295,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"mkdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("vfs_mkdir", fentry),
-				kprobeOrFentry("filename_create", fentry),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					kprobeOrFentry("filename_create", fentry),
+					kprobeOrFentry("security_path_link", fentry),
+					kprobeOrFentry("security_path_mkdir", fentry),
+				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdir", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdirat", fentry, EntryAndExit|SupportFentry|SupportFexit)},
@@ -401,7 +409,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"signal": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kretprobeOrFexit("check_kill_permission", fentry),
-				kprobeOrFentry("kill_pid_info", fentry),
+				kprobeOrFentry("check_kill_permission", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", fentry, Entry|SupportFentry)},
 		},

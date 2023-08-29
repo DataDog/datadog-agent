@@ -94,9 +94,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 
 	unrolledSeries := metricsserializer.Series{}
 	for _, series := range splitSeries {
-		for _, s := range series {
-			unrolledSeries = append(unrolledSeries, s)
-		}
+		unrolledSeries = append(unrolledSeries, series...)
 	}
 	newLength := len(unrolledSeries)
 	require.Equal(t, originalLength, newLength)

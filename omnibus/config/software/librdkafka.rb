@@ -25,7 +25,7 @@ build do
   }
 
   command "./configure --enable-sasl --prefix=#{install_dir}/embedded", :env => env
-  command "make", :env => env
+  command "make -j #{workers}", :env => env
   command "make install", :env => env
 
   delete "#{install_dir}/embedded/lib/librdkafka.a"

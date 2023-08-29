@@ -122,6 +122,26 @@ kitchen_test_security_agent_amazonlinux_x64:
         KITCHEN_OSVERS: "amazonlinux2022-5-15,amazonlinux2023"
         KITCHEN_CWS_PLATFORM: [host, docker]
 
+kitchen_test_security_agent_x64_ec2:
+  extends:
+    - .kitchen_test_security_agent
+    - .kitchen_ec2_location_us_east_1
+    - .kitchen_ec2
+  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
+  variables:
+    KITCHEN_ARCH: x86_64
+    KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
+    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
+  before_script:
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
+  parallel:
+    matrix:
+      - KITCHEN_PLATFORM: "centos"
+        KITCHEN_OSVERS: "rocky-92"
+        KITCHEN_CWS_PLATFORM: [host]
+
 kitchen_test_security_agent_amazonlinux_x64_fentry:
   extends:
     - kitchen_test_security_agent_amazonlinux_x64

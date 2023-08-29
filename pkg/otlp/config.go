@@ -70,7 +70,6 @@ func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, config.OTLPReceiverSection)
-	censusConfig := readConfigSection(cfg, config.OTLPCensusReceiverSection)
 
 	tracePort, err := portToUint(cfg.GetInt(config.OTLPTracePort))
 	if err != nil {
@@ -87,15 +86,13 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	debugConfig := readConfigSection(cfg, config.OTLPDebug)
 
 	return PipelineConfig{
-		OTLPReceiverConfig:       otlpConfig.ToStringMap(),
-		OpenCensusReceiverConfig: censusConfig.ToStringMap(),
-		OpenCensusEnabled:        hasSection(cfg, "opencensus"),
-		TracePort:                tracePort,
-		MetricsEnabled:           metricsEnabled,
-		TracesEnabled:            tracesEnabled,
-		LogsEnabled:              logsEnabled,
-		Metrics:                  metricsConfig.ToStringMap(),
-		Debug:                    debugConfig.ToStringMap(),
+		OTLPReceiverConfig: otlpConfig.ToStringMap(),
+		TracePort:          tracePort,
+		MetricsEnabled:     metricsEnabled,
+		TracesEnabled:      tracesEnabled,
+		LogsEnabled:        logsEnabled,
+		Metrics:            metricsConfig.ToStringMap(),
+		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 

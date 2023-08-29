@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -75,38 +76,57 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getLeastBusyNode returns the name of the node that is assigned
-// the lowest number of checks. In case of equality, one is chosen
-// randomly, based on map iterations being randomized.
-func (d *dispatcher) getLeastBusyNode() string {
-	var leastBusyNode string
-	minCheckCount := int(-1)
-	minBusyness := int(-1)
+// getNodeToScheduleCheck returns the node where a new check should be scheduled
 
+// Advanced dispatching relies on the check stats fetched from the cluster check
+// runners API to distribute the checks. The stats are only updated when the
+// checks are rebalanced, they are not updated every time a check is scheduled.
+// That's why it's not a good idea to pick the least busy node. Rebalance
+// happens every few minutes, so all the checks added during that time would get
+// scheduled to the same node. It's a better solution to pick a random node and
+// rely on rebalancing to distribute when needed.
+//
+// On the other hand, when advanced dispatching is not used, we can pick the
+// node with fewer checks. It's because the number of checks is kept up to date.
+func (d *dispatcher) getNodeToScheduleCheck() string {
+	if d.advancedDispatching {
+		return d.getRandomNode()
+	}
+
+	return d.getNodeWithLessChecks()
+}
+
+func (d *dispatcher) getRandomNode() string {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
+	var nodes []string
+	for name := range d.store.nodes {
+		nodes = append(nodes, name)
+	}
+
+	if len(nodes) == 0 {
+		return ""
+	}
+
+	return nodes[rand.Intn(len(nodes))]
+}
+
+func (d *dispatcher) getNodeWithLessChecks() string {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	var selectedNode string
+	minNumChecks := 0
+
 	for name, store := range d.store.nodes {
-		if name == "" {
-			continue
-		}
-		if d.advancedDispatching && store.busyness > defaultBusynessValue {
-			// dispatching based on clc runners stats
-			// only when advancedDispatching is true and
-			// started collecting busyness values
-			if minBusyness == -1 || store.busyness < minBusyness {
-				leastBusyNode = name
-				minBusyness = store.busyness
-			}
-		} else {
-			// count-based round robin dispatching
-			if minCheckCount == -1 || len(store.digestToConfig) < minCheckCount {
-				leastBusyNode = name
-				minCheckCount = len(store.digestToConfig)
-			}
+		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
+			selectedNode = name
+			minNumChecks = len(store.digestToConfig)
 		}
 	}
-	return leastBusyNode
+
+	return selectedNode
 }
 
 // expireNodes iterates over nodes and removes the ones that have not

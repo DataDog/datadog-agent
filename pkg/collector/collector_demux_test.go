@@ -62,7 +62,7 @@ func (suite *CollectorDemuxTestSuite) TestCancelledCheckCanSendMetrics() {
 	suite.c.RunCheck(ch)
 
 	// Wait for Check#Run to start before cancelling the check: otherwise it may not run at all.
-	_ = <-flip
+	<-flip
 
 	err := suite.c.StopCheck(ch.ID())
 	assert.NoError(suite.T(), err)

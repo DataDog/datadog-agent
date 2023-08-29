@@ -165,9 +165,7 @@ func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []stri
 			continue
 		}
 		if re.MatchString(device) || (mountpoint != "" && re.MatchString(mountpoint)) {
-			for _, tag := range deviceTags {
-				tags = append(tags, tag)
-			}
+			tags = append(tags, deviceTags...)
 		}
 	}
 	return tags
