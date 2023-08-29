@@ -16,13 +16,11 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"golang.org/x/sys/unix"
-
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 var detectorsWithPrivilege = []languagemodels.Detector{
@@ -41,23 +39,29 @@ func handleDetectorError(err error) {
 	}
 }
 
+// PrivilegedLanguageDetector is a struct that is used by the system probe to run through the list of detectors that require
+// elevated privileges to run.
+// It contains some extra state such as a cached hostProc value, as well as a cache for processes that reuse a binary
+// which has already been seen.
 type PrivilegedLanguageDetector struct {
 	hostProc      string
-	binaryIdCache *simplelru.LRU[binaryID, languagemodels.Language]
+	binaryIDCache *simplelru.LRU[binaryID, languagemodels.Language]
 	detectors     []languagemodels.Detector
 }
 
+// NewPrivilegedLanguageDetector constructs a new PrivilegedLanguageDetector
 func NewPrivilegedLanguageDetector() PrivilegedLanguageDetector {
 	lru, _ := simplelru.NewLRU[binaryID, languagemodels.Language](1000, nil) // Only errors if the size is negative, so it's safe to ignore
 
 	return PrivilegedLanguageDetector{
 		detectors:     detectorsWithPrivilege,
 		hostProc:      kernel.ProcFSRoot(),
-		binaryIdCache: lru,
+		binaryIDCache: lru,
 	}
 }
 
-func (l PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) []languagemodels.Language {
+// DetectWithPrivileges is used by the system probe to detect languages for languages that require binary analysis to detect.
+func (l *PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) []languagemodels.Language {
 	languages := make([]languagemodels.Language, len(procs))
 	for i, proc := range procs {
 		bin, err := l.getBinID(proc)
@@ -67,7 +71,7 @@ func (l PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.
 			continue
 		}
 
-		if lang, ok := l.binaryIdCache.Get(bin); ok {
+		if lang, ok := l.binaryIDCache.Get(bin); ok {
 			log.Tracef("Pid %v already detected as %v, skipping", proc.GetPid(), lang.Name)
 			languages[i] = lang
 			continue
@@ -83,18 +87,19 @@ func (l PrivilegedLanguageDetector) DetectWithPrivileges(procs []languagemodels.
 			}
 			languages[i] = lang
 		}
-		l.binaryIdCache.Add(bin, lang)
+		l.binaryIDCache.Add(bin, lang)
 	}
 	return languages
 }
 
+// MockPrivilegedDetectors is used in tests to inject mock tests. It should be called before `DetectWithPrivileges`
 func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detector) {
 	oldDetectors := detectorsWithPrivilege
 	t.Cleanup(func() { detectorsWithPrivilege = oldDetectors })
 	detectorsWithPrivilege = newDetectors
 }
 
-func (l PrivilegedLanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {
+func (l *PrivilegedLanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {
 	procPath := filepath.Join(l.hostProc, strconv.Itoa(int(process.GetPid())))
 	exePath := filepath.Join(procPath, "exe")
 	binPath, err := os.Readlink(exePath)
@@ -111,13 +116,11 @@ func (l PrivilegedLanguageDetector) getBinID(process languagemodels.Process) (bi
 	}
 
 	return binaryID{
-		major: unix.Major(stat.Dev),
-		minor: unix.Minor(stat.Dev),
-		ino:   stat.Ino,
+		dev: stat.Dev,
+		ino: stat.Ino,
 	}, nil
 }
 
 type binaryID struct {
-	major, minor uint32
-	ino          uint64
+	dev, ino uint64
 }
