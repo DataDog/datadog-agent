@@ -93,6 +93,7 @@ func newStatus(s string) *Status {
 	return &Status{Content: s}
 }
 
+// Status runs status command and returns a Status struct
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
 
 	return newStatus(agent.executeCommand("status", commandArgs...))
