@@ -1,5 +1,5 @@
 {
-	"commit": "dc09ecb6214acb85736fe590a49998d45dd9a6ff",
+	"commit": "4b887eb25eebdab860883f84a55ede6bd118c475",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -7487,6 +7487,20 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.320-243.544.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.322-244.536.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 4
 		},
@@ -8090,6 +8104,20 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.320-242.534.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.320-243.544.amzn2.x86_64",
+			"cindex": 7
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.322-244.536.amzn2.x86_64",
 			"cindex": 7
 		},
 		{
@@ -17428,6 +17456,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.529.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.529.3.el7uek.x86_64",
 			"cindex": 85
 		},
 		{

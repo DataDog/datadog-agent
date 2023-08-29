@@ -91,7 +91,6 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
-	// TODO: optimize httpEncoder to take a writer and use gostreamer
 	var (
 		staticTags  uint64
 		dynamicTags map[string]struct{}

@@ -182,7 +182,7 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			}
 
 			// If logs cannot be assigned a request ID, delay sending until a request ID is available
-			if message.objectRecord.requestID == "" && lc.lastRequestID == "" {
+			if len(message.objectRecord.requestID) == 0 && len(lc.lastRequestID) == 0 {
 				orphanMessages = append(orphanMessages, message)
 				continue
 			}
@@ -201,7 +201,9 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			}
 		}
 	}
-	lc.orphanLogsChan <- orphanMessages
+	if len(orphanMessages) > 0 {
+		lc.orphanLogsChan <- orphanMessages
+	}
 }
 
 // processMessage performs logic about metrics and tags on the message
