@@ -245,7 +245,7 @@ func getRuntime(procPath string, osReleasePath string, varName string, retries i
 		runtime = cleanRuntimes(foundRuntimes)
 		counter++
 	}
-	log.Debugf("finding the lambda runtime took %v. found runtime: %s", time.Since(start), runtime)
+	runtime = strings.Replace(runtime, "AWS_Lambda_", "", 1)
 	if len(runtime) == 0 {
 		runtime = getRuntimeFromOsReleaseFile(osReleasePath)
 	}
