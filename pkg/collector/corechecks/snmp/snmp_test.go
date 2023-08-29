@@ -1642,49 +1642,49 @@ tags:
 
 	// language=json
 	event := []byte(fmt.Sprintf(`
-	{
-	  "subnet": "127.0.0.0/30",
-	  "namespace":"default",
-	  "devices": [
-		{
-		  "id": "default:1.2.3.5",
-		  "id_tags": [
-			"device_namespace:default",
-			"snmp_device:1.2.3.5"
-		  ],
-		  "tags": [
-			"agent_version:%s",
-			"autodiscovery_subnet:127.0.0.0/30",
-			"device_namespace:default",
-			"mytag:val1",
-			"snmp_device:1.2.3.5"
-		  ],
-		  "ip_address": "1.2.3.5",
-		  "status": 2,
-		  "subnet": "127.0.0.0/30"
-		}
-	  ],
-      "diagnoses": [
-        {
-		  "resource_type": "ndm_device",
-		  "resource_id": "default:1.2.3.5",
-		  "diagnoses": [
-			{
-			  "severity": "error",
-			  "message": "Agent is not able to poll this network device. Check the authentication method and ensure the agent can ping this network device.",
-			  "code": "SNMP_COULD_NOT_POLL_DEVICE"
-			},
-			{
-			  "severity": "error",
-			  "message": "Agent was not able to detect a profile for this network device.",
-			  "code": "SNMP_COULD_NOT_DETECT_PROFILE"
-			}
-		  ]
-		}
+{
+  "subnet": "127.0.0.0/30",
+  "namespace":"default",
+  "devices": [
+    {
+      "id": "default:1.2.3.5",
+      "id_tags": [
+        "device_namespace:default",
+        "snmp_device:1.2.3.5"
       ],
-	  "collect_timestamp":946684800
+      "tags": [
+        "agent_version:%s",
+        "autodiscovery_subnet:127.0.0.0/30",
+        "device_namespace:default",
+        "mytag:val1",
+        "snmp_device:1.2.3.5"
+      ],
+      "ip_address": "1.2.3.5",
+      "status": 2,
+      "subnet": "127.0.0.0/30"
+    }
+  ],
+  "diagnoses": [
+	{
+	  "resource_type": "ndm_device",
+	  "resource_id": "default:1.2.3.5",
+	  "diagnoses": [
+		{
+		  "severity": "error",
+		  "message": "Agent is not able to poll this network device. Check the authentication method and ensure the agent can ping this network device.",
+		  "code": "SNMP_COULD_NOT_POLL_DEVICE"
+		},
+		{
+		  "severity": "error",
+		  "message": "Agent was not able to detect a profile for this network device.",
+		  "code": "SNMP_COULD_NOT_DETECT_PROFILE"
+		}
+	  ]
 	}
-	`, version.AgentVersion))
+  ],
+  "collect_timestamp":946684800
+}
+`, version.AgentVersion))
 	compactEvent := new(bytes.Buffer)
 	err = json.Compact(compactEvent, event)
 	assert.NoError(t, err)
