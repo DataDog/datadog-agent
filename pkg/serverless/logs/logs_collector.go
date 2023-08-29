@@ -131,9 +131,19 @@ func shouldProcessLog(message *LambdaLogAPIMessage) bool {
 	return true
 }
 
-func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAPIMessage) string {
+// calculateRuntimeDuration returns the runtimeDuration and postRuntimeDuration is milliseconds
+func calculateRuntimeDuration(l *LambdaLogAPIMessage, startTime, endTime time.Time) (float64, float64) {
+	// If neither startTime nor endTime have been set, avoid returning exaggerated values
+	if startTime.IsZero() || endTime.IsZero() {
+		return 0, 0
+	}
 	runtimeDurationMs := float64(endTime.Sub(startTime).Milliseconds())
 	postRuntimeDurationMs := l.objectRecord.reportLogItem.durationMs - runtimeDurationMs
+	return runtimeDurationMs, postRuntimeDurationMs
+}
+
+func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAPIMessage) string {
+	runtimeDurationMs, postRuntimeDurationMs := calculateRuntimeDuration(l, startTime, endTime)
 	stringRecord := fmt.Sprintf("REPORT RequestId: %s\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: %d ms\tMemory Size: %d MB\tMax Memory Used: %d MB",
 		l.objectRecord.requestID,
 		l.objectRecord.reportLogItem.durationMs,
