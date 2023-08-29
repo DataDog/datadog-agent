@@ -702,7 +702,6 @@ func (s *USMSuite) TestJavaInjection() {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableJavaTLSSupport = true
 	defaultCfg := cfg
 
