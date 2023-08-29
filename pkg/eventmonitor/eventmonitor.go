@@ -150,6 +150,8 @@ func (m *EventMonitor) Start() error {
 			log.Errorf("unable to start %s event consumer: %v", em.ID(), err)
 		}
 	}
+	// Apply rules to the snapshotted data
+	m.Probe.PlaySnapshot()
 
 	if err := m.Probe.Start(); err != nil {
 		return err
