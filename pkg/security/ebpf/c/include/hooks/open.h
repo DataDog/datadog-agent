@@ -194,7 +194,7 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0;
-    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_OPEN_CALLBACK_KPROBE_KEY : DR_OPEN_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.callback = select_dr_key(dr_type, DR_OPEN_CALLBACK_KPROBE_KEY, DR_OPEN_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
     syscall->resolver.sysretval = retval;
@@ -304,19 +304,10 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_open_callback")
-int kprobe_dr_open_callback(struct pt_regs *ctx) {
-    return dr_open_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_open_callback")
-int fentry_dr_open_callback(ctx_t *ctx) {
+int tail_call_target_dr_open_callback(ctx_t *ctx) {
     return dr_open_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_open_callback")
 int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {

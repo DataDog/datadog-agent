@@ -71,12 +71,12 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 	// TODO: exclude_process_args
 
 	histogramAggregates := buildHistogramAggregates(agentConfig)
-	if histogramAggregates != nil && len(histogramAggregates) != 0 {
+	if len(histogramAggregates) != 0 {
 		converter.Set("histogram_aggregates", histogramAggregates)
 	}
 
 	histogramPercentiles := buildHistogramPercentiles(agentConfig)
-	if histogramPercentiles != nil && len(histogramPercentiles) != 0 {
+	if len(histogramPercentiles) != 0 {
 		converter.Set("histogram_percentiles", histogramPercentiles)
 	}
 
@@ -259,11 +259,7 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
 		}
 		keys[idx] = config.SanitizeAPIKey(keys[idx])
-		if _, ok := additionalEndpoints[url]; ok {
-			additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
-		} else {
-			additionalEndpoints[url] = []string{keys[idx]}
-		}
+		additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
 	}
 	converter.Set("additional_endpoints", additionalEndpoints)
 	return nil

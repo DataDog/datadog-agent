@@ -378,42 +378,50 @@ var opensslSpec = &protocols.ProtocolSpec{
 }
 
 type sslProgram struct {
-	cfg       *config.Config
-	sockFDMap *ebpf.Map
-	watcher   *sharedlibraries.Watcher
+	cfg          *config.Config
+	sockFDMap    *ebpf.Map
+	watcher      *sharedlibraries.Watcher
+	istioMonitor *istioMonitor
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+		if (!c.EnableHTTPSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
 		}
 
-		watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
-			sharedlibraries.Rule{
-				Re:           regexp.MustCompile(`libssl.so`),
-				RegisterCB:   addHooks(m, openSSLProbes),
-				UnregisterCB: removeHooks(m, openSSLProbes),
-			},
-			sharedlibraries.Rule{
-				Re:           regexp.MustCompile(`libcrypto.so`),
-				RegisterCB:   addHooks(m, cryptoProbes),
-				UnregisterCB: removeHooks(m, cryptoProbes),
-			},
-			sharedlibraries.Rule{
-				Re:           regexp.MustCompile(`libgnutls.so`),
-				RegisterCB:   addHooks(m, gnuTLSProbes),
-				UnregisterCB: removeHooks(m, gnuTLSProbes),
-			},
+		var (
+			watcher *sharedlibraries.Watcher
+			err     error
 		)
-		if err != nil {
-			return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+		if c.EnableHTTPSMonitoring && http.HTTPSSupported(c) {
+			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
+				sharedlibraries.Rule{
+					Re:           regexp.MustCompile(`libssl.so`),
+					RegisterCB:   addHooks(m, openSSLProbes),
+					UnregisterCB: removeHooks(m, openSSLProbes),
+				},
+				sharedlibraries.Rule{
+					Re:           regexp.MustCompile(`libcrypto.so`),
+					RegisterCB:   addHooks(m, cryptoProbes),
+					UnregisterCB: removeHooks(m, cryptoProbes),
+				},
+				sharedlibraries.Rule{
+					Re:           regexp.MustCompile(`libgnutls.so`),
+					RegisterCB:   addHooks(m, gnuTLSProbes),
+					UnregisterCB: removeHooks(m, gnuTLSProbes),
+				},
+			)
+			if err != nil {
+				return nil, fmt.Errorf("error initializing shared library watcher: %s", err)
+			}
 		}
 
 		return &sslProgram{
-			cfg:       c,
-			watcher:   watcher,
-			sockFDMap: sockFDMap,
+			cfg:          c,
+			watcher:      watcher,
+			sockFDMap:    sockFDMap,
+			istioMonitor: newIstioMonitor(c, m),
 		}, nil
 	}
 }
@@ -437,6 +445,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 
 func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
+	o.istioMonitor.Start()
 	return nil
 }
 
@@ -446,6 +455,7 @@ func (o *sslProgram) PostStart(*manager.Manager) error {
 
 func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
+	o.istioMonitor.Stop()
 }
 
 func (o *sslProgram) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
@@ -532,7 +542,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.Fi
 					HookFuncName:            symbol,
 				}
 				if err := m.AddHook("", newProbe); err == nil {
-					ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, identifier.UID), "usm_tls")
+					ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
 				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {

@@ -201,7 +201,7 @@ bulk_max_repetitions: 20
 						OID:  "1.2.3.4.8.1.2",
 					},
 					Match:   "(\\w)(\\w+)",
-					pattern: regexp.MustCompile("(\\w)(\\w+)"),
+					pattern: regexp.MustCompile(`(\w)(\w+)`),
 					Tags: map[string]string{
 						"prefix": "\\1",
 						"suffix": "\\2",
@@ -220,7 +220,7 @@ bulk_max_repetitions: 20
 			OID:     "1.2.3",
 			Name:    "mySymbol",
 			Match:   "(\\w)(\\w+)",
-			pattern: regexp.MustCompile("(\\w)(\\w+)"),
+			pattern: regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"prefix": "\\1",
 				"suffix": "\\2",
@@ -230,7 +230,7 @@ bulk_max_repetitions: 20
 			OID:     "1.3.6.1.2.1.1.5.0",
 			Name:    "sysName",
 			Match:   "(\\w)(\\w+)",
-			pattern: regexp.MustCompile("(\\w)(\\w+)"),
+			pattern: regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
 				"prefix":   "\\1",
@@ -1625,6 +1625,65 @@ experimental_detect_metrics_enabled: true
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.DetectMetricsEnabled)
+}
+
+func TestSetAutodetectPreservesRequests(t *testing.T) {
+	metric := func(oid, name string) MetricsConfig {
+		return MetricsConfig{Symbol: SymbolConfig{OID: oid, Name: name}}
+	}
+
+	met1 := metric("1.1", "metricOne")
+	met2 := metric("1.2", "metricTwo")
+	met3 := metric("1.3", "metricThree")
+	tag1 := MetricTagConfig{Tag: "tag_one", OID: "2.1", Name: "tagOne"}
+	tag2 := MetricTagConfig{Tag: "tag_two", OID: "2.2", Name: "tagTwo"}
+	tag3 := MetricTagConfig{Tag: "tag_three", OID: "2.3", Name: "tagThree"}
+
+	config := &CheckConfig{
+		CollectTopology:     false,
+		RequestedMetrics:    []MetricsConfig{met1},
+		RequestedMetricTags: []MetricTagConfig{tag1},
+	}
+
+	config.RebuildMetadataMetricsAndTags()
+
+	assert.Equal(t, []MetricsConfig{met1}, config.Metrics)
+	assert.Equal(t, []MetricTagConfig{tag1}, config.MetricTags)
+	assert.Equal(t, OidConfig{
+		ScalarOids: []string{
+			"1.1",
+			"2.1",
+		},
+		ColumnOids: nil,
+	}, config.OidConfig)
+
+	config.SetAutodetectProfile([]MetricsConfig{met2}, []MetricTagConfig{tag2})
+
+	assert.Equal(t, []MetricsConfig{met1, met2}, config.Metrics)
+	assert.Equal(t, []MetricTagConfig{tag1, tag2}, config.MetricTags)
+	assert.Equal(t, OidConfig{
+		ScalarOids: []string{
+			"1.1",
+			"1.2",
+			"2.1",
+			"2.2",
+		},
+		ColumnOids: nil,
+	}, config.OidConfig)
+
+	config.SetAutodetectProfile([]MetricsConfig{met3}, []MetricTagConfig{tag3})
+
+	assert.Equal(t, []MetricsConfig{met1, met3}, config.Metrics)
+	assert.Equal(t, []MetricTagConfig{tag1, tag3}, config.MetricTags)
+	assert.Equal(t, OidConfig{
+		ScalarOids: []string{
+			"1.1",
+			"1.3",
+			"2.1",
+			"2.3",
+		},
+		ColumnOids: nil,
+	}, config.OidConfig)
 }
 
 func Test_buildConfig_DetectMetricsRefreshInterval(t *testing.T) {

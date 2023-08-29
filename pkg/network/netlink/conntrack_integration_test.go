@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -92,7 +92,7 @@ func BenchmarkConntrackExists(b *testing.B) {
 	tcpAddr := tcpConn.LocalAddr().(*net.TCPAddr)
 	laddrIP := tcpAddr.IP.String()
 	laddrPort := tcpAddr.Port
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(b, err)
 	defer rootNs.Close()
 
@@ -217,7 +217,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 
@@ -248,7 +248,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 }
 
 func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[netns.NsHandle]Conntrack) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 
@@ -331,7 +331,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 }
 
 func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[netns.NsHandle]Conntrack) {
-	rootNs, err := util.GetRootNetNamespace("/proc")
+	rootNs, err := kernel.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	defer rootNs.Close()
 

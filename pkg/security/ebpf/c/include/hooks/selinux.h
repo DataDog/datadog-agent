@@ -99,22 +99,12 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     return 0;
 }
 
-SEC("kprobe/dr_selinux_callback")
-int kprobe_dr_selinux_callback(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return dr_selinux_callback(ctx, retval);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_selinux_callback")
-int fentry_dr_selinux_callback(ctx_t *ctx) {
+int tail_call_target_dr_selinux_callback(ctx_t *ctx) {
     // int retval = PT_REGS_RC(ctx);
     int retval = 0;
     return dr_selinux_callback(ctx, retval);
 }
-
-#endif // USE_FENTRY
 
 #define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
     HOOK_ENTRY(#func_name)                                                  \
@@ -126,9 +116,7 @@ int fentry_dr_selinux_callback(ctx_t *ctx) {
         return handle_selinux_event(ctx, file, buf, count, (source_event)); \
     }
 
-#ifndef USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_disable, SELINUX_DISABLE_CHANGE_SOURCE_EVENT)
-#endif // USE_FENTRY
 PROBE_SEL_WRITE_FUNC(sel_write_enforce, SELINUX_ENFORCE_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_write_bool, SELINUX_BOOL_CHANGE_SOURCE_EVENT)
 PROBE_SEL_WRITE_FUNC(sel_commit_bools_write, SELINUX_BOOL_COMMIT_SOURCE_EVENT)

@@ -15,6 +15,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,8 +38,8 @@ type ContainerCheck struct {
 	config ddconfig.ConfigReader
 
 	hostInfo          *HostInfo
-	containerProvider util.ContainerProvider
-	lastRates         map[string]*util.ContainerRateMetrics
+	containerProvider proccontainers.ContainerProvider
+	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
 
 	containerFailedLogLimit *util.LogLimit
@@ -48,7 +49,7 @@ type ContainerCheck struct {
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
-	c.containerProvider = util.GetSharedContainerProvider()
+	c.containerProvider = proccontainers.GetSharedContainerProvider()
 	c.hostInfo = info
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
@@ -92,7 +93,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	var err error
 	var containers []*model.Container
 	var pidToCid map[int]string
-	var lastRates map[string]*util.ContainerRateMetrics
+	var lastRates map[string]*proccontainers.ContainerRateMetrics
 	containers, lastRates, pidToCid, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
 	if err == nil {
 		c.lastRates = lastRates
@@ -129,7 +130,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	numContainers := float64(len(containers))
 	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
-	log.Debugf("collected %d containers in %s", int(numContainers), time.Now().Sub(startTime))
+	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
 	return StandardRunResult(messages), nil
 }
 

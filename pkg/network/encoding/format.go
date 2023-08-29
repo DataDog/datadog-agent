@@ -62,11 +62,11 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(conn.SPortIsEphemeral)))
 	builder.SetLastBytesSent(conn.Last.SentBytes)
 	builder.SetLastBytesReceived(conn.Last.RecvBytes)
+	builder.SetLastPacketsSent(conn.Last.SentPackets)
 	builder.SetLastRetransmits(conn.Last.Retransmits)
 	builder.SetLastPacketsReceived(conn.Last.RecvPackets)
 	builder.SetDirection(uint64(formatDirection(conn.Direction)))
 	builder.SetNetNS(conn.NetNS)
-	builder.SetRemoteNetworkId("")
 	if conn.IPTranslation != nil {
 		builder.SetIpTranslation(func(w *model.IPTranslationBuilder) {
 			ipt := formatIPTranslation(conn.IPTranslation, ipc)
@@ -158,6 +158,7 @@ func FormatConnectionTelemetry(builder *model.ConnectionsBuilder, tel map[networ
 
 }
 
+// FormatCORETelemetry writes the CORETelemetryByAsset map into a connections payload
 func FormatCORETelemetry(builder *model.ConnectionsBuilder, telByAsset map[string]int32) {
 	if telByAsset == nil {
 		return

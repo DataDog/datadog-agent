@@ -14,15 +14,8 @@ from invoke.exceptions import Exit
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    get_build_flags,
-    get_root,
-    get_version,
-    get_version_numeric_only,
-    load_release_versions,
-)
+from .utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
@@ -58,19 +51,17 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
         if arch == "x86":
             env["GOARCH"] = "386"
-            windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-
-        ctx.run(
-            f"windmc --target {windres_target}  -r cmd/dogstatsd/windows_resources cmd/dogstatsd/windows_resources/dogstatsd-msg.mc"
-        )
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/dogstatsd/windows_resources/dogstatsd.rc --target {windres_target} -O coff -o cmd/dogstatsd/rsrc.syso"
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/dogstatsd/windows_resources/dogstatsd.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/dogstatsd/rsrc.syso",
         )
 
     if static:

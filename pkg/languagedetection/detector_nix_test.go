@@ -10,9 +10,8 @@ package languagedetection
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDetectLanguage(t *testing.T) {
@@ -116,7 +115,7 @@ func TestDetectLanguage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			process := []languagemodels.Process{makeProcess(tc.cmdline, tc.comm)}
 			expected := []*languagemodels.Language{{Name: tc.expected}}
-			assert.Equal(t, expected, DetectLanguage(process))
+			assert.Equal(t, expected, DetectLanguage(process, nil))
 		})
 	}
 }
@@ -261,6 +260,6 @@ func BenchmarkDetectLanguage(b *testing.B) {
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		DetectLanguage(procs)
+		DetectLanguage(procs, nil)
 	}
 }

@@ -106,6 +106,7 @@
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
+/.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -122,6 +123,7 @@
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/windows                      @DataDog/windows-agent
+/cmd/agent/windows_resources            @DataDog/windows-agent
 /cmd/agent/dist/conf.d/container.d/     @DataDog/container-integrations
 /cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
@@ -131,11 +133,7 @@
 /cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
-/cmd/agent/*.manifest                   @DataDog/agent-platform
-/cmd/agent/*.mc                         @DataDog/agent-platform
-/cmd/agent/*.rc                         @DataDog/agent-platform
 /cmd/agent/install*.sh                  @DataDog/agent-platform
-/cmd/agent/version.h                    @DataDog/agent-platform
 /cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/platform-integrations
@@ -399,6 +397,7 @@
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
+/tasks/windows_resources.py             @DataDog/windows-agent
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
@@ -438,6 +437,7 @@
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm
 /test/regression/                       @DataDog/single-machine-performance
+/test/workload-checks/                  @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform

@@ -120,6 +120,7 @@ static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u6
 // that manipulates a `__sk_buff` object.
 typedef struct {
     __u32 data_off;
+    __u32 data_end;
     __u32 tcp_seq;
     __u8 tcp_flags;
 } skb_info_t;
@@ -131,11 +132,13 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     info->data_off = ETH_HLEN;
 
     __u16 l3_proto = __load_half(skb, offsetof(struct ethhdr, h_proto));
+    info->data_end = ETH_HLEN;
     __u8 l4_proto = 0;
     switch (l3_proto) {
     case ETH_P_IP:
     {
         __u8 ipv4_hdr_len = (__load_byte(skb, info->data_off) & 0x0f) << 2;
+        info->data_end += __load_half(skb, info->data_off + offsetof(struct iphdr, tot_len));
         if (ipv4_hdr_len < sizeof(struct iphdr)) {
             return 0;
         }
@@ -147,6 +150,7 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
         break;
     }
     case ETH_P_IPV6:
+        info->data_end += sizeof(struct ipv6hdr) + __load_half(skb, info->data_off + offsetof(struct ipv6hdr, payload_len));
         l4_proto = __load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
         tup->metadata |= CONN_V6;
         read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, saddr), &tup->saddr_l, &tup->saddr_h);
@@ -178,7 +182,7 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
         return 0;
     }
 
-    if ((skb->len - info->data_off) < 0) {
+    if ((info->data_end - info->data_off) < 0) {
         return 0;
     }
 

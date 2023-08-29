@@ -115,7 +115,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			log.Infof("Received instruction to terminate collection of External Metrics, stopping async loop")
 			return
 		default:
-			if p.isServing == true {
+			if p.isServing {
 				currentBackoff = externalMetricsBaseBackoff
 			} else {
 				currentBackoff = currentBackoff * 2

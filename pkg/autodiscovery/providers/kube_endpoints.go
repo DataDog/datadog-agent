@@ -73,11 +73,13 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 		monitoredEndpoints: make(map[string]bool),
 	}
 
-	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
 		UpdateFunc: p.invalidateIfChangedService,
 		DeleteFunc: p.invalidate,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to service informer: %s", err)
+	}
 
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
@@ -86,9 +88,11 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 
 	p.endpointsLister = endpointsInformer.Lister()
 
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: p.invalidateIfChangedEndpoints,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
+	}
 
 	return p, nil
 }
@@ -205,7 +209,6 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 		// Invalidate only when subsets change
 		k.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
 	}
-	return
 }
 
 // setUpToDate is a thread-safe method to update the upToDate value

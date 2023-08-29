@@ -34,7 +34,7 @@ func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *s
 	fmt.Println(systemProbeEnv.ARM64InstanceIP)
 	fmt.Println(systemProbeEnv.X86_64InstanceIP)
 
-	return nil
+	return systemProbeEnv.RemoveStack()
 }
 
 func main() {
