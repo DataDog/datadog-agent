@@ -41,7 +41,11 @@ func getGohaiInfo() *gohai {
 		log.Errorf("Failed to retrieve cpu metadata: %s", err)
 	}
 
-	fileSystemPayload, err := new(filesystem.FileSystem).Collect()
+	var fileSystemPayload interface{}
+	fileSystemInfo, err := filesystem.CollectInfo()
+	if err == nil {
+		fileSystemPayload, _, err = fileSystemInfo.AsJSON()
+	}
 	if err == nil {
 		res.FileSystem = fileSystemPayload
 	} else {

@@ -66,7 +66,10 @@ var collectors = []Collector{
 			return cpu.CollectInfo(), nil
 		},
 	},
-	&filesystem.FileSystem{},
+	&CollectorV2[filesystem.Info]{
+		name:    "filesystem",
+		collect: filesystem.CollectInfo,
+	},
 	&CollectorV2[*memory.Info]{
 		name: "memory",
 		collect: func() (*memory.Info, error) {
