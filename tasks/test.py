@@ -567,15 +567,15 @@ def test(
 
     if not skip_linters:
         modules_results_per_phase["lint"] = run_lint_go(
-            ctx,
-            module,
-            targets,
-            flavors,
-            build_include,
-            build_exclude,
-            rtloader_root,
-            arch,
-            cpus,
+            ctx=ctx,
+            module=module,
+            targets=targets,
+            flavors=flavors,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            rtloader_root=rtloader_root,
+            arch=arch,
+            cpus=cpus,
         )
 
     # Process input arguments
@@ -731,6 +731,8 @@ def run_lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
@@ -740,8 +742,9 @@ def run_lint_go(
     modules, flavors = process_input_args(module, targets, flavors)
 
     linter_tags = {
-        f: compute_build_tags_for_flavor(
-            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
+        f: build_tags
+        or compute_build_tags_for_flavor(
+            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
     }
@@ -770,6 +773,8 @@ def lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
@@ -801,15 +806,17 @@ def lint_go(
     modules_results_per_phase = defaultdict(dict)
 
     modules_results_per_phase["lint"] = run_lint_go(
-        ctx,
-        module,
-        targets,
-        flavors,
-        build_include,
-        build_exclude,
-        rtloader_root,
-        arch,
-        cpus,
+        ctx=ctx,
+        module=module,
+        targets=targets,
+        flavors=flavors,
+        build=build,
+        build_tags=build_tags,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        rtloader_root=rtloader_root,
+        arch=arch,
+        cpus=cpus,
     )
 
     success = process_module_results(modules_results_per_phase)
