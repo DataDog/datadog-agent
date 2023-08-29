@@ -384,8 +384,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 					"diagnoses": [
 						{
 							"severity": "warn",
-							"diagnosis": "Test",
-							"error_code": "TEST_DIAGNOSIS"
+							"message": "Test",
+							"code": "TEST_DIAGNOSIS"
 						}
 					]
 				}

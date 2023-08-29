@@ -1568,8 +1568,8 @@ tags:
       "diagnoses": [
         {
           "severity": "error",
-          "message": "Agent was not able to detect a profile for this network device.",
-          "code": "SNMP_COULD_NOT_DETECT_PROFILE"
+          "message": "Agent failed to detect a profile for this network device.",
+          "code": "SNMP_FAILED_TO_DETECT_PROFILE"
         }
       ]
     }
@@ -1671,13 +1671,13 @@ tags:
 	  "diagnoses": [
 		{
 		  "severity": "error",
-		  "message": "Agent is not able to poll this network device. Check the authentication method and ensure the agent can ping this network device.",
-		  "code": "SNMP_COULD_NOT_POLL_DEVICE"
+		  "message": "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.",
+		  "code": "SNMP_FAILED_TO_POLL_DEVICE"
 		},
 		{
 		  "severity": "error",
-		  "message": "Agent was not able to detect a profile for this network device.",
-		  "code": "SNMP_COULD_NOT_DETECT_PROFILE"
+		  "message": "Agent failed to detect a profile for this network device.",
+		  "code": "SNMP_FAILED_TO_DETECT_PROFILE"
 		}
 	  ]
 	}

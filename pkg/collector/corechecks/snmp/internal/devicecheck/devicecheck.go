@@ -177,7 +177,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	// Create connection
 	connErr := d.session.Connect()
 	if connErr != nil {
-		d.diagnoses.Add("error", "SNMP_COULD_NOT_OPEN_CONNECTION", "Agent could not open connection.")
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
 		return false, tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
@@ -192,7 +192,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	getNextValue, err := d.session.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
 	if err != nil {
 		deviceReachable = false
-		d.diagnoses.Add("error", "SNMP_COULD_NOT_POLL_DEVICE", "Agent is not able to poll this network device. Check the authentication method and ensure the agent can ping this network device.")
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
 	} else {
 		deviceReachable = true
@@ -203,7 +203,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 
 	err = d.detectMetricsToMonitor(d.session)
 	if err != nil {
-		d.diagnoses.Add("error", "SNMP_COULD_NOT_DETECT_PROFILE", "Agent was not able to detect a profile for this network device.")
+		d.diagnoses.Add("error", "SNMP_FAILED_TO_DETECT_PROFILE", "Agent failed to detect a profile for this network device.")
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
