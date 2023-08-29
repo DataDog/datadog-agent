@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
+// nolint
 package main
 
 import "github.com/DataDog/datadog-agent/pkg/util/log"
