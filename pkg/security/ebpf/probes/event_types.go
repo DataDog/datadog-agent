@@ -409,7 +409,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"signal": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kretprobeOrFexit("check_kill_permission", fentry),
-				kprobeOrFentry("kill_pid_info", fentry),
+				kprobeOrFentry("check_kill_permission", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", fentry, Entry|SupportFentry)},
 		},
