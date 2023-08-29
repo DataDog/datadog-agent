@@ -16,7 +16,6 @@ def check_if_team_exists(team: str):
     Check if an input team exists in the GITHUB_SLACK_MAP. Exits the code if it doesn't.
     """
     if team:
-        team = team.lower()
         if not team in GITHUB_SLACK_MAP:
             raise Exit(f"=> Team '{team}' does not exist.\n=> Your team should be in {[t for t in GITHUB_SLACK_MAP]}", code=2)
     else:
@@ -37,6 +36,8 @@ def need_fixing_linters(ctx, filter_team: str=None, from_commit_hash: str=FIRST_
             platforms (list): list of comma-separated OS,arch on which the linter will run.
 
     """
+    if filter_team:
+        filter_team = filter_team.lower()
     check_if_team_exists(filter_team)
     golangci_lint_kwargs=f'"--new-from-rev {from_commit_hash} --print-issued-lines=false"'
     command = f"inv lint-go --golangci-lint-kwargs {golangci_lint_kwargs}"
