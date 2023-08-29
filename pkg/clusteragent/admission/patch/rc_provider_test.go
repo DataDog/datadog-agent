@@ -9,9 +9,8 @@ package patch
 
 import (
 	"fmt"
-	"testing"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
