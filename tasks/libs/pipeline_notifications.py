@@ -1,8 +1,8 @@
 import json
 import os
+import re
 import subprocess
 from collections import defaultdict
-import re
 
 from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
