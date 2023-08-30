@@ -27,6 +27,7 @@ import (
 
 func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.NetflowConfig {
 	return &nfconfig.NetflowConfig{
+		Enabled:                 true,
 		AggregatorFlushInterval: 1,
 		Listeners: []nfconfig.ListenerConfig{{
 			FlowType: flowType,

@@ -9,6 +9,7 @@ package netflow
 import (
 	"github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // team: network-device-monitoring
@@ -16,4 +17,5 @@ import (
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
 	server.Module,
+	fx.Invoke(func(server.Component) {}),
 )

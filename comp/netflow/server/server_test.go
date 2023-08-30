@@ -62,6 +62,7 @@ func TestStartServerAndStopServer(t *testing.T) {
 		testModule,
 		fx.Replace(
 			&nfconfig.NetflowConfig{
+				Enabled: true,
 				Listeners: []nfconfig.ListenerConfig{{
 					FlowType: "netflow5",
 					BindHost: "127.0.0.1",

@@ -8,7 +8,7 @@ package config
 import (
 	"fmt"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
@@ -17,6 +17,7 @@ import (
 
 // NetflowConfig contains configuration for NetFlow collector.
 type NetflowConfig struct {
+	Enabled                       bool             `mapstructure:"enabled"`
 	Listeners                     []ListenerConfig `mapstructure:"listeners"`
 	StopTimeout                   int              `mapstructure:"stop_timeout"`
 	AggregatorBufferSize          int              `mapstructure:"aggregator_buffer_size"`
@@ -42,7 +43,7 @@ type ListenerConfig struct {
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
-func ReadConfig(conf ddconfig.ConfigReader) (*NetflowConfig, error) {
+func ReadConfig(conf config.Component) (*NetflowConfig, error) {
 	var mainConfig NetflowConfig
 
 	err := conf.UnmarshalKey("network_devices.netflow", &mainConfig)

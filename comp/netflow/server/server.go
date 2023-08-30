@@ -54,6 +54,10 @@ type dependencies struct {
 }
 
 func newServer(lc fx.Lifecycle, dep dependencies) (Component, error) {
+	if !dep.Config.Enabled {
+		// no-op
+		return nil, nil
+	}
 	server, err := NewServer(dep.Sender, dep.EPForwarder, dep.Config, dep.Logger, string(dep.Hostname))
 	if err != nil {
 		return nil, err
