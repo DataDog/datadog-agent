@@ -116,7 +116,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 
 	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
 	// This means that we can remove mount entries that are still in use.
-	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true, UseRedemption: true})
+	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
 	if err != nil {
 		return nil, err
 	}

@@ -97,11 +97,6 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
 			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
-
-		if e.Device == 265289732 {
-			fmt.Printf("KO ? : %s/%s\n", mountPath, pathStr)
-		}
-
 		return pathStr, &ErrPathResolution{Err: err}
 	}
 

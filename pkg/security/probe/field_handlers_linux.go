@@ -85,7 +85,7 @@ func (fh *FieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAtt
 // ResolveMountPointPath resolves a mount point path
 func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, e.Device, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -98,7 +98,7 @@ func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEv
 // ResolveMountSourcePath resolves a mount source path
 func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, e.Device, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""

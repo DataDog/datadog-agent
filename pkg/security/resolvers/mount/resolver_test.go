@@ -11,6 +11,7 @@ package mount
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -450,7 +451,10 @@ func TestMountResolver(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					mr.finalize(mount)
+					mr.delete(mount)
+
+					// wait end of remption
+					time.Sleep(redemptionTime)
 				}
 			}
 
