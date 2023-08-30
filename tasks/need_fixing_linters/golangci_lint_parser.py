@@ -5,6 +5,7 @@ This module defines a parser for golangci-lint output.
 import re
 import os
 from collections import defaultdict
+from typing import Dict
 from ..libs.pipeline_notifications import read_owners
 
 # Example lint message
@@ -97,7 +98,7 @@ def display_result(filtered_lints):
         output += "\n"
     return output
 
-def merge_results(results_per_os_x_arch: dict[str: str]):
+def merge_results(results_per_os_x_arch: Dict[str, str]):
     """
     Merge golangci-lint output
     """
