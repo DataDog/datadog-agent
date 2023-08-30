@@ -158,6 +158,7 @@ new-e2e-containers-dev:
   needs: []
   variables:
     TARGETS: ./containers
+    TEAM: "container-integrations"
     CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}"
   parallel:
     matrix:
@@ -175,6 +176,7 @@ new-e2e-containers-main:
     - qa_dogstatsd
   variables:
     TARGETS: ./containers
+    TEAM: "container-integrations"
     CONFIGPARAMS: "-c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
@@ -185,15 +187,16 @@ new-e2e-agent-subcommands-dev:
   needs: []
   variables:
     TARGETS: ./agent-subcommands
+    TEAM: "agent-shared-components"
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main]
   variables:
     TARGETS: ./agent-subcommands
+    TEAM: "agent-shared-components"
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
-
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
