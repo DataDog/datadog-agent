@@ -17,6 +17,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
@@ -242,15 +243,15 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
-
 	var c netlink.Conntracker
+
+	consumer, _ := netlink.NewConsumer(cfg)
+	consumer.DumpAndDiscardTable(unix.AF_INET)
+	consumer.Stop()
+
 	var err error
-	// retry creation of ebpf conntracker a few times in case the module is not loaded on the host yet
-	for i := 0; i < 3; i++ {
-		if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-			return c, nil
-		}
-		time.Sleep(1 * time.Second)
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+		return c, nil
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
