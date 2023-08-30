@@ -188,6 +188,7 @@ new-e2e-agent-subcommands-dev:
   variables:
     TARGETS: ./agent-subcommands
     TEAM: "agent-shared-components"
+    CONFIGPARAMS: "-c ddagent:pipeline_id=${CI_PIPELINE_ID}"
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
@@ -195,6 +196,7 @@ new-e2e-agent-subcommands-main:
   variables:
     TARGETS: ./agent-subcommands
     TEAM: "agent-shared-components"
+    CONFIGPARAMS: "-c ddagent:pipeline_id=${CI_PIPELINE_ID}"
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 #   ^    If you create a new job here that extends `.new_e2e_template`,
