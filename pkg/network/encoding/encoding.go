@@ -50,6 +50,33 @@ func GetMarshaler(accept string) Marshaler {
 	return jSerializer
 }
 
+// ConnectionsModeler contains all the necessary structs for modeling a connection.
+type ConnectionsModeler struct {
+	httpEncoder  *httpEncoder
+	http2Encoder *http2Encoder
+	kafkaEncoder *kafkaEncoder
+}
+
+// NewConnectionsModeler initializes the connection modeler with encoders, telemetry, and agent configuration for
+// the existing connections. The ConnectionsModeler holds the traffic encoders grouped by USM logic.
+// It also includes formatted connection telemetry related to all batches, not specific batches.
+// Furthermore, it stores the current agent configuration which applies to all instances related to the entire set of connections,
+// rather than just individual batches.
+func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+	return &ConnectionsModeler{
+		httpEncoder:  newHTTPEncoder(conns.HTTP),
+		http2Encoder: newHTTP2Encoder(conns.HTTP2),
+		kafkaEncoder: newKafkaEncoder(conns.Kafka),
+	}
+}
+
+// Close cleans all encoders resources.
+func (c *ConnectionsModeler) Close() {
+	c.httpEncoder.Close()
+	c.http2Encoder.Close()
+	c.kafkaEncoder.Close()
+}
+
 // GetUnmarshaler returns the appropriate Unmarshaler based on the given content type
 func GetUnmarshaler(ctype string) Unmarshaler {
 	if strings.Contains(ctype, ContentTypeProtobuf) {
@@ -59,7 +86,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
+func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections, consModeler *ConnectionsModeler) {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
@@ -69,12 +96,6 @@ func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connecti
 	})
 
 	routeIndex := make(map[string]RouteIdx)
-	httpEncoder := newHTTPEncoder(conns.HTTP)
-	defer httpEncoder.Close()
-	kafkaEncoder := newKafkaEncoder(conns.Kafka)
-	defer kafkaEncoder.Close()
-	http2Encoder := newHTTP2Encoder(conns.HTTP2)
-	defer http2Encoder.Close()
 
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
@@ -82,7 +103,7 @@ func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connecti
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
+			FormatConnection(builder, conn, routeIndex, consModeler.httpEncoder, consModeler.http2Encoder, consModeler.kafkaEncoder, dnsFormatter, ipc, tagsSet)
 		})
 	}
 
