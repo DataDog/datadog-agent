@@ -106,7 +106,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
-
+	initializeCheckContext(senderManager)
 	moduleName := config.Name
 	// FastDigest is used as check id calculation does not account for tags order
 	configDigest := config.FastDigest()
