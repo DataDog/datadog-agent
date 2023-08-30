@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/go-multierror"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -85,20 +86,20 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 }
 
 // ScheduleWithErrors schedules a config to checks and returns any error
-func (s *CheckScheduler) ScheduleWithErrors(config integration.Config) map[string]error {
+func (s *CheckScheduler) ScheduleWithErrors(config integration.Config) error {
 	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
-	scheduleErrs := map[string]error{}
+	var errs error
 	for _, c := range checks {
 		_, err := s.collector.RunCheck(c)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", c, err)
 			errorStats.setRunError(c.ID(), err.Error())
-			scheduleErrs[string(c.ID())] = err
+			errs = multierror.Append(errs, fmt.Errorf("Unable to run Check %s: %v", c, err))
 			continue
 		}
 	}
 
-	return scheduleErrs
+	return errs
 }
 
 // Unschedule unschedules checks matching configs

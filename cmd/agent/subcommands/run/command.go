@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
+	rccollector "github.com/DataDog/datadog-agent/pkg/collector/remoteconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -499,17 +500,6 @@ func startAgent(
 		} else {
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
-
-			// Subscribe to `AGENT_INTEGRATION` product
-			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
-				rcScheduler := collector.NewRemoteConfigScheduler()
-				scheduler := collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
-				if err := rcScheduler.Start(scheduler); err != nil {
-					pkglog.Errorf("Failed to start the RC agent integration scheduler: %s", err)
-				} else {
-					rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)
-				}
-			}
 		}
 	}
 
@@ -572,7 +562,15 @@ func startAgent(
 	installinfo.LogVersionHistory()
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
+	scheduler := collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
+	common.AC.AddScheduler("check", scheduler, true)
+	// Subscribe to `AGENT_INTEGRATION` product
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) &&
+		pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
+		rcScheduler := rccollector.NewRemoteConfigScheduler()
+		rcScheduler.AddScheduler(scheduler)
+		rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)
+	}
 	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
