@@ -225,12 +225,15 @@ single_machine_performance-nightly-amd64-a7:
   stage: dev_container_deploy
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "main"
   needs:
     - docker_build_agent7
   variables:
     IMG_REGISTRIES: internal-aws-smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
-    IMG_DESTINATIONS: 08450328-agent:nightly-${CI_COMMIT_SHA}-7-amd64
+    IMG_DESTINATIONS: 08450328-agent:nightly-${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}-7-amd64
 
 # deploys nightlies to agent-dev
 dev_nightly-dogstatsd:
