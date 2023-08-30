@@ -43,8 +43,8 @@
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    KUBERNETES_MEMORY_REQUEST: "6Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
