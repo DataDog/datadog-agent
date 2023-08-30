@@ -361,7 +361,7 @@ def hacky_dev_image_build(
         latest_release = semver.VersionInfo(0)
         tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
         for tag in tags.json()['tags']:
-            if not semver.VersionInfo.isvalid(tag):
+            if not semver.VersionInfo.is_valid(tag):
                 continue
             ver = semver.VersionInfo.parse(tag)
             if ver.prerelease or ver.build:

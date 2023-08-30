@@ -17,7 +17,7 @@ build do
     }
 
     # https://www.linuxfromscratch.org/blfs/view/8.3/server/lmdb.html
-    command "make", :env => env
+    command "make -j #{workers}", :env => env
     if mac_os_x?
         # MacOS' sed requires `-i ''` rather than just `-i`
         command "sed -i '' 's| liblmdb.a||' Makefile", :env => env

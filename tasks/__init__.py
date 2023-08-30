@@ -1,7 +1,6 @@
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
-import os
 
 from invoke import Collection
 from .need_fixing_linters import need_fixing_linters
@@ -13,6 +12,7 @@ from . import (
     cluster_agent_cloudfoundry,
     components,
     customaction,
+    diff,
     docker_tasks,
     dogstatsd,
     epforwarder,
@@ -138,12 +138,10 @@ ns.add_collection(security_agent)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(kmt)
+ns.add_collection(diff)
 ns.configure(
     {
         'run': {
-            # workaround waiting for a fix being merged on Invoke,
-            # see https://github.com/pyinvoke/invoke/pull/407
-            'shell': os.environ.get('COMSPEC', os.environ.get('SHELL')),
             # this should stay, set the encoding explicitly so invoke doesn't
             # freak out if a command outputs unicode chars.
             'encoding': 'utf-8',

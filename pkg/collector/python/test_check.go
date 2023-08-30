@@ -664,8 +664,8 @@ func testGetDiagnoses(t *testing.T) {
 	assert.NotNil(t, diagnoses)
 	assert.Equal(t, 2, len(diagnoses))
 
-	assert.Nil(t, diagnoses[0].RawError)
-	assert.NotNil(t, diagnoses[1].RawError)
+	assert.Zero(t, len(diagnoses[0].RawError))
+	assert.NotZero(t, len(diagnoses[1].RawError))
 
 	assert.Equal(t, diagnoses[0].Result, diagnosis.DiagnosisSuccess)
 	assert.NotZero(t, len(diagnoses[0].Name))

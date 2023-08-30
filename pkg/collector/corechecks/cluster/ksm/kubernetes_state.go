@@ -443,9 +443,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 			}
 
 			for _, apiResource := range resource.APIResources {
-				if _, ok := resourceReplacement[apiResource.Kind]; ok {
-					delete(resourceReplacement, apiResource.Kind)
-				}
+				delete(resourceReplacement, apiResource.Kind)
 			}
 		}
 	}

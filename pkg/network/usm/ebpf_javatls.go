@@ -127,7 +127,7 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+	if !c.EnableJavaTLSSupport || !http.HTTPSSupported(c) {
 		return nil, nil
 	}
 
@@ -255,7 +255,7 @@ func (p *javaTLSProgram) newJavaProcess(pid uint32) {
 	}
 }
 
-func (p *javaTLSProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
+func (p *javaTLSProgram) PreStart(*manager.Manager) error {
 	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
 	return nil
 }

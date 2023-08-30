@@ -443,7 +443,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
-func (o *sslProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
+func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
 	return nil

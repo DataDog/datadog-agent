@@ -189,7 +189,7 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 	cacheTelemetry.length.Set(int64(total))
 	log.Debugf(
 		"dns entries expired. took=%s total=%d expired=%d\n",
-		time.Now().Sub(now), total, expired,
+		time.Since(now), total, expired,
 	)
 }
 

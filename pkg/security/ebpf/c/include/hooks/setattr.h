@@ -93,25 +93,8 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_setattr_callback")
-int kprobe_dr_setattr_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
-    if (!syscall) {
-        return 0;
-    }
-
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(syscall->type);
-        return discard_syscall(syscall);
-    }
-
-    return 0;
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_setattr_callback")
-int fentry_dr_setattr_callback(ctx_t *ctx) {
+int tail_call_target_dr_setattr_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall) {
         return 0;
@@ -124,7 +107,5 @@ int fentry_dr_setattr_callback(ctx_t *ctx) {
 
     return 0;
 }
-
-#endif // USE_FENTRY
 
 #endif

@@ -418,10 +418,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	pendingChecksChan := make(chan check.Check, 10)
 
 	shouldAddStatsFunc := func(id checkid.ID) bool {
-		if string(id) == "squelched:123" {
-			return false
-		}
-		return true
+		return string(id) != "squelched:123"
 	}
 
 	config.Datadog.Set("hostname", "myhost")

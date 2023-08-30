@@ -120,14 +120,19 @@ def download_tools(ctx):
 def install_tools(ctx):
     """Install all Go tools for testing."""
     if os.path.isfile("go.work") or os.path.isfile("go.work.sum"):
+        # Someone reported issues with this command when using a go.work but other people
+        # use a go.work and don't have any issue, so the root cause is unclear.
+        # Printing a warning because it might help someone but not enforcing anything.
+
+        # The issue which was reported was that `go install` would fail with the following error:
+        ### no required module provides package <package>; to add it:
+        ### go get <package>
         print(
             color_message(
-                "Detected go workspace files. Go workspaces are not currently supported, "
-                + "please remove go.work and go.work.sum",
-                "red",
+                "WARNING: In case of issue, you might want to try disabling go workspaces by setting the environment variable GOWORK=off, or even deleting go.work and go.work.sum",
+                "orange",
             )
         )
-        return
 
     with environ({'GO111MODULE': 'on'}):
         for path, tools in TOOLS.items():
@@ -564,15 +569,15 @@ def test(
 
     if not skip_linters:
         modules_results_per_phase["lint"] = run_lint_go(
-            ctx,
-            module,
-            targets,
-            flavors,
-            build_include,
-            build_exclude,
-            rtloader_root,
-            arch,
-            cpus,
+            ctx=ctx,
+            module=module,
+            targets=targets,
+            flavors=flavors,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            rtloader_root=rtloader_root,
+            arch=arch,
+            cpus=cpus,
         )
 
     # Process input arguments
@@ -728,6 +733,8 @@ def run_lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
@@ -738,8 +745,9 @@ def run_lint_go(
     modules, flavors = process_input_args(module, targets, flavors)
 
     linter_tags = {
-        f: compute_build_tags_for_flavor(
-            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
+        f: build_tags
+        or compute_build_tags_for_flavor(
+            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
     }
@@ -769,6 +777,8 @@ def lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
@@ -801,16 +811,18 @@ def lint_go(
     modules_results_per_phase = defaultdict(dict)
 
     modules_results_per_phase["lint"] = run_lint_go(
-        ctx,
-        module,
-        targets,
-        flavors,
-        build_include,
-        build_exclude,
-        rtloader_root,
-        arch,
-        cpus,
-        golangci_lint_kwargs,
+        ctx=ctx,
+        module=module,
+        targets=targets,
+        flavors=flavors,
+        build=build,
+        build_tags=build_tags,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        rtloader_root=rtloader_root,
+        arch=arch,
+        cpus=cpus,
+        golangci_lint_kwargs=golangci_lint_kwargs,
     )
 
     success = process_module_results(modules_results_per_phase)
