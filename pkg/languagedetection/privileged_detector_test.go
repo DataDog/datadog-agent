@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && cgo
 
 package languagedetection
 
@@ -35,8 +35,7 @@ func (p cmdWrapper) GetCmdline() []string {
 }
 
 func forkExecForTest(t *testing.T) *exec.Cmd {
-	// /bin/yes is a program that prints "y\n" to stdout until it receives a SIGKILL or SIGTERM
-	cmd := exec.Command("/bin/yes")
+	cmd := exec.Command("sleep", "20")
 	err := cmd.Start()
 
 	time.Sleep(250 * time.Millisecond)
@@ -46,6 +45,7 @@ func forkExecForTest(t *testing.T) *exec.Cmd {
 		if err != nil {
 			t.Log("failed to kill pid:", cmd.Process.Pid)
 		}
+		cmd.Process.Wait()
 	})
 	return cmd
 }
