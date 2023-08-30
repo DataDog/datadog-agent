@@ -99,9 +99,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 func TestNewServer(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
@@ -710,13 +708,10 @@ func TestStaticTags(t *testing.T) {
 func TestNoMappingsConfig(t *testing.T) {
 	datadogYaml := ``
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-
 	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
 	s := deps.Server.(*server)
 	cw := deps.Config.(config.ConfigWriter)
-	cw.Set("dogstatsd_port", port)
+	cw.Set("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
 
@@ -727,7 +722,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(deps.Config, newFloat64ListPool())
-	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -863,9 +858,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg := make(map[string]interface{})
 
 	require := require.New(t)
-	port, err := getAvailableUDPPort()
-	require.NoError(err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
