@@ -57,8 +57,8 @@ const (
 )
 
 func init() {
-	factory := func() (check.Loader, error) {
-		return NewPythonCheckLoader()
+	factory := func(senderManager sender.SenderManager) (check.Loader, error) {
+		return NewPythonCheckLoader(senderManager)
 	}
 	loaders.RegisterLoader(20, factory)
 
@@ -83,7 +83,8 @@ func init() {
 type PythonCheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader() (*PythonCheckLoader, error) {
+func NewPythonCheckLoader(senderManager sender.SenderManager) (*PythonCheckLoader, error) {
+	initializeCheckContext(senderManager)
 	return &PythonCheckLoader{}, nil
 }
 
@@ -106,7 +107,6 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
-	initializeCheckContext(senderManager)
 	moduleName := config.Name
 	// FastDigest is used as check id calculation does not account for tags order
 	configDigest := config.FastDigest()
