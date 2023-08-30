@@ -21,6 +21,8 @@ golang_deps_commenter:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
   tags: ["arch:amd64"]
   needs: ["golang_deps_diff"]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - echo "${CI_COMMIT_REF_NAME}"
     - pr-commenter --for-pr="${CI_COMMIT_REF_NAME}" --header="Go Package Import Differences" --infile deps-report.md
