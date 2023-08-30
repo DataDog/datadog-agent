@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"math"
 	"reflect"
-	"sync"
 	"unsafe"
 
 	"github.com/twmb/murmur3"
@@ -25,17 +24,6 @@ const maxRoutes = math.MaxInt32
 type RouteIdx struct {
 	Idx   int32
 	Route model.Route
-}
-
-var connsPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.Connections)
-	},
-}
-
-func ConnsToPool(o *model.Connections) {
-	o.Reset()
-	connsPool.Put(o)
 }
 
 type ipCache map[util.Address]string
