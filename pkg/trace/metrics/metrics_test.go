@@ -48,4 +48,12 @@ func TestFindAddr(t *testing.T) {
 		_, err := findAddr(&config.AgentConfig{})
 		assert.Error(t, err)
 	})
+
+	t.Run("statsd-disabled", func(t *testing.T) {
+		_, err := findAddr(&config.AgentConfig{
+			StatsdEnabled: false,
+			StatsdPort:    8125,
+		})
+		assert.Error(t, err)
+	})
 }
