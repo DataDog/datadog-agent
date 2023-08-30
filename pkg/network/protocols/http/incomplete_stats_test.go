@@ -19,23 +19,23 @@ import (
 
 func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
-		now := time.Now()
+		nowTS := time.Now()
 		tel := NewTelemetry("http")
 		buffer := newIncompleteBuffer(config.New(), tel)
 		request := &EbpfTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(now.UnixNano()),
+			Request_started:  uint64(nowTS.UnixNano()),
 		}
 		request.Tup.Sport = 60000
 
 		buffer.Add(request)
-		now = now.Add(5 * time.Second)
+		now := nowTS.Add(5 * time.Second).UnixNano()
 		complete := buffer.Flush(now)
 		assert.Len(t, complete, 0)
 
 		response := &EbpfTx{
 			Response_status_code: 200,
-			Response_last_seen:   uint64(now.UnixNano()),
+			Response_last_seen:   uint64(now),
 		}
 		response.Tup.Sport = 60000
 		buffer.Add(response)
@@ -51,18 +51,18 @@ func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
 		tel := NewTelemetry("http")
 		buffer := newIncompleteBuffer(config.New(), tel)
-		now := time.Now()
+		nowTS := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(now.UnixNano()),
+			Request_started:  uint64(nowTS.UnixNano()),
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(now)
+		_ = buffer.Flush(nowTS.UnixNano())
 
 		assert.True(t, len(buffer.data) > 0)
-		now = now.Add(35 * time.Second)
-		_ = buffer.Flush(now)
+		nowTS = nowTS.Add(35 * time.Second)
+		_ = buffer.Flush(nowTS.UnixNano())
 		assert.True(t, len(buffer.data) == 0)
 	})
 }

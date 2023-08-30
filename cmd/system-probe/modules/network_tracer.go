@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -31,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,7 +68,7 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		return &networkTracer{tracer: t, done: done, maxConnsPerMessage: cfg.MaxConnsPerMessage, runCounter: atomic.NewUint64(0)}, err
+		return &networkTracer{tracer: t, done: done}, err
 	},
 }
 
@@ -80,78 +78,11 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	done         chan struct{}
 	restartTimer *time.Timer
-
-	// Intended to ensure (in compile time) we're implementing the SystemProbeServer interface
-	connectionserver.UnsafeSystemProbeServer
-	maxConnsPerMessage int
-	runCounter         *atomic.Uint64
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// GetConnections function that establishes a streaming RPC connection to retrieve and continuously stream information
-// about the current connections in the system.
-func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
-	start := time.Now()
-	id := req.GetClientID()
-	cs, err := nt.tracer.GetActiveConnections(id)
-	if err != nil {
-		return fmt.Errorf("unable to get connections: %s", err)
-	}
-	defer network.Reclaim(cs)
-
-	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	connectionsModeler := encoding.NewConnectionsModeler(cs)
-	if nt.restartTimer != nil {
-		nt.restartTimer.Reset(inactivityRestartDuration)
-	}
-	count := nt.runCounter.Inc()
-	logRequests(id, count, len(cs.Conns), start)
-	connections := &connectionserver.Connection{}
-
-	// As long as there are connections, we divide them into batches and subsequently send all the batches
-	// via a gRPC stream to the process agent. The size of each batch is determined by the value of maxConnsPerMessage.
-	for len(cs.Conns) > 0 {
-		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
-		rest := cs.Conns[finalBatchSize:]
-		cs.Conns = cs.Conns[:finalBatchSize]
-
-		payload := connectionsModeler.ModelConnections(cs)
-		connectionsModeler.Close()
-		// get the conns for a batch by the marshaler
-		conns, err := marshaler.Marshal(payload)
-		encoding.Cleanup(payload)
-
-		if err != nil {
-			return fmt.Errorf("unable to marshal payload due to: %s", err)
-		}
-
-		connections.Data = conns
-		err = s2.Send(connections)
-		if err != nil {
-			log.Errorf("unable to send current connection batch due to: %v", err)
-		}
-
-		cs.Conns = rest
-	}
-
-	return nil
-}
-
-// RegisterGRPC register system probe grpc server
-func (nt *networkTracer) RegisterGRPC(server *grpc.Server) error {
-	connectionserver.RegisterSystemProbeServer(server, nt)
-	return nil
 }
 
 // Register all networkTracer endpoints
@@ -336,7 +267,7 @@ func (nt *networkTracer) Close() {
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Now().Sub(start)}
+	args := []interface{}{client, count, connectionsCount, time.Since(start)}
 	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
 	switch {
 	case count <= 5, count%20 == 0:
@@ -357,21 +288,16 @@ func getClientID(req *http.Request) string {
 func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
-	connectionsModeler := encoding.NewConnectionsModeler(cs)
-	payload := connectionsModeler.ModelConnections(cs)
-	defer encoding.Cleanup(payload)
-	defer connectionsModeler.Close()
+	w.Header().Set("Content-type", marshaler.ContentType())
 
-	buf, err := marshaler.Marshal(payload)
+	err := marshaler.Marshal(cs, w)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
 		return
 	}
 
-	w.Header().Set("Content-type", marshaler.ContentType())
-	w.Write(buf) //nolint:errcheck
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
 func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {

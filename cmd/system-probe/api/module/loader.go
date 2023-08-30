@@ -132,7 +132,7 @@ func RestartModule(factory Factory) error {
 	l.Lock()
 	defer l.Unlock()
 
-	if l.closed == true {
+	if l.closed {
 		return fmt.Errorf("can't restart module because system-probe is shutting down")
 	}
 
@@ -169,7 +169,7 @@ func Close() {
 	l.Lock()
 	defer l.Unlock()
 
-	if l.closed == true {
+	if l.closed {
 		return
 	}
 

@@ -68,7 +68,7 @@ func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
-	for _, tx := range h.incomplete.Flush(time.Now()) {
+	for _, tx := range h.incomplete.Flush(getCurrentNanoSeconds()) {
 		h.add(tx)
 	}
 

@@ -213,7 +213,6 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	return
 }
 
 // getAllMetadata is used by the svcmap command.
@@ -261,7 +260,6 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	return
 }
 
 // getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
@@ -291,5 +289,4 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(j)
-	return
 }

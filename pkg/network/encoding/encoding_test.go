@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"runtime"
@@ -180,14 +181,6 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 	return out
 }
 
-func modelAndMarshalConnections(marshaler Marshaler, in *network.Connections) ([]byte, error) {
-	connectionsModeler := NewConnectionsModeler(in)
-	payload := connectionsModeler.ModelConnections(in)
-	defer Cleanup(payload)
-
-	return marshaler.Marshal(payload)
-}
-
 func TestSerialization(t *testing.T) {
 	t.Run("status code", func(t *testing.T) {
 		testSerialization(t, true)
@@ -336,11 +329,12 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/json")
 		assert.Equal("application/json", marshaler.ContentType())
 
-		blob, err := modelAndMarshalConnections(marshaler, in)
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
 		sort.Strings(result.Tags)
@@ -363,11 +357,12 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/json")
 		assert.Equal("application/json", marshaler.ContentType())
 
-		blob, err := modelAndMarshalConnections(marshaler, in)
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
 		sort.Strings(result.Tags)
@@ -390,11 +385,13 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		// in case we request empty serialization type, default to application/json
 		assert.Equal("application/json", marshaler.ContentType())
 
-		blob, err := modelAndMarshalConnections(marshaler, in)
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
+
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
 		sort.Strings(result.Tags)
@@ -419,11 +416,12 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		// In case we request an unsupported serialization type, we default to application/json
 		assert.Equal("application/json", marshaler.ContentType())
 
-		blob, err := modelAndMarshalConnections(marshaler, in)
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
 		sort.Strings(result.Tags)
@@ -443,18 +441,18 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		// Empty connection batch
-		cons := &network.Connections{
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(&network.Connections{
 			BufferedData: network.BufferedData{
 				Conns: []network.ConnectionStats{{}},
 			},
-		}
-		blob, err := modelAndMarshalConnections(marshaler, cons)
+		}, blobWriter)
 		require.NoError(t, err)
 
 		res := struct {
 			Conns []map[string]interface{} `json:"conns"`
 		}{}
-		require.NoError(t, json.Unmarshal(blob, &res))
+		require.NoError(t, json.Unmarshal(blobWriter.Bytes(), &res))
 
 		require.Len(t, res.Conns, 1)
 		// Check that it contains fields even if they are zeroed
@@ -475,11 +473,12 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/protobuf")
 		assert.Equal("application/protobuf", marshaler.ContentType())
 
-		blob, err := modelAndMarshalConnections(marshaler, in)
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 		sort.Strings(result.Tags)
 
@@ -495,11 +494,12 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		marshaler := GetMarshaler("application/protobuf")
 		assert.Equal("application/protobuf", marshaler.ContentType())
 
-		blob, err := modelAndMarshalConnections(marshaler, in)
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 		sort.Strings(result.Tags)
 
@@ -611,11 +611,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 	}
 
 	marshaler := GetMarshaler("application/protobuf")
-	blob, err := modelAndMarshalConnections(marshaler, in)
+
+	blobWriter := bytes.NewBuffer(nil)
+	err = marshaler.Marshal(in, blobWriter)
+
 	require.NoError(t, err)
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
-	result, err := unmarshaler.Unmarshal(blob)
+	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 
 	assert.Equal(t, out, result)
@@ -726,11 +729,12 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 	}
 
 	marshaler := GetMarshaler("application/protobuf")
-	blob, err := modelAndMarshalConnections(marshaler, in)
+	blobWriter := bytes.NewBuffer(nil)
+	err = marshaler.Marshal(in, blobWriter)
 	require.NoError(t, err)
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
-	result, err := unmarshaler.Unmarshal(blob)
+	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 
 	assert.Equal(t, out, result)
@@ -764,11 +768,12 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 
 	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
 		marshaler := GetMarshaler("application/protobuf")
-		blob, err := modelAndMarshalConnections(marshaler, in)
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
 		httpBlob := result.Conns[0].HttpAggregations
@@ -832,11 +837,13 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 
 	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
 		marshaler := GetMarshaler("application/protobuf")
-		blob, err := modelAndMarshalConnections(marshaler, in)
+
+		blobWriter := bytes.NewBuffer(nil)
+		err := marshaler.Marshal(in, blobWriter)
 		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
-		result, err := unmarshaler.Unmarshal(blob)
+		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
 		http2Blob := result.Conns[0].Http2Aggregations
@@ -889,11 +896,12 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 	// Perform a marshal/unmarshal cycle
 	in := new(network.Connections)
 	marshaler := GetMarshaler("application/protobuf")
-	blob, err := modelAndMarshalConnections(marshaler, in)
+	blobWriter := bytes.NewBuffer(nil)
+	err := marshaler.Marshal(in, blobWriter)
 	require.NoError(t, err)
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
-	result, err := unmarshaler.Unmarshal(blob)
+	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 
 	// Assert that the correct metric is present in the emitted payload

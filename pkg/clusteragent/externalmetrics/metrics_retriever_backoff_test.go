@@ -37,7 +37,7 @@ func (p *mockedProcessorWithBackoff) UpdateExternalMetrics(emList map[string]cus
 func (p *mockedProcessorWithBackoff) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	p.extQueryCounter++
 	// Sort for slice comparison
-	sort.Sort(sort.StringSlice(queries))
+	sort.Strings(queries)
 	p.queryCapture = append(p.queryCapture, queries)
 	// Sort slices by first element, slices should be disjoint
 	sort.Slice(p.queryCapture, func(i, j int) bool {

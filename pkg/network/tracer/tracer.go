@@ -446,7 +446,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
 	}
 
-	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats, kafkaStats)
+	stats, err := t.getStats(stateStats)
 	if err != nil {
 		return nil
 	}
@@ -579,7 +579,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	t.state.RemoveConnections(toRemove)
 
 	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
+		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Since(now))
 	}
 }
 
@@ -664,7 +664,11 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 
 // GetStats returns a map of statistics about the current tracer's internal state
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
-	return t.getStats()
+	return map[string]interface{}{
+		"tracer": map[string]interface{}{
+			"last_check": t.lastCheck.Load(),
+		},
+	}, nil
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging

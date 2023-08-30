@@ -178,7 +178,7 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
+	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
 	Umount           UmountEvent           `field:"-" json:"-"`
