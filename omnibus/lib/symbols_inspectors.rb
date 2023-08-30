@@ -52,7 +52,7 @@ class VisualStudioSymbolsInspector
   end
 
   def inspect()
-    @block.call(`#{Dumpbin.instance.path()} /SYMBOLS #{@binary}`)
+    @block.call(Dumpbin.instance.call(@binary))
   end
 end
 
