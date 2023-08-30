@@ -381,7 +381,7 @@ exclude 'bundler\/git'
 
 if windows?
   FORBIDDEN_SYMBOLS = [
-    "glog.init"
+    "github.com/golang/glog"
   ]
   
   raise_if_forbidden_symbol_found = Proc.new { |symbols|
