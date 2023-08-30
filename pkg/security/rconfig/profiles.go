@@ -47,7 +47,7 @@ func (r *RCProfileProvider) Stop() error {
 	return nil
 }
 
-func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.RawConfig) {
+func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	for _, config := range configs {
 		var profCfg ProfileConfig
 		if err := json.Unmarshal(config.Config, &profCfg); err != nil {
