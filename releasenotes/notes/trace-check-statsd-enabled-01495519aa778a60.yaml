@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Trace agent will no longer try to emit metrics to dogstatsd if use_dogstatsd is false
+    Trace agent no longer tries to emit metrics to dogstatsd if `use_dogstatsd` is set to `false`.
