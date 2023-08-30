@@ -15,7 +15,8 @@ const (
 	InetCskListenStop ProbeFuncName = "kprobe__inet_csk_listen_stop"
 
 	// TCPConnect traces the connect() system call
-	TCPConnect ProbeFuncName = "kprobe__tcp_connect"
+	TCPConnect       ProbeFuncName = "kprobe__tcp_connect"
+	TCPConnectReturn ProbeFuncName = "kretprobe__tcp_connect"
 	// TCPFinishConnect traces tcp_finish_connect() kernel function. This is
 	// used to know when a TCP connection switches to the ESTABLISHED state
 	TCPFinishConnect ProbeFuncName = "kprobe__tcp_finish_connect"
