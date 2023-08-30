@@ -7,6 +7,7 @@ package languagedetection
 
 import (
 	"bufio"
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -24,15 +25,8 @@ import (
 
 const versionStr = "7.48.0~rc.1-1"
 
-const configStr = `
-process_config:
-  process_collection:
-    enabled: true
-  intervals:
-    process: 1
-language_detection:
-  enabled: true
-`
+//go:embed etc/process_config.yaml
+var configStr string
 
 type languageDetectionSuite struct {
 	e2e.Suite[e2e.AgentEnv]
