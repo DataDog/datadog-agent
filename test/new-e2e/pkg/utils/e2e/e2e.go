@@ -519,7 +519,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 	var env *Env
 	ctx := context.Background()
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		suite.params.StackName,
 		stackDef.configMap,
