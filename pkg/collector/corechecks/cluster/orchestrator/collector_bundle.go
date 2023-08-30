@@ -232,7 +232,7 @@ func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
 		return false
 	}
 	if len(collectors) == 0 {
-		_ = cb.check.Warnf("Collector discovery returned no collector")
+		_ = cb.check.Warn("Collector discovery returned no collector")
 		return false
 	}
 
@@ -326,7 +326,7 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 
 	for _, collector := range cb.collectors {
 		if collector.Metadata().IsSkipped {
-			log.Warnf("Collector %s is skipped: %s", collector.Metadata().FullName(), collector.Metadata().SkippedReason)
+			_ = cb.check.Warnf("Collector %s is skipped: %s", collector.Metadata().FullName(), collector.Metadata().SkippedReason)
 			continue
 		}
 

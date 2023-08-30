@@ -105,7 +105,7 @@ type subprogram interface {
 	Stop()
 }
 
-func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *telemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *telemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: sslSockByCtxMap},
@@ -143,7 +143,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 	subprograms := make([]subprogram, 0, 1)
 	var tailCalls []manager.TailCallRoute
 
-	goTLSProg := newGoTLSProgram(c)
+	goTLSProg := newGoTLSProgram(c, sockFD)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
 	if goTLSProg != nil {
 		subprograms = append(subprograms, goTLSProg)
