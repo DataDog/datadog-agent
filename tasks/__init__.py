@@ -46,7 +46,7 @@ from .go import (
     golangci_lint,
     lint_licenses,
     reset,
-    tidy_all
+    tidy_all,
 )
 from .test import (
     codecov,
