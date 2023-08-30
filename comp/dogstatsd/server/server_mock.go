@@ -40,6 +40,10 @@ func (s *serverMock) UdsListenerRunning() bool {
 	return false
 }
 
+func (s *serverMock) UdpLocalAddr() string {
+	return ""
+}
+
 func (s *serverMock) ServerlessFlush() {}
 
 func (s *serverMock) SetExtraTags(tags []string) {}

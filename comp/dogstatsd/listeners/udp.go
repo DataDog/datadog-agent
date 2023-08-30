@@ -97,6 +97,11 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	return listener, nil
 }
 
+// LocalAddr returns the local network address of the listener.
+func (l *UDPListener) LocalAddr() string {
+	return l.conn.LocalAddr().String()
+}
+
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
 	var t1, t2 time.Time

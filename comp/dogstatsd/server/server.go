@@ -133,6 +133,7 @@ type server struct {
 	// ServerlessMode is set to true if we're running in a serverless environment.
 	ServerlessMode     bool
 	udsListenerRunning bool
+	udpLocalAddr       string
 
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
@@ -334,6 +335,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 			s.log.Errorf(err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, udpListener)
+			s.udpLocalAddr = udpListener.LocalAddr()
 		}
 	}
 
@@ -461,6 +463,10 @@ func (s *server) handleMessages() {
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
+}
+
+func (s *server) UdpLocalAddr() string {
+	return s.udpLocalAddr
 }
 
 func (s *server) forwarder(fcon net.Conn) {
