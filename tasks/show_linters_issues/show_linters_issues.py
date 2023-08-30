@@ -22,11 +22,11 @@ def check_if_team_exists(team: str):
         print("[WARNING] No team entered. Displaying linters errors for all teams.\n")
 
 @task(iterable=['tested_os_and_arch'])
-def need_fixing_linters(ctx, filter_team: str=None, from_commit_hash: str=FIRST_COMMIT_HASH, filter_linters: str="revive", show_output=False, platforms=None):
+def show_linters_issues(ctx, filter_team: str=None, from_commit_hash: str=FIRST_COMMIT_HASH, filter_linters: str="revive", show_output=False, platforms=None):
     """
     This function displays the list of files that need fixing for a specific team and for specific linters.
 
-        Example: inv need-fixing-linters --filter-team "@DataDog/agent-platform" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
+        Example: inv show-linters-issues --filter-team "@DataDog/agent-platform" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
 
         Parameters:
             team (str): keep only the files owned by a team. These are Github team names from the GITHUB_SLACK_MAP variable.

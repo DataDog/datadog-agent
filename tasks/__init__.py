@@ -3,7 +3,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 """
 
 from invoke import Collection
-from .need_fixing_linters import need_fixing_linters
+from .show_linters_issues import show_linters_issues
 
 from . import (
     agent,
@@ -94,7 +94,7 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
-ns.add_task(need_fixing_linters)
+ns.add_task(show_linters_issues)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)

@@ -26,7 +26,7 @@ Already done in [#18884](https://github.com/DataDog/datadog-agent/pull/18884).
 Run the command
 
 ```bash
-inv -e need-fixing-linters --filter-team "@DataDog/your-team" --filter-linters "revive"
+inv -e show-linters-issues --filter-team "@DataDog/your-team" --filter-linters "revive"
 ```
 
 Note: The linter is running every combination OS x Arch we're linting in the CI so it's normal for it to take a bit of time on the first run (should be faster after because some of it is cached).
