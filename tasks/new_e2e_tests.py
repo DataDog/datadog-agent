@@ -46,7 +46,7 @@ def run(
     cache=False,
     junit_tar="",
     coverage=False,
-    test_run_name=""
+    test_run_name="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -81,7 +81,7 @@ def run(
     coverage_path = "coverage.out"
     if coverage:
         coverage_opt = f"-cover -covermode=count -coverprofile={coverage_path} -coverpkg=./...,github.com/DataDog/test-infra-definitions/..."
-    
+
     test_run_arg = ""
     if test_run_name != "":
         test_run_arg = f"-run {test_run_name}"
