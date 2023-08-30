@@ -866,7 +866,34 @@ int kprobe__tcp_connect(struct pt_regs *ctx) {
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
+    bpf_map_update_with_telemetry(tcp_connect_args, &pid_tgid, &skp, BPF_ANY);
 
+    return 0;
+}
+
+SEC("kretprobe/tcp_connect")
+int kretprobe__tcp_connect(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock **skpp = bpf_map_lookup_elem(&tcp_connect_args, &pid_tgid);
+    if (!skpp) {
+        return 0;
+    }
+
+    int rc = PT_REGS_RC(ctx);
+    if (rc == 0) {
+        // successful tcp_connect call, nothing to do
+        goto cleanup;
+    }
+
+    // error returned from tcp_connect, remove entry
+    // from tcp_ongoing_connect_pid as tcp_finish_connect
+    // kprobe or tcp_close kprobe may not be called
+    // for this tcp_connect call
+    struct sock *sk = *skpp;
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+
+cleanup:
+    bpf_map_delete_elem(&tcp_connect_args, &pid_tgid);
     return 0;
 }
 

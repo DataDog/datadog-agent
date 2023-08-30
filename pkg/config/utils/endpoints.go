@@ -36,9 +36,7 @@ func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]st
 		}
 
 		if _, ok := keysPerDomain[domain]; ok {
-			for _, apiKey := range apiKeys {
-				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
-			}
+			keysPerDomain[domain] = append(keysPerDomain[domain], apiKeys...)
 		} else {
 			keysPerDomain[domain] = apiKeys
 		}

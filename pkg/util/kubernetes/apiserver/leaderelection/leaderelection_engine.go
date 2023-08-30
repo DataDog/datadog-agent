@@ -92,7 +92,7 @@ func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
 		_, err := le.coordClient.Leases(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 
 		if err != nil {
-			if errors.IsNotFound(err) == false {
+			if !errors.IsNotFound(err) {
 				return err
 			}
 
@@ -112,7 +112,7 @@ func (le *LeaderEngine) CreateLeaderTokenIfNotExists() error {
 	}
 	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
 	if err != nil {
-		if errors.IsNotFound(err) == false {
+		if !errors.IsNotFound(err) {
 			return err
 		}
 

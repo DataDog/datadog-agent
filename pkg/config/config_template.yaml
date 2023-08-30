@@ -5,10 +5,17 @@
 
 ## @param api_key - string - required
 ## @env DD_API_KEY - string - required
-## The Datadog API key to associate your Agent's data with your organization.
-## Create a new API key here: https://app.datadoghq.com/account/settings
-#
+## The Datadog API key used by your Agent to submit metrics and events to Datadog.
+## Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
+## Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
 api_key:
+
+## @param app_key - string - optional
+## The application key used to access Datadog's programatic API.
+## Create a new application key here: https://app.datadoghq.com/organization-settings/application-keys .
+## Read more about application keys here: https://docs.datadoghq.com/account_management/api-app-keys/#application-keys .
+#
+# app_key:
 
 ## @param site - string - optional - default: datadoghq.com
 ## @env DD_SITE - string - optional - default: datadoghq.com
@@ -414,26 +421,36 @@ api_key:
 #
 # collect_gce_tags: true
 
-## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
-## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings
+## @param exclude_gce_tags - list of strings - optional - default: ["bosh_settings" ,"cli-cert" ,"common-psm1" ,"configure-sh" ,"containerd-configure-sh" ,"disable-address-manager" ,"disable-legacy-endpoints" ,"enable-oslogin" ,"gce-container-declaration" ,"google-container-manifest" ,"ipsec-cert" ,"k8s-node-setup-psm1" ,"kube-env" ,"kubeconfig" ,"kubelet-config" ,"serial-port-logging-enable" ,"shutdown-script" ,"ssh-keys" ,"sshKeys" ,"ssl-cert" ,"startup-script" ,"user-data" ,"windows-keys" ,"windows-startup-script-ps1"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: bosh_settings cli-cert common-psm1 configure-sh containerd-configure-sh disable-address-manager disable-legacy-endpoints enable-oslogin gce-container-declaration google-container-manifest ipsec-cert k8s-node-setup-psm1 kube-env kubeconfig kubelet-config serial-port-logging-enable shutdown-script ssh-keys sshKeys ssl-cert startup-script user-data windows-keys windows-startup-script-ps1
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
 # exclude_gce_tags:
-#   - "kube-env"
-#   - "kubelet-config"
-#   - "containerd-configure-sh"
-#   - "startup-script"
-#   - "shutdown-script"
-#   - "configure-sh"
-#   - "sshKeys"
-#   - "ssh-keys"
-#   - "user-data"
-#   - "cli-cert"
-#   - "ipsec-cert"
-#   - "ssl-cert"
-#   - "google-container-manifest"
 #   - "bosh_settings"
+#   - "cli-cert"
+#   - "common-psm1"
+#   - "configure-sh"
+#   - "containerd-configure-sh"
+#   - "disable-address-manager"
+#   - "disable-legacy-endpoints"
+#   - "enable-oslogin"
+#   - "gce-container-declaration"
+#   - "google-container-manifest"
+#   - "ipsec-cert"
+#   - "k8s-node-setup-psm1"
+#   - "kube-env"
+#   - "kubeconfig"
+#   - "kubelet-config"
+#   - "serial-port-logging-enable"
+#   - "shutdown-script"
+#   - "ssh-keys"
+#   - "sshKeys"
+#   - "ssl-cert"
+#   - "startup-script"
+#   - "user-data"
+#   - "windows-keys"
+#   - "windows-startup-script-ps1"
 
 ## @param gce_send_project_id_tag - bool - optional - default: false
 ## @env DD_GCE_SEND_PROJECT_ID_TAG - bool - optional - default: false
@@ -1191,7 +1208,15 @@ api_key:
   ## WARNING: `by_modification_time` is less performant than `by_name` and will trigger
   ## more disk I/O at the configured wildcard log paths.
   #
-  # file_wildcard_selection_mode: `by_name`
+  # file_wildcard_selection_mode: by_name
+
+  ## @param max_message_size_bytes - integer - optional - default: 256000
+  ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
+  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds 
+  ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
+  # https://docs.datadoghq.com/api/latest/logs/
+  #
+  # max_message_size_bytes: 256000
 
 {{ end -}}
 {{- if .TraceAgent }}
