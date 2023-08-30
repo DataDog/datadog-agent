@@ -567,7 +567,7 @@ func startAgent(
 	// Subscribe to `AGENT_INTEGRATION` product
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) &&
 		pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
-		rcScheduler := rccollector.NewRemoteConfigScheduler()
+		rcScheduler := rccollector.NewScheduler()
 		rcScheduler.AddScheduler(scheduler)
 		rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)
 	}

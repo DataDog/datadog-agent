@@ -15,8 +15,8 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// RemoteConfigScheduler is the structure used to run checks with RC
-type RemoteConfigScheduler struct {
+// Scheduler is the structure used to run checks with RC
+type Scheduler struct {
 	scheduler     *collector.CheckScheduler
 	runningChecks []integration.Config
 }
@@ -30,15 +30,15 @@ type agentIntegration struct {
 // secretsDecrypt allows tests to intercept calls to secrets.Decrypt.
 var secretsDecrypt = secrets.Decrypt
 
-// NewRemoteConfigScheduler creates an instance of a remote config integration scheduler
-func NewRemoteConfigScheduler() *RemoteConfigScheduler {
-	return &RemoteConfigScheduler{
+// NewScheduler creates an instance of a remote config integration scheduler
+func NewScheduler() *Scheduler {
+	return &Scheduler{
 		runningChecks: make([]integration.Config, 0),
 	}
 }
 
 // AddScheduler initiate the remote-config scheduler
-func (sc *RemoteConfigScheduler) AddScheduler(scheduler *collector.CheckScheduler) {
+func (sc *Scheduler) AddScheduler(scheduler *collector.CheckScheduler) {
 	if sc.scheduler != nil {
 		pkglog.Errorf("Remote-config scheduler is already initiated")
 	} else {
@@ -47,7 +47,7 @@ func (sc *RemoteConfigScheduler) AddScheduler(scheduler *collector.CheckSchedule
 }
 
 // IntegrationScheduleCallback is called at every AGENT_INTEGRATIONS to schedule/unschedule integrations
-func (sc *RemoteConfigScheduler) IntegrationScheduleCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (sc *Scheduler) IntegrationScheduleCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	if sc.scheduler == nil {
 		pkglog.Debugf("Scheduler is not ready to start remote-config integrations")
 		return
