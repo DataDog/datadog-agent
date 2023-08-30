@@ -6,7 +6,7 @@
 package cache
 
 import (
-	"path"
+	"strings"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
@@ -32,8 +32,30 @@ var Cache = cache.New(defaultExpire, defaultPurge)
 // and path elements passed as arguments. It is to be used by core agent
 // packages to reuse the prefix constant
 func BuildAgentKey(keys ...string) string {
-	keys = append([]string{AgentCachePrefix}, keys...)
-	return path.Join(keys...)
+	var builder strings.Builder
+
+	// Preallocate memory for the passed keys and the slashes. This will be
+	// one character too high as we do not trail keys with a '/' but the
+	// logic here is simple.
+	totalLength := len(AgentCachePrefix)
+	for i := 0; i < len(keys); i++ {
+		totalLength += len(keys[i]) + 1
+	}
+
+	builder.Grow(totalLength)
+
+	// If we have no keys passed the return is simply "agent". Else, we
+	// always insert a '/' between keys and then the key itself. Previous
+	// implementations used `join.Path` to insert '/' but we never have a
+	// blank string as first member and we never have '../..' etc present in
+	// the keys.
+	builder.WriteString(AgentCachePrefix)
+	for i := 0; i < len(keys); i++ {
+		builder.WriteByte('/')
+		builder.WriteString(keys[i])
+	}
+
+	return builder.String()
 }
 
 // Get returns the value for 'key'.
