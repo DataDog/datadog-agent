@@ -631,19 +631,20 @@ func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 		actualRawHTTP := actual.Conns[i].HttpAggregations
 
 		if len(expectedRawHTTP) == 0 && len(actualRawHTTP) != 0 {
-			t.Errorf("expected connection %d to have no HTTP, but got %v", i, actualRawHTTP)
-			t.FailNow()
+			t.Fatalf("expected connection %d to have no HTTP, but got %v", i, actualRawHTTP)
 		}
 		if len(expectedRawHTTP) != 0 && len(actualRawHTTP) == 0 {
-			t.Errorf("expected connection %d to have HTTP data, but got none", i)
-			t.FailNow()
+			t.Fatalf("expected connection %d to have HTTP data, but got none", i)
 		}
 
+		// the expected HTTPAggregations are encoded with  gogoproto, and the actual HTTPAggregations are encoded with gostreamer.
+		// thus they will not be byte-for-byte equal.
+		// the workaround is to check for protobuf equality, and then set actual.Conns[i] == expected.Conns[i]
+		// so actual.Conns and expected.Conns can be compared.
 		var expectedHTTP, actualHTTP model.HTTPAggregations
 		require.NoError(t, proto.Unmarshal(expectedRawHTTP, &expectedHTTP))
 		require.NoError(t, proto.Unmarshal(actualRawHTTP, &actualHTTP))
-		require.Equalf(t, expectedHTTP, actualHTTP, "HTTP connection %d was not equal %d", i)
-
+		require.Equalf(t, expectedHTTP, actualHTTP, "HTTP connection %d was not equal", i)
 		actual.Conns[i].HttpAggregations = expected.Conns[i].HttpAggregations
 	}
 

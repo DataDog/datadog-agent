@@ -336,7 +336,6 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP stats
 	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
-	fmt.Printf("%v", aggregations)
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
 

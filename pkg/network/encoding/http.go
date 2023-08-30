@@ -7,19 +7,18 @@ package encoding
 
 import (
 	"bytes"
-	"github.com/gogo/protobuf/proto"
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/gogo/protobuf/proto"
 )
 
 type httpEncoder struct {
-	builder      *model.HTTPAggregationsBuilder
-	byConnection *USMConnectionIndex[http.Key, *http.RequestStats]
+	httpAggregationsBuilder *model.HTTPAggregationsBuilder
+	byConnection            *USMConnectionIndex[http.Key, *http.RequestStats]
 }
 
 func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
@@ -28,7 +27,7 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 	}
 
 	return &httpEncoder{
-		builder: model.NewHTTPAggregationsBuilder(nil),
+		httpAggregationsBuilder: model.NewHTTPAggregationsBuilder(nil),
 		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
@@ -59,10 +58,10 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats, buil
 func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
-	e.builder.Reset(w)
+	e.httpAggregationsBuilder.Reset(w)
 
 	for _, kvPair := range connectionData.Data {
-		e.builder.AddEndpointAggregations(func(httpStatsBuilder *model.HTTPStatsBuilder) {
+		e.httpAggregationsBuilder.AddEndpointAggregations(func(httpStatsBuilder *model.HTTPStatsBuilder) {
 			key := kvPair.Key
 			stats := kvPair.Value
 
