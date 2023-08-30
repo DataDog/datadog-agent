@@ -8,7 +8,10 @@
 // nolint
 package main
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import (
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 // Stack depth of 3 since the `corelogger` struct adds a layer above the logger
 const stackDepth = 3
@@ -65,3 +68,9 @@ func (corelogger) Criticalf(format string, params ...interface{}) error {
 
 // Flush implements Logger.
 func (corelogger) Flush() { log.Flush() }
+
+// GetLogLevel implements Logger.
+func (corelogger) GetLogLevel() (logcomp.Level, error) {
+	lvl, err := log.GetLogLevel()
+	return logcomp.Level(lvl), err
+}
