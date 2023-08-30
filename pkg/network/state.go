@@ -1015,7 +1015,7 @@ func newConnectionAggregator(size int, enablePortRollups bool) *connectionAggreg
 	}
 }
 
-func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
+func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp bool) {
 	key.string = string(c.ByteKey(a.buf))
 	key.direction = c.Direction
 	if c.ContainerID.Source != nil {
@@ -1023,21 +1023,20 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 	}
 
 	if !a.enablePortRollups {
-		return key, false, false
+		return key, false
 	}
 
 	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
 	sportRolledUp = c.Direction == OUTGOING
-	dportRolledUp = c.Direction == INCOMING
 
 	log.TraceFunc(func() string {
-		return fmt.Sprintf("type=%s isShortLived=%+v sportRolledUp=%+v dportRolledUp=%+v", c.Type, isShortLived, sportRolledUp, dportRolledUp)
+		return fmt.Sprintf("type=%s isShortLived=%+v sportRolledUp=%+v", c.Type, isShortLived, sportRolledUp)
 	})
 	if c.Type != UDP ||
 		!isShortLived ||
-		(!sportRolledUp && !dportRolledUp) {
+		!sportRolledUp {
 		log.TraceFunc(func() string { return fmt.Sprintf("not rolling up connection %+v ", c) })
-		return key, false, false
+		return key, false
 	}
 
 	log.TraceFunc(func() string { return fmt.Sprintf("rolling up connection %+v ", c) })
@@ -1049,25 +1048,18 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 			c.SPort = sport
 		}()
 	}
-	if dportRolledUp {
-		dport := c.DPort
-		c.DPort = 0
-		defer func() {
-			c.DPort = dport
-		}()
-	}
 
 	key.string = string(c.ByteKey(a.buf))
-	return key, sportRolledUp, dportRolledUp
+	return key, sportRolledUp
 }
 
-func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation, sportRolledUp, dportRolledUp bool) bool {
+func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation, sportRolledUp bool) bool {
 	if t1 == t2 || t1 == nil || t2 == nil || *t1 == *t2 {
 		return true
 	}
 
 	// *t1 != *t2
-	if !sportRolledUp && !dportRolledUp {
+	if !sportRolledUp {
 		return false
 	}
 
@@ -1076,14 +1068,6 @@ func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation, 
 		t1.ReplDstPort, t2.ReplDstPort = 0, 0
 		defer func() {
 			t1.ReplDstPort, t2.ReplDstPort = d1, d2
-		}()
-	}
-
-	if dportRolledUp {
-		s1, s2 := t1.ReplSrcPort, t2.ReplSrcPort
-		t1.ReplSrcPort, t2.ReplSrcPort = 0, 0
-		defer func() {
-			t1.ReplSrcPort, t2.ReplSrcPort = s1, s2
 		}()
 	}
 
@@ -1105,7 +1089,7 @@ func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack)
 //   - the other connection's protocol stack is unknown
 //   - the other connection's protocol stack is not unknown AND equal
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key, sportRolledUp, dportRolledUp := a.key(c)
+	key, sportRolledUp := a.key(c)
 	aggrConns, ok := a.conns[key]
 	if !ok {
 		a.conns[key] = []*aggregateConnection{
@@ -1120,7 +1104,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	}
 
 	for _, aggrConn := range aggrConns {
-		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation, sportRolledUp, dportRolledUp) ||
+		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation, sportRolledUp) ||
 			!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
 			continue
 		}
@@ -1145,15 +1129,7 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 				aggrConn.IPTranslation.ReplDstPort = 0
 			}
 		}
-		if dportRolledUp {
-			// more than one connection with
-			// dest port dropped in key,
-			// so set source port to 0
-			aggrConn.DPort = 0
-			if aggrConn.IPTranslation != nil {
-				aggrConn.IPTranslation.ReplSrcPort = 0
-			}
-		}
+
 		aggrConn.ProtocolStack.MergeWith(c.ProtocolStack)
 
 		return true
