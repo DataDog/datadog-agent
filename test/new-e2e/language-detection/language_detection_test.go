@@ -9,6 +9,8 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,10 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 )
-
-// testLocally should be set to true if running the test from a developer machine (i.e. not CI)
-// This sets the test suite to use the hardcoded agent version `versionStr`
-const testLocally = false
 
 const versionStr = "7.48.0~rc.1-1"
 
@@ -45,7 +43,8 @@ func TestLanguageDetectionSuite(t *testing.T) {
 		agentparams.WithAgentConfig(configStr),
 	}
 
-	if testLocally {
+	isCI, _ := strconv.ParseBool(os.Getenv("CI"))
+	if !isCI {
 		agentParams = append(agentParams, agentparams.WithVersion(versionStr))
 	}
 
@@ -54,7 +53,7 @@ func TestLanguageDetectionSuite(t *testing.T) {
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {
 	var pid string
-	assert.Eventually(s.T(),
+	require.Eventually(s.T(),
 		func() bool {
 			pid = s.getPidForCommand(command)
 			return len(pid) > 0
@@ -62,10 +61,6 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 		1*time.Second, 10*time.Millisecond,
 		fmt.Sprintf("pid not found for command %s", command),
 	)
-	require.NotEmpty(s.T(), pid)
-
-	// ensure check is able to run
-	time.Sleep(2 * time.Second)
 
 	var actualLanguage string
 	var err error
