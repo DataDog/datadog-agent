@@ -46,8 +46,7 @@ from .go import (
     golangci_lint,
     lint_licenses,
     reset,
-    tidy_all,
-    check_symbols
+    tidy_all
 )
 from .test import (
     codecov,
@@ -108,7 +107,6 @@ ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
-ns.add_task(check_symbols)
 ns.add_task(build_messagetable)
 
 # add namespaced tasks to the root
