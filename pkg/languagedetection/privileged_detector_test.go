@@ -10,6 +10,7 @@ package languagedetection
 import (
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,8 +35,11 @@ func (p cmdWrapper) GetCmdline() []string {
 }
 
 func forkExecForTest(t *testing.T) *exec.Cmd {
-	cmd := exec.Command("/bin/sh")
+	// /bin/yes is a program that prints "y\n" to stdout until it receives a SIGKILL or SIGTERM
+	cmd := exec.Command("/bin/yes")
 	err := cmd.Start()
+
+	time.Sleep(250 * time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := cmd.Process.Kill()
