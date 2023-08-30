@@ -9,7 +9,7 @@ from .golangci_lint_parser import filter_lints, display_result, merge_results
 
 FIRST_COMMIT_HASH = "52a313fe7f5e8e16d487bc5dc770038bc234608b"
 # See https://go.dev/doc/install/source#environment for all available combinations of GOOS x GOARCH.
-CI_TESTED_OS_AND_ARCH = ["linux,arm64", "linux,amd64", "windows,amd64", "darwin,amd64", "darwin,arm64"]
+CI_TESTED_OS_AND_ARCH = ["linux,arm64", "linux,amd64", "windows,amd64", "darwin,amd64"]
 
 def check_if_team_exists(team: str):
     """
