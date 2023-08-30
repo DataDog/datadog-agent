@@ -327,7 +327,8 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 			udsListenerRunning = true
 		}
 	}
-	if s.config.GetInt("dogstatsd_port") > 0 {
+
+	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
 		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
