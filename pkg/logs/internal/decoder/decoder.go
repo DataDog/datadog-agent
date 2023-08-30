@@ -27,7 +27,8 @@ const defaultContentLenLimit = 256 * 1000
 // NewInput returns a new input.
 func NewInput(content []byte) *message.Message {
 	return &message.Message{
-		Content: content,
+		Content:            content,
+		IngestionTimestamp: time.Now().UnixNano(),
 	}
 }
 

@@ -144,7 +144,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // We support non empty TCP payloads for classification at the moment.
-    if (!is_tcp(&skb_tup) || is_payload_empty(skb, &skb_info)) {
+    if (!is_tcp(&skb_tup) || is_payload_empty(&skb_info)) {
         return;
     }
 

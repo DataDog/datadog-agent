@@ -26,7 +26,7 @@ func init() {
 }
 
 func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
-	if diagCfg.RunningInAgentProcess {
+	if diagCfg.RunningInAgentProcess && common.Coll != nil {
 		return diagnoseChecksInAgentProcess()
 	}
 
@@ -45,7 +45,7 @@ func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 				Name:      string(instance.ID()),
 				Category:  instance.String(),
 				Diagnosis: "Check Dianose failes with unexpected errors",
-				RawError:  err,
+				RawError:  err.Error(),
 			},
 		}
 	}
@@ -94,7 +94,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 				Name:        "Host name detection",
 				Diagnosis:   "Failed to get host name and cannot continue to run checks diagnostics",
 				Remediation: "Please validate host environment",
-				RawError:    err,
+				RawError:    err.Error(),
 			},
 		}
 	}
@@ -128,7 +128,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 				Name:        "Check configuration location",
 				Diagnosis:   "Failed to find or load checks configurations",
 				Remediation: "Please validate Agent configuration",
-				RawError:    err,
+				RawError:    err.Error(),
 			},
 		}
 	}

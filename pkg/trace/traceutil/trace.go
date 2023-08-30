@@ -69,9 +69,7 @@ func GetRoot(t pb.Trace) *pb.Span {
 	}
 
 	for i := range t {
-		if _, ok := parentIDToChild[t[i].SpanID]; ok {
-			delete(parentIDToChild, t[i].SpanID)
-		}
+		delete(parentIDToChild, t[i].SpanID)
 	}
 
 	// Here, if the trace is valid, we should have len(parentIDToChild) == 1
