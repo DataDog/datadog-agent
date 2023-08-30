@@ -62,6 +62,8 @@ func (r *Reloader) Chan() <-chan struct{} {
 
 // Stop the Reloader
 func (r *Reloader) Stop() {
+	signal.Stop(r.sighupChan)
+
 	r.cancelFnc()
 	r.wg.Wait()
 

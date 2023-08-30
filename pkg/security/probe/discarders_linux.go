@@ -55,6 +55,8 @@ var (
 	recentlyAddedTimeout = uint64(2 * time.Second.Nanoseconds())
 )
 
+type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *Probe, discarder Discarder) (bool, error)
+
 var (
 	allDiscarderHandlers   = make(map[eval.EventType][]onDiscarderHandler)
 	dentryInvalidDiscarder = []string{""}
@@ -613,14 +615,14 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.DiscarderSta
 	}
 
 	stats := make(map[string]discarder.DiscarderStats)
-	perCpu := make([]discarder.DiscarderStats, numCPU)
+	perCPU := make([]discarder.DiscarderStats, numCPU)
 
 	var eventType uint32
 	for _, buffer := range buffers {
 		iterator := buffer.Iterate()
 
-		for iterator.Next(&eventType, &perCpu) {
-			for _, stat := range perCpu {
+		for iterator.Next(&eventType, &perCPU) {
+			for _, stat := range perCPU {
 				key := model.EventType(eventType).String()
 
 				entry, exists := stats[key]

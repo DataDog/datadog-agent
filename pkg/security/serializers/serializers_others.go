@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package module
+//go:build !linux && !windows
 
-// ReloaderInterface aims to handle policies reloading triggers
-type ReloaderInterface interface {
-	Start() error
-	Stop()
-	Chan() <-chan struct{}
-}
+// Package serializers defines functions aiming to serialize events
+package serializers
+
+// EventSerializer serializes an event to JSON
+type EventSerializer struct{}

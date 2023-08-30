@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+
+// Package serializers defines functions aiming to serialize events
 package serializers
 
 import (
@@ -15,6 +18,7 @@ import (
 	jwriter "github.com/mailru/easyjson/jwriter"
 )
 
+// nolint: deadcode, unused
 func getUint64Pointer(i *uint64) *uint64 {
 	if *i == 0 {
 		return nil
@@ -22,6 +26,7 @@ func getUint64Pointer(i *uint64) *uint64 {
 	return i
 }
 
+// nolint: deadcode, unused
 func getUint32Pointer(i *uint32) *uint32 {
 	if *i == 0 {
 		return nil
@@ -29,6 +34,7 @@ func getUint32Pointer(i *uint32) *uint32 {
 	return i
 }
 
+// nolint: deadcode, unused
 func getTimeIfNotZero(t time.Time) *utils.EasyjsonTime {
 	if t.IsZero() {
 		return nil
@@ -37,6 +43,7 @@ func getTimeIfNotZero(t time.Time) *utils.EasyjsonTime {
 	return &tt
 }
 
+// MarshalEvent marshal the event
 func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
 	s := NewEventSerializer(event, probe)
 	w := &jwriter.Writer{
@@ -46,6 +53,7 @@ func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error
 	return w.BuildBytes()
 }
 
+// MarshalCustomEvent marshal the custom event
 func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 	w := &jwriter.Writer{
 		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,

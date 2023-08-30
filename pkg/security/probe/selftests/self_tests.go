@@ -16,10 +16,12 @@ import (
 )
 
 const (
-	policySource       = "self-test"
-	policyVersion      = "1.0.0"
-	policyName         = "datadog-agent-cws-self-test-policy"
-	ruleIDPrefix       = "datadog_agent_cws_self_test_rule"
+	policySource  = "self-test"
+	policyVersion = "1.0.0"
+	policyName    = "datadog-agent-cws-self-test-policy"
+	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"
+
+	// PolicyProviderType name of the self test policy provider
 	PolicyProviderType = "selfTesterPolicyProvider"
 )
 
@@ -49,14 +51,17 @@ func NewSelfTestEvent(success []string, fails []string, testEvents map[string]*s
 func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) {
 }
 
+// Type return the type of this policy provider
 func (t *SelfTester) Type() string {
 	return PolicyProviderType
 }
 
+// RuleMatch implement the rule engine interface
 func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// send if not selftest related events
 	return !t.IsExpectedEvent(rule, event, t.probe)
 }
 
+// EventDiscarderFound implement the rule engine interface
 func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 }

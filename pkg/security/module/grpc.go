@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
+// GRPCServer defines a gRPC server
 type GRPCServer struct {
 	server      *grpc.Server
 	netListener net.Listener
@@ -24,6 +25,7 @@ type GRPCServer struct {
 	address     string
 }
 
+// NewGRPCServer returns a new gRPC server
 func NewGRPCServer(family string, address string) *GRPCServer {
 	// force socket cleanup of previous socket not cleanup
 	if family == "unix" {
@@ -37,6 +39,7 @@ func NewGRPCServer(family string, address string) *GRPCServer {
 	}
 }
 
+// Start the server
 func (g *GRPCServer) Start() error {
 	ln, err := net.Listen(g.family, g.address)
 	if err != nil {
@@ -63,6 +66,7 @@ func (g *GRPCServer) Start() error {
 	return nil
 }
 
+// Stop the server
 func (g *GRPCServer) Stop() {
 	if g.server != nil {
 		g.server.Stop()

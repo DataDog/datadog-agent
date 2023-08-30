@@ -557,17 +557,16 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			}
 		}
 		return psSerializer
-	} else {
-		return &ProcessSerializer{
-			Pid:         ps.Pid,
-			Tid:         ps.Tid,
-			IsKworker:   ps.IsKworker,
-			IsExecChild: ps.IsExecChild,
-			Source:      model.ProcessSourceToString(ps.Source),
-			Credentials: &ProcessCredentialsSerializer{
-				CredentialsSerializer: &CredentialsSerializer{},
-			},
-		}
+	}
+	return &ProcessSerializer{
+		Pid:         ps.Pid,
+		Tid:         ps.Tid,
+		IsKworker:   ps.IsKworker,
+		IsExecChild: ps.IsExecChild,
+		Source:      model.ProcessSourceToString(ps.Source),
+		Credentials: &ProcessCredentialsSerializer{
+			CredentialsSerializer: &CredentialsSerializer{},
+		},
 	}
 }
 
@@ -817,7 +816,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer: NewBaseEventSerializer(event, resolvers),
+		BaseEventSerializer:   NewBaseEventSerializer(event, resolvers),
+		UserContextSerializer: newUserContextSerializer(event),
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
 

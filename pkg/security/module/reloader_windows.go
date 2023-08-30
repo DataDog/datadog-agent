@@ -17,6 +17,7 @@ func NewReloader() *Reloader {
 	}
 }
 
+// Start start the reloader
 func (r *Reloader) Start() error {
 	return nil
 }

@@ -9,8 +9,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // Discarder represents a discarder which is basically the field that we know for sure
@@ -27,8 +25,6 @@ type ErrDiscarderNotSupported struct {
 func (e ErrDiscarderNotSupported) Error() string {
 	return fmt.Sprintf("discarder not supported for `%s`", e.Field)
 }
-
-type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *Probe, discarder Discarder) (bool, error)
 
 var (
 	// SupportedDiscarders lists all field which supports discarders

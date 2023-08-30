@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+
 package serializers
 
 import (
@@ -223,6 +225,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	return s
 }
 
+// nolint: deadcode, unused
 func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	return &DNSEventSerializer{
 		ID: d.ID,
@@ -236,6 +239,7 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	}
 }
 
+// nolint: deadcode, unused
 func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 	return IPPortSerializer{
 		IP:   c.IPNet.IP.String(),
@@ -243,6 +247,7 @@ func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 	}
 }
 
+// nolint: deadcode, unused
 func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFamilySerializer {
 	return IPPortFamilySerializer{
 		IP:     c.IPNet.IP.String(),
@@ -251,6 +256,7 @@ func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFami
 	}
 }
 
+// nolint: deadcode, unused
 func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
 	return &NetworkContextSerializer{
 		Device:      newNetworkDeviceSerializer(e),
@@ -269,7 +275,7 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 	}
 }
 
-// NewEventSerializer creates a new event serializer based on the event type
+// NewBaseEventSerializer creates a new event serializer based on the event type
 func NewBaseEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *BaseEventSerializer {
 	pc := event.ProcessContext
 
