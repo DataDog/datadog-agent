@@ -224,7 +224,6 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 // ConfigureOptions changes map attributes to the given options.
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
