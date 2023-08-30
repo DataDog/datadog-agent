@@ -56,6 +56,10 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	logConfig := log.CreateConfig(origin)
 	log.SetupLog(logConfig, tags)
 
+	// Disable remote configuration for now as it just spams the debug logs
+	// and provides no value.
+	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
 	_, err := config.Load()
