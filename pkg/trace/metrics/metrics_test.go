@@ -15,15 +15,19 @@ import (
 
 func TestFindAddr(t *testing.T) {
 	t.Run("pipe", func(t *testing.T) {
-		addr, err := findAddr(&config.AgentConfig{StatsdPipeName: "sock.pipe"})
+		addr, err := findAddr(&config.AgentConfig{
+			StatsdEnabled:  true,
+			StatsdPipeName: "sock.pipe",
+		})
 		assert.NoError(t, err)
 		assert.Equal(t, addr, `\\.\pipe\sock.pipe`)
 	})
 
 	t.Run("udp-localhost", func(t *testing.T) {
 		addr, err := findAddr(&config.AgentConfig{
-			StatsdHost: "localhost",
-			StatsdPort: 123,
+			StatsdEnabled: true,
+			StatsdHost:    "localhost",
+			StatsdPort:    123,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, addr, `localhost:123`)
@@ -31,21 +35,28 @@ func TestFindAddr(t *testing.T) {
 
 	t.Run("udp-ipv6", func(t *testing.T) {
 		addr, err := findAddr(&config.AgentConfig{
-			StatsdHost: "::1",
-			StatsdPort: 123,
+			StatsdEnabled: true,
+			StatsdHost:    "::1",
+			StatsdPort:    123,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, addr, `[::1]:123`) // must add the square brackets to properly connect
 	})
 
 	t.Run("socket", func(t *testing.T) {
-		addr, err := findAddr(&config.AgentConfig{StatsdSocket: "pipe.sock"})
+		addr, err := findAddr(&config.AgentConfig{
+			StatsdEnabled: true,
+			StatsdSocket:  "pipe.sock",
+		})
 		assert.NoError(t, err)
 		assert.Equal(t, addr, `unix://pipe.sock`)
 	})
 
-	t.Run("error", func(t *testing.T) {
-		_, err := findAddr(&config.AgentConfig{})
+	t.Run("statsd-no-port", func(t *testing.T) {
+		_, err := findAddr(&config.AgentConfig{
+			StatsdEnabled: true,
+			StatsdPort:    0,
+		})
 		assert.Error(t, err)
 	})
 
