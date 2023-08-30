@@ -5,6 +5,10 @@
 
 //go:build linux_bpf
 
+/*
+Package telemetry implements telemetry functionality for various ebpf entities
+The metrics are exposed as Prometheus metrics and collected through a designated telemetry endpoint
+*/
 package telemetry
 
 import (

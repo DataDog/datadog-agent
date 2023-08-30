@@ -5,6 +5,7 @@
 
 //go:build !linux_bpf
 
+//revive:disable:package-comments
 package telemetry
 
 import "github.com/prometheus/client_golang/prometheus"
