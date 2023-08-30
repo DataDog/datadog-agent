@@ -11,6 +11,7 @@ from . import (
     cluster_agent_cloudfoundry,
     components,
     customaction,
+    diff,
     docker_tasks,
     dogstatsd,
     epforwarder,
@@ -134,6 +135,7 @@ ns.add_collection(security_agent)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(kmt)
+ns.add_collection(diff)
 ns.configure(
     {
         'run': {

@@ -68,10 +68,6 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         increment_telemetry_count(udp_dropped_conns);
         return; // nothing to report
     }
-    if (is_tcp && !cst && !tst && !retrans) {
-        increment_telemetry_count(tcp_dropped_conns);
-        return; // nothing to report
-    }
 
     if (cst) {
         conn.conn_stats = *cst;

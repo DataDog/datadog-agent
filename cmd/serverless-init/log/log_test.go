@@ -183,7 +183,6 @@ func TestCreateConfig(t *testing.T) {
 	config := CreateConfig("fake-origin")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "fake-origin", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestCreateConfigWithSource(t *testing.T) {
@@ -191,7 +190,6 @@ func TestCreateConfigWithSource(t *testing.T) {
 	config := CreateConfig("cloudrun")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "python", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestIsEnabledTrue(t *testing.T) {

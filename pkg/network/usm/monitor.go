@@ -87,7 +87,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, sockFD, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
@@ -214,7 +214,7 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.cfg.EnableHTTPSMonitoring || m.cfg.EnableIstioMonitoring {
+	if m.cfg.EnableHTTPSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring {
 		err = m.processMonitor.Initialize()
 	}
 
