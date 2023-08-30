@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package remoteconfig schedule and unschedule integrations through remote-config
+// using the AGENT_INTEGRATIONS product
 package remoteconfig
 
 import (
