@@ -29,6 +29,7 @@ type Resolver struct {
 
 // ResolverOpts options of resolver
 type ResolverOpts struct {
+	envsWithValue map[string]bool
 }
 
 // NewResolver returns a new process resolver
@@ -102,4 +103,25 @@ func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) []string {
 	pr.ScrubbedArgvResolved = true
 
 	return argv
+}
+
+// GetProcessEnvs returns the envs of the event
+func (p *Resolver) GetProcessEnvs(pr *model.Process) []string {
+	if pr.EnvsEntry == nil {
+		return pr.Envs
+	}
+
+	keys, _ := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
+	pr.Envs = keys
+	return pr.Envs
+}
+
+// GetProcessEnvp returns the envs of the event with their values
+func (p *Resolver) GetProcessEnvp(pr *model.Process) []string {
+	if pr.EnvsEntry == nil {
+		return pr.Envp
+	}
+
+	pr.Envp = pr.EnvsEntry.Values
+	return pr.Envp
 }

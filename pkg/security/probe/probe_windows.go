@@ -94,9 +94,6 @@ func (p *Probe) Start() error {
 				// use ProcessCacheEntry process context as process context
 				ev.ProcessCacheEntry = e
 				ev.ProcessContext = &e.ProcessContext
-				if ev.ProcessContext == nil {
-					panic("should always return a process context")
-				}
 
 				p.DispatchEvent(ev)
 			}
@@ -194,7 +191,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 func (p *Probe) PlaySnapshot() {
 }
 
-// OnNewDiscarder is called when a new discarder is found
+// OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 }
 

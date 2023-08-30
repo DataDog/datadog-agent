@@ -145,18 +145,22 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 	return evaluationSet, nil
 }
 
+// IsNetworkEnabled returns whether network is enabled
 func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
+// IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
 }
 
+// IsActivityDumpTagRulesEnabled returns whether rule tags is enabled for activity dumps
 func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
 }
 
+// IsSecurityProfileEnabled returns whether security profile is enabled
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }

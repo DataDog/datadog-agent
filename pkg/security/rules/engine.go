@@ -51,7 +51,6 @@ type RuleEngine struct {
 	policyLoader              *rules.PolicyLoader
 	policyOpts                rules.PolicyLoaderOpts
 	policyMonitor             *PolicyMonitor
-	reloadChan                chan struct{}
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
@@ -85,6 +84,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	return engine, nil
 }
 
+// Start the rule engine
 func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
 	// monitor policies
 	if e.config.PolicyMonitorEnabled {

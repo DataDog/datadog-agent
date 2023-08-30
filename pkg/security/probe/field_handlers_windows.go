@@ -38,3 +38,13 @@ func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) st
 func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
 	return f.BasenameStr
 }
+
+// ResolveProcessEnvp resolves the envp of the event as an array
+func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string {
+	return fh.resolvers.ProcessResolver.GetProcessEnvp(process)
+}
+
+// ResolveProcessEnvs resolves the envs of the event
+func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
+	return fh.resolvers.ProcessResolver.GetProcessEnvs(process)
+}
