@@ -527,7 +527,7 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
 
 static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
     conn_tuple_t tup = {};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = get_sysprobe_ns_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP);
 
     __u16 lport = 0;
