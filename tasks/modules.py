@@ -144,7 +144,7 @@ DEFAULT_MODULES = {
         "test/new-e2e",
         independent=True,
         should_tag=False,
-        targets=["./runner", "./utils/e2e/client"],
+        targets=["./pkg/runner", "./pkg/utils/e2e/client"],
         lint_targets=["."],
     ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True),

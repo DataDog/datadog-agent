@@ -304,19 +304,10 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_open_callback")
-int kprobe_dr_open_callback(struct pt_regs *ctx) {
-    return dr_open_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_open_callback")
-int fentry_dr_open_callback(ctx_t *ctx) {
+int tail_call_target_dr_open_callback(ctx_t *ctx) {
     return dr_open_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_open_callback")
 int tracepoint_dr_open_callback(struct tracepoint_syscalls_sys_exit_t *args) {

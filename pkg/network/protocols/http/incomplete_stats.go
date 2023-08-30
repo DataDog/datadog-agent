@@ -15,7 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-const defaultMinAge = 30 * time.Second
+const (
+	defaultMinAge    = 30 * time.Second
+	defaultArraySize = 5
+)
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
@@ -53,10 +56,10 @@ type txParts struct {
 	responses []Transaction
 }
 
-func newTXParts() *txParts {
+func newTXParts(requestCapacity, responseCapacity int) *txParts {
 	return &txParts{
-		requests:  make([]Transaction, 0, 5),
-		responses: make([]Transaction, 0, 5),
+		requests:  make([]Transaction, 0, requestCapacity),
+		responses: make([]Transaction, 0, responseCapacity),
 	}
 }
 
@@ -84,7 +87,7 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 			return
 		}
 
-		parts = newTXParts()
+		parts = newTXParts(defaultArraySize, defaultArraySize)
 		b.data[key] = parts
 	}
 
@@ -146,10 +149,18 @@ func (b *incompleteBuffer) Flush(nowNano int64) []Transaction {
 		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
 			if b.shouldKeep(parts.requests[i], nowNano) {
-				keep := parts.requests[i:]
-				parts := newTXParts()
-				parts.requests = append(parts.requests, keep...)
-				b.data[key] = parts
+				// if `i` is 0, then we are keeping all requests and zeroing the responses.
+				// We're dropping the responses as either they are too old, or already matched to a request by the loop
+				// above.
+				if i == 0 {
+					b.data[key] = parts
+					b.data[key].responses = parts.responses[:0]
+				} else {
+					keep := parts.requests[i:]
+					parts := newTXParts(len(keep), defaultArraySize)
+					parts.requests = append(parts.requests, keep...)
+					b.data[key] = parts
+				}
 				break
 			}
 			b.telemetry.joiner.agedRequest.Add(1)

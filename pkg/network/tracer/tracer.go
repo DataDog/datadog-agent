@@ -335,8 +335,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Envs["DD_VERSION"])
 	addTag("service", p.Envs["DD_SERVICE"])
 
-	if p.ContainerID != "" {
-		c.ContainerID = &p.ContainerID
+	containerID := p.ContainerID.Get().(string)
+	if containerID != "" {
+		c.ContainerID = &containerID
 	}
 }
 
@@ -572,7 +573,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	t.state.RemoveConnections(toRemove)
 
 	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
+		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Since(now))
 	}
 }
 

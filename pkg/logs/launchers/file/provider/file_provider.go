@@ -116,13 +116,13 @@ func newWildcardFileCounter() wildcardFileCounter {
 }
 
 func (w *wildcardFileCounter) incrementTracked(src *sources.LogSource) {
-	matchCnt, _ := w.counts[src]
+	matchCnt := w.counts[src]
 	matchCnt.tracked++
 	w.counts[src] = matchCnt
 }
 
 func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
-	matchCnt, _ := w.counts[src]
+	matchCnt := w.counts[src]
 	matchCnt.total = total
 	w.counts[src] = matchCnt
 }

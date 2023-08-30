@@ -97,7 +97,7 @@ func (t *process) Close() {
 }
 
 func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
-	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Now().Sub(start)}
+	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Since(start)}
 	msg := "Got request on /%s/stats (count: %d): retrieved %d stats in %s"
 	switch {
 	case count <= 5, count%20 == 0:
