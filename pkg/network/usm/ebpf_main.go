@@ -288,7 +288,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
 		connectionStatesMap: {
-			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -300,7 +299,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	} else {
 		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		}
@@ -348,7 +346,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, m := range p.Maps {
 			// Unused maps still needs to have a non-zero size
 			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
-				Type:       ebpf.Hash,
 				MaxEntries: uint32(1),
 				EditorFlag: manager.EditMaxEntries,
 			}
