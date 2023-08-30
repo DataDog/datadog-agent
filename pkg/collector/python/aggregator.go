@@ -115,7 +115,6 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 	}
 
 	sender.Event(_event)
-	return
 }
 
 // SubmitHistogramBucket is the method exposed to Python scripts to submit metrics

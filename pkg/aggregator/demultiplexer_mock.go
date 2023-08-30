@@ -70,12 +70,8 @@ func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed
 	a.Lock()
 	ontime = make([]metrics.MetricSample, len(a.aggregatedSamples))
 	timed = make([]metrics.MetricSample, len(a.noAggSamples))
-	for i, s := range a.aggregatedSamples {
-		ontime[i] = s
-	}
-	for i, s := range a.noAggSamples {
-		timed[i] = s
-	}
+	copy(ontime, a.aggregatedSamples)
+	copy(timed, a.noAggSamples)
 	a.Unlock()
 	return ontime, timed
 }
