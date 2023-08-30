@@ -9,9 +9,10 @@ package tests
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"testing"
 )
 
 func TestSnapshotReplay(t *testing.T) {
