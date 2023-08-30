@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"

@@ -13,7 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/afpacket"

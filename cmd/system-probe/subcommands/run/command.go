@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -278,7 +278,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
-			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
+			telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

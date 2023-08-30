@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
@@ -25,10 +27,10 @@ import (
 // asset and BTF options pre-filled. You should attempt to load the CO-RE program in the startFn func for telemetry to
 // be correctly recorded.
 func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
-	var telemetry COREResult
+	var telemetry ebpftelemetry.COREResult
 	base := strings.TrimSuffix(filename, path.Ext(filename))
 	defer func() {
-		StoreCORETelemetryForAsset(base, telemetry)
+		ebpftelemetry.StoreCORETelemetryForAsset(base, telemetry)
 	}()
 
 	var btfData *btf.Spec
@@ -40,7 +42,7 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 
 	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), filename)
 	if err != nil {
-		telemetry = AssetReadError
+		telemetry = ebpftelemetry.AssetReadError
 		return fmt.Errorf("error reading %s: %s", filename, err)
 	}
 	defer buf.Close()
@@ -57,9 +59,9 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 	if err != nil {
 		var ve *bpflib.VerifierError
 		if errors.As(err, &ve) {
-			telemetry = VerifierError
+			telemetry = ebpftelemetry.VerifierError
 		} else {
-			telemetry = LoaderError
+			telemetry = ebpftelemetry.LoaderError
 		}
 	}
 	return err

@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+
 	"github.com/DataDog/gopsutil/host"
 	"github.com/cilium/ebpf/btf"
 	"github.com/mholt/archiver/v3"
@@ -21,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
+func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, telemetry.COREResult) {
 	var btfSpec *btf.Spec
 	var err error
 
@@ -29,25 +31,25 @@ func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
 		btfSpec, err = loadBTFFrom(userProvidedBtfPath)
 		if err == nil {
 			log.Debugf("loaded BTF from %s", userProvidedBtfPath)
-			return btfSpec, successCustomBTF
+			return btfSpec, telemetry.SuccessCustomBTF
 		}
 	}
 
 	btfSpec, err = checkEmbeddedCollection(filepath.Join(bpfDir, "co-re/btf/"))
 	if err == nil {
 		log.Debugf("loaded BTF from embedded collection")
-		return btfSpec, successEmbeddedBTF
+		return btfSpec, telemetry.SuccessEmbeddedBTF
 	}
 	log.Debugf("couldn't find BTF in embedded collection: %s", err)
 
 	btfSpec, err = btf.LoadKernelSpec()
 	if err == nil {
 		log.Debugf("loaded BTF from default kernel location")
-		return btfSpec, successDefaultBTF
+		return btfSpec, telemetry.SuccessDefaultBTF
 	}
 	log.Debugf("couldn't find BTF in default kernel locations: %s", err)
 
-	return nil, btfNotFound
+	return nil, telemetry.BtfNotFound
 }
 
 func getBTFDirAndFilename() (dir, file string, err error) {

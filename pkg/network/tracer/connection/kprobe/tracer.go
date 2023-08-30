@@ -18,11 +18,11 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -188,7 +188,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+	telemetryMapKeys := ebpftelemetry.BuildTelemetryKeys(m)
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, telemetryMapKeys...)
 
 	var undefinedProbes []manager.ProbeIdentificationPair
@@ -242,7 +242,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	if err := errtelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {
+	if err := ebpftelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {
 		return nil, nil, fmt.Errorf("could not activate ebpf telemetry: %w", err)
 	}
 

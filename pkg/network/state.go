@@ -14,11 +14,11 @@ import (
 
 	"github.com/cihub/seelog"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,28 +30,28 @@ var (
 
 // Telemetry
 var stateTelemetry = struct {
-	closedConnDropped     *nettelemetry.StatCounterWrapper
-	connDropped           *nettelemetry.StatCounterWrapper
-	statsUnderflows       *nettelemetry.StatCounterWrapper
-	statsCookieCollisions *nettelemetry.StatCounterWrapper
-	timeSyncCollisions    *nettelemetry.StatCounterWrapper
-	dnsStatsDropped       *nettelemetry.StatCounterWrapper
-	httpStatsDropped      *nettelemetry.StatCounterWrapper
-	http2StatsDropped     *nettelemetry.StatCounterWrapper
-	kafkaStatsDropped     *nettelemetry.StatCounterWrapper
-	dnsPidCollisions      *nettelemetry.StatCounterWrapper
+	closedConnDropped     *ebpftelemetry.StatCounterWrapper
+	connDropped           *ebpftelemetry.StatCounterWrapper
+	statsUnderflows       *ebpftelemetry.StatCounterWrapper
+	statsCookieCollisions *ebpftelemetry.StatCounterWrapper
+	timeSyncCollisions    *ebpftelemetry.StatCounterWrapper
+	dnsStatsDropped       *ebpftelemetry.StatCounterWrapper
+	httpStatsDropped      *ebpftelemetry.StatCounterWrapper
+	http2StatsDropped     *ebpftelemetry.StatCounterWrapper
+	kafkaStatsDropped     *ebpftelemetry.StatCounterWrapper
+	dnsPidCollisions      *ebpftelemetry.StatCounterWrapper
 	udpDirectionFixes     telemetry.Counter
 }{
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
-	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "stats_underflows", []string{}, "Counter measuring the number of stats underflows"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "stats_cookie_collisions", []string{}, "Counter measuring the number of stats cookie collisions"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "time_sync_collisions", []string{}, "Counter measuring the number of time sync collisions"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "dns_stats_dropped", []string{}, "Counter measuring the number of DNS stats dropped"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
+	ebpftelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
 	telemetry.NewCounter(stateModuleName, "udp_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes"),
 }
 

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,11 +33,11 @@ const (
 )
 
 var statsTelemetry = struct {
-	processedStats *nettelemetry.StatCounterWrapper
-	droppedStats   *nettelemetry.StatCounterWrapper
+	processedStats *ebpftelemetry.StatCounterWrapper
+	droppedStats   *ebpftelemetry.StatCounterWrapper
 }{
-	nettelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
-	nettelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
+	ebpftelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
+	ebpftelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
 }
 
 type dnsPacketInfo struct {

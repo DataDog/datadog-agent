@@ -19,11 +19,11 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +44,7 @@ const (
 )
 
 type ebpfProgram struct {
-	*errtelemetry.Manager
+	*telemetry.Manager
 	cfg                   *config.Config
 	subprograms           []subprogram
 	probesResolvers       []probeResolver
@@ -99,13 +99,13 @@ const (
 type subprogram interface {
 	Name() string
 	IsBuildModeSupported(buildMode) bool
-	ConfigureManager(*errtelemetry.Manager)
+	ConfigureManager(*telemetry.Manager)
 	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
 }
 
-func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *telemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: sslSockByCtxMap},
@@ -150,7 +150,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 	}
 
 	program := &ebpfProgram{
-		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:               telemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
 		subprograms:           subprograms,
 		probesResolvers:       subprogramProbesResolvers,
@@ -173,7 +173,7 @@ func (e *ebpfProgram) Init() error {
 
 	e.DumpHandler = e.dumpMapsHandler
 	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
+		return telemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
 	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)

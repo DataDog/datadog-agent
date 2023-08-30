@@ -24,8 +24,8 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -165,7 +165,7 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 
 	Configure("test", m, &options)
 	m.InstructionPatcher = func(m *manager.Manager) error {
-		return bpftelemetry.PatchEBPFTelemetry(m, true, nil)
+		return ebpftelemetry.PatchEBPFTelemetry(m, true, nil)
 	}
 	err = m.InitWithOptions(bc, options)
 	if err != nil {

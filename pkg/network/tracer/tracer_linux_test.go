@@ -40,12 +40,12 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	rc "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -1639,7 +1639,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
 
-	stats := ddebpf.GetProbeStats()
+	stats := telemetry.GetProbeStats()
 	require.NotNil(t, stats)
 
 	p_tcp_sendmsg, ok := stats["p_tcp_sendmsg_hits"]

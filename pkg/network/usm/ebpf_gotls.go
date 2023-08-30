@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -34,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

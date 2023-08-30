@@ -17,10 +17,10 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
@@ -65,11 +65,11 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			}
 		}
 
-		if err := errtelemetry.ActivateBPFTelemetry(m, nil); err != nil {
+		if err := ebpftelemetry.ActivateBPFTelemetry(m, nil); err != nil {
 			return fmt.Errorf("could not activate ebpf telemetry: %w", err)
 		}
 
-		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+		telemetryMapKeys := ebpftelemetry.BuildTelemetryKeys(m)
 		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
 
 		file, err := os.Stat("/proc/self/ns/pid")

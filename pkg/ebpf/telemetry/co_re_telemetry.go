@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package ebpf
+package telemetry
 
 import (
 	"sync"
@@ -15,10 +15,10 @@ import (
 type COREResult int
 
 const (
-	successCustomBTF COREResult = iota
-	successEmbeddedBTF
-	successDefaultBTF
-	btfNotFound
+	SuccessCustomBTF COREResult = iota
+	SuccessEmbeddedBTF
+	SuccessDefaultBTF
+	BtfNotFound
 	AssetReadError
 	VerifierError
 	LoaderError

@@ -8,7 +8,7 @@
 package telemetry
 
 /*
-#include "../../ebpf/c/telemetry_types.h"
+#include "telemetry_types.h"
 */
 import "C"
 
