@@ -52,7 +52,7 @@ func GetCertificateAuthority(certPath string) (*x509.CertPool, error) {
 	}
 	caCertPool := x509.NewCertPool()
 	ok := caCertPool.AppendCertsFromPEM(caCert)
-	if ok == false {
+	if !ok {
 		return caCertPool, fmt.Errorf("fail to load certificate authority: %s", certPath)
 	}
 	return caCertPool, nil

@@ -1,7 +1,7 @@
 github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5TltWcLMU=
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
-github.com/DataDog/go-tuf v1.0.1-0.5.2 h1:gld/e3MXfFVB/O8hc3mloP1ayFk75Mmdkmll/9lyd9I=
-github.com/DataDog/go-tuf v1.0.1-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
+github.com/DataDog/go-tuf v1.0.2-0.5.2 h1:EeZr937eKAWPxJ26IykAdWA4A0jQXJgkhUjqEI/w7+I=
+github.com/DataDog/go-tuf v1.0.2-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.7.0 h1:8STZKmgRY3OvrUkaNglRiLgEvAMcTt2l+naAlW+p36k=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.7.0/go.mod h1:mpbmVkOkmJq5KmHxi+zlvYXQD0o/x1MMS16CNWO8p9U=
 github.com/DataDog/sketches-go v1.4.2 h1:gppNudE9d19cQ98RYABOetxIhpTCl4m7CnbRZjvVA/o=

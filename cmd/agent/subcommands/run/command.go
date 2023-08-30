@@ -74,6 +74,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -222,47 +223,83 @@ func run(log log.Component,
 		return err
 	}
 
-	select {
-	case err := <-stopCh:
-		return err
-	}
+	return <-stopCh
 }
 
 // StartAgentWithDefaults is a temporary way for other packages to use startAgent.
-func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
-	var dsdServer dogstatsdServer.Component
+// Starts the agent in the background and then returns.
+//
+// @ctxChan
+//   - After starting the agent the background goroutine waits for a context from
+//     this channel, then stops the agent when the context is cancelled.
+//
+// Returns an error channel that can be used to wait for the agent to stop and get the result.
+func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
+	errChan := make(chan error)
+
 	// run startAgent in an app, so that the log and config components get initialized
-	err := fxutil.OneShot(func(log log.Component,
-		config config.Component,
-		flare flare.Component,
-		telemetry telemetry.Component,
-		sysprobeconfig sysprobeconfig.Component,
-		server dogstatsdServer.Component,
-		serverDebug dogstatsdDebug.Component,
-		capture replay.Component,
-		rcclient rcclient.Component,
-		forwarder defaultforwarder.Component,
-		logsAgent util.Optional[logsAgent.Component],
-		metadataRunner runner.Component,
-		sharedSerializer serializer.MetricSerializer,
-	) error {
-		dsdServer = server
+	go func() {
+		err := fxutil.OneShot(func(
+			log log.Component,
+			config config.Component,
+			flare flare.Component,
+			telemetry telemetry.Component,
+			sysprobeconfig sysprobeconfig.Component,
+			server dogstatsdServer.Component,
+			serverDebug dogstatsdDebug.Component,
+			capture replay.Component,
+			rcclient rcclient.Component,
+			forwarder defaultforwarder.Component,
+			logsAgent util.Optional[logsAgent.Component],
+			metadataRunner runner.Component,
+			sharedSerializer serializer.MetricSerializer,
+		) error {
 
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer)
-	},
-		// no config file path specification in this situation
-		fx.Supply(core.BundleParams{
-			ConfigParams:         config.NewAgentParamsWithSecrets(""),
-			SysprobeConfigParams: sysprobeconfig.NewParams(),
-			LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
-		}),
-		getSharedFxOption(),
-	)
+			defer StopAgentWithDefaults(server)
 
+			err := startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer)
+			if err != nil {
+				return err
+			}
+
+			// notify outer that startAgent finished
+			errChan <- err
+			// wait for context
+			ctx := <-ctxChan
+
+			// Wait for stop signal
+			select {
+			case <-signals.Stopper:
+				log.Info("Received stop command, shutting down...")
+			case <-signals.ErrorStopper:
+				_ = log.Critical("The Agent has encountered an error, shutting down...")
+			case <-ctx.Done():
+				log.Info("Received stop from service manager, shutting down...")
+			}
+
+			return nil
+		},
+			// no config file path specification in this situation
+			fx.Supply(core.BundleParams{
+				ConfigParams:         config.NewAgentParamsWithSecrets(""),
+				SysprobeConfigParams: sysprobeconfig.NewParams(),
+				LogParams:            log.LogForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+			}),
+			getSharedFxOption(),
+		)
+		// notify caller that fx.OneShot is done
+		errChan <- err
+	}()
+
+	// Wait for startAgent to complete, or for an error
+	err := <-errChan
 	if err != nil {
+		// startAgent or fx.OneShot failed, caller does not need errChan
 		return nil, err
 	}
-	return dsdServer, nil
+
+	// startAgent succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
+	return errChan, nil
 }
 
 func getSharedFxOption() fx.Option {
@@ -299,7 +336,7 @@ func getSharedFxOption() fx.Option {
 					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 					// create and setup the Autoconfig instance
-					common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(common.MainCtx, aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -520,10 +557,10 @@ func startAgent(
 	go cloudproviders.DetectCloudProvider(context.Background())
 
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
-	util.LogVersionHistory()
+	installinfo.LogVersionHistory()
 
 	// Set up check collector
-	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll), true)
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
 	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)

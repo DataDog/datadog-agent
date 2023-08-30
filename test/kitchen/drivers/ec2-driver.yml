@@ -78,6 +78,7 @@ platforms:
       al2022 = platform_name.include?("amazonlinux2022")
       al2023 = platform_name.include?("amazonlinux2023")
       fedora = platform_name.include?("fedora")
+      rocky = platform_name.include?("rocky")
 
       if windows
         windows_platforms << platform_name
@@ -188,6 +189,9 @@ platforms:
     # The AWS EC2 driver doesn't recognize Amazon Linux 2022 yet,
     # therefore it doesn't know that it needs to use ec2-user.
     username: ec2-user
+    <% end %>
+    <% if rocky %>
+    username: rocky
     <% end %>
     <% if ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>
     ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY_PATH'] %>

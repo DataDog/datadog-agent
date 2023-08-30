@@ -84,8 +84,12 @@ func TestEndInvocation(t *testing.T) {
 	}
 	assert.False(m.isError)
 	assert.True(m.OnInvokeEndCalled)
-	assert.Equal(m.lastEndDetails.Coldstart, d.ExecutionContext.GetCurrentState().Coldstart)
-	assert.Equal(m.lastEndDetails.ProactiveInit, d.ExecutionContext.GetCurrentState().ProactiveInit)
+
+	lastRequestID := d.ExecutionContext.GetCurrentState().LastRequestID
+	coldStartTags := d.ExecutionContext.GetColdStartTagsForRequestID(lastRequestID)
+
+	assert.Equal(m.lastEndDetails.ColdStart, coldStartTags.IsColdStart)
+	assert.Equal(m.lastEndDetails.ProactiveInit, coldStartTags.IsProactiveInit)
 	assert.Equal(m.lastEndDetails.Runtime, d.ExecutionContext.GetCurrentState().Runtime)
 }
 

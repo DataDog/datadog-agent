@@ -134,8 +134,8 @@ func KubernetesASFactory() check.Check {
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+func (k *KubeASCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

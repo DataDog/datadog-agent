@@ -19,7 +19,7 @@ import (
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // OpenFilesLimitWarningType is the key of the message generated when too many
@@ -116,13 +116,13 @@ func newWildcardFileCounter() wildcardFileCounter {
 }
 
 func (w *wildcardFileCounter) incrementTracked(src *sources.LogSource) {
-	matchCnt, _ := w.counts[src]
+	matchCnt := w.counts[src]
 	matchCnt.tracked++
 	w.counts[src] = matchCnt
 }
 
 func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
-	matchCnt, _ := w.counts[src]
+	matchCnt := w.counts[src]
 	matchCnt.total = total
 	w.counts[src] = matchCnt
 }

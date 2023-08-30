@@ -8,14 +8,20 @@
 package main
 
 import (
+	"context"
+	"os"
+
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 )
 
 const useWinParams = false
 
 func rootCmdRun(globalParams *command.GlobalParams) {
-	exit := make(chan struct{})
-
 	// Invoke the Agent
-	runAgent(globalParams, exit)
+	err := runAgent(context.Background(), globalParams)
+	if err != nil {
+		// For compatibility with the previous cleanupAndExitHandler implementation, os.Exit() on error.
+		// This prevents runcmd.Run() from displaying the error.
+		os.Exit(1)
+	}
 }

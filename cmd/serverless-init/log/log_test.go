@@ -7,12 +7,11 @@ package log
 
 import (
 	"bytes"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -85,12 +84,8 @@ func TestCustomWriterPreventBufferOverflow(t *testing.T) {
 	}
 
 	go func() {
-		var originalStdout = os.Stdout
-		null, _ := os.Open(os.DevNull)
-		os.Stdout = null
 		cw.writeWithMaxBufferSize(testContentChunk1, testMaxBufferSize)
 		cw.writeWithMaxBufferSize(testContentChunk2, testMaxBufferSize)
-		os.Stdout = originalStdout
 	}()
 
 	var messages [][]byte
@@ -188,7 +183,6 @@ func TestCreateConfig(t *testing.T) {
 	config := CreateConfig("fake-origin")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "fake-origin", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestCreateConfigWithSource(t *testing.T) {
@@ -196,7 +190,6 @@ func TestCreateConfigWithSource(t *testing.T) {
 	config := CreateConfig("cloudrun")
 	assert.Equal(t, 5*time.Second, config.FlushTimeout)
 	assert.Equal(t, "python", config.source)
-	assert.Equal(t, "DD_LOG_AGENT", string(config.loggerName))
 }
 
 func TestIsEnabledTrue(t *testing.T) {

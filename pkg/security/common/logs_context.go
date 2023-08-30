@@ -8,11 +8,10 @@ package common
 import (
 	"fmt"
 
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,7 +22,7 @@ const (
 // NewLogContextCompliance returns the context fields to send compliance events to the intake
 func NewLogContextCompliance() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := logsconfig.NewLogsConfigKeys("compliance_config.endpoints.", pkgconfig.Datadog)
-	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
+	return NewLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", logsconfig.DefaultIntakeOrigin, logsconfig.AgentJSONIntakeProtocol)
 }
 
 // NewLogContextRuntime returns the context fields to send runtime (CWS) events to the intake
@@ -35,12 +34,12 @@ func NewLogContextRuntime() (*logsconfig.Endpoints, *client.DestinationsContext,
 
 // NewLogContext returns the context fields to send events to the intake
 func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeOrigin logsconfig.IntakeOrigin, intakeProtocol logsconfig.IntakeProtocol) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)
+		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfig.Datadog, intakeTrackType, intakeProtocol, intakeOrigin)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = logsconfig.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+			endpoints, err = logsconfig.BuildEndpoints(pkgconfig.Datadog, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 		}
 	}
 

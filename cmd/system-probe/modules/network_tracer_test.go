@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"bytes"
 	"net/http/httptest"
 	"testing"
 
@@ -59,16 +60,14 @@ func TestDecode(t *testing.T) {
 	}
 
 	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
-	connectionsModeler := encoding.InitConnectionsModeler(in)
-	payload := connectionsModeler.ModelConnections(in)
-	defer encoding.Cleanup(payload)
-	expected, err := marshaller.Marshal(payload)
+	ostream := bytes.NewBuffer(nil)
+	err := marshaller.Marshal(in, ostream)
 	require.NoError(t, err)
 
 	writeConnections(rec, marshaller, in)
 
 	rec.Flush()
 	out := rec.Body.Bytes()
-	assert.Equal(t, expected, out)
+	assert.Equal(t, ostream.Bytes(), out)
 
 }

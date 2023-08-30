@@ -47,7 +47,7 @@ func TestClient(t *testing.T) {
 				},
 			}
 			// create fake response
-			resp, err := json.Marshal(api.APIFakeIntakePayloadsGETResponse{
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
 				Payloads: payloads,
 			})
 			require.NoError(t, err)

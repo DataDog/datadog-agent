@@ -50,5 +50,4 @@ int tracepoint__syscalls__sys_enter_write(struct syscalls_enter_write_args *ctx)
     return 0;
 }
 
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

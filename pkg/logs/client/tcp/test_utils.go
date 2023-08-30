@@ -8,8 +8,8 @@ package tcp
 import (
 	"net"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 // AddrToHostPort converts a net.Addr to a (string, int).

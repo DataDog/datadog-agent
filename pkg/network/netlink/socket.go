@@ -21,7 +21,7 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var _ netlink.Socket = &Socket{}
@@ -57,7 +57,7 @@ type Socket struct {
 func NewSocket(netNS netns.NsHandle) (*Socket, error) {
 	var fd int
 	var err error
-	err = util.WithNS(netNS, func() error {
+	err = kernel.WithNS(netNS, func() error {
 		fd, err = unix.Socket(
 			unix.AF_NETLINK,
 			unix.SOCK_RAW|unix.SOCK_CLOEXEC,

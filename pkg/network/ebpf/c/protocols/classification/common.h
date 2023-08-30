@@ -26,8 +26,8 @@ static __always_inline bool is_tcp(conn_tuple_t *tup) {
 }
 
 // Returns true if the payload is empty.
-static __always_inline bool is_payload_empty(struct __sk_buff *skb, skb_info_t *skb_info) {
-    return skb_info->data_off == skb->len;
+static __always_inline bool is_payload_empty(skb_info_t *skb_info) {
+    return skb_info->data_off == skb_info->data_end;
 }
 
 READ_INTO_BUFFER(for_classification, CLASSIFICATION_MAX_BUFFER, BLK_SIZE)

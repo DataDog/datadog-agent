@@ -227,9 +227,7 @@ func expvarPythonInitErrors() interface{} {
 	defer pyInitLock.RUnlock()
 
 	pyInitErrorsCopy := []string{}
-	for i := range pyInitErrors {
-		pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors[i])
-	}
+	pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors...)
 
 	return pyInitErrorsCopy
 }

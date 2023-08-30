@@ -125,7 +125,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	return pc, nil
 }
 
-func (pc *processCache) handleProcessEvent(entry *smodel.ProcessContext) {
+func (pc *processCache) HandleProcessEvent(entry *smodel.ProcessContext) {
 
 	select {
 	case <-pc.stopped:

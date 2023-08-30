@@ -9,6 +9,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -281,7 +282,12 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 
 	for file := range dp.newFiles {
 		if err := dp.loadProfile(file); err != nil {
-			seclog.Errorf("couldn't load new profile %s: %v", file, err)
+			if errors.Is(err, cgroupModel.ErrNoImageProvided) {
+				seclog.Debugf("couldn't load new profile %s: %v", file, err)
+			} else {
+				seclog.Errorf("couldn't load new profile %s: %v", file, err)
+			}
+
 			continue
 		}
 	}

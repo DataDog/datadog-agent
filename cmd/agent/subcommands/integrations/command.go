@@ -59,10 +59,10 @@ except PackageNotFoundError:
 
 var (
 	datadogPkgNameRe      = regexp.MustCompile("datadog-.*")
-	yamlFileNameRe        = regexp.MustCompile("[\\w_]+\\.yaml.*")
-	wheelPackageNameRe    = regexp.MustCompile("Name: (\\S+)")                                                                                   // e.g. Name: datadog-postgres
-	versionSpecifiersRe   = regexp.MustCompile("([><=!]{1,2})([0-9.]*)")                                                                         // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
-	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
+	yamlFileNameRe        = regexp.MustCompile(`[\w_]+\.yaml.*`)
+	wheelPackageNameRe    = regexp.MustCompile(`Name: (\S+)`)                                                                              // e.g. Name: datadog-postgres
+	versionSpecifiersRe   = regexp.MustCompile("([><=!]{1,2})([0-9.]*)")                                                                   // Matches version specifiers defined in https://packaging.python.org/specifications/core-metadata/#requires-dist-multiple-use
+	pep440VersionStringRe = regexp.MustCompile(`^(?P<release>\d+\.\d+\.\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\d+)?)?$`) // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
 
 	rootDir             string
 	reqAgentReleasePath string

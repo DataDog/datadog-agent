@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -29,6 +30,7 @@ type schedulerInterface interface {
 // CollectorInterface is an interface for the MapOverChecks method of the collector
 type CollectorInterface interface {
 	MapOverChecks(func([]check.Info))
+	GetChecks() []check.Check
 }
 
 type checkMetadataCacheEntry struct {
@@ -60,14 +62,15 @@ var (
 	timeSince = time.Since
 )
 
-// AgentMetadataName is an enum type containing all defined keys for
-// SetAgentMetadata.
-type AgentMetadataName string
-
 // Constants for the metadata names; these are defined in
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
+	// internal
+	agentInstallMethodTool             AgentMetadataName = "install_method_tool"
+	agentInstallMethodToolVersion      AgentMetadataName = "install_method_tool_version"
+	agentInstallMethodInstallerVersion AgentMetadataName = "install_method_installer_version"
+
 	AgentHostnameSource                  AgentMetadataName = "hostname_source"
 	AgentVersion                         AgentMetadataName = "agent_version"
 	AgentFlavor                          AgentMetadataName = "flavor"
@@ -80,9 +83,6 @@ const (
 	AgentConfigProcessDDURL              AgentMetadataName = "config_process_dd_url"
 	AgentConfigProxyHTTP                 AgentMetadataName = "config_proxy_http"
 	AgentConfigProxyHTTPS                AgentMetadataName = "config_proxy_https"
-	AgentInstallMethodInstallerVersion   AgentMetadataName = "install_method_installer_version"
-	AgentInstallMethodTool               AgentMetadataName = "install_method_tool"
-	AgentInstallMethodToolVersion        AgentMetadataName = "install_method_tool_version"
 	AgentLogsTransport                   AgentMetadataName = "logs_transport"
 	AgentFIPSEnabled                     AgentMetadataName = "feature_fips_enabled"
 	AgentCWSEnabled                      AgentMetadataName = "feature_cws_enabled"
@@ -92,6 +92,7 @@ const (
 	AgentOTLPEnabled                     AgentMetadataName = "feature_otlp_enabled"
 	AgentProcessEnabled                  AgentMetadataName = "feature_process_enabled"
 	AgentProcessesContainerEnabled       AgentMetadataName = "feature_processes_container_enabled"
+	AgentProcessLanguageDetectionEnabled AgentMetadataName = "feature_process_language_detection_enabled"
 	AgentNetworksEnabled                 AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled             AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled            AgentMetadataName = "feature_networks_https_enabled"
@@ -99,6 +100,7 @@ const (
 	AgentUSMEnabled                      AgentMetadataName = "feature_usm_enabled"
 	AgentUSMKafkaEnabled                 AgentMetadataName = "feature_usm_kafka_enabled"
 	AgentUSMJavaTLSEnabled               AgentMetadataName = "feature_usm_java_tls_enabled"
+	AgentUSMIstioEnabled                 AgentMetadataName = "feature_usm_istio_enabled"
 	AgentUSMHTTP2Enabled                 AgentMetadataName = "feature_usm_http2_enabled"
 	AgentUSMHTTPStatsByStatusCodeEnabled AgentMetadataName = "feature_usm_http_by_status_code_enabled"
 	AgentUSMGoTLSEnabled                 AgentMetadataName = "feature_usm_go_tls_enabled"
@@ -158,8 +160,8 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
-	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
-		agentMetadata[string(name)] = value
+	if !reflect.DeepEqual(agentMetadata[name], value) {
+		agentMetadata[name] = value
 
 		Refresh()
 	}
@@ -175,8 +177,8 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
-	if !reflect.DeepEqual(hostMetadata[string(name)], value) {
-		hostMetadata[string(name)] = value
+	if !reflect.DeepEqual(hostMetadata[name], value) {
+		hostMetadata[name] = value
 
 		Refresh()
 	}
@@ -312,12 +314,24 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		payloadAgentMeta[k] = v
 	}
 
+	// Adding install info
+	install, err := installinfo.Get(config.Datadog)
+	if err != nil {
+		payloadAgentMeta[agentInstallMethodTool] = "undefined"
+		payloadAgentMeta[agentInstallMethodToolVersion] = ""
+		payloadAgentMeta[agentInstallMethodInstallerVersion] = ""
+	} else {
+		payloadAgentMeta[agentInstallMethodTool] = install.Tool
+		payloadAgentMeta[agentInstallMethodToolVersion] = install.ToolVersion
+		payloadAgentMeta[agentInstallMethodInstallerVersion] = install.InstallerVersion
+	}
+
 	if withConfigs {
 		if fullConf, err := getFullAgentConfiguration(); err == nil {
-			payloadAgentMeta[string(agentFullConf)] = fullConf
+			payloadAgentMeta[agentFullConf] = fullConf
 		}
 		if providedConf, err := getProvidedAgentConfiguration(); err == nil {
-			payloadAgentMeta[string(agentProvidedConf)] = providedConf
+			payloadAgentMeta[agentProvidedConf] = providedConf
 		}
 	}
 
@@ -444,28 +458,30 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
-	SetAgentMetadata(AgentFIPSEnabled, config.Datadog.GetBool("fips.enabled"))
+	SetAgentMetadata(AgentFIPSEnabled, cfg.GetBool("fips.enabled"))
 	SetAgentMetadata(AgentCWSEnabled, config.SystemProbe.GetBool("runtime_security_config.enabled"))
 	SetAgentMetadata(AgentCWSNetworkEnabled, config.SystemProbe.GetBool("event_monitoring_config.network.enabled"))
 	SetAgentMetadata(AgentCWSSecurityProfilesEnabled, config.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"))
 	SetAgentMetadata(AgentCWSRemoteConfigEnabled, config.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"))
-	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
-	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
+	SetAgentMetadata(AgentProcessEnabled, cfg.GetBool("process_config.process_collection.enabled"))
+	SetAgentMetadata(AgentProcessLanguageDetectionEnabled, cfg.GetBool("language_detection.enabled"))
+	SetAgentMetadata(AgentProcessesContainerEnabled, cfg.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentUSMEnabled, config.SystemProbe.GetBool("service_monitoring_config.enabled"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.SystemProbe.GetBool("data_streams_config.enabled"))
-	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
+	SetAgentMetadata(AgentRemoteConfigEnabled, cfg.GetBool("remote_configuration.enabled"))
 	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
+	SetAgentMetadata(AgentUSMIstioEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_istio_monitoring"))
 	SetAgentMetadata(AgentUSMHTTPStatsByStatusCodeEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
 	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
 	SetAgentMetadata(AgentDIEnabled, config.SystemProbe.GetBool("dynamic_instrumentation.enabled"))
-	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
-	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
-	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
-	SetAgentMetadata(AgentIMDSv2Enabled, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+	SetAgentMetadata(AgentLogsEnabled, cfg.GetBool("logs_enabled"))
+	SetAgentMetadata(AgentCSPMEnabled, cfg.GetBool("compliance_config.enabled"))
+	SetAgentMetadata(AgentAPMEnabled, cfg.GetBool("apm_config.enabled"))
+	SetAgentMetadata(AgentIMDSv2Enabled, cfg.GetBool("ec2_prefer_imdsv2"))
 	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp

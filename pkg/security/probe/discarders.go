@@ -82,10 +82,7 @@ var (
 
 var (
 	dentryInvalidDiscarder = []string{""}
-	eventZeroDiscarder     = &model.Event{
-		FieldHandlers:    &model.DefaultFieldHandlers{},
-		ContainerContext: &model.ContainerContext{},
-	}
+	eventZeroDiscarder     = model.NewDefaultEvent()
 )
 
 // InvalidDiscarders exposes list of values that are not discarders

@@ -28,8 +28,6 @@ const (
 )
 
 var (
-	// allProbes contain the list of all the probes of the runtime security module
-	allProbes []*manager.Probe
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
@@ -55,10 +53,7 @@ func computeDefaultEventsRingBufferSize() uint32 {
 
 // AllProbes returns the list of all the probes of the runtime security module
 func AllProbes(fentry bool) []*manager.Probe {
-	if len(allProbes) > 0 {
-		return allProbes
-	}
-
+	var allProbes []*manager.Probe
 	allProbes = append(allProbes, getAttrProbes(fentry)...)
 	allProbes = append(allProbes, getExecProbes(fentry)...)
 	allProbes = append(allProbes, getLinkProbe(fentry)...)
@@ -248,7 +243,7 @@ func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableM
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps, fentry)...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes()...)

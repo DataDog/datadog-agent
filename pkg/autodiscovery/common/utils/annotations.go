@@ -126,9 +126,8 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 	}
 
 	for _, r := range rawRes {
-		switch r.(type) {
+		switch objs := r.(type) {
 		case []interface{}:
-			objs := r.([]interface{})
 			var subResult []integration.Data
 			for idx := range objs {
 				var init integration.Data

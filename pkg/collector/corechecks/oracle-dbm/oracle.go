@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -77,6 +78,7 @@ type Check struct {
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
+	previousAllocationCount                 float64
 }
 
 func handleServiceCheck(c *Check, err error) {
@@ -260,7 +262,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 
 	if c.cdbName == "" {
-		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
+		row := db.QueryRow("SELECT /* DD */ lower(name) FROM v$database")
 		err = row.Scan(&c.cdbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
@@ -374,7 +376,7 @@ func CloseDatabaseConnection(db *sqlx.DB) error {
 }
 
 // Configure configures the Oracle check.
-func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
 	c.config, err = config.NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
@@ -384,7 +386,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	// Must be called before c.CommonConfigure because this integration supports multiple instances
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	if err := c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source); err != nil {
+	if err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source); err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 
@@ -460,7 +462,7 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	if !pdb.Valid {
 		return tags
 	}
-	return append(tags, "pdb:"+pdb.String)
+	return append(tags, "pdb:"+strings.ToLower(pdb.String))
 }
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {

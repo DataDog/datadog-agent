@@ -15,6 +15,9 @@ import (
 	"reflect"
 )
 
+// Aliases used to avoid compilation error in case of unused imported package
+type NetIP = net.IP
+
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 	case "process.ancestors":
@@ -643,7 +646,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext))
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -652,7 +655,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
+				return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -661,7 +664,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
+				return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
@@ -744,7 +747,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveEventTimestamp(ev))
+				return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3399,7 +3402,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.NetworkContext.Destination.IPNet
+				return ev.BaseEvent.NetworkContext.Destination.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3408,7 +3411,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.NetworkContext.Destination.Port)
+				return int(ev.BaseEvent.NetworkContext.Destination.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3417,7 +3420,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.NetworkContext.Device.IfIndex)
+				return int(ev.BaseEvent.NetworkContext.Device.IfIndex)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3426,7 +3429,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
+				return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3435,7 +3438,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.NetworkContext.L3Protocol)
+				return int(ev.BaseEvent.NetworkContext.L3Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3444,7 +3447,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.NetworkContext.L4Protocol)
+				return int(ev.BaseEvent.NetworkContext.L4Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3453,7 +3456,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.NetworkContext.Size)
+				return int(ev.BaseEvent.NetworkContext.Size)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3462,7 +3465,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.NetworkContext.Source.IPNet
+				return ev.BaseEvent.NetworkContext.Source.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3471,7 +3474,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.NetworkContext.Source.Port)
+				return int(ev.BaseEvent.NetworkContext.Source.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5355,7 +5358,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -5364,7 +5367,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5373,7 +5376,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5382,7 +5385,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5391,7 +5394,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -5400,7 +5403,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -5409,7 +5412,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.CapEffective)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5418,7 +5421,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.CapPermitted)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5427,7 +5430,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.Comm
+				return ev.BaseEvent.ProcessContext.Process.Comm
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5436,7 +5439,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.ContainerID
+				return ev.BaseEvent.ProcessContext.Process.ContainerID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5445,7 +5448,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.ProcessContext.Process))
+				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5454,7 +5457,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.EGID)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.EGID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5463,7 +5466,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.Credentials.EGroup
+				return ev.BaseEvent.ProcessContext.Process.Credentials.EGroup
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5472,7 +5475,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5481,7 +5484,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5490,7 +5493,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5499,7 +5502,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.EUID)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.EUID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5508,7 +5511,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.Credentials.EUser
+				return ev.BaseEvent.ProcessContext.Process.Credentials.EUser
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5517,10 +5520,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.FileEvent.FileFields.CTime)
+				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5529,10 +5532,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Process.FileEvent)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5541,10 +5544,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.FileEvent.FileFields.GID)
+				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.GID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5553,10 +5556,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Process.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5565,10 +5568,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.FileEvent)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5577,10 +5580,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return false
 				}
-				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Process.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5589,10 +5592,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode)
+				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5601,10 +5604,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.FileEvent.FileFields.Mode)
+				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5613,10 +5616,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.FileEvent.FileFields.MTime)
+				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5625,10 +5628,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
+				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5638,10 +5641,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.FileEvent)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5651,7 +5654,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.FileEvent))
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5660,10 +5663,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Process.FileEvent)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5672,10 +5675,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Process.FileEvent)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5684,10 +5687,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Process.FileEvent)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5697,10 +5700,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.FileEvent)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5710,7 +5713,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.FileEvent))
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5719,10 +5722,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Process.FileEvent.FileFields))
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5731,10 +5734,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.FileEvent.FileFields.UID)
+				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.UID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5743,10 +5746,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Process.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5755,7 +5758,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.FSGID)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.FSGID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5764,7 +5767,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.Credentials.FSGroup
+				return ev.BaseEvent.ProcessContext.Process.Credentials.FSGroup
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5773,7 +5776,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.FSUID)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.FSUID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5782,7 +5785,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.Credentials.FSUser
+				return ev.BaseEvent.ProcessContext.Process.Credentials.FSUser
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5791,7 +5794,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.GID)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.GID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5800,7 +5803,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.Credentials.Group
+				return ev.BaseEvent.ProcessContext.Process.Credentials.Group
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5809,10 +5812,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5821,10 +5824,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5833,10 +5836,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5845,10 +5848,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5857,10 +5860,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5869,10 +5872,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return false
 				}
-				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5881,10 +5884,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5893,10 +5896,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5905,10 +5908,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5917,10 +5920,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5930,10 +5933,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5943,7 +5946,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent))
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5952,10 +5955,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5964,10 +5967,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5976,10 +5979,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5989,10 +5992,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6002,7 +6005,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent))
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6011,10 +6014,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6023,10 +6026,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6035,10 +6038,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.Process.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6047,7 +6050,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.PIDContext.IsKworker
+				return ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6056,7 +6059,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.IsThread
+				return ev.BaseEvent.ProcessContext.Process.IsThread
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6065,10 +6068,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -6077,10 +6080,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6089,10 +6092,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6101,10 +6104,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return false
 				}
-				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6113,10 +6116,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -6125,10 +6128,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
@@ -6137,10 +6140,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.CapEffective)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.CapEffective)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6149,10 +6152,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.CapPermitted)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6161,10 +6164,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.Comm
+				return ev.BaseEvent.ProcessContext.Parent.Comm
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6173,10 +6176,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.ContainerID
+				return ev.BaseEvent.ProcessContext.Parent.ContainerID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6185,10 +6188,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.ProcessContext.Parent))
+				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6197,10 +6200,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.EGID)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.EGID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6209,10 +6212,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.Credentials.EGroup
+				return ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6221,10 +6224,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6233,10 +6236,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6245,10 +6248,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return false
 				}
-				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6257,10 +6260,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.EUID)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.EUID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6269,10 +6272,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.Credentials.EUser
+				return ev.BaseEvent.ProcessContext.Parent.Credentials.EUser
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6281,13 +6284,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.FileEvent.FileFields.CTime)
+				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6296,13 +6299,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Parent.FileEvent)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6311,13 +6314,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.FileEvent.FileFields.GID)
+				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.GID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6326,13 +6329,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Parent.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6341,13 +6344,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.FileEvent)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6356,13 +6359,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return false
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return false
 				}
-				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Parent.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6371,13 +6374,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode)
+				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6386,13 +6389,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.FileEvent.FileFields.Mode)
+				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6401,13 +6404,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.FileEvent.FileFields.MTime)
+				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6416,13 +6419,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID)
+				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6432,13 +6435,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.FileEvent)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6448,7 +6451,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.FileEvent))
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6457,13 +6460,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Parent.FileEvent)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6472,13 +6475,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Parent.FileEvent)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6487,13 +6490,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Parent.FileEvent)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6503,13 +6506,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.FileEvent)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6519,7 +6522,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.FileEvent))
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6528,13 +6531,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Parent.FileEvent.FileFields))
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6543,13 +6546,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.FileEvent.FileFields.UID)
+				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.UID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6558,13 +6561,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.IsNotKworker() {
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Parent.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6573,10 +6576,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.FSGID)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.FSGID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6585,10 +6588,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.Credentials.FSGroup
+				return ev.BaseEvent.ProcessContext.Parent.Credentials.FSGroup
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6597,10 +6600,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.FSUID)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.FSUID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6609,10 +6612,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.Credentials.FSUser
+				return ev.BaseEvent.ProcessContext.Parent.Credentials.FSUser
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6621,10 +6624,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.GID)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.GID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6633,10 +6636,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.Credentials.Group
+				return ev.BaseEvent.ProcessContext.Parent.Credentials.Group
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6645,13 +6648,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime)
+				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6660,13 +6663,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6675,13 +6678,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID)
+				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6690,13 +6693,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6705,13 +6708,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6720,13 +6723,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return false
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return false
 				}
-				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6735,13 +6738,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6750,13 +6753,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
+				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6765,13 +6768,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime)
+				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6780,13 +6783,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6796,13 +6799,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6812,7 +6815,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent))
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6821,13 +6824,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6836,13 +6839,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6851,13 +6854,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6867,13 +6870,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6883,7 +6886,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent))
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6892,13 +6895,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields))
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6907,13 +6910,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID)
+				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6922,13 +6925,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				if !ev.ProcessContext.Parent.HasInterpreter() {
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6937,10 +6940,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return false
 				}
-				return ev.ProcessContext.Parent.PIDContext.IsKworker
+				return ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6949,10 +6952,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return false
 				}
-				return ev.ProcessContext.Parent.IsThread
+				return ev.BaseEvent.ProcessContext.Parent.IsThread
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6961,10 +6964,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.PIDContext.Pid)
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6973,10 +6976,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.PPid)
+				return int(ev.BaseEvent.ProcessContext.Parent.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6985,10 +6988,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.PIDContext.Tid)
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6997,10 +7000,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.TTYName
+				return ev.BaseEvent.ProcessContext.Parent.TTYName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7009,10 +7012,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.ProcessContext.Parent.Credentials.UID)
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.UID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7021,10 +7024,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				if !ev.ProcessContext.HasParent() {
+				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.ProcessContext.Parent.Credentials.User
+				return ev.BaseEvent.ProcessContext.Parent.Credentials.User
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7033,7 +7036,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.PIDContext.Pid)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Pid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7042,7 +7045,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.PPid)
+				return int(ev.BaseEvent.ProcessContext.Process.PPid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7051,7 +7054,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.PIDContext.Tid)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7060,7 +7063,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.TTYName
+				return ev.BaseEvent.ProcessContext.Process.TTYName
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7069,7 +7072,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.ProcessContext.Process.Credentials.UID)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.UID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7078,7 +7081,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.ProcessContext.Process.Credentials.User
+				return ev.BaseEvent.ProcessContext.Process.Credentials.User
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17038,11 +17041,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chown.retval":
 		return int(ev.Chown.SyscallEvent.Retval), nil
 	case "container.created_at":
-		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)), nil
+		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
-		return ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext), nil
+		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
 	case "container.tags":
-		return ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext), nil
+		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
 	case "dns.id":
 		return int(ev.DNS.ID), nil
 	case "dns.question.class":
@@ -17060,7 +17063,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "event.async":
 		return ev.FieldHandlers.ResolveAsync(ev), nil
 	case "event.timestamp":
-		return int(ev.FieldHandlers.ResolveEventTimestamp(ev)), nil
+		return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)), nil
 	case "exec.args":
 		return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process), nil
 	case "exec.args_flags":
@@ -17594,23 +17597,23 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mprotect.vm_protection":
 		return ev.MProtect.VMProtection, nil
 	case "network.destination.ip":
-		return ev.NetworkContext.Destination.IPNet, nil
+		return ev.BaseEvent.NetworkContext.Destination.IPNet, nil
 	case "network.destination.port":
-		return int(ev.NetworkContext.Destination.Port), nil
+		return int(ev.BaseEvent.NetworkContext.Destination.Port), nil
 	case "network.device.ifindex":
-		return int(ev.NetworkContext.Device.IfIndex), nil
+		return int(ev.BaseEvent.NetworkContext.Device.IfIndex), nil
 	case "network.device.ifname":
-		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device), nil
+		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device), nil
 	case "network.l3_protocol":
-		return int(ev.NetworkContext.L3Protocol), nil
+		return int(ev.BaseEvent.NetworkContext.L3Protocol), nil
 	case "network.l4_protocol":
-		return int(ev.NetworkContext.L4Protocol), nil
+		return int(ev.BaseEvent.NetworkContext.L4Protocol), nil
 	case "network.size":
-		return int(ev.NetworkContext.Size), nil
+		return int(ev.BaseEvent.NetworkContext.Size), nil
 	case "network.source.ip":
-		return ev.NetworkContext.Source.IPNet, nil
+		return ev.BaseEvent.NetworkContext.Source.IPNet, nil
 	case "network.source.port":
-		return int(ev.NetworkContext.Source.Port), nil
+		return int(ev.BaseEvent.NetworkContext.Source.Port), nil
 	case "open.file.change_time":
 		return int(ev.Open.File.FileFields.CTime), nil
 	case "open.file.destination.mode":
@@ -18522,293 +18525,293 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 		return values, nil
 	case "process.args":
-		return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.args_flags":
-		return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.args_options":
-		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.args_truncated":
-		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.argv":
-		return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.argv0":
-		return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.cap_effective":
-		return int(ev.ProcessContext.Process.Credentials.CapEffective), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective), nil
 	case "process.cap_permitted":
-		return int(ev.ProcessContext.Process.Credentials.CapPermitted), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted), nil
 	case "process.comm":
-		return ev.ProcessContext.Process.Comm, nil
+		return ev.BaseEvent.ProcessContext.Process.Comm, nil
 	case "process.container.id":
-		return ev.ProcessContext.Process.ContainerID, nil
+		return ev.BaseEvent.ProcessContext.Process.ContainerID, nil
 	case "process.created_at":
-		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.ProcessContext.Process)), nil
+		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)), nil
 	case "process.egid":
-		return int(ev.ProcessContext.Process.Credentials.EGID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.EGID), nil
 	case "process.egroup":
-		return ev.ProcessContext.Process.Credentials.EGroup, nil
+		return ev.BaseEvent.ProcessContext.Process.Credentials.EGroup, nil
 	case "process.envp":
-		return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.envs":
-		return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.envs_truncated":
-		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.ProcessContext.Process), nil
+		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.euid":
-		return int(ev.ProcessContext.Process.Credentials.EUID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.EUID), nil
 	case "process.euser":
-		return ev.ProcessContext.Process.Credentials.EUser, nil
+		return ev.BaseEvent.ProcessContext.Process.Credentials.EUser, nil
 	case "process.file.change_time":
-		return int(ev.ProcessContext.Process.FileEvent.FileFields.CTime), nil
+		return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime), nil
 	case "process.file.filesystem":
-		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.gid":
-		return int(ev.ProcessContext.Process.FileEvent.FileFields.GID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.GID), nil
 	case "process.file.group":
-		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Process.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields), nil
 	case "process.file.hashes":
-		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.in_upper_layer":
-		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Process.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields), nil
 	case "process.file.inode":
-		return int(ev.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode), nil
+		return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode), nil
 	case "process.file.mode":
-		return int(ev.ProcessContext.Process.FileEvent.FileFields.Mode), nil
+		return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode), nil
 	case "process.file.modification_time":
-		return int(ev.ProcessContext.Process.FileEvent.FileFields.MTime), nil
+		return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.MTime), nil
 	case "process.file.mount_id":
-		return int(ev.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID), nil
 	case "process.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.package.name":
-		return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.package.source_version":
-		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.package.version":
-		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.rights":
-		return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Process.FileEvent.FileFields)), nil
+		return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)), nil
 	case "process.file.uid":
-		return int(ev.ProcessContext.Process.FileEvent.FileFields.UID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.UID), nil
 	case "process.file.user":
-		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Process.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields), nil
 	case "process.fsgid":
-		return int(ev.ProcessContext.Process.Credentials.FSGID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.FSGID), nil
 	case "process.fsgroup":
-		return ev.ProcessContext.Process.Credentials.FSGroup, nil
+		return ev.BaseEvent.ProcessContext.Process.Credentials.FSGroup, nil
 	case "process.fsuid":
-		return int(ev.ProcessContext.Process.Credentials.FSUID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.FSUID), nil
 	case "process.fsuser":
-		return ev.ProcessContext.Process.Credentials.FSUser, nil
+		return ev.BaseEvent.ProcessContext.Process.Credentials.FSUser, nil
 	case "process.gid":
-		return int(ev.ProcessContext.Process.Credentials.GID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.GID), nil
 	case "process.group":
-		return ev.ProcessContext.Process.Credentials.Group, nil
+		return ev.BaseEvent.ProcessContext.Process.Credentials.Group, nil
 	case "process.interpreter.file.change_time":
-		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime), nil
+		return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime), nil
 	case "process.interpreter.file.filesystem":
-		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.gid":
-		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "process.interpreter.file.group":
-		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.interpreter.file.hashes":
-		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.in_upper_layer":
-		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.interpreter.file.inode":
-		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode), nil
+		return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode), nil
 	case "process.interpreter.file.mode":
-		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+		return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
 	case "process.interpreter.file.modification_time":
-		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime), nil
+		return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime), nil
 	case "process.interpreter.file.mount_id":
-		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID), nil
 	case "process.interpreter.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.package.name":
-		return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.package.source_version":
-		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.package.version":
-		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.rights":
-		return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)), nil
+		return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)), nil
 	case "process.interpreter.file.uid":
-		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID), nil
 	case "process.interpreter.file.user":
-		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.is_kworker":
-		return ev.ProcessContext.Process.PIDContext.IsKworker, nil
+		return ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker, nil
 	case "process.is_thread":
-		return ev.ProcessContext.Process.IsThread, nil
+		return ev.BaseEvent.ProcessContext.Process.IsThread, nil
 	case "process.parent.args":
-		return ev.FieldHandlers.ResolveProcessArgs(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.args_flags":
-		return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.args_options":
-		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.args_truncated":
-		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.argv":
-		return ev.FieldHandlers.ResolveProcessArgv(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.argv0":
-		return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.cap_effective":
-		return int(ev.ProcessContext.Parent.Credentials.CapEffective), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.CapEffective), nil
 	case "process.parent.cap_permitted":
-		return int(ev.ProcessContext.Parent.Credentials.CapPermitted), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted), nil
 	case "process.parent.comm":
-		return ev.ProcessContext.Parent.Comm, nil
+		return ev.BaseEvent.ProcessContext.Parent.Comm, nil
 	case "process.parent.container.id":
-		return ev.ProcessContext.Parent.ContainerID, nil
+		return ev.BaseEvent.ProcessContext.Parent.ContainerID, nil
 	case "process.parent.created_at":
-		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.ProcessContext.Parent)), nil
+		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)), nil
 	case "process.parent.egid":
-		return int(ev.ProcessContext.Parent.Credentials.EGID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.EGID), nil
 	case "process.parent.egroup":
-		return ev.ProcessContext.Parent.Credentials.EGroup, nil
+		return ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup, nil
 	case "process.parent.envp":
-		return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.envs":
-		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.envs_truncated":
-		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.ProcessContext.Parent), nil
+		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.euid":
-		return int(ev.ProcessContext.Parent.Credentials.EUID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.EUID), nil
 	case "process.parent.euser":
-		return ev.ProcessContext.Parent.Credentials.EUser, nil
+		return ev.BaseEvent.ProcessContext.Parent.Credentials.EUser, nil
 	case "process.parent.file.change_time":
-		return int(ev.ProcessContext.Parent.FileEvent.FileFields.CTime), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime), nil
 	case "process.parent.file.filesystem":
-		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.gid":
-		return int(ev.ProcessContext.Parent.FileEvent.FileFields.GID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.GID), nil
 	case "process.parent.file.group":
-		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Parent.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields), nil
 	case "process.parent.file.hashes":
-		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.in_upper_layer":
-		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Parent.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields), nil
 	case "process.parent.file.inode":
-		return int(ev.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode), nil
 	case "process.parent.file.mode":
-		return int(ev.ProcessContext.Parent.FileEvent.FileFields.Mode), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode), nil
 	case "process.parent.file.modification_time":
-		return int(ev.ProcessContext.Parent.FileEvent.FileFields.MTime), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.MTime), nil
 	case "process.parent.file.mount_id":
-		return int(ev.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID), nil
 	case "process.parent.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.package.name":
-		return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.package.source_version":
-		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.package.version":
-		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.rights":
-		return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Parent.FileEvent.FileFields)), nil
+		return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)), nil
 	case "process.parent.file.uid":
-		return int(ev.ProcessContext.Parent.FileEvent.FileFields.UID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.UID), nil
 	case "process.parent.file.user":
-		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Parent.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields), nil
 	case "process.parent.fsgid":
-		return int(ev.ProcessContext.Parent.Credentials.FSGID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.FSGID), nil
 	case "process.parent.fsgroup":
-		return ev.ProcessContext.Parent.Credentials.FSGroup, nil
+		return ev.BaseEvent.ProcessContext.Parent.Credentials.FSGroup, nil
 	case "process.parent.fsuid":
-		return int(ev.ProcessContext.Parent.Credentials.FSUID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.FSUID), nil
 	case "process.parent.fsuser":
-		return ev.ProcessContext.Parent.Credentials.FSUser, nil
+		return ev.BaseEvent.ProcessContext.Parent.Credentials.FSUser, nil
 	case "process.parent.gid":
-		return int(ev.ProcessContext.Parent.Credentials.GID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.GID), nil
 	case "process.parent.group":
-		return ev.ProcessContext.Parent.Credentials.Group, nil
+		return ev.BaseEvent.ProcessContext.Parent.Credentials.Group, nil
 	case "process.parent.interpreter.file.change_time":
-		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime), nil
 	case "process.parent.interpreter.file.filesystem":
-		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.gid":
-		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "process.parent.interpreter.file.group":
-		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.parent.interpreter.file.hashes":
-		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.in_upper_layer":
-		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.parent.interpreter.file.inode":
-		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode), nil
 	case "process.parent.interpreter.file.mode":
-		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
 	case "process.parent.interpreter.file.modification_time":
-		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime), nil
 	case "process.parent.interpreter.file.mount_id":
-		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID), nil
 	case "process.parent.interpreter.file.name":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.name.length":
-		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.package.name":
-		return ev.FieldHandlers.ResolvePackageName(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.package.source_version":
-		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.package.version":
-		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.path":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.path.length":
-		return ev.FieldHandlers.ResolveFilePath(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.rights":
-		return int(ev.FieldHandlers.ResolveRights(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)), nil
+		return int(ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)), nil
 	case "process.parent.interpreter.file.uid":
-		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID), nil
 	case "process.parent.interpreter.file.user":
-		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
+		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.parent.is_kworker":
-		return ev.ProcessContext.Parent.PIDContext.IsKworker, nil
+		return ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker, nil
 	case "process.parent.is_thread":
-		return ev.ProcessContext.Parent.IsThread, nil
+		return ev.BaseEvent.ProcessContext.Parent.IsThread, nil
 	case "process.parent.pid":
-		return int(ev.ProcessContext.Parent.PIDContext.Pid), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid), nil
 	case "process.parent.ppid":
-		return int(ev.ProcessContext.Parent.PPid), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.PPid), nil
 	case "process.parent.tid":
-		return int(ev.ProcessContext.Parent.PIDContext.Tid), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid), nil
 	case "process.parent.tty_name":
-		return ev.ProcessContext.Parent.TTYName, nil
+		return ev.BaseEvent.ProcessContext.Parent.TTYName, nil
 	case "process.parent.uid":
-		return int(ev.ProcessContext.Parent.Credentials.UID), nil
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.UID), nil
 	case "process.parent.user":
-		return ev.ProcessContext.Parent.Credentials.User, nil
+		return ev.BaseEvent.ProcessContext.Parent.Credentials.User, nil
 	case "process.pid":
-		return int(ev.ProcessContext.Process.PIDContext.Pid), nil
+		return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Pid), nil
 	case "process.ppid":
-		return int(ev.ProcessContext.Process.PPid), nil
+		return int(ev.BaseEvent.ProcessContext.Process.PPid), nil
 	case "process.tid":
-		return int(ev.ProcessContext.Process.PIDContext.Tid), nil
+		return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Tid), nil
 	case "process.tty_name":
-		return ev.ProcessContext.Process.TTYName, nil
+		return ev.BaseEvent.ProcessContext.Process.TTYName, nil
 	case "process.uid":
-		return int(ev.ProcessContext.Process.Credentials.UID), nil
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.UID), nil
 	case "process.user":
-		return ev.ProcessContext.Process.Credentials.User, nil
+		return ev.BaseEvent.ProcessContext.Process.Credentials.User, nil
 	case "ptrace.request":
 		return int(ev.PTrace.Request), nil
 	case "ptrace.retval":
@@ -26827,36 +26830,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Chown.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "container.created_at":
-		if ev.ContainerContext == nil {
-			ev.ContainerContext = &ContainerContext{}
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.CreatedAt"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.CreatedAt"}
 		}
-		ev.ContainerContext.CreatedAt = uint64(rv)
+		ev.BaseEvent.ContainerContext.CreatedAt = uint64(rv)
 		return nil
 	case "container.id":
-		if ev.ContainerContext == nil {
-			ev.ContainerContext = &ContainerContext{}
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ID"}
 		}
-		ev.ContainerContext.ID = rv
+		ev.BaseEvent.ContainerContext.ID = rv
 		return nil
 	case "container.tags":
-		if ev.ContainerContext == nil {
-			ev.ContainerContext = &ContainerContext{}
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ContainerContext.Tags = append(ev.ContainerContext.Tags, rv)
+			ev.BaseEvent.ContainerContext.Tags = append(ev.BaseEvent.ContainerContext.Tags, rv)
 		case []string:
-			ev.ContainerContext.Tags = append(ev.ContainerContext.Tags, rv...)
+			ev.BaseEvent.ContainerContext.Tags = append(ev.BaseEvent.ContainerContext.Tags, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Tags"}
 		}
 		return nil
 	case "dns.id":
@@ -26913,9 +26916,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "event.timestamp":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "TimestampRaw"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.TimestampRaw"}
 		}
-		ev.TimestampRaw = uint64(rv)
+		ev.BaseEvent.TimestampRaw = uint64(rv)
 		return nil
 	case "exec.args":
 		if ev.Exec.Process == nil {
@@ -29184,65 +29187,65 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "network.destination.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.IPNet"}
 		}
-		ev.NetworkContext.Destination.IPNet = rv
+		ev.BaseEvent.NetworkContext.Destination.IPNet = rv
 		return nil
 	case "network.destination.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.Port"}
 		}
-		ev.NetworkContext.Destination.Port = uint16(rv)
+		ev.BaseEvent.NetworkContext.Destination.Port = uint16(rv)
 		return nil
 	case "network.device.ifindex":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfIndex"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Device.IfIndex"}
 		}
-		ev.NetworkContext.Device.IfIndex = uint32(rv)
+		ev.BaseEvent.NetworkContext.Device.IfIndex = uint32(rv)
 		return nil
 	case "network.device.ifname":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Device.IfName"}
 		}
-		ev.NetworkContext.Device.IfName = rv
+		ev.BaseEvent.NetworkContext.Device.IfName = rv
 		return nil
 	case "network.l3_protocol":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L3Protocol"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L3Protocol"}
 		}
-		ev.NetworkContext.L3Protocol = uint16(rv)
+		ev.BaseEvent.NetworkContext.L3Protocol = uint16(rv)
 		return nil
 	case "network.l4_protocol":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L4Protocol"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L4Protocol"}
 		}
-		ev.NetworkContext.L4Protocol = uint16(rv)
+		ev.BaseEvent.NetworkContext.L4Protocol = uint16(rv)
 		return nil
 	case "network.size":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Size"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Size"}
 		}
-		ev.NetworkContext.Size = uint32(rv)
+		ev.BaseEvent.NetworkContext.Size = uint32(rv)
 		return nil
 	case "network.source.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.IPNet"}
 		}
-		ev.NetworkContext.Source.IPNet = rv
+		ev.BaseEvent.NetworkContext.Source.IPNet = rv
 		return nil
 	case "network.source.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.Port"}
 		}
-		ev.NetworkContext.Source.Port = uint16(rv)
+		ev.BaseEvent.NetworkContext.Source.Port = uint16(rv)
 		return nil
 	case "open.file.change_time":
 		rv, ok := value.(int)
@@ -29399,2599 +29402,2599 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Open.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "process.ancestors.args":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Args = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args = rv
 		return nil
 	case "process.ancestors.args_flags":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
 		case []string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv"}
 		}
 		return nil
 	case "process.ancestors.args_options":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
 		case []string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv"}
 		}
 		return nil
 	case "process.ancestors.args_truncated":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated = rv
 		return nil
 	case "process.ancestors.argv":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv)
 		case []string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv"}
 		}
 		return nil
 	case "process.ancestors.argv0":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv0"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv0"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = rv
 		return nil
 	case "process.ancestors.cap_effective":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(rv)
 		return nil
 	case "process.ancestors.cap_permitted":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
 	case "process.ancestors.comm":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Comm"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Comm = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Comm = rv
 		return nil
 	case "process.ancestors.container.id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = rv
 		return nil
 	case "process.ancestors.created_at":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.CreatedAt"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt = uint64(rv)
 		return nil
 	case "process.ancestors.egid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(rv)
 		return nil
 	case "process.ancestors.egroup":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = rv
 		return nil
 	case "process.ancestors.envp":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Envp, rv)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp, rv)
 		case []string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Envp, rv...)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envp"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp"}
 		}
 		return nil
 	case "process.ancestors.envs":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Envs, rv)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs, rv)
 		case []string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(ev.ProcessContext.Ancestor.ProcessContext.Process.Envs, rv...)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs"}
 		}
 		return nil
 	case "process.ancestors.envs_truncated":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated = rv
 		return nil
 	case "process.ancestors.euid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(rv)
 		return nil
 	case "process.ancestors.euser":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = rv
 		return nil
 	case "process.ancestors.file.change_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(rv)
 		return nil
 	case "process.ancestors.file.filesystem":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem = rv
 		return nil
 	case "process.ancestors.file.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(rv)
 		return nil
 	case "process.ancestors.file.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
 		return nil
 	case "process.ancestors.file.hashes":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv)
 		case []string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv...)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes"}
 		}
 		return nil
 	case "process.ancestors.file.in_upper_layer":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer = rv
 		return nil
 	case "process.ancestors.file.inode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
 		return nil
 	case "process.ancestors.file.mode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.ancestors.file.modification_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(rv)
 		return nil
 	case "process.ancestors.file.mount_id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID = uint32(rv)
 		return nil
 	case "process.ancestors.file.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
 		return nil
 	case "process.ancestors.file.name.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
 	case "process.ancestors.file.package.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName = rv
 		return nil
 	case "process.ancestors.file.package.source_version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
 		return nil
 	case "process.ancestors.file.package.version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = rv
 		return nil
 	case "process.ancestors.file.path":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
 		return nil
 	case "process.ancestors.file.path.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.path.length"}
 	case "process.ancestors.file.rights":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.ancestors.file.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(rv)
 		return nil
 	case "process.ancestors.file.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = rv
 		return nil
 	case "process.ancestors.fsgid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(rv)
 		return nil
 	case "process.ancestors.fsgroup":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup = rv
 		return nil
 	case "process.ancestors.fsuid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(rv)
 		return nil
 	case "process.ancestors.fsuser":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser = rv
 		return nil
 	case "process.ancestors.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID = uint32(rv)
 		return nil
 	case "process.ancestors.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = rv
 		return nil
 	case "process.ancestors.interpreter.file.change_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
 		return nil
 	case "process.ancestors.interpreter.file.filesystem":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
 		return nil
 	case "process.ancestors.interpreter.file.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
 		return nil
 	case "process.ancestors.interpreter.file.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
 		return nil
 	case "process.ancestors.interpreter.file.hashes":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
 		case []string:
-			ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
 		}
 		return nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
 		return nil
 	case "process.ancestors.interpreter.file.inode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
 		return nil
 	case "process.ancestors.interpreter.file.mode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.ancestors.interpreter.file.modification_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
 		return nil
 	case "process.ancestors.interpreter.file.mount_id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
 		return nil
 	case "process.ancestors.interpreter.file.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
 		return nil
 	case "process.ancestors.interpreter.file.name.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.name.length"}
 	case "process.ancestors.interpreter.file.package.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
 		return nil
 	case "process.ancestors.interpreter.file.package.source_version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
 		return nil
 	case "process.ancestors.interpreter.file.package.version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
 		return nil
 	case "process.ancestors.interpreter.file.path":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
 		return nil
 	case "process.ancestors.interpreter.file.path.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.path.length"}
 	case "process.ancestors.interpreter.file.rights":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.ancestors.interpreter.file.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
 		return nil
 	case "process.ancestors.interpreter.file.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
 		return nil
 	case "process.ancestors.is_kworker":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker = rv
 		return nil
 	case "process.ancestors.is_thread":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.IsThread"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsThread"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.IsThread = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsThread = rv
 		return nil
 	case "process.ancestors.pid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(rv)
 		return nil
 	case "process.ancestors.ppid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(rv)
 		return nil
 	case "process.ancestors.tid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(rv)
 		return nil
 	case "process.ancestors.tty_name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.TTYName"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.TTYName = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.TTYName = rv
 		return nil
 	case "process.ancestors.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID = uint32(rv)
 		return nil
 	case "process.ancestors.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Ancestor == nil {
-			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User"}
 		}
-		ev.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = rv
 		return nil
 	case "process.args":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Args"}
 		}
-		ev.ProcessContext.Process.Args = rv
+		ev.BaseEvent.ProcessContext.Process.Args = rv
 		return nil
 	case "process.args_flags":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Process.Argv = append(ev.ProcessContext.Process.Argv, rv)
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv)
 		case []string:
-			ev.ProcessContext.Process.Argv = append(ev.ProcessContext.Process.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Argv"}
 		}
 		return nil
 	case "process.args_options":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Process.Argv = append(ev.ProcessContext.Process.Argv, rv)
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv)
 		case []string:
-			ev.ProcessContext.Process.Argv = append(ev.ProcessContext.Process.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Argv"}
 		}
 		return nil
 	case "process.args_truncated":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ArgsTruncated"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.ArgsTruncated"}
 		}
-		ev.ProcessContext.Process.ArgsTruncated = rv
+		ev.BaseEvent.ProcessContext.Process.ArgsTruncated = rv
 		return nil
 	case "process.argv":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Process.Argv = append(ev.ProcessContext.Process.Argv, rv)
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv)
 		case []string:
-			ev.ProcessContext.Process.Argv = append(ev.ProcessContext.Process.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Process.Argv = append(ev.BaseEvent.ProcessContext.Process.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Argv"}
 		}
 		return nil
 	case "process.argv0":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Argv0"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Argv0"}
 		}
-		ev.ProcessContext.Process.Argv0 = rv
+		ev.BaseEvent.ProcessContext.Process.Argv0 = rv
 		return nil
 	case "process.cap_effective":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.CapEffective"}
 		}
-		ev.ProcessContext.Process.Credentials.CapEffective = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective = uint64(rv)
 		return nil
 	case "process.cap_permitted":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.CapPermitted"}
 		}
-		ev.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
 	case "process.comm":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Comm"}
 		}
-		ev.ProcessContext.Process.Comm = rv
+		ev.BaseEvent.ProcessContext.Process.Comm = rv
 		return nil
 	case "process.container.id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ContainerID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.ContainerID"}
 		}
-		ev.ProcessContext.Process.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Process.ContainerID = rv
 		return nil
 	case "process.created_at":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.CreatedAt"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CreatedAt"}
 		}
-		ev.ProcessContext.Process.CreatedAt = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.CreatedAt = uint64(rv)
 		return nil
 	case "process.egid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.EGID"}
 		}
-		ev.ProcessContext.Process.Credentials.EGID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.EGID = uint32(rv)
 		return nil
 	case "process.egroup":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.EGroup"}
 		}
-		ev.ProcessContext.Process.Credentials.EGroup = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.EGroup = rv
 		return nil
 	case "process.envp":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Process.Envp = append(ev.ProcessContext.Process.Envp, rv)
+			ev.BaseEvent.ProcessContext.Process.Envp = append(ev.BaseEvent.ProcessContext.Process.Envp, rv)
 		case []string:
-			ev.ProcessContext.Process.Envp = append(ev.ProcessContext.Process.Envp, rv...)
+			ev.BaseEvent.ProcessContext.Process.Envp = append(ev.BaseEvent.ProcessContext.Process.Envp, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envp"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Envp"}
 		}
 		return nil
 	case "process.envs":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Process.Envs = append(ev.ProcessContext.Process.Envs, rv)
+			ev.BaseEvent.ProcessContext.Process.Envs = append(ev.BaseEvent.ProcessContext.Process.Envs, rv)
 		case []string:
-			ev.ProcessContext.Process.Envs = append(ev.ProcessContext.Process.Envs, rv...)
+			ev.BaseEvent.ProcessContext.Process.Envs = append(ev.BaseEvent.ProcessContext.Process.Envs, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Envs"}
 		}
 		return nil
 	case "process.envs_truncated":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.EnvsTruncated"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.EnvsTruncated"}
 		}
-		ev.ProcessContext.Process.EnvsTruncated = rv
+		ev.BaseEvent.ProcessContext.Process.EnvsTruncated = rv
 		return nil
 	case "process.euid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.EUID"}
 		}
-		ev.ProcessContext.Process.Credentials.EUID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.EUID = uint32(rv)
 		return nil
 	case "process.euser":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.EUser"}
 		}
-		ev.ProcessContext.Process.Credentials.EUser = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.EUser = rv
 		return nil
 	case "process.file.change_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(rv)
 		return nil
 	case "process.file.filesystem":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.Filesystem"}
 		}
-		ev.ProcessContext.Process.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.Filesystem = rv
 		return nil
 	case "process.file.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.GID"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.GID = uint32(rv)
 		return nil
 	case "process.file.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Group"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Group = rv
 		return nil
 	case "process.file.hashes":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Process.FileEvent.Hashes, rv)
+			ev.BaseEvent.ProcessContext.Process.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Process.FileEvent.Hashes, rv)
 		case []string:
-			ev.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Process.FileEvent.Hashes, rv...)
+			ev.BaseEvent.ProcessContext.Process.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Process.FileEvent.Hashes, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.Hashes"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.Hashes"}
 		}
 		return nil
 	case "process.file.in_upper_layer":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.InUpperLayer = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.InUpperLayer = rv
 		return nil
 	case "process.file.inode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.PathKey.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
 		return nil
 	case "process.file.mode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.file.modification_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.MTime"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(rv)
 		return nil
 	case "process.file.mount_id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID = uint32(rv)
 		return nil
 	case "process.file.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = rv
 		return nil
 	case "process.file.name.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.file.name.length"}
 	case "process.file.package.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.PkgName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgName"}
 		}
-		ev.ProcessContext.Process.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgName = rv
 		return nil
 	case "process.file.package.source_version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.PkgSrcVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
 		return nil
 	case "process.file.package.version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.PkgVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgVersion"}
 		}
-		ev.ProcessContext.Process.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgVersion = rv
 		return nil
 	case "process.file.path":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PathnameStr = rv
 		return nil
 	case "process.file.path.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.file.path.length"}
 	case "process.file.rights":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.file.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.UID"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.UID = uint32(rv)
 		return nil
 	case "process.file.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.User"}
 		}
-		ev.ProcessContext.Process.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.User = rv
 		return nil
 	case "process.fsgid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.FSGID"}
 		}
-		ev.ProcessContext.Process.Credentials.FSGID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.FSGID = uint32(rv)
 		return nil
 	case "process.fsgroup":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.FSGroup"}
 		}
-		ev.ProcessContext.Process.Credentials.FSGroup = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.FSGroup = rv
 		return nil
 	case "process.fsuid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.FSUID"}
 		}
-		ev.ProcessContext.Process.Credentials.FSUID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.FSUID = uint32(rv)
 		return nil
 	case "process.fsuser":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.FSUser"}
 		}
-		ev.ProcessContext.Process.Credentials.FSUser = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.FSUser = rv
 		return nil
 	case "process.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.GID"}
 		}
-		ev.ProcessContext.Process.Credentials.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.GID = uint32(rv)
 		return nil
 	case "process.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.Group"}
 		}
-		ev.ProcessContext.Process.Credentials.Group = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.Group = rv
 		return nil
 	case "process.interpreter.file.change_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
 		return nil
 	case "process.interpreter.file.filesystem":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
 		return nil
 	case "process.interpreter.file.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
 		return nil
 	case "process.interpreter.file.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
 		return nil
 	case "process.interpreter.file.hashes":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
+			ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
 		case []string:
-			ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+			ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
 		}
 		return nil
 	case "process.interpreter.file.in_upper_layer":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
 		return nil
 	case "process.interpreter.file.inode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
 		return nil
 	case "process.interpreter.file.mode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.interpreter.file.modification_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
 		return nil
 	case "process.interpreter.file.mount_id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
 		return nil
 	case "process.interpreter.file.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
 		return nil
 	case "process.interpreter.file.name.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.interpreter.file.name.length"}
 	case "process.interpreter.file.package.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
 		return nil
 	case "process.interpreter.file.package.source_version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
 		return nil
 	case "process.interpreter.file.package.version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
 		return nil
 	case "process.interpreter.file.path":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
 		return nil
 	case "process.interpreter.file.path.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.interpreter.file.path.length"}
 	case "process.interpreter.file.rights":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.interpreter.file.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
 		return nil
 	case "process.interpreter.file.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
 		return nil
 	case "process.is_kworker":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PIDContext.IsKworker"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.PIDContext.IsKworker"}
 		}
-		ev.ProcessContext.Process.PIDContext.IsKworker = rv
+		ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker = rv
 		return nil
 	case "process.is_thread":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.IsThread"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.IsThread"}
 		}
-		ev.ProcessContext.Process.IsThread = rv
+		ev.BaseEvent.ProcessContext.Process.IsThread = rv
 		return nil
 	case "process.parent.args":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Args"}
 		}
-		ev.ProcessContext.Parent.Args = rv
+		ev.BaseEvent.ProcessContext.Parent.Args = rv
 		return nil
 	case "process.parent.args_flags":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Parent.Argv = append(ev.ProcessContext.Parent.Argv, rv)
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv)
 		case []string:
-			ev.ProcessContext.Parent.Argv = append(ev.ProcessContext.Parent.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv"}
 		}
 		return nil
 	case "process.parent.args_options":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Parent.Argv = append(ev.ProcessContext.Parent.Argv, rv)
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv)
 		case []string:
-			ev.ProcessContext.Parent.Argv = append(ev.ProcessContext.Parent.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv"}
 		}
 		return nil
 	case "process.parent.args_truncated":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.ArgsTruncated"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ArgsTruncated"}
 		}
-		ev.ProcessContext.Parent.ArgsTruncated = rv
+		ev.BaseEvent.ProcessContext.Parent.ArgsTruncated = rv
 		return nil
 	case "process.parent.argv":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Parent.Argv = append(ev.ProcessContext.Parent.Argv, rv)
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv)
 		case []string:
-			ev.ProcessContext.Parent.Argv = append(ev.ProcessContext.Parent.Argv, rv...)
+			ev.BaseEvent.ProcessContext.Parent.Argv = append(ev.BaseEvent.ProcessContext.Parent.Argv, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv"}
 		}
 		return nil
 	case "process.parent.argv0":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv0"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv0"}
 		}
-		ev.ProcessContext.Parent.Argv0 = rv
+		ev.BaseEvent.ProcessContext.Parent.Argv0 = rv
 		return nil
 	case "process.parent.cap_effective":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.CapEffective"}
 		}
-		ev.ProcessContext.Parent.Credentials.CapEffective = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.CapEffective = uint64(rv)
 		return nil
 	case "process.parent.cap_permitted":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.CapPermitted"}
 		}
-		ev.ProcessContext.Parent.Credentials.CapPermitted = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted = uint64(rv)
 		return nil
 	case "process.parent.comm":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Comm"}
 		}
-		ev.ProcessContext.Parent.Comm = rv
+		ev.BaseEvent.ProcessContext.Parent.Comm = rv
 		return nil
 	case "process.parent.container.id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.ContainerID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ContainerID"}
 		}
-		ev.ProcessContext.Parent.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Parent.ContainerID = rv
 		return nil
 	case "process.parent.created_at":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.CreatedAt"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CreatedAt"}
 		}
-		ev.ProcessContext.Parent.CreatedAt = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.CreatedAt = uint64(rv)
 		return nil
 	case "process.parent.egid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EGID"}
 		}
-		ev.ProcessContext.Parent.Credentials.EGID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.EGID = uint32(rv)
 		return nil
 	case "process.parent.egroup":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EGroup"}
 		}
-		ev.ProcessContext.Parent.Credentials.EGroup = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup = rv
 		return nil
 	case "process.parent.envp":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Parent.Envp = append(ev.ProcessContext.Parent.Envp, rv)
+			ev.BaseEvent.ProcessContext.Parent.Envp = append(ev.BaseEvent.ProcessContext.Parent.Envp, rv)
 		case []string:
-			ev.ProcessContext.Parent.Envp = append(ev.ProcessContext.Parent.Envp, rv...)
+			ev.BaseEvent.ProcessContext.Parent.Envp = append(ev.BaseEvent.ProcessContext.Parent.Envp, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Envp"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Envp"}
 		}
 		return nil
 	case "process.parent.envs":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Parent.Envs = append(ev.ProcessContext.Parent.Envs, rv)
+			ev.BaseEvent.ProcessContext.Parent.Envs = append(ev.BaseEvent.ProcessContext.Parent.Envs, rv)
 		case []string:
-			ev.ProcessContext.Parent.Envs = append(ev.ProcessContext.Parent.Envs, rv...)
+			ev.BaseEvent.ProcessContext.Parent.Envs = append(ev.BaseEvent.ProcessContext.Parent.Envs, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Envs"}
 		}
 		return nil
 	case "process.parent.envs_truncated":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.EnvsTruncated"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.EnvsTruncated"}
 		}
-		ev.ProcessContext.Parent.EnvsTruncated = rv
+		ev.BaseEvent.ProcessContext.Parent.EnvsTruncated = rv
 		return nil
 	case "process.parent.euid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EUID"}
 		}
-		ev.ProcessContext.Parent.Credentials.EUID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.EUID = uint32(rv)
 		return nil
 	case "process.parent.euser":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EUser"}
 		}
-		ev.ProcessContext.Parent.Credentials.EUser = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.EUser = rv
 		return nil
 	case "process.parent.file.change_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.CTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime = uint64(rv)
 		return nil
 	case "process.parent.file.filesystem":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.Filesystem"}
 		}
-		ev.ProcessContext.Parent.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.Filesystem = rv
 		return nil
 	case "process.parent.file.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.GID"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.GID = uint32(rv)
 		return nil
 	case "process.parent.file.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Group"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Group = rv
 		return nil
 	case "process.parent.file.hashes":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Parent.FileEvent.Hashes = append(ev.ProcessContext.Parent.FileEvent.Hashes, rv)
+			ev.BaseEvent.ProcessContext.Parent.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Parent.FileEvent.Hashes, rv)
 		case []string:
-			ev.ProcessContext.Parent.FileEvent.Hashes = append(ev.ProcessContext.Parent.FileEvent.Hashes, rv...)
+			ev.BaseEvent.ProcessContext.Parent.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Parent.FileEvent.Hashes, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.Hashes"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.Hashes"}
 		}
 		return nil
 	case "process.parent.file.in_upper_layer":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.InUpperLayer"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.InUpperLayer"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.InUpperLayer = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.InUpperLayer = rv
 		return nil
 	case "process.parent.file.inode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode = uint64(rv)
 		return nil
 	case "process.parent.file.mode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.parent.file.modification_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.MTime"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.MTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.MTime = uint64(rv)
 		return nil
 	case "process.parent.file.mount_id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID = uint32(rv)
 		return nil
 	case "process.parent.file.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr"}
 		}
-		ev.ProcessContext.Parent.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr = rv
 		return nil
 	case "process.parent.file.name.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.parent.file.name.length"}
 	case "process.parent.file.package.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.PkgName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgName"}
 		}
-		ev.ProcessContext.Parent.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgName = rv
 		return nil
 	case "process.parent.file.package.source_version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.PkgSrcVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcVersion"}
 		}
-		ev.ProcessContext.Parent.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcVersion = rv
 		return nil
 	case "process.parent.file.package.version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.PkgVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgVersion"}
 		}
-		ev.ProcessContext.Parent.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgVersion = rv
 		return nil
 	case "process.parent.file.path":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr"}
 		}
-		ev.ProcessContext.Parent.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr = rv
 		return nil
 	case "process.parent.file.path.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.parent.file.path.length"}
 	case "process.parent.file.rights":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.parent.file.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.UID"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.UID = uint32(rv)
 		return nil
 	case "process.parent.file.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.User"}
 		}
-		ev.ProcessContext.Parent.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.User = rv
 		return nil
 	case "process.parent.fsgid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSGID"}
 		}
-		ev.ProcessContext.Parent.Credentials.FSGID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.FSGID = uint32(rv)
 		return nil
 	case "process.parent.fsgroup":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSGroup"}
 		}
-		ev.ProcessContext.Parent.Credentials.FSGroup = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.FSGroup = rv
 		return nil
 	case "process.parent.fsuid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSUID"}
 		}
-		ev.ProcessContext.Parent.Credentials.FSUID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.FSUID = uint32(rv)
 		return nil
 	case "process.parent.fsuser":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSUser"}
 		}
-		ev.ProcessContext.Parent.Credentials.FSUser = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.FSUser = rv
 		return nil
 	case "process.parent.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.GID"}
 		}
-		ev.ProcessContext.Parent.Credentials.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.GID = uint32(rv)
 		return nil
 	case "process.parent.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.Group"}
 		}
-		ev.ProcessContext.Parent.Credentials.Group = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.Group = rv
 		return nil
 	case "process.parent.interpreter.file.change_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
 		return nil
 	case "process.parent.interpreter.file.filesystem":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem = rv
 		return nil
 	case "process.parent.interpreter.file.gid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
 		return nil
 	case "process.parent.interpreter.file.group":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
 		return nil
 	case "process.parent.interpreter.file.hashes":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		switch rv := value.(type) {
 		case string:
-			ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes, rv)
+			ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes, rv)
 		case []string:
-			ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes, rv...)
+			ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes, rv...)
 		default:
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes"}
 		}
 		return nil
 	case "process.parent.interpreter.file.in_upper_layer":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
 		return nil
 	case "process.parent.interpreter.file.inode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
 		return nil
 	case "process.parent.interpreter.file.mode":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.parent.interpreter.file.modification_time":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
 		return nil
 	case "process.parent.interpreter.file.mount_id":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
 		return nil
 	case "process.parent.interpreter.file.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr = rv
 		return nil
 	case "process.parent.interpreter.file.name.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.parent.interpreter.file.name.length"}
 	case "process.parent.interpreter.file.package.name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName = rv
 		return nil
 	case "process.parent.interpreter.file.package.source_version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = rv
 		return nil
 	case "process.parent.interpreter.file.package.version":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion = rv
 		return nil
 	case "process.parent.interpreter.file.path":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr = rv
 		return nil
 	case "process.parent.interpreter.file.path.length":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.parent.interpreter.file.path.length"}
 	case "process.parent.interpreter.file.rights":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.parent.interpreter.file.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
 		return nil
 	case "process.parent.interpreter.file.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
 		return nil
 	case "process.parent.is_kworker":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PIDContext.IsKworker"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.PIDContext.IsKworker"}
 		}
-		ev.ProcessContext.Parent.PIDContext.IsKworker = rv
+		ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker = rv
 		return nil
 	case "process.parent.is_thread":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(bool)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.IsThread"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.IsThread"}
 		}
-		ev.ProcessContext.Parent.IsThread = rv
+		ev.BaseEvent.ProcessContext.Parent.IsThread = rv
 		return nil
 	case "process.parent.pid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PIDContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.PIDContext.Pid"}
 		}
-		ev.ProcessContext.Parent.PIDContext.Pid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid = uint32(rv)
 		return nil
 	case "process.parent.ppid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.PPid"}
 		}
-		ev.ProcessContext.Parent.PPid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.PPid = uint32(rv)
 		return nil
 	case "process.parent.tid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PIDContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.PIDContext.Tid"}
 		}
-		ev.ProcessContext.Parent.PIDContext.Tid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid = uint32(rv)
 		return nil
 	case "process.parent.tty_name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.TTYName"}
 		}
-		ev.ProcessContext.Parent.TTYName = rv
+		ev.BaseEvent.ProcessContext.Parent.TTYName = rv
 		return nil
 	case "process.parent.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.UID"}
 		}
-		ev.ProcessContext.Parent.Credentials.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Parent.Credentials.UID = uint32(rv)
 		return nil
 	case "process.parent.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		if ev.ProcessContext.Parent == nil {
-			ev.ProcessContext.Parent = &Process{}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.User"}
 		}
-		ev.ProcessContext.Parent.Credentials.User = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.User = rv
 		return nil
 	case "process.pid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PIDContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.PIDContext.Pid"}
 		}
-		ev.ProcessContext.Process.PIDContext.Pid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.PIDContext.Pid = uint32(rv)
 		return nil
 	case "process.ppid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.PPid"}
 		}
-		ev.ProcessContext.Process.PPid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.PPid = uint32(rv)
 		return nil
 	case "process.tid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PIDContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.PIDContext.Tid"}
 		}
-		ev.ProcessContext.Process.PIDContext.Tid = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.PIDContext.Tid = uint32(rv)
 		return nil
 	case "process.tty_name":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.TTYName"}
 		}
-		ev.ProcessContext.Process.TTYName = rv
+		ev.BaseEvent.ProcessContext.Process.TTYName = rv
 		return nil
 	case "process.uid":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.UID"}
 		}
-		ev.ProcessContext.Process.Credentials.UID = uint32(rv)
+		ev.BaseEvent.ProcessContext.Process.Credentials.UID = uint32(rv)
 		return nil
 	case "process.user":
-		if ev.ProcessContext == nil {
-			ev.ProcessContext = &ProcessContext{}
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.User"}
 		}
-		ev.ProcessContext.Process.Credentials.User = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.User = rv
 		return nil
 	case "ptrace.request":
 		rv, ok := value.(int)

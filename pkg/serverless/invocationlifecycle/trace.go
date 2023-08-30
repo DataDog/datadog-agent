@@ -115,7 +115,7 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Metrics:  triggerMetrics,
 	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
-	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.Coldstart)
+	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
 	if endDetails.ProactiveInit {
 		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", endDetails.ProactiveInit)
 	}

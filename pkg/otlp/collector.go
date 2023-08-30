@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 )
 
 var (
@@ -55,7 +54,6 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	receivers, err := receiver.MakeFactoryMap(
 		otlpreceiver.NewFactory(),
-		opencensusreceiver.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -105,11 +103,6 @@ func getBuildInfo() (component.BuildInfo, error) {
 type PipelineConfig struct {
 	// OTLPReceiverConfig is the OTLP receiver configuration.
 	OTLPReceiverConfig map[string]interface{}
-	// OpenCensusEnabled reports whether the OpenCensus receiver is enabled.
-	// WARNING: This feature is for internal use and may be removed in a minor version.
-	OpenCensusEnabled bool
-	// OpenCensusReceiverConfig specifies the configuration for the OpenCensus receiver.
-	OpenCensusReceiverConfig map[string]interface{}
 	// TracePort is the trace Agent OTLP port.
 	TracePort uint
 	// MetricsEnabled states whether OTLP metrics support is enabled.
@@ -198,14 +191,20 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 		return nil, err
 	}
 
-	if cfg.OpenCensusEnabled {
-		log.Warn("The OpenCensus receiver is for internal use only and may be removed without notice.")
-	}
 	return &Pipeline{col}, nil
+}
+
+func recoverAndStoreError() {
+	if r := recover(); r != nil {
+		err := fmt.Errorf("OTLP pipeline had a panic: %v", r)
+		pipelineError.Store(err)
+		log.Errorf(err.Error())
+	}
 }
 
 // Run the OTLP pipeline.
 func (p *Pipeline) Run(ctx context.Context) error {
+	defer recoverAndStoreError()
 	return p.col.Run(ctx)
 }
 
@@ -236,7 +235,7 @@ func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()
 	}
-	if err := checkAndUpdateCfg(cfg, &pcfg, logsAgentChannel); err != nil {
+	if err := checkAndUpdateCfg(pcfg, logsAgentChannel); err != nil {
 		return nil, err
 	}
 

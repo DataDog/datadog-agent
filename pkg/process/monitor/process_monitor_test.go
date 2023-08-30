@@ -19,8 +19,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	procutils "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func getProcessMonitor(t *testing.T) *ProcessMonitor {
@@ -175,7 +175,7 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	require.NoError(t, err, "could not create network namespace for process monitor")
 	t.Cleanup(func() { monNs.Close() })
 
-	require.NoError(t, procutils.WithNS(monNs, pm.Initialize), "could not start process monitor in netNS")
+	require.NoError(t, kernel.WithNS(monNs, pm.Initialize), "could not start process monitor in netNS")
 	t.Cleanup(pm.Stop)
 
 	time.Sleep(500 * time.Millisecond)
@@ -194,7 +194,7 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	defer cmdNs.Close()
 
 	cmd = exec.Command("/bin/echo")
-	require.NoError(t, procutils.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
+	require.NoError(t, kernel.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
 
 	require.Eventually(t, func() bool {
 		_, captured := execSet.Load(cmd.ProcessState.Pid())

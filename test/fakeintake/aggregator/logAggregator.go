@@ -29,7 +29,7 @@ func (l *Log) GetTags() []string {
 	return l.Tags
 }
 
-func parseLogPayload(payload api.Payload) (logs []*Log, err error) {
+func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
 	if len(payload.Data) == 0 {
 		// logs can submit with empty data
 		return []*Log{}, nil
@@ -52,6 +52,6 @@ type LogAggregator struct {
 
 func NewLogAggregator() LogAggregator {
 	return LogAggregator{
-		Aggregator: newAggregator(parseLogPayload),
+		Aggregator: newAggregator(ParseLogPayload),
 	}
 }

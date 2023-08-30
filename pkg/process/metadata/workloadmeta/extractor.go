@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -41,6 +42,8 @@ type WorkloadMetaExtractor struct {
 	diffChan chan *ProcessCacheDiff
 
 	pidToCid map[int]string
+
+	sysprobeConfig config.ConfigReader
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
@@ -58,14 +61,15 @@ var (
 )
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(sysprobeConfig config.ConfigReader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
 
 	return &WorkloadMetaExtractor{
 		cache:        make(map[string]*ProcessEntity),
 		cacheVersion: 0,
 		// Keep only the latest diff in memory in case there's no consumer for it
-		diffChan: make(chan *ProcessCacheDiff, 1),
+		diffChan:       make(chan *ProcessCacheDiff, 1),
+		sysprobeConfig: sysprobeConfig,
 	}
 }
 
@@ -82,7 +86,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	defer w.reportTelemetry()
 
 	newEntities := make([]*ProcessEntity, 0, len(procs))
-	newProcs := make([]*procutil.Process, 0, len(procs))
+	newProcs := make([]languagemodels.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
@@ -108,9 +112,9 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		return
 	}
 
-	languages := languagedetection.DetectLanguage(newProcs)
+	languages := languagedetection.DetectLanguage(newProcs, w.sysprobeConfig)
 	for i, lang := range languages {
-		pid := newProcs[i].Pid
+		pid := newProcs[i].GetPid()
 		proc := procs[pid]
 
 		var creationTime int64
@@ -175,7 +179,12 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 
 // Enabled returns whether the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
-	return ddconfig.GetBool("process_config.language_detection.enabled")
+	enabled := ddconfig.GetBool("language_detection.enabled")
+	if enabled && runtime.GOOS == "darwin" {
+		log.Warn("Language detection is not supported on macOS")
+		return false
+	}
+	return enabled
 }
 
 func hashProcess(pid int32, createTime int64) string {

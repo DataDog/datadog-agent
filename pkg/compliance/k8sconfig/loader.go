@@ -15,7 +15,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -130,7 +129,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		if err != nil {
 			l.pushError(err)
 		} else {
-			b, err = ioutil.ReadAll(io.LimitReader(f, maxSize))
+			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)
 			}
@@ -202,7 +201,7 @@ func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
 	if !ok {
 		return nil
 	}
-	if kind, _ := content["kind"]; kind != "KubeletConfiguration" {
+	if kind := content["kind"]; kind != "KubeletConfiguration" {
 		l.pushError(fmt.Errorf(`kubelet configuration loaded from %q is expected to be of kind "KubeletConfiguration"`, name))
 		return nil
 	}
