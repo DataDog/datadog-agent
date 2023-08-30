@@ -268,6 +268,23 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.max_payload_size"; core.IsSet(k) {
 		c.MaxRequestBytes = core.GetInt64(k)
 	}
+	if core.IsSet("apm_config.trace_buffer") {
+		c.TraceBuffer = core.GetInt("apm_config.trace_buffer")
+	}
+	if core.IsSet("apm_config.decoders") {
+		c.Decoders = core.GetInt("apm_config.decoders")
+	}
+	if core.IsSet("apm_config.max_connections") {
+		c.MaxConnections = core.GetInt("apm_config.max_connections")
+	} else {
+		c.MaxConnections = 1000
+	}
+	if core.IsSet("apm_config.decoder_timeout") {
+		c.DecoderTimeout = core.GetInt("apm_config.decoder_timeout")
+	} else {
+		c.DecoderTimeout = 1000
+	}
+
 	if k := "apm_config.replace_tags"; core.IsSet(k) {
 		rt := make([]*config.ReplaceRule, 0)
 		if err := coreconfig.Datadog.UnmarshalKey(k, &rt); err != nil {
@@ -427,6 +444,12 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_reset_interval") {
 		c.ConnectionResetInterval = getDuration(core.GetInt("apm_config.connection_reset_interval"))
+	}
+	if core.IsSet("apm_config.max_sender_retries") {
+		c.MaxSenderRetries = core.GetInt("apm_config.max_sender_retries")
+	} else {
+		// Default of 4 was chosen through experimentation, but may not be the optimal value.
+		c.MaxSenderRetries = 4
 	}
 	if core.IsSet("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")

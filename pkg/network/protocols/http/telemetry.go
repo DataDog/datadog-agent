@@ -14,6 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type telemetryJoiner struct {
+	// requests          orphan requests
+	// responses         orphan responses
+	// responsesDropped  responses dropped as older than request
+	// requestJoined     joined request and response
+	// agedRequest       aged requests dropped
+
+	requests         *libtelemetry.Counter
+	responses        *libtelemetry.Counter
+	responsesDropped *libtelemetry.Counter
+	requestJoined    *libtelemetry.Counter
+	agedRequest      *libtelemetry.Counter
+}
+
 type Telemetry struct {
 	protocol string
 
@@ -27,10 +41,13 @@ type Telemetry struct {
 	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
 	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
 	aggregations                                                     *libtelemetry.Counter
+
+	joiner telemetryJoiner
 }
 
 func NewTelemetry(protocol string) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
+	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
 
 	return &Telemetry{
 		protocol:    protocol,
@@ -51,6 +68,14 @@ func NewTelemetry(protocol string) *Telemetry {
 		unknownMethod:          metricGroup.NewCounter("malformed", "type:unknown-method", libtelemetry.OptStatsd),
 		invalidLatency:         metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
 		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
+
+		joiner: telemetryJoiner{
+			requests:         metricGroupJoiner.NewCounter("requests", libtelemetry.OptPrometheus),
+			responses:        metricGroupJoiner.NewCounter("responses", libtelemetry.OptPrometheus),
+			responsesDropped: metricGroupJoiner.NewCounter("responses_dropped", libtelemetry.OptPrometheus),
+			requestJoined:    metricGroupJoiner.NewCounter("joined", libtelemetry.OptPrometheus),
+			agedRequest:      metricGroupJoiner.NewCounter("aged", libtelemetry.OptPrometheus),
+		},
 	}
 }
 

@@ -38,7 +38,7 @@ func (m *RuntimeMonitor) SendStats() error {
 }
 
 func (m *RuntimeMonitor) sendCgroupMetrics() error {
-	pid := uint32(utils.Getpid())
+	pid := utils.Getpid()
 
 	// get cgroups
 	cgroups, err := utils.GetProcControlGroups(pid, pid)
@@ -126,7 +126,7 @@ func (m *RuntimeMonitor) sendCgroupMetrics() error {
 }
 
 func (m *RuntimeMonitor) sendProcMetrics() error {
-	p, err := process.NewProcess(utils.Getpid())
+	p, err := process.NewProcess(int32(utils.Getpid()))
 	if err != nil {
 		return err
 	}

@@ -197,11 +197,11 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
-	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 }
 
 func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceList, error) {
-	resources, err := client.ServerResources()
+	_, resources, err := client.ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
@@ -443,9 +443,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 			}
 
 			for _, apiResource := range resource.APIResources {
-				if _, ok := resourceReplacement[apiResource.Kind]; ok {
-					delete(resourceReplacement, apiResource.Kind)
-				}
+				delete(resourceReplacement, apiResource.Kind)
 			}
 		}
 	}

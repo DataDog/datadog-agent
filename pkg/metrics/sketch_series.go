@@ -29,7 +29,7 @@ type SketchSeries struct {
 func (sl SketchSeries) String() string {
 	reqBody := &bytes.Buffer{}
 	_ = json.NewEncoder(reqBody).Encode(sl)
-	return string(reqBody.Bytes())
+	return reqBody.String()
 }
 
 // A SketchPoint represents a quantile sketch at a specific time

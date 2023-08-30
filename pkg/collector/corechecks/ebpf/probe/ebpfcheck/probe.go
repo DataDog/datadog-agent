@@ -30,7 +30,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -527,7 +526,7 @@ func (k *EBPFProbe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint6
 }
 
 func matchProcessRSS(pid int, addrs []uintptr) (map[uintptr]uint64, error) {
-	smaps, err := os.Open(util.HostProc(strconv.Itoa(int(pid)), "smaps"))
+	smaps, err := os.Open(kernel.HostProc(strconv.Itoa(int(pid)), "smaps"))
 	if err != nil {
 		return nil, fmt.Errorf("smaps open: %s", err)
 	}

@@ -7,7 +7,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -497,7 +496,7 @@ func TestProxy(t *testing.T) {
 			// config file is never set.
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			ioutil.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
 			if c.setup != nil {
@@ -971,4 +970,13 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	t.Setenv("DD_SITE", "ddog-gov.com")
 	testConfig = SetupConfFromYAML("")
 	require.False(t, IsRemoteConfigEnabled(testConfig))
+}
+
+func TestLanguageDetectionSettings(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("language_detection.enabled"))
+
+	t.Setenv("DD_LANGUAGE_DETECTION_ENABLED", "true")
+	testConfig = SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("language_detection.enabled"))
 }

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/fakeintake
 
-go 1.18
+go 1.20
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73

@@ -9,13 +9,14 @@ package rules
 
 import (
 	"fmt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
@@ -257,10 +258,10 @@ func TestActionSetVariable(t *testing.T) {
 	}
 
 	event := model.NewDefaultEvent()
-	event.(*model.Event).Type = uint32(model.FileOpenEventType)
+	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.(*model.Event).ProcessCacheEntry = processCacheEntry
+	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
 	event.SetFieldValue("open.flags", syscall.O_RDONLY)
 
@@ -282,7 +283,7 @@ func TestActionSetVariable(t *testing.T) {
 	scopedVariables := evaluationSet.RuleSets[DefaultRuleSetTagValue].scopedVariables["process"].(*eval.ScopedVariables)
 
 	assert.Equal(t, scopedVariables.Len(), 1)
-	event.(*model.Event).ProcessCacheEntry.Release()
+	event.ProcessCacheEntry.Release()
 	assert.Equal(t, scopedVariables.Len(), 0)
 }
 

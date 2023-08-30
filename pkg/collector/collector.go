@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
@@ -31,6 +32,7 @@ const cancelCheckTimeout time.Duration = 500 * time.Millisecond
 
 // Collector abstract common operations about running a Check
 type Collector struct {
+	senderManager  sender.SenderManager
 	checkInstances int64
 
 	// state is 'started' or 'stopped'
@@ -44,8 +46,9 @@ type Collector struct {
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
-func NewCollector(paths ...string) *Collector {
+func NewCollector(senderManager sender.SenderManager, paths ...string) *Collector {
 	c := &Collector{
+		senderManager:  senderManager,
 		checks:         make(map[checkid.ID]*middleware.CheckWrapper),
 		state:          atomic.NewUint32(stopped),
 		checkInstances: int64(0),
@@ -78,7 +81,7 @@ func (c *Collector) Start() {
 		return
 	}
 
-	run := runner.NewRunner()
+	run := runner.NewRunner(c.senderManager)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler
@@ -115,7 +118,7 @@ func (c *Collector) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner)
+	ch := middleware.NewCheckWrapper(inner, c.senderManager)
 
 	var emptyID checkid.ID
 
@@ -236,6 +239,19 @@ func (c *Collector) MapOverChecks(cb func([]check.Info)) {
 		cInfo = append(cInfo, c)
 	}
 	cb(cInfo)
+}
+
+// GetChecks copies checks
+func (c *Collector) GetChecks() []check.Check {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	chks := make([]check.Check, 0, len(c.checks))
+	for _, chck := range c.checks {
+		chks = append(chks, chck)
+	}
+
+	return chks
 }
 
 // GetAllInstanceIDs returns the ID's of all instances of a check

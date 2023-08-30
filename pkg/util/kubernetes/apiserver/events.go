@@ -27,7 +27,7 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 	var added []*v1.Event
 	syncTimeout := time.Duration(resync) * time.Second
 	// list if latestResVer is "" or if lastListTS is > syncTimeout
-	diffTime := time.Now().Sub(lastListTime)
+	diffTime := time.Since(lastListTime)
 	if resVer == "" || diffTime > syncTimeout {
 		log.Debugf("Return listForEventResync diffTime: %d/%d", diffTime, syncTimeout)
 		listed, lastResVer, lastTime, err := c.listForEventResync(eventReadTimeout, eventCardinalityLimit, filter)

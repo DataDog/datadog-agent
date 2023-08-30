@@ -575,7 +575,7 @@ func TestTags(t *testing.T) {
 			agentTags:               func(collectors.TagCardinality) ([]string, error) { return []string{"container_name:agent"}, nil },
 			globalTags:              func(collectors.TagCardinality) ([]string, error) { return []string{"kube_cluster_name:foo"}, nil },
 			withVersion:             true,
-			want:                    []string{"container_name:agent", "version:" + version.AgentVersion},
+			want:                    []string{"container_name:agent", "version:" + version.AgentVersion, "kube_cluster_name:foo"},
 		},
 	}
 	for _, tt := range tests {

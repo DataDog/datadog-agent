@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
@@ -85,8 +86,9 @@ func TestMemoryCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("FinalizeCheckServiceTag").Return().Times(1)
 	mock.On("Commit").Return().Times(1)
-
+	memCheck.Configure(aggregator.GetSenderManager(), 0, nil, nil, "")
 	err := memCheck.Run()
 	require.Nil(t, err)
 
@@ -117,7 +119,9 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("FinalizeCheckServiceTag").Return().Times(1)
 	mock.On("Commit").Return().Times(1)
+	memCheck.Configure(aggregator.GetSenderManager(), 0, nil, nil, "")
 	err := memCheck.Run()
 	require.Nil(t, err)
 
@@ -147,7 +151,10 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("FinalizeCheckServiceTag").Return().Times(1)
 	mock.On("Commit").Return().Times(1)
+	memCheck.Configure(aggregator.GetSenderManager(), 0, nil, nil, "")
+
 	err := memCheck.Run()
 	require.Nil(t, err)
 
@@ -165,7 +172,8 @@ func TestMemoryError(t *testing.T) {
 	mock := mocksender.NewMockSender(memCheck.ID())
 
 	runtimeOS = "linux"
-
+	mock.On("FinalizeCheckServiceTag").Return().Times(1)
+	memCheck.Configure(aggregator.GetSenderManager(), 0, nil, nil, "")
 	err := memCheck.Run()
 	assert.NotNil(t, err)
 
@@ -197,7 +205,10 @@ func TestSwapMemoryError(t *testing.T) {
 	mock.On("Gauge", "system.mem.commit_limit", 785338368.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.committed_as", 433750016.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("FinalizeCheckServiceTag").Return().Times(1)
 	mock.On("Commit").Return().Times(1)
+
+	memCheck.Configure(aggregator.GetSenderManager(), 0, nil, nil, "")
 	err := memCheck.Run()
 	require.Nil(t, err)
 
@@ -221,7 +232,10 @@ func TestVirtualMemoryError(t *testing.T) {
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("FinalizeCheckServiceTag").Return().Times(1)
 	mock.On("Commit").Return().Times(1)
+
+	memCheck.Configure(aggregator.GetSenderManager(), 0, nil, nil, "")
 	err := memCheck.Run()
 	require.Nil(t, err)
 

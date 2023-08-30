@@ -75,13 +75,11 @@ int kprobe_parse_args(struct pt_regs *ctx) {
     return 0;
 }
 
-#ifndef USE_FENTRY
 HOOK_ENTRY("security_kernel_module_from_file")
 int hook_security_kernel_module_from_file(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
     return trace_kernel_file(ctx, f, DR_KPROBE_OR_FENTRY);
 }
-#endif
 
 HOOK_ENTRY("security_kernel_read_file")
 int hook_security_kernel_read_file(ctx_t *ctx) {

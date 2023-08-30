@@ -18,6 +18,7 @@ import (
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 )
 
 // Helper methods
@@ -119,7 +120,7 @@ func changeAndAssertExpvarValue(
 }
 
 type testCheck struct {
-	stats.StubCheck
+	stub.StubCheck
 	id string
 }
 

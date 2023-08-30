@@ -81,10 +81,10 @@ func getOSCAPIODefaultBinPath() (string, error) {
 func newOSCAPIO(file string) *oscapIO {
 	return &oscapIO{
 		File:     file,
-		RuleCh:   make(chan *oscapIORule, 0),
-		ResultCh: make(chan *oscapIOResult, 0),
-		ErrorCh:  make(chan error, 0),
-		DoneCh:   make(chan bool, 0),
+		RuleCh:   make(chan *oscapIORule),
+		ResultCh: make(chan *oscapIOResult),
+		ErrorCh:  make(chan error),
+		DoneCh:   make(chan bool),
 	}
 }
 

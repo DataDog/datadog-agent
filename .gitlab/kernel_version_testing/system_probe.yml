@@ -282,8 +282,6 @@ kernel_matrix_testing_setup_env:
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
     - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
-    # Force remove pulumi stack files so the infra cleaner does not fail trying to remove stale stacks
-    - pulumi stack rm -y --force $(pulumi stack ls -a | grep kernel-matrix-testing-$CI_PIPELINE_ID | cut -d ' ' -f 1)
     - pulumi logout
   artifacts:
     when: always

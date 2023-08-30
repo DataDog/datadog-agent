@@ -53,6 +53,7 @@ type LambdaLogsCollector struct {
 	process_once           *sync.Once
 	executionContext       *executioncontext.ExecutionContext
 	lambdaInitMetricChan   chan<- *LambdaInitMetric
+	orphanLogsChan         chan []LambdaLogAPIMessage
 
 	arn string
 
@@ -63,7 +64,7 @@ type LambdaLogsCollector struct {
 func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
-		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs), // Buffered, so we can hold start-up logs before first invocation without blocking
+		In:                     make(chan []LambdaLogAPIMessage),
 		out:                    out,
 		demux:                  demux,
 		extraTags:              extraTags,
@@ -73,6 +74,7 @@ func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregato
 		handleRuntimeDone:      handleRuntimeDone,
 		process_once:           &sync.Once{},
 		lambdaInitMetricChan:   lambdaInitMetricChan,
+		orphanLogsChan:         make(chan []LambdaLogAPIMessage, maxBufferedLogs),
 	}
 }
 
@@ -100,6 +102,13 @@ func (lc *LambdaLogsCollector) Start() {
 			for messages := range lc.In {
 				lc.processLogMessages(messages)
 			}
+
+			// Process logs without a request ID when it becomes available
+			if len(lc.lastRequestID) > 0 && len(lc.orphanLogsChan) > 0 {
+				for msgs := range lc.orphanLogsChan {
+					lc.processLogMessages(msgs)
+				}
+			}
 		}()
 	})
 }
@@ -122,9 +131,19 @@ func shouldProcessLog(message *LambdaLogAPIMessage) bool {
 	return true
 }
 
-func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAPIMessage) string {
+// calculateRuntimeDuration returns the runtimeDuration and postRuntimeDuration is milliseconds
+func calculateRuntimeDuration(l *LambdaLogAPIMessage, startTime, endTime time.Time) (float64, float64) {
+	// If neither startTime nor endTime have been set, avoid returning exaggerated values
+	if startTime.IsZero() || endTime.IsZero() {
+		return 0, 0
+	}
 	runtimeDurationMs := float64(endTime.Sub(startTime).Milliseconds())
 	postRuntimeDurationMs := l.objectRecord.reportLogItem.durationMs - runtimeDurationMs
+	return runtimeDurationMs, postRuntimeDurationMs
+}
+
+func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAPIMessage) string {
+	runtimeDurationMs, postRuntimeDurationMs := calculateRuntimeDuration(l, startTime, endTime)
 	stringRecord := fmt.Sprintf("REPORT RequestId: %s\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: %d ms\tMemory Size: %d MB\tMax Memory Used: %d MB",
 		l.objectRecord.requestID,
 		l.objectRecord.reportLogItem.durationMs,
@@ -161,6 +180,7 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 	sort.Slice(messages, func(i, j int) bool {
 		return messages[i].time.Before(messages[j].time)
 	})
+	orphanMessages := []LambdaLogAPIMessage{}
 	for _, message := range messages {
 		lc.processMessage(&message)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
@@ -168,6 +188,12 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 		if lc.logsEnabled {
 			// Do not send platform log messages without a stringRecord to the intake
 			if message.stringRecord == "" && message.logType != logTypeFunction {
+				continue
+			}
+
+			// If logs cannot be assigned a request ID, delay sending until a request ID is available
+			if len(message.objectRecord.requestID) == 0 && len(lc.lastRequestID) == 0 {
+				orphanMessages = append(orphanMessages, message)
 				continue
 			}
 
@@ -184,6 +210,9 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(createStringRecordForTimeoutLog(&message)), message.time, lc.arn, message.objectRecord.requestID, isTimeoutLog)
 			}
 		}
+	}
+	if len(orphanMessages) > 0 {
+		lc.orphanLogsChan <- orphanMessages
 	}
 }
 
@@ -224,9 +253,9 @@ func (lc *LambdaLogsCollector) processMessage(
 		coldStart := false
 		// Only run this block if the LC thinks we're in a cold start
 		if lc.lastRequestID == lc.coldstartRequestID {
-			state := lc.executionContext.GetCurrentState()
-			proactiveInit = state.ProactiveInit
-			coldStart = state.Coldstart
+			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+			proactiveInit = coldStartTags.IsProactiveInit
+			coldStart = coldStartTags.IsColdStart
 		}
 		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
 		outOfMemoryRequestId := ""

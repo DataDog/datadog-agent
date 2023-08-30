@@ -15,7 +15,9 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -48,10 +49,12 @@ type PolicyMonitor struct {
 	perRuleMetricEnabled bool
 }
 
-// AddPolicies add policies to the monitor
-func (p *PolicyMonitor) AddPolicies(policies []*rules.Policy, mErrs *multierror.Error) {
+// SetPolicies add policies to the monitor
+func (p *PolicyMonitor) SetPolicies(policies []*rules.Policy, mErrs *multierror.Error) {
 	p.Lock()
 	defer p.Unlock()
+
+	p.policies = map[string]Policy{}
 
 	for _, policy := range policies {
 		p.policies[policy.Name] = Policy{Name: policy.Name, Source: policy.Source, Version: policy.Version}
@@ -101,7 +104,7 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 						tags := []string{
 							"rule_id:" + id,
 							fmt.Sprintf("status:%v", status),
-							dogstatsdServer.CardinalityTagPrefix + collectors.LowCardinalityString,
+							constants.CardinalityTagPrefix + collectors.LowCardinalityString,
 						}
 
 						if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {

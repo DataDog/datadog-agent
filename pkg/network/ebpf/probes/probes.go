@@ -16,6 +16,8 @@ const (
 
 	// TCPConnect traces the connect() system call
 	TCPConnect ProbeFuncName = "kprobe__tcp_connect"
+	// TCPConnectReturn probe name for the exit from connect() system call
+	TCPConnectReturn ProbeFuncName = "kretprobe__tcp_connect"
 	// TCPFinishConnect traces tcp_finish_connect() kernel function. This is
 	// used to know when a TCP connection switches to the ESTABLISHED state
 	TCPFinishConnect ProbeFuncName = "kprobe__tcp_finish_connect"
@@ -28,6 +30,7 @@ const (
 	ProtocolClassifierEntrySocketFilter  ProbeFuncName = "socket__classifier_entry"
 	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
 	ProtocolClassifierDBsSocketFilter    ProbeFuncName = "socket__classifier_dbs"
+	ProtocolClassifierGRPCSocketFilter   ProbeFuncName = "socket__classifier_grpc"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.

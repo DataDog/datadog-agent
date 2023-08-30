@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -191,7 +192,11 @@ func (suite *ProviderTestSuite) SetupTest() {
 	require.NotNil(suite.T(), kubeutil)
 	suite.kubeUtil = kubeutil
 
-	config := &common.KubeletConfig{Tags: []string{"instance_tag:something"}}
+	config := &common.KubeletConfig{
+		OpenmetricsInstance: types.OpenmetricsInstance{
+			Tags: []string{"instance_tag:something"},
+		},
+	}
 
 	suite.provider = &Provider{
 		config: config,

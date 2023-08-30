@@ -71,7 +71,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
 	cfg.Set("process_config.language_detection.grpc_port", port)
-	cfg.Set("workloadmeta.remote_process_collector.enabled", true)
+	cfg.Set("language_detection.enabled", true)
 
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(cfg)
 	grpcServer := workloadmetaExtractor.NewGRPCServer(cfg, wlmExtractor)
@@ -205,7 +205,7 @@ func TestEnabled(t *testing.T) {
 
 			cfg := config.Mock(t)
 			cfg.Set("process_config.process_collection.enabled", tc.processCollectionEnabled)
-			cfg.Set("workloadmeta.remote_process_collector.Enabled", tc.remoteProcessCollectorEnabled)
+			cfg.Set("language_detection.enabled", tc.remoteProcessCollectorEnabled)
 
 			assert.Equal(t, tc.expectEnabled, Enabled(cfg))
 		})

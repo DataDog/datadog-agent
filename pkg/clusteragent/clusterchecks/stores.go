@@ -88,6 +88,7 @@ type nodeStore struct {
 	clientIP         string
 	clcRunnerStats   types.CLCRunnersStats
 	busyness         int
+	workers          int
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {

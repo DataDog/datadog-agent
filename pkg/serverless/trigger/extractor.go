@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// getAWSPartitionByRegion parses an AWS region and returns an AWS partition
-func getAWSPartitionByRegion(region string) string {
+// GetAWSPartitionByRegion parses an AWS region and returns an AWS partition
+func GetAWSPartitionByRegion(region string) string {
 	if strings.HasPrefix(region, "us-gov-") {
 		return "aws-us-gov"
 	} else if strings.HasPrefix(region, "cn-") {
@@ -28,19 +28,19 @@ func getAWSPartitionByRegion(region string) string {
 // ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
 func ExtractAPIGatewayEventARN(event events.APIGatewayProxyRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayV2EventARN returns an ARN from an APIGatewayV2HTTPRequest
 func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayWebSocketEventARN returns an ARN from an APIGatewayWebsocketProxyRequest
 func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
 	requestContext := event.RequestContext
-	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", getAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
@@ -59,7 +59,7 @@ func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region stri
 	if err != nil {
 		return "", fmt.Errorf("Couldn't decode Cloudwatch Logs event: %v", err)
 	}
-	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", getAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
+	return fmt.Sprintf("arn:%v:logs:%v:%v:log-group:%v", GetAWSPartitionByRegion(region), region, accountID, decodedLog.LogGroup), nil
 }
 
 // ExtractDynamoDBStreamEventARN returns an ARN from a DynamoDBEvent
