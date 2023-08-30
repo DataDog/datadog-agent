@@ -48,7 +48,7 @@ func TestProcess(t *testing.T) {
 		"path3": {Config: genConfig("dev", "wrong")},        // kind mismatch
 		"path4": {Config: genConfig("wrong", "deployment")}, // cluster mismatch
 	}
-	rcp.process(in)
+	rcp.process(in, nil)
 	require.Len(t, notifs, 1)
 	pr := <-notifs
 	require.Equal(t, "17945471932432318983", pr.ID)
