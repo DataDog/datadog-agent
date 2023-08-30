@@ -4,6 +4,7 @@ This module defines a parser for golangci-lint output.
 
 import re
 import os
+from collections import defaultdict
 from ..libs.pipeline_notifications import read_owners
 
 # Example lint message
@@ -15,6 +16,13 @@ LINT_PATTERN = re.compile("^([^:]+):([0-9]+):([0-9]+): (([^:]+): )?(.+) \\((.+)\
 MODULE_PATTERN = re.compile("^.*Linters for module ([^ ]+) failed \\((.+)\\).*$")
 
 CODEOWNERS_FILE_PATH = ".github/CODEOWNERS"
+
+def is_team_owner(file: str, team: str) -> bool:
+    codeowners = read_owners(CODEOWNERS_FILE_PATH)
+    team = team.lower()
+    file_owners = codeowners.of(file)
+    file_owners = list(map(lambda x: (x[0], x[1].lower()), file_owners))
+    return ('TEAM', team) in file_owners
 
 
 def parse_file(golangci_lint_output: str):
@@ -63,22 +71,17 @@ def filter_lints(lints_per_linter, filter_team: str=None, filter_linters: str=No
             filter_linters (str): Comma-separated linters to keep. None will keep lints from all linters.
     """
     list_filter_linters = filter_linters.split(',') if filter_linters else []
-    filtered_lints = dict()
-    codeowners = read_owners(CODEOWNERS_FILE_PATH)
+    filtered_lints = defaultdict(set)
     for linter in lints_per_linter:
-
         # If either we didn't set a filter or the linter is in the filter list
         if not filter_linters or linter in list_filter_linters:
-            if linter not in filtered_lints:
-                filtered_lints[linter] = []
-
             if not filter_team:
                 filtered_lints[linter] = lints_per_linter[linter]
             else:
                 # Filter only the lints owned by the filter_team
                 for lint in lints_per_linter[linter]:
-                    if ('TEAM', filter_team) in codeowners.of(lint[0]):
-                        filtered_lints[linter].append(lint)
+                    if is_team_owner(lint[0], filter_team):
+                        filtered_lints[linter].add(lint)
     return filtered_lints
 
 
@@ -98,13 +101,9 @@ def merge_results(results_per_os_x_arch: dict[str: str]):
     """
     Merge golangci-lint output
     """
-    merged_lints_per_linter = {}
-    for os_x_arch, result in results_per_os_x_arch.items():
+    merged_lints_per_linter = defaultdict(set)
+    for _, result in results_per_os_x_arch.items():
         lints_per_linter = parse_file(result)
         for linter, lints in lints_per_linter.items():
-            if linter not in merged_lints_per_linter:
-                merged_lints_per_linter[linter] = []
-            merged_lints_per_linter[linter] += lints
-    for linter in merged_lints_per_linter:
-        merged_lints_per_linter[linter] = list(set(merged_lints_per_linter[linter]))
+            merged_lints_per_linter[linter].update(lints)
     return merged_lints_per_linter
