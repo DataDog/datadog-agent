@@ -7,6 +7,7 @@ package encoding
 
 import (
 	"bytes"
+	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/jsonpb"
@@ -21,12 +22,16 @@ type jsonSerializer struct {
 	marshaller jsonpb.Marshaler
 }
 
-func (j jsonSerializer) Marshal(conns *network.Connections) ([]byte, error) {
-	payload := modelConnections(conns)
-	writer := new(bytes.Buffer)
-	err := j.marshaller.Marshal(writer, payload)
-	returnToPool(payload)
-	return writer.Bytes(), err
+func (j jsonSerializer) Marshal(conns *network.Connections, writer io.Writer) error {
+	out := bytes.NewBuffer(nil)
+	modelConnections(model.NewConnectionsBuilder(out), conns)
+
+	var payload model.Connections
+	if err := payload.Unmarshal(out.Bytes()); err != nil {
+		return err
+	}
+
+	return j.marshaller.Marshal(writer, &payload)
 }
 
 func (jsonSerializer) Unmarshal(blob []byte) (*model.Connections, error) {

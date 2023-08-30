@@ -191,9 +191,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 		return &CIDRArrayEvaluator{
 			EvalFnc: func(ctx *Context) []net.IPNet {
 				var ipnets []net.IPNet
-				for _, ip := range ctx.Event.(*testEvent).network.ips {
-					ipnets = append(ipnets, ip)
-				}
+				ipnets = append(ipnets, ctx.Event.(*testEvent).network.ips...)
 				return ipnets
 			},
 		}, nil

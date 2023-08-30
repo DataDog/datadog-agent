@@ -74,7 +74,7 @@ type Client struct {
 
 	state *state.Repository
 
-	listeners map[string][]func(update map[string]state.RawConfig)
+	listeners map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -197,7 +197,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		state:         repository,
 		pollInterval:  pollInterval,
 		backoffPolicy: backoffPolicy,
-		listeners:     make(map[string][]func(update map[string]state.RawConfig)),
+		listeners:     make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
 		updater:       updater,
 	}, nil
 }
@@ -233,7 +233,7 @@ func (c *Client) SetAgentName(agentName string) {
 }
 
 // Subscribe subscribes to config updates of a product.
-func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig)) {
+func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -250,7 +250,7 @@ func (c *Client) Subscribe(product string, fn func(update map[string]state.RawCo
 	}
 
 	c.listeners[product] = append(c.listeners[product], fn)
-	fn(c.state.GetConfigs(product))
+	fn(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 }
 
 // GetConfigs returns the current configs applied of a product.
@@ -342,7 +342,7 @@ func (c *Client) update() error {
 	for product, productListeners := range c.listeners {
 		if containsProduct(changedProducts, product) {
 			for _, listener := range productListeners {
-				listener(c.state.GetConfigs(product))
+				listener(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 			}
 		}
 	}

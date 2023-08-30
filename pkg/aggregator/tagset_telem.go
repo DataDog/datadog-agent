@@ -45,10 +45,10 @@ func newTagsetTelemetry(thresholds []uint64) *tagsetTelemetry {
 	t := &tagsetTelemetry{
 		size:              size,
 		sizeThresholds:    thresholds,
-		hugeSeriesCount:   make([]*atomic.Uint64, size, size),
-		tlmHugeSeries:     make([]telemetry.Counter, size, size),
-		hugeSketchesCount: make([]*atomic.Uint64, size, size),
-		tlmHugeSketches:   make([]telemetry.Counter, size, size),
+		hugeSeriesCount:   make([]*atomic.Uint64, size),
+		tlmHugeSeries:     make([]telemetry.Counter, size),
+		hugeSketchesCount: make([]*atomic.Uint64, size),
+		tlmHugeSketches:   make([]telemetry.Counter, size),
 	}
 
 	for i, thresh := range t.sizeThresholds {
