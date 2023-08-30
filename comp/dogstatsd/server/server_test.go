@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,26 +38,6 @@ type serverDeps struct {
 	Server Component
 	Config configComponent.Component
 	Log    log.Component
-}
-
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (int, error) {
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	portInt, err := strconv.Atoi(portString)
-	if err != nil {
-		return -1, fmt.Errorf("can't convert udp port: %s", err)
-	}
-
-	return portInt, nil
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -443,21 +422,20 @@ func TestUDPReceive(t *testing.T) {
 func TestUDPForward(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	fport, err := getAvailableUDPPort()
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	pcHost, pcPort, err := net.SplitHostPort(pc.LocalAddr().String())
 	require.NoError(t, err)
 
 	// Setup UDP server to forward to
-	cfg["statsd_forward_port"] = fport
-	cfg["statsd_forward_host"] = "127.0.0.1"
+	cfg["statsd_forward_port"] = pcPort
+	cfg["statsd_forward_host"] = pcHost
 
 	// Setup dogstatsd server
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-
-	addr := fmt.Sprintf("127.0.0.1:%d", fport)
-	pc, err := net.ListenPacket("udp", addr)
-	require.NoError(t, err)
 
 	defer pc.Close()
 
