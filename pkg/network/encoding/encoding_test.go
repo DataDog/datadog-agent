@@ -384,7 +384,6 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
-		require.NoError(t, err)
 
 		marshaler := GetMarshaler("")
 		// in case we request empty serialization type, default to application/json
