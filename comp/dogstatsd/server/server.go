@@ -465,7 +465,7 @@ func (s *server) handleMessages() {
 	}
 }
 
-func (s *server) UdpLocalAddr() string {
+func (s *server) UDPLocalAddr() string {
 	return s.udpLocalAddr
 }
 

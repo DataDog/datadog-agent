@@ -40,7 +40,7 @@ func (s *serverMock) UdsListenerRunning() bool {
 	return false
 }
 
-func (s *serverMock) UdpLocalAddr() string {
+func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 

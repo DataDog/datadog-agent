@@ -35,8 +35,8 @@ type Component interface {
 	// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
 	SetExtraTags(tags []string)
 
-	// UdpLocalAddr returns the local address of the UDP statsd listener, if enabled.
-	UdpLocalAddr() string
+	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
+	UDPLocalAddr() string
 }
 
 // Mock implements mock-specific methods.

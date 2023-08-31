@@ -104,7 +104,7 @@ func TestStopServer(t *testing.T) {
 	deps.Server.Stop()
 
 	// check that the port can be bound, try for 100 ms
-	address, err := net.ResolveUDPAddr("udp", deps.Server.UdpLocalAddr())
+	address, err := net.ResolveUDPAddr("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot resolve address")
 	for i := 0; i < 10; i++ {
 		var conn net.Conn
@@ -161,7 +161,7 @@ func TestUDPReceive(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	conn, err := net.Dial("udp", deps.Server.UdpLocalAddr())
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -444,7 +444,7 @@ func TestUDPForward(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	conn, err := net.Dial("udp", deps.Server.UdpLocalAddr())
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -477,7 +477,7 @@ func TestHistToDist(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	conn, err := net.Dial("udp", deps.Server.UdpLocalAddr())
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -563,7 +563,7 @@ func TestE2EParsing(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
-	conn, err := net.Dial("udp", deps.Server.UdpLocalAddr())
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -583,7 +583,7 @@ func TestE2EParsing(t *testing.T) {
 	demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(deps.Log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
-	conn, err = net.Dial("udp", deps.Server.UdpLocalAddr())
+	conn, err = net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -609,7 +609,7 @@ func TestExtraTags(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	conn, err := net.Dial("udp", deps.Server.UdpLocalAddr())
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -639,7 +639,7 @@ func TestStaticTags(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	conn, err := net.Dial("udp", deps.Server.UdpLocalAddr())
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
