@@ -22,7 +22,7 @@ def is_team_owner(file: str, team: str) -> bool:
     codeowners = read_owners(CODEOWNERS_FILE_PATH)
     team = team.lower()
     file_owners = codeowners.of(file)
-    file_owners = list(map(lambda x: (x[0], x[1].lower()), file_owners))
+    file_owners = [(x[0], x[1].lower()) for x in file_owners]
     return ('TEAM', team) in file_owners
 
 

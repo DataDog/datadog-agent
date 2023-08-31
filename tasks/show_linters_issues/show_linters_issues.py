@@ -16,8 +16,8 @@ def check_if_team_exists(team: str):
     Check if an input team exists in the GITHUB_SLACK_MAP. Exits the code if it doesn't.
     """
     if team:
-        if not team in GITHUB_SLACK_MAP:
-            raise Exit(f"=> Team '{team}' does not exist.\n=> Your team should be in {[t for t in GITHUB_SLACK_MAP]}", code=2)
+        if team not in GITHUB_SLACK_MAP:
+            raise Exit(f"=> Team '{team}' does not exist.\n=> Your team should be in {GITHUB_SLACK_MAP}", code=2)
     else:
         print("[WARNING] No team entered. Displaying linters errors for all teams.\n")
 
@@ -44,7 +44,8 @@ def show_linters_issues(ctx, filter_team: str=None, from_commit_hash: str=FIRST_
 
     # Run the linters for every OS x Arch and merge the results
     results_per_os_x_arch = dict()
-    platforms = list(map(lambda x: x.split(','), platforms if platforms else CI_TESTED_OS_AND_ARCH))
+    platforms = platforms if platforms else CI_TESTED_OS_AND_ARCH
+    platforms = [p.split(',') for p in platforms]
     for tested_os, tested_arch in platforms:
         env = {"GOOS": tested_os, "GOARCH": tested_arch}
         print(f"Running linters for {tested_os}_{tested_arch}...")
