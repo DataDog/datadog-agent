@@ -13,15 +13,17 @@ We still want to fix the `revive` and `gosimple` errors that came before [f40667
 The version of `go` and `golangci-lint` can have a big impact on the output of the linters. You'll need to have a setup close to the CI's to have the same output. Please meet the following conditions before running the commands:
 - Your `go` version (run `go version`) is identical to the CI's (content of the `.go-version` file).
 - Your `golangci-lint` version is identical to the CI's (look for `golangci-lint` in the `internal/tools/go.mod` file).
-- You did not install `go` using `brew` (`which go` path shouldn't contain `homebrew`).
-- Install the requirements with `python3 -m pip install tasks/fix_revive_linter/requirements-need-fixing-linter.txt`
+- You did not install `go` using `brew` (`which go` path shouldn't contain `homebrew`). If it does, please install `go` for example using `gimme`.
+- Install the requirements with `python3 -m pip install tasks/fix_revive_linter/requirements-need-fixing-linter.txt`.
+- Clear you `golangci-lint` cache (`golangci-lint cache clean`) and your `go mod` cache (`go clean -modcache`).
+- Install the tools (`inv -e install-tools`) and the dependencies (`inv -e deps`).
 
 ## Fixing the `gosimple` linter
 
 Already done in [#18884](https://github.com/DataDog/datadog-agent/pull/18884).
 
 
-## Fixing the `revive` linter
+## Fixing the all `revive` linter errors for your team
 
 Run the command
 
@@ -32,3 +34,16 @@ inv -e show-linters-issues --filter-team "@DataDog/your-team" --filter-linters "
 Note: The linter is running every combination OS x Arch we're linting in the CI so it's normal for it to take a bit of time on the first run (should be faster after because some of it is cached).
 
 Manually fix every lines in the command output create a PR with your fixes.
+
+## Show the `revive` linter issues for your branch only
+
+```bash
+inv -e show-linters-issues --filter-linters "revive" --from-commit-hash "main"
+```
+
+
+## Troubleshooting
+
+We got linter OOMs when running the linter locally and on the CI as well.
+
+We were not able to troubleshoot precisely but it should work if you've fill all the requirement in the `Prerequisites` section.
