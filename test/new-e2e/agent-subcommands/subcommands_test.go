@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -39,8 +40,8 @@ func getStatusComponentContent(statusOutput string, sectionName string) (*sectio
 	// * a name (e.g. 'Forwarder')
 	// * followed by lines whose first character is not a blank (e.g. '==========')
 	// * and then lines starting with blank characters (which is basically the content of the section)
-	linesStartingWithNonWhiteCharRegex := `([^[:blank:]]+\n)+`                 // new sections aren't indented
-	linesStartingWithWhiteCharRegex := `(?P<status>([[:blank:]]+.*\n|\r?\n)+)` // either match starting with blank or match empty line (\r\n and \n)
+	linesStartingWithNonWhiteCharRegex := `([^[:blank:]]+\n)+`                         // new sections aren't indented
+	linesStartingWithWhiteCharRegex := `(?P<sectionContent>([[:blank:]]+.*\n|\r?\n)+)` // either match starting with blank or match empty line (\r\n and \n)
 	regexTemplate := fmt.Sprintf("%v\n", sectionName) + linesStartingWithNonWhiteCharRegex + linesStartingWithWhiteCharRegex
 
 	re := regexp.MustCompile(regexTemplate)
@@ -50,7 +51,7 @@ func getStatusComponentContent(statusOutput string, sectionName string) (*sectio
 		return nil, fmt.Errorf("regexp: no matches for %s status section", sectionName)
 	}
 
-	settingsIndex := re.SubexpIndex("status")
+	settingsIndex := re.SubexpIndex("sectionContent")
 
 	return &section{
 		name:    sectionName,
@@ -69,11 +70,15 @@ type expectedSection struct {
 func (v *subcommandSuite) TestDefaultInstallStatus() {
 
 	v.UpdateEnv(e2e.FakeIntakeStackDef(nil))
+
+	metadata := client.NewEC2Metadata(v.Env().VM)
+	resourceId := metadata.Get("instance-id")
+
 	expectedSections := []expectedSection{
 		{
-			name:             `Agent \(.*\)`,
+			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
-			shouldContain:    []string{"hostname", "hostname provider"},
+			shouldContain:    []string{fmt.Sprintf("hostname: %v", resourceId), "hostname provider: aws"},
 			shouldNotContain: []string{"FIPS proxy"},
 		},
 		{
