@@ -536,6 +536,45 @@ func TestExecBomb(t *testing.T) {
 	testCacheSize(t, resolver)
 }
 
+func TestExecLoss(t *testing.T) {
+	resolver, err := NewResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent.FileEvent.BasenameStr = "agent"
+	parent.ForkTime = time.Now()
+	parent.FileEvent.Inode = 1
+	parent.ExecInode = 1
+
+	// parent
+	resolver.AddForkEntry(parent)
+
+	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child.PPid = parent.Pid
+	child.FileEvent.Inode = 1
+	parent.ExecInode = 1
+
+	// parent
+	//     \ child
+	resolver.AddForkEntry(child)
+
+	// exec loss
+
+	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 3, Tid: 3})
+	child1.FileEvent.BasenameStr = "sh"
+	child1.PPid = child.Pid
+	child1.ExecInode = 2
+
+	// parent
+	//     \ child
+	resolver.AddForkEntry(child1)
+
+	assert.Equal(t, "sh", child1.FileEvent.BasenameStr)
+	assert.Nil(t, child1.Parent)
+}
+
 func TestIsExecChildRuntime(t *testing.T) {
 	resolver, err := NewResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
 	if err != nil {

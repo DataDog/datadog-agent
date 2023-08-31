@@ -484,6 +484,30 @@ func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
 	}
 }
 
+func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event) error {
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+	if !eventWithNoProcessContext(eventType) {
+		if !isResolved {
+			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
+		} else if !entry.HasCompleteLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+			p.resolvers.ProcessResolver.CountBrokenLineage()
+		}
+	}
+	event.ProcessCacheEntry = entry
+	if event.ProcessCacheEntry == nil {
+		panic("should always return a process cache entry")
+	}
+
+	// use ProcessCacheEntry process context as process context
+	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	if event.ProcessContext == nil {
+		panic("should always return a process context")
+	}
+
+	return event.Error
+}
+
 func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset := 0
 	event := p.zeroEvent()
@@ -565,6 +589,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode Network Context")
 		}
 		offset += read
+	}
+
+	// process context first except for exec and fork
+	if eventType != model.ExecEventType && eventType != model.ForkEventType {
+		_ = p.setProcessContext(eventType, event)
 	}
 
 	switch eventType {
@@ -715,18 +744,33 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// update mount pid mapping
 		p.resolvers.MountResolver.DelPid(event.Exit.Pid)
 	case model.SetuidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error != nil {
+			break
+		}
+
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error != nil {
+			break
+		}
+
 		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error != nil {
+			break
+		}
+
 		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -850,28 +894,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	// resolve the process cache entry
-	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
-	if !eventWithNoProcessContext(eventType) {
-		if !isResolved {
-			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
-		} else if !entry.HasCompleteLineage() {
-			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
-			p.resolvers.ProcessResolver.CountBrokenLineage()
-		}
-	}
-	event.ProcessCacheEntry = entry
-	if event.ProcessCacheEntry == nil {
-		panic("should always return a process cache entry")
-	}
-
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
-	// use ProcessCacheEntry process context as process context
-	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
-	if event.ProcessContext == nil {
-		panic("should always return a process context")
+	if eventType == model.ExecEventType || eventType == model.ForkEventType {
+		_ = p.setProcessContext(eventType, event)
 	}
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {

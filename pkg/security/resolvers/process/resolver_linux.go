@@ -530,9 +530,16 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, source uint64
 		parent = p.resolve(entry.PPid, entry.PPid, entry.ExecInode, true)
 	}
 
-	if parent != nil {
-		parent.Fork(entry)
+	if parent == nil {
+		return
 	}
+
+	// check the inode to make sure that if we miss an exec, we don't copy the data from the wrong parent.
+	if parent.FileEvent.Inode != entry.ExecInode {
+		return
+	}
+
+	parent.Fork(entry)
 
 	p.insertEntry(entry, prev, source)
 }
