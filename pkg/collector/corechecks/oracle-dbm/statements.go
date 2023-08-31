@@ -67,8 +67,8 @@ GROUP BY s.con_id, c.name, force_matching_signature, plan_hash_value
 HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
 FETCH FIRST :limit ROWS ONLY`
 
-// Querying force_matching_signature = 0
-const QUERY_FMS_LAST_ACTIVE = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, 
+// queryForceMatchingSignatureLastActive Querying force_matching_signature = 0
+const queryForceMatchingSignatureLastActive = `SELECT /* DD_QM_FMS */ s.con_id con_id, c.name pdb_name, s.force_matching_signature, plan_hash_value, 
 	max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id,
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
@@ -117,8 +117,8 @@ WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching
 GROUP BY s.con_id, c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
 FETCH FIRST :limit ROWS ONLY`
 
-// Querying force_matching_signature = 0
-const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, 
+// querySQLID force_matching_signature = 0
+const querySQLID = `SELECT /* DD_QM_SQLID */ s.con_id con_id, c.name pdb_name, sql_id, plan_hash_value, 
 	dbms_lob.substr(sql_fulltext, 1000, 1) sql_text, length(sql_text) sql_text_length, 
 	parse_calls,
 	disk_reads,
@@ -512,7 +512,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		if c.config.QueryMetrics.DisableLastActive {
 			sql = QUERY_FMS_RANDOM
 		} else {
-			sql = QUERY_FMS_LAST_ACTIVE
+			sql = queryForceMatchingSignatureLastActive
 		}
 		err := selectWrapper(
 			c,
@@ -529,7 +529,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
 		copy(statementMetricsAll, statementMetrics)
 
-		sql = QUERY_SQLID
+		sql = querySQLID
 		err = selectWrapper(
 			c,
 			&statementMetrics,
