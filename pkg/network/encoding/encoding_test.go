@@ -48,7 +48,7 @@ func newConfig(t *testing.T) {
 	config.InitSystemProbeConfig(config.SystemProbe)
 }
 
-func getBlobWriter(t *testing.T, in *network.Connections, marshalerType string) *bytes.Buffer {
+func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connections, marshalerType string) *bytes.Buffer {
 	marshaler := GetMarshaler(marshalerType)
 	assert.Equal(t, marshalerType, marshaler.ContentType())
 	blobWriter := bytes.NewBuffer(nil)
@@ -338,7 +338,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
-		blobWriter := getBlobWriter(t, in, "application/json")
+		blobWriter := getBlobWriter(t, assert, in, "application/json")
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -362,7 +362,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 
-		blobWriter := getBlobWriter(t, in, "application/json")
+		blobWriter := getBlobWriter(t, assert, in, "application/json")
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -386,7 +386,14 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		assert := assert.New(t)
 		require.NoError(t, err)
 
-		blobWriter := getBlobWriter(t, in, "application/json")
+		marshaler := GetMarshaler("")
+		// in case we request empty serialization type, default to application/json
+		assert.Equal("application/json", marshaler.ContentType())
+
+		blobWriter := bytes.NewBuffer(nil)
+		connectionsModeler := NewConnectionsModeler(in)
+		defer connectionsModeler.Close()
+		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
 
 		unmarshaler := GetUnmarshaler("")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -410,7 +417,16 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
-		blobWriter := getBlobWriter(t, in, "application/json")
+		marshaler := GetMarshaler("application/whatever")
+
+		// In case we request an unsupported serialization type, we default to application/json
+		assert.Equal("application/json", marshaler.ContentType())
+
+		blobWriter := bytes.NewBuffer(nil)
+		connectionsModeler := NewConnectionsModeler(in)
+		defer connectionsModeler.Close()
+		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -431,7 +447,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		assert := assert.New(t)
 
 		// Empty connection batch
-		blobWriter := getBlobWriter(t, &network.Connections{
+		blobWriter := getBlobWriter(t, assert, &network.Connections{
 			BufferedData: network.BufferedData{
 				Conns: []network.ConnectionStats{{}},
 			}}, "application/json")
@@ -458,7 +474,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 		assert := assert.New(t)
 
-		blobWriter := getBlobWriter(t, in, "application/protobuf")
+		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -474,7 +490,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		out := getExpectedConnections(true, httpOutBlob)
 
 		assert := assert.New(t)
-		blobWriter := getBlobWriter(t, in, "application/protobuf")
+		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -588,7 +604,8 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 		},
 	}
 
-	blobWriter := getBlobWriter(t, in, "application/protobuf")
+	assert := assert.New(t)
+	blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -700,8 +717,8 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 			UsmEnabled: false,
 		},
 	}
-
-	blobWriter := getBlobWriter(t, in, "application/protobuf")
+	assert := assert.New(t)
+	blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -737,7 +754,8 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	}
 
 	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
-		blobWriter := getBlobWriter(t, in, "application/protobuf")
+		assert := assert.New(t)
+		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -803,7 +821,8 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	}
 
 	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
-		blobWriter := getBlobWriter(t, in, "application/protobuf")
+		assert := assert.New(t)
+		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -845,6 +864,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 func TestUSMPayloadTelemetry(t *testing.T) {
 	telemetry.Clear()
 	t.Cleanup(telemetry.Clear)
+	assert := assert.New(t)
 
 	// Set metric present in the payload telemetry list to an arbitrary value
 	m1 := telemetry.NewCounter("usm.http.total_hits", telemetry.OptPayloadTelemetry)
@@ -858,7 +878,7 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 
 	// Perform a marshal/unmarshal cycle
 	in := new(network.Connections)
-	blobWriter := getBlobWriter(t, in, "application/protobuf")
+	blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
