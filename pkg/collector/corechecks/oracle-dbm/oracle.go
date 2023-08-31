@@ -477,3 +477,33 @@ func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error
 
 	return err
 }
+
+func reconnectOnConnectionError(c *Check, db *sqlx.DB, err error) {
+	if err == nil {
+		return
+	}
+	errors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "database is closed"}
+	var isError bool
+	for _, e := range errors {
+		if strings.Contains(err.Error(), e) {
+			isError = true
+			break
+		}
+	}
+	if !isError {
+		return
+	}
+	db, err = c.Connect()
+	if err != nil {
+		log.Errorf("failed to reconnect %s", err)
+		closeDatabase(c, c.dbCustomQueries)
+	}
+}
+
+func closeDatabase(c *Check, db *sqlx.DB) {
+	if c.db != nil {
+		if err := c.db.Close(); err != nil {
+			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
+		}
+	}
+}
