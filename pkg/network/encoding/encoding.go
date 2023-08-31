@@ -57,6 +57,8 @@ type ConnectionsModeler struct {
 	kafkaEncoder *kafkaEncoder
 	dnsFormatter *dnsFormatter
 	ipc          ipCache
+	routeIndex   map[string]RouteIdx
+	tagsSet      *network.TagsSet
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -72,6 +74,8 @@ func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 		kafkaEncoder: newKafkaEncoder(conns.Kafka),
 		ipc:          ipc,
 		dnsFormatter: newDNSFormatter(conns, ipc),
+		routeIndex:   make(map[string]RouteIdx),
+		tagsSet:      network.NewTagsSet(),
 	}
 }
 
@@ -100,18 +104,14 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		}
 	})
 
-	routeIndex := make(map[string]RouteIdx)
-
-	tagsSet := network.NewTagsSet()
-
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.dnsFormatter, c.ipc, tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
 		})
 	}
 
-	routes := make([]*model.Route, len(routeIndex))
-	for _, v := range routeIndex {
+	routes := make([]*model.Route, len(c.routeIndex))
+	for _, v := range c.routeIndex {
 		routes[v.Idx] = &v.Route
 	}
 
@@ -134,7 +134,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	c.dnsFormatter.FormatDNS(builder)
 
-	for _, tag := range tagsSet.GetStrings() {
+	for _, tag := range c.tagsSet.GetStrings() {
 		builder.AddTags(tag)
 	}
 
