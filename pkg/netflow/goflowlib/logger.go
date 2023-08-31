@@ -6,23 +6,30 @@
 package goflowlib
 
 import (
+	"github.com/cihub/seelog"
 	"github.com/sirupsen/logrus"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ddLogToLogrusLevel = map[log.Level]logrus.Level{
-	log.TraceLvl:    logrus.TraceLevel,
-	log.DebugLvl:    logrus.DebugLevel,
-	log.InfoLvl:     logrus.InfoLevel,
-	log.WarnLvl:     logrus.WarnLevel,
-	log.ErrorLvl:    logrus.ErrorLevel,
-	log.CriticalLvl: logrus.FatalLevel,
+var ddLogToLogrusLevel = map[seelog.LogLevel]logrus.Level{
+	seelog.TraceLvl:    logrus.TraceLevel,
+	seelog.DebugLvl:    logrus.DebugLevel,
+	seelog.InfoLvl:     logrus.InfoLevel,
+	seelog.WarnLvl:     logrus.WarnLevel,
+	seelog.ErrorLvl:    logrus.ErrorLevel,
+	seelog.CriticalLvl: logrus.FatalLevel,
 }
 
 // GetLogrusLevel returns logrus log level from log.GetLogLevel()
 func GetLogrusLevel(logger log.Component) *logrus.Logger {
-	logLevel, err := logger.GetLogLevel()
+	// TODO: ideally this would be exposed by the log component but there were
+	// some issues getting #19033 merged. Right now this will always be the
+	// datadog log level, even if you pass in a different logger. This problem
+	// will also go away when we upgrade to the latest goflow2, as we will no
+	// longer need to interact with logrus.
+	logLevel, err := ddlog.GetLogLevel()
 	if err != nil {
 		logger.Warnf("error getting log level")
 	}
