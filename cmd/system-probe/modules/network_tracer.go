@@ -290,7 +290,10 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	err := marshaler.Marshal(cs, w)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	defer connectionsModeler.Close()
+
+	err := marshaler.Marshal(cs, w, connectionsModeler)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)
