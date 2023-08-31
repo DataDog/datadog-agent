@@ -50,7 +50,7 @@ func newConfig(t *testing.T) {
 
 func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connections, marshalerType string) *bytes.Buffer {
 	marshaler := GetMarshaler(marshalerType)
-	assert.Equal(t, marshalerType, marshaler.ContentType())
+	assert.Equal(marshalerType, marshaler.ContentType())
 	blobWriter := bytes.NewBuffer(nil)
 	connectionsModeler := NewConnectionsModeler(in)
 	defer connectionsModeler.Close()
