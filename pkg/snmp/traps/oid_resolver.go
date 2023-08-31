@@ -18,7 +18,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
@@ -47,13 +47,17 @@ type OIDResolver interface {
 // exist in a single file (after the previous conflict resolution), meaning that we get the variable
 // metadata from that same file.
 type MultiFilesOIDResolver struct {
-	traps TrapSpec
+	traps  TrapSpec
+	logger log.Component
 }
 
 // NewMultiFilesOIDResolver creates a new MultiFilesOIDResolver instance by loading json or yaml files
 // (optionnally gzipped) located in the directory snmp.d/traps_db/
-func NewMultiFilesOIDResolver(confdPath string) (*MultiFilesOIDResolver, error) {
-	oidResolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+func NewMultiFilesOIDResolver(confdPath string, logger log.Component) (*MultiFilesOIDResolver, error) {
+	oidResolver := &MultiFilesOIDResolver{
+		traps:  make(TrapSpec),
+		logger: logger,
+	}
 	trapsDBRoot := filepath.Join(confdPath, "snmp.d", "traps_db")
 	files, err := os.ReadDir(trapsDBRoot)
 	if err != nil {
@@ -62,11 +66,11 @@ func NewMultiFilesOIDResolver(confdPath string) (*MultiFilesOIDResolver, error) 
 	if len(files) == 0 {
 		return nil, fmt.Errorf("dir `%s` does not contain any trap db file", trapsDBRoot)
 	}
-	fileNames := getSortedFileNames(files)
+	fileNames := getSortedFileNames(files, logger)
 	for _, fileName := range fileNames {
 		err := oidResolver.updateFromFile(filepath.Join(trapsDBRoot, fileName))
 		if err != nil {
-			log.Warnf("unable to load trap db file %s: %s", fileName, err)
+			logger.Warnf("unable to load trap db file %s: %s", fileName, err)
 		}
 	}
 	return oidResolver, nil
@@ -114,7 +118,7 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 	return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
 }
 
-func getSortedFileNames(files []fs.DirEntry) []string {
+func getSortedFileNames(files []fs.DirEntry, logger log.Component) []string {
 	if len(files) == 0 {
 		return []string{}
 	}
@@ -124,7 +128,7 @@ func getSortedFileNames(files []fs.DirEntry) []string {
 	ddProvidedFileNames := make([]string, 0, 1)
 	for _, file := range files {
 		if file.IsDir() {
-			log.Debugf("not loading traps data from path %s: file is directory", file.Name())
+			logger.Debugf("not loading traps data from path %s: file is directory", file.Name())
 			continue
 		}
 		fileName := file.Name()
@@ -189,7 +193,7 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 	allOIDs := make([]string, 0, len(trapDB.Variables))
 	for variableOID := range trapDB.Variables {
 		if !IsValidOID(variableOID) {
-			log.Warnf("trap variable OID %s does not look like a valid OID", variableOID)
+			or.logger.Warnf("trap variable OID %s does not look like a valid OID", variableOID)
 			continue
 		}
 		allOIDs = append(allOIDs, NormalizeOID(variableOID))
@@ -221,12 +225,12 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB trapDBFileContent
 
 	for trapOID, trapData := range trapDB.Traps {
 		if !IsValidOID(trapOID) {
-			log.Errorf("trap OID %s does not look like a valid OID", trapOID)
+			or.logger.Errorf("trap OID %s does not look like a valid OID", trapOID)
 			continue
 		}
 		trapOID := NormalizeOID(trapOID)
 		if _, trapConflict := or.traps[trapOID]; trapConflict {
-			log.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
+			or.logger.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
 		}
 		or.traps[trapOID] = TrapMetadata{
 			Name:            trapData.Name,

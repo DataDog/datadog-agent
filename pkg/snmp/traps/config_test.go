@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	ddconf "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,6 +52,7 @@ func makeConfigWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamesp
 }
 
 func TestFullConfig(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	rootConfig := makeConfig(t, Config{
 		Port: 1234,
 		Users: []UserV3{
@@ -83,7 +86,7 @@ func TestFullConfig(t *testing.T) {
 		},
 	}, config.Users)
 
-	params, err := config.BuildSNMPParams()
+	params, err := config.BuildSNMPParams(logger)
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(1234), params.Port)
 	assert.Equal(t, gosnmp.Version3, params.Version)
@@ -101,6 +104,7 @@ func TestFullConfig(t *testing.T) {
 }
 
 func TestMinimalConfig(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	config, err := ReadConfig("", makeConfig(t, Config{}))
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(9162), config.Port)
@@ -110,7 +114,7 @@ func TestMinimalConfig(t *testing.T) {
 	assert.Equal(t, []UserV3{}, config.Users)
 	assert.Equal(t, "default", config.Namespace)
 
-	params, err := config.BuildSNMPParams()
+	params, err := config.BuildSNMPParams(logger)
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(9162), params.Port)
 	assert.Equal(t, gosnmp.Version2c, params.Version)

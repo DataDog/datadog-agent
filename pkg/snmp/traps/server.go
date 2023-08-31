@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TrapServer manages an SNMP trap listener.
@@ -21,6 +21,7 @@ type TrapServer struct {
 	config   Config
 	listener *TrapListener
 	sender   *TrapForwarder
+	logger   log.Component
 }
 
 var (
@@ -29,7 +30,7 @@ var (
 )
 
 // StartServer starts the global trap server.
-func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf config.Component) error {
+func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf config.Component, logger log.Component) error {
 	config, err := ReadConfig(agentHostname, conf)
 	if err != nil {
 		return err
@@ -38,15 +39,15 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf conf
 	if err != nil {
 		return err
 	}
-	oidResolver, err := NewMultiFilesOIDResolver(conf.GetString("confd_path"))
+	oidResolver, err := NewMultiFilesOIDResolver(conf.GetString("confd_path"), logger)
 	if err != nil {
 		return err
 	}
-	formatter, err := NewJSONFormatter(oidResolver, sender)
+	formatter, err := NewJSONFormatter(oidResolver, sender, logger)
 	if err != nil {
 		return err
 	}
-	server, err := NewTrapServer(*config, formatter, sender)
+	server, err := NewTrapServer(*config, formatter, sender, logger)
 	serverInstance = server
 	startError = err
 	return err
@@ -67,15 +68,15 @@ func IsRunning() bool {
 }
 
 // NewTrapServer configures and returns a running SNMP traps server.
-func NewTrapServer(config Config, formatter Formatter, aggregator sender.Sender) (*TrapServer, error) {
+func NewTrapServer(config Config, formatter Formatter, aggregator sender.Sender, logger log.Component) (*TrapServer, error) {
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPTrapListener(config, aggregator, packets)
+	listener, err := startSNMPTrapListener(config, aggregator, packets, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	trapForwarder, err := startSNMPTrapForwarder(formatter, aggregator, packets)
+	trapForwarder, err := startSNMPTrapForwarder(formatter, aggregator, packets, logger)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start trapForwarder: %w. Will not listen for SNMP traps", err)
 	}
@@ -83,21 +84,22 @@ func NewTrapServer(config Config, formatter Formatter, aggregator sender.Sender)
 		listener: listener,
 		config:   config,
 		sender:   trapForwarder,
+		logger:   logger,
 	}
 
 	return server, nil
 }
 
-func startSNMPTrapForwarder(formatter Formatter, aggregator sender.Sender, packets PacketsChannel) (*TrapForwarder, error) {
-	trapForwarder, err := NewTrapForwarder(formatter, aggregator, packets)
+func startSNMPTrapForwarder(formatter Formatter, aggregator sender.Sender, packets PacketsChannel, logger log.Component) (*TrapForwarder, error) {
+	trapForwarder, err := NewTrapForwarder(formatter, aggregator, packets, logger)
 	if err != nil {
 		return nil, err
 	}
 	trapForwarder.Start()
 	return trapForwarder, nil
 }
-func startSNMPTrapListener(c Config, aggregator sender.Sender, packets PacketsChannel) (*TrapListener, error) {
-	trapListener, err := NewTrapListener(c, aggregator, packets)
+func startSNMPTrapListener(c Config, aggregator sender.Sender, packets PacketsChannel, logger log.Component) (*TrapListener, error) {
+	trapListener, err := NewTrapListener(c, aggregator, packets, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +115,7 @@ func (s *TrapServer) Stop() {
 	stopped := make(chan interface{})
 
 	go func() {
-		log.Infof("Stop listening on %s", s.config.Addr())
+		s.logger.Infof("Stop listening on %s", s.config.Addr())
 		s.listener.Stop()
 		s.sender.Stop()
 		close(stopped)
@@ -122,6 +124,6 @@ func (s *TrapServer) Stop() {
 	select {
 	case <-stopped:
 	case <-time.After(time.Duration(s.config.StopTimeout) * time.Second):
-		log.Errorf("Stopping server. Timeout after %d seconds", s.config.StopTimeout)
+		s.logger.Errorf("Stopping server. Timeout after %d seconds", s.config.StopTimeout)
 	}
 }

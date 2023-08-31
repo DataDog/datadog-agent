@@ -13,6 +13,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
@@ -47,7 +48,7 @@ type Config struct {
 
 // ReadConfig builds and returns configuration from Agent configuration.
 func ReadConfig(agentHostname string, conf config.Component) (*Config, error) {
-	var c Config
+	var c = Config{}
 	err := conf.UnmarshalKey("network_devices.snmp_traps", &c)
 	if err != nil {
 		return nil, err
@@ -104,13 +105,17 @@ func (c *Config) Addr() string {
 }
 
 // BuildSNMPParams returns a valid GoSNMP params structure from configuration.
-func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
+func (c *Config) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, error) {
+	var snmpLogger gosnmp.Logger
+	if logger != nil {
+		snmpLogger = gosnmp.NewLogger(&trapLogger{logger: logger})
+	}
 	if len(c.Users) == 0 {
 		return &gosnmp.GoSNMP{
 			Port:      c.Port,
 			Transport: "udp",
 			Version:   gosnmp.Version2c, // No user configured, let's use Version2 which is enough and doesn't require setting up fake security data.
-			Logger:    gosnmp.NewLogger(&trapLogger{}),
+			Logger:    snmpLogger,
 		}, nil
 	}
 	user := c.Users[0]
@@ -145,6 +150,6 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        user.PrivKey,
 		},
-		Logger: gosnmp.NewLogger(&trapLogger{}),
+		Logger: snmpLogger,
 	}, nil
 }

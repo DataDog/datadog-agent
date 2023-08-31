@@ -17,10 +17,11 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 
-	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type DummyFormatter struct{}
@@ -43,14 +44,12 @@ func (f DummyFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 }
 
 func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
-	serverPort, err := ndmtestutils.GetFreePort()
-	require.NoError(t, err)
-
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	packetsIn := make(PacketsChannel)
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()
 
-	forwarder, err = NewTrapForwarder(&DummyFormatter{}, mockSender, packetsIn)
+	forwarder, err = NewTrapForwarder(&DummyFormatter{}, mockSender, packetsIn, logger)
 	if err != nil {
 		return nil, err
 	}

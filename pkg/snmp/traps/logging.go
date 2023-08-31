@@ -8,18 +8,19 @@ package traps
 import (
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 // trapLogger is a GoSNMP logger interface implementation.
 type trapLogger struct {
 	gosnmp.Logger
+	logger log.Component
 }
 
 // NOTE: GoSNMP logs show the full content of decoded trap packets. Logging as DEBUG would be too noisy.
 func (logger *trapLogger) Print(v ...interface{}) {
-	log.Trace(v...)
+	logger.logger.Trace(v...)
 }
 func (logger *trapLogger) Printf(format string, v ...interface{}) {
-	log.Tracef(format, v...)
+	logger.logger.Tracef(format, v...)
 }

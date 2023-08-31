@@ -9,12 +9,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"math/rand"
 	"net"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gosnmp/gosnmp"
@@ -270,8 +273,9 @@ func createTestPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 func TestFormatPacketV1Generic(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
 	packet := createTestV1GenericPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -315,10 +319,12 @@ func TestFormatPacketV1Generic(t *testing.T) {
 }
 
 func TestFormatPacketV1Specific(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
 	packet := createTestV1SpecificPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -358,10 +364,11 @@ func TestFormatPacketV1Specific(t *testing.T) {
 }
 
 func TestFormatPacketToJSON(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
@@ -394,10 +401,11 @@ func TestFormatPacketToJSON(t *testing.T) {
 }
 
 func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
@@ -426,10 +434,11 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 }
 
 func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	var formatter, err = NewJSONFormatter(NoOpOIDResolver{}, mockSender)
+	var formatter, err = NewJSONFormatter(NoOpOIDResolver{}, mockSender, logger)
 	require.NoError(t, err)
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	_, err = formatter.FormatPacket(packet)
@@ -774,10 +783,11 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			formatter, err := NewJSONFormatter(d.resolver, mockSender)
+			formatter, err := NewJSONFormatter(d.resolver, mockSender, logger)
 			require.NoError(t, err)
 			packet := createTestPacket(d.trap)
 			data, err := formatter.FormatPacket(packet)
@@ -796,6 +806,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 }
 
 func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	myFakeVarTypeExpected := []interface{}{
 		"test0",
 		"test1",
@@ -812,7 +823,7 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	formatter, err := NewJSONFormatter(resolverWithData, mockSender)
+	formatter, err := NewJSONFormatter(resolverWithData, mockSender, logger)
 	require.NoError(t, err)
 	packet := createTestV1GenericPacket()
 	data, err := formatter.FormatPacket(packet)
@@ -932,6 +943,7 @@ func TestIsBitEnabled(t *testing.T) {
 }
 
 func TestEnrichBits(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	data := []struct {
 		description     string
 		variable        trapVariable
@@ -1038,7 +1050,7 @@ func TestEnrichBits(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			actualMapping, actualHex := enrichBits(d.variable, d.varMetadata)
+			actualMapping, actualHex := enrichBits(d.variable, d.varMetadata, logger)
 			if diff := cmp.Diff(d.expectedMapping, actualMapping); diff != "" {
 				t.Error(diff)
 			}
@@ -1273,6 +1285,7 @@ func TestVariableValueFormat(t *testing.T) {
 }
 
 func TestFormatterTelemetry(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	data := []struct {
 		description    string
 		packet         *SnmpPacket
@@ -1375,7 +1388,7 @@ func TestFormatterTelemetry(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			formatter, err := NewJSONFormatter(d.resolver, mockSender)
+			formatter, err := NewJSONFormatter(d.resolver, mockSender, logger)
 			require.NoError(t, err)
 			_, _ = formatter.FormatPacket(d.packet)
 
