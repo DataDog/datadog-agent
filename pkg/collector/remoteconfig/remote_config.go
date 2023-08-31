@@ -17,7 +17,8 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Scheduler is the structure used to run checks with RC
+// Scheduler is the structure used to receive remote-config checks, and add or remove
+// them in the agent's scheduler
 type Scheduler struct {
 	scheduler     *collector.CheckScheduler
 	runningChecks []integration.Config
