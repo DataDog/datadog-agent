@@ -33,7 +33,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForOneShot("CORE", "off", true), // no need to show regular logs
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
 				core.Bundle,
 			)
