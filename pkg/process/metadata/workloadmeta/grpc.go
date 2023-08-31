@@ -174,7 +174,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 		case <-out.Context().Done():
 			err := out.Context().Err()
 			if err != nil {
-				log.Warn("The workloadmeta grpc stream was closed: %v", err)
+				log.Warn("The workloadmeta grpc stream was closed:", err)
 			}
 			return nil
 		case <-streamCtx.Done():
