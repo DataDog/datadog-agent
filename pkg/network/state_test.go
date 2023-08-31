@@ -1999,7 +1999,7 @@ func TestFilterConnections(t *testing.T) {
 	t.Run("filter", func(t *testing.T) {
 		var conns []ConnectionStats
 		for i := 0; i < 100; i++ {
-			conns = append(conns, ConnectionStats{})
+			conns = append(conns, ConnectionStats{Monotonic: StatCounters{SentBytes: uint64(i)}})
 		}
 
 		var kept []ConnectionStats
@@ -2023,7 +2023,7 @@ func TestFilterConnections(t *testing.T) {
 	t.Run("stable pointer", func(t *testing.T) {
 		var conns []ConnectionStats
 		for i := 0; i < 100; i++ {
-			conns = append(conns, ConnectionStats{})
+			conns = append(conns, ConnectionStats{Monotonic: StatCounters{SentBytes: uint64(i)}})
 		}
 
 		var kept []ConnectionStats
