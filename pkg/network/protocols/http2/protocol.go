@@ -142,7 +142,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	events.Configure(eventStream, mgr, opts)
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager, _ protocols.BuildMode) (err error) {
+func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
 		mgr,

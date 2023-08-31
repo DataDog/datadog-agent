@@ -130,7 +130,7 @@ type SecurityProfileContext struct {
 
 // CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
 func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
-	return slices.Contains[EventType](spc.AnomalyDetectionEventTypes, evtType)
+	return slices.Contains(spc.AnomalyDetectionEventTypes, evtType)
 }
 
 // IPPortContext is used to hold an IP and Port

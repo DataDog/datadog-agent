@@ -62,11 +62,11 @@ func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (Re
 }
 
 func bytesOrStringToString(value interface{}) string {
-	switch value.(type) {
+	switch value := value.(type) {
 	case string:
-		return value.(string)
+		return value
 	case []byte:
-		return string(value.([]byte))
+		return string(value)
 	}
 	return ""
 }

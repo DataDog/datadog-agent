@@ -17,6 +17,9 @@ type NodeType int
 // CheckName is the cluster check name of the orchestrator check
 var CheckName = "orchestrator"
 
+// ExtraLogContext is used to add check name into log context
+var ExtraLogContext = []interface{}{"check", CheckName}
+
 const (
 	// K8sUnsetType represents a Kubernetes unset type
 	K8sUnsetType NodeType = iota

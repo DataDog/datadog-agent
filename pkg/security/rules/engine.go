@@ -272,7 +272,7 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 	if sendLoadedReport {
 		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs)
-		e.policyMonitor.AddPolicies(evaluationSet.GetPolicies(), loadErrs)
+		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
 	}
 
 	return nil

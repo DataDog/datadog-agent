@@ -27,6 +27,8 @@ namespace Datadog.CustomActions.Interfaces
 
         bool IsDomainController();
 
+        bool IsReadOnlyDomainController();
+
         /// <summary>
         /// 
         /// </summary>
