@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -26,18 +27,23 @@ var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
-		return languageDetectionModule{}, nil
+		return &languageDetectionModule{}, nil
 	},
 }
 
 type languageDetectionModule struct{}
 
-func (l languageDetectionModule) GetStats() map[string]interface{} {
+func (l *languageDetectionModule) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (l languageDetectionModule) Register(router *module.Router) error {
+func (l *languageDetectionModule) Register(router *module.Router) error {
 	router.HandleFunc("/detect", detectLanguage)
+	return nil
+}
+
+// RegisterGRPC register to system probe gRPC server
+func (l *languageDetectionModule) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }
 
@@ -46,7 +52,7 @@ func (l languageDetectionModule) Register(router *module.Router) error {
 // This API currently does not hold any resources over its lifetime, so there is no need to release any resources when the
 // module is closed.
 
-func (l languageDetectionModule) Close() {}
+func (l *languageDetectionModule) Close() {}
 
 func toDetectLanguageResponse(langs []languagemodels.Language) *languageDetectionProto.DetectLanguageResponse {
 	resp := &languageDetectionProto.DetectLanguageResponse{

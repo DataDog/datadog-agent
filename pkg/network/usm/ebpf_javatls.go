@@ -127,7 +127,7 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+	if !c.EnableJavaTLSSupport || !http.HTTPSSupported(c) {
 		return nil, nil
 	}
 
@@ -157,12 +157,10 @@ func (p *javaTLSProgram) Name() string {
 
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
