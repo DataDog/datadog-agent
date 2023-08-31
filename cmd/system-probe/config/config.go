@@ -116,7 +116,7 @@ func load() (*Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
-		GRPCServerEnabled:  cfg.GetBool(spNS("use_grpc")),
+		GRPCServerEnabled:  cfg.GetBool(spNS("grpc_enabled")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),
