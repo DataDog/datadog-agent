@@ -109,6 +109,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
+	d.diagnoses.Reset()
+
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus

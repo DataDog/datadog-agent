@@ -14,10 +14,9 @@ import (
 
 // Diagnoses hold diagnoses for a NDM resource
 type Diagnoses struct {
-	resourceType  string
-	resourceID    string
-	diagnoses     []metadata.Diagnosis
-	prevDiagnoses []metadata.Diagnosis
+	resourceType string
+	resourceID   string
+	diagnoses    []metadata.Diagnosis
 }
 
 var severityMap = map[string]diagnosis.Result{
@@ -45,24 +44,11 @@ func (d *Diagnoses) Add(result string, code string, message string) {
 
 // Report returns diagnosis metadata
 func (d *Diagnoses) Report() []metadata.DiagnosisMetadata {
-	if len(d.prevDiagnoses) > 0 && len(d.diagnoses) == 0 {
-		d.resetDiagnoses()
-		// Sending an empty array of diagnoses
-		return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: []metadata.Diagnosis{}}}
-	}
-
-	d.resetDiagnoses()
-
-	if d.prevDiagnoses == nil {
-		return nil
-	}
-
-	return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: d.prevDiagnoses}}
+	return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: d.diagnoses}}
 }
 
-// resetDiagnoses clears current diagnoses
-func (d *Diagnoses) resetDiagnoses() {
-	d.prevDiagnoses = d.diagnoses
+// Reset clears current diagnoses
+func (d *Diagnoses) Reset() {
 	d.diagnoses = nil
 }
 
@@ -70,7 +56,7 @@ func (d *Diagnoses) resetDiagnoses() {
 func (d *Diagnoses) ConvertToCLI() []diagnosis.Diagnosis {
 	var cliDiagnoses []diagnosis.Diagnosis
 
-	for _, diag := range d.prevDiagnoses {
+	for _, diag := range d.diagnoses {
 		cliDiagnoses = append(cliDiagnoses, diagnosis.Diagnosis{
 			Result:    severityMap[diag.Severity],
 			Name:      fmt.Sprintf("NDM %s - %s - %s", d.resourceType, d.resourceID, diag.Code),
