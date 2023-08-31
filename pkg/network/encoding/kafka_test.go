@@ -382,8 +382,7 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 		},
 	}
 
-	assert := assert.New(t)
-	blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
+	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
