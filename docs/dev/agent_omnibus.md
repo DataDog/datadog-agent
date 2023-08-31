@@ -19,7 +19,13 @@ From the `datadog-agent` source folder, use the following command to run the
 `agent.omnibus-build` task in a Docker container:
 
 ```
-docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/go/src/github.com/DataDog/datadog-agent datadog/agent-buildimages-deb_x64 inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
+docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" \
+    -v "/tmp/omnibus:/omnibus" \
+    -v "/tmp/opt/datadog-agent:/opt/datadog-agent" \
+    -v"/tmp/gems:/gems" \
+    --workdir=/go/src/github.com/DataDog/datadog-agent \
+    datadog/agent-buildimages-deb_x64 \
+    inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
 ```
 
 The container will share 3 volumes with the host to avoid starting from scratch
@@ -87,8 +93,8 @@ To build on Windows, [Docker Desktop](https://docs.docker.com/docker-for-windows
 
 Start a Powershell prompt and navigate to your local clone of the `datadog-agent` repo.
 
- Run the following command: 
- 
+ Run the following command:
+
 ```powershell
 docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e RELEASE_VERSION=nightly -e MAJOR_VERSION=7 -e PY_RUNTIMES=3 -e TARGET_ARCH=x64 datadog/agent-buildimages-windows_x64:1809 c:\mnt\tasks\winbuildscripts\buildwin.bat
 ```
