@@ -3,26 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build oracle
+//go:build oracle_test
 
 package oracle
 
 import (
 	"database/sql"
 	"fmt"
-	"log"
-	"testing"
-	"time"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"math"
+	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	_ "github.com/godror/godror"
 )
 
@@ -50,7 +53,7 @@ tns_alias: %s
 tns_admin: %s
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
 
-	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
 	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
@@ -119,20 +122,38 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func initAndStartAgentDemultiplexer() {
-	aggregator.InitAndStartAgentDemultiplexer(nil, demuxOpts(), "")
+func initAndStartAgentDemultiplexer(t *testing.T) {
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
+	opts.DontStartForwarders = true
+
+	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
+}
+
+func getUsedPGA(db *sqlx.DB) (float64, error) {
+	var pga float64
+	err := chk.db.Get(&pga, `SELECT 
+	sum(p.pga_used_mem)
+FROM   v$session s,
+	v$process p
+WHERE  s.paddr = p.addr AND s.username = 'C##DATADOG'`)
+	return pga, err
+}
+
+func getSession(db *sqlx.DB) (string, error) {
+	var r string
+	err := chk.db.Get(&r, `SELECT sid || 'X' || serial# FROM v$session WHERE username = 'C##DATADOG'`)
+	return r, err
 }
 
 func TestChkRun(t *testing.T) {
-	initAndStartAgentDemultiplexer()
-
+	initAndStartAgentDemultiplexer(t)
 	chk.dbmEnabled = true
 	chk.config.InstanceConfig.InstantClient = false
 
 	type RowsStruct struct {
 		N int `db:"N"`
 	}
-	r := RowsStruct{}
 
 	for _, tnsAlias := range []string{"", TNS_ALIAS} {
 		chk.db = nil
@@ -146,11 +167,32 @@ func TestChkRun(t *testing.T) {
 			driver = common.Godror
 		}
 
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 		err := chk.Run()
 		assert.NoError(t, err, "check run with %s driver", driver)
 
-		err = chk.db.Get(&r, "select /* DDTEST */ 1 n from dual")
-		assert.NoError(t, err, "running test statement with %s driver", driver)
+		pgaBefore, err := getUsedPGA(chk.db)
+		assert.NoError(t, err, "get used pga with %s driver", driver)
+
+		sessionBefore, _ := getSession(chk.db)
+		_, err = chk.db.Exec(`begin
+				for i in 1..1000
+				loop
+				  execute immediate 'insert into t values (' || i || ')';
+				end loop;
+			  end ;`)
+		assert.NoError(t, err, "error generating statements with %s driver", driver)
+
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
+		chk.Run()
+		pgaAfter, err := getUsedPGA(chk.db)
+		assert.NoError(t, err, "get used pga with %s driver", driver)
+		growth := math.Round((pgaAfter - pgaBefore) / 1024 / 1024)
+		assert.Less(t, growth, float64(50), "PGA used changed between two consecutive runs")
+
+		sessionAfter, _ := getSession(chk.db)
+		assert.Equal(t, sessionBefore, sessionAfter, "The agent reconnected")
+
 	}
 }
 
@@ -184,7 +226,6 @@ func TestLicense(t *testing.T) {
 		'SQL Tuning Set (user)'
 		)
  `)
-	//err = row.Scan(&usedFeaturesCount)
 	if err != nil {
 		fmt.Printf("failed to query license info: %s", err)
 	}
@@ -199,17 +240,17 @@ func TestBindingSimple(t *testing.T) {
 		db, _ := connectToDB(driver)
 		stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
 		if err != nil {
-			log.Fatalf("preparing statement with driver %s %s", driver, err)
+			fmt.Printf("preparing statement with driver %s %s", driver, err)
 		}
 		row := stmt.QueryRow(1)
 		if row.Err() != nil {
-			log.Fatalf("row error with driver %s %s", driver, row.Err())
+			fmt.Printf("row error with driver %s %s", driver, row.Err())
 			return
 		}
 		var retValue int
 		err = row.Scan(&retValue)
 		if err != nil {
-			log.Fatalf("scanning with driver %s %s", driver, err)
+			fmt.Printf("scanning with driver %s %s", driver, err)
 		}
 		assert.Equal(t, retValue, result, driver)
 	}
@@ -226,7 +267,7 @@ func TestSQLXIn(t *testing.T) {
 
 		rows, err = db.Query(fmt.Sprintf("SELECT %d FROM dual WHERE rownum IN (:1)", result), slice...)
 		if err != nil {
-			log.Fatalf("row error with driver %s %s", driver, err)
+			fmt.Printf("row error with driver %s %s", driver, err)
 			return
 		}
 
@@ -235,7 +276,7 @@ func TestSQLXIn(t *testing.T) {
 		err = rows.Scan(&retValue)
 		rows.Close()
 		if err != nil {
-			log.Fatalf("scan error %s", err)
+			fmt.Printf("scan error %s", err)
 		}
 		assert.Equal(t, retValue, result, driver)
 
@@ -252,7 +293,7 @@ func TestSQLXIn(t *testing.T) {
 		err = rows.Scan(&retValue)
 		rows.Close()
 		if err != nil {
-			log.Fatalf("scan error %s", err)
+			fmt.Printf("scan error %s", err)
 		}
 		assert.Equal(t, retValue, result, driver)
 	}
