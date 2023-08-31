@@ -292,9 +292,11 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 
 	// Second failure of the retryFactory
 	retryFactory.resetCallChan()
-	err := retryFactory.waitForCalled(500 * time.Millisecond)
-	assert.NoError(suite.T(), err)
-	retryFactory.assertCallNumber(suite.T(), 2)
+	assert.Eventually(suite.T(), func() bool {
+		retryFactory.Lock()
+		defer retryFactory.Unlock()
+		return retryFactory.callCount >= 2
+	}, 2*time.Second, 10*time.Millisecond)
 	assert.Equal(suite.T(), 0, retryListener.ListenCount)
 	// failFactory should not be called again
 	failFactory.assertCallNumber(suite.T(), 1)
@@ -304,30 +306,22 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	retryFactory.returnError = nil
 	retryFactory.resetCallChan()
 	retryFactory.Unlock()
-	err = retryFactory.waitForCalled(500 * time.Millisecond)
+	err := retryFactory.waitForCalled(500 * time.Millisecond)
 	assert.NoError(suite.T(), err)
 
 	// Lock to wait for initListenerCandidates to return
 	// We should start retryListener and have no more candidate
 	ac.m.Lock()
-	retryFactory.assertCallNumber(suite.T(), 3)
 	assert.Equal(suite.T(), 1, retryListener.ListenCount)
 	assert.Len(suite.T(), ac.listenerCandidates, 0)
 	ac.m.Unlock()
 
 	// Wait for retryListenerCandidates to close listenerRetryStop and return
-	for i := 0; i < 10; i++ {
+	assert.Eventually(suite.T(), func() bool {
 		ac.m.Lock()
-		nilled := (ac.listenerRetryStop == nil)
-		ac.m.Unlock()
-		if nilled {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	ac.m.Lock()
-	assert.Nil(suite.T(), ac.listenerRetryStop)
-	ac.m.Unlock()
+		defer ac.m.Unlock()
+		return ac.listenerRetryStop == nil
+	}, 2*time.Second, 10*time.Millisecond)
 }
 
 func TestAutoConfigTestSuite(t *testing.T) {

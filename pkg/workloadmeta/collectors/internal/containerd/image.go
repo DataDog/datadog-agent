@@ -297,7 +297,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		}
 	}
 
-	var totalSizeBytes int64 = 0
+	totalSizeBytes := manifest.Config.Size
 	for _, layer := range manifest.Layers {
 		totalSizeBytes += layer.Size
 	}

@@ -26,11 +26,10 @@ import (
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
 // connection establishment, DNS resolution or TLS handshake for instance
-func createDiagnoseTraces(httpTraces []string) *httptrace.ClientTrace {
+func createDiagnoseTraces(httpTraces *[]string) *httptrace.ClientTrace {
 
 	hooks := &httpTraceContext{
 		httpTraces: httpTraces,
-		iter:       1,
 	}
 
 	return &httptrace.ClientTrace{
@@ -56,27 +55,23 @@ func createDiagnoseTraces(httpTraces []string) *httptrace.ClientTrace {
 // httpTraceContext collect reported HTTP traces into its holding array
 // to be retrieved later by client
 type httpTraceContext struct {
-	httpTraces []string
-	iter       int
+	httpTraces *[]string
 }
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
 // However, it is not called when a connection is reused (see gotConnHook)
 func (c *httpTraceContext) connectStartHook(network, addr string) {
-	c.iter++
-	c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Starting a new connection", c.iter))
+	*(c.httpTraces) = append(*(c.httpTraces), "...Starting a new connection")
 }
 
 // connectDoneHook is called when the new connection to 'addr' completes
 // It collects the error message if there is one and indicates if this step was successful
 func (c *httpTraceContext) connectDoneHook(network, addr string, err error) {
-	c.iter++
 	if err != nil {
-		c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Unable to connect to the endpoint: %v", c.iter, scrubber.ScrubLine(err.Error())))
-		return
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to connect to the endpoint: %v", scrubber.ScrubLine(err.Error())))
+	} else {
+		*(c.httpTraces) = append(*(c.httpTraces), "...Connection to the endpoint: OK")
 	}
-
-	c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Connection to the endpoint: OK", c.iter))
 }
 
 // getConnHook is called before getting a new connection.
@@ -84,8 +79,7 @@ func (c *httpTraceContext) connectDoneHook(network, addr string, err error) {
 //   - Creating a new connection 		: getConnHook ---> connectStartHook
 //   - Retrieving an existing connection : getConnHook ---> gotConnHook
 func (c *httpTraceContext) getConnHook(hostPort string) {
-	c.iter++
-	c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Retrieving or creating a new connection", c.iter))
+	*(c.httpTraces) = append(*(c.httpTraces), "...Retrieving or creating a new connection")
 }
 
 // gotConnHook is called after a successful connection is obtained.
@@ -97,54 +91,46 @@ func (c *httpTraceContext) getConnHook(hostPort string) {
 // Information about new connection are reported by connectDoneHook
 func (c *httpTraceContext) gotConnHook(gci httptrace.GotConnInfo) {
 	if gci.Reused {
-		c.iter++
-		c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Reusing a previous connection that was idle for %v", c.iter, gci.IdleTime))
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Reusing a previous connection that was idle for %v", gci.IdleTime))
 	}
 }
 
 // dnsStartHook is called when starting the DNS lookup
 func (c *httpTraceContext) dnsStartHook(di httptrace.DNSStartInfo) {
-	c.iter++
-	c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Starting DNS lookup to resolve %v", c.iter, di.Host))
+	*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Starting DNS lookup to resolve %v", di.Host))
 }
 
 // dnsDoneHook is called after the DNS lookup
 // It collects the error message if there is one and indicates if this step was successful
 func (c *httpTraceContext) dnsDoneHook(di httptrace.DNSDoneInfo) {
-	c.iter++
 	if di.Err != nil {
-		c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Unable to resolve the address: %v", c.iter, scrubber.ScrubLine(di.Err.Error())))
-		return
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to resolve the address: %v", scrubber.ScrubLine(di.Err.Error())))
+	} else {
+		*(c.httpTraces) = append(*(c.httpTraces), "...DNS Lookup: OK")
 	}
-
-	c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. DNS Lookup: OK", c.iter))
 }
 
 // tlsHandshakeStartHook is called when starting the TLS Handshake
 func (c *httpTraceContext) tlsHandshakeStartHook() {
-	c.iter++
-	c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Starting TLS Handshake", c.iter))
+	*(c.httpTraces) = append(*(c.httpTraces), "...Starting TLS Handshake")
 }
 
 // tlsHandshakeDoneHook is called after the TLS Handshake
 // It collects the error message if there is one and indicates if this step was successful
 func (c *httpTraceContext) tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
-	c.iter++
 	if err != nil {
-		c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. Unable to achieve the TLS Handshake: %v", c.iter, scrubber.ScrubLine(err.Error())))
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to achieve the TLS Handshake: %v", scrubber.ScrubLine(err.Error())))
 		c.getTLSHandshakeHints(err)
-		return
+	} else {
+		*(c.httpTraces) = append(*(c.httpTraces), "...TLS Handshake: OK")
 	}
-
-	c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. TLS Handshake: OK", c.iter))
 }
 
 // getTLSHandshakeHints is called when the TLS handshake fails.
 // It aims to give more context on why the handshake failed when the error is not clear enough.
 func (c *httpTraceContext) getTLSHandshakeHints(err error) {
 	if strings.Contains(err.Error(), "first record does not look like a TLS handshake") {
-		c.iter++
-		c.httpTraces = append(c.httpTraces, fmt.Sprintf("%d. %s %s", c.iter,
+		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...%s %s",
 			"Hint: you are trying to communicate using HTTPS with an endpoint that does not seem to be configured for HTTPS.",
 			"If you are using a proxy, please verify that it is configured for HTTPS connections."))
 	}

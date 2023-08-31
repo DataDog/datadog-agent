@@ -424,7 +424,9 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
 		}
-	} else {
+	}
+
+	if resolutionErr != nil {
 		dr.missCounters[entry].Inc()
 	}
 
@@ -586,7 +588,9 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
 		}
-	} else {
+	}
+
+	if resolutionErr != nil {
 		dr.missCounters[entry].Inc()
 	}
 
