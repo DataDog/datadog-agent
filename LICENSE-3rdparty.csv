@@ -1786,6 +1786,7 @@ core,golang.org/x/net/html/charset,BSD-3-Clause,Copyright (c) 2009 The Go Author
 core,golang.org/x/net/http/httpguts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/http/httpproxy,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/http2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/net/http2/h2c,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/idna,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
