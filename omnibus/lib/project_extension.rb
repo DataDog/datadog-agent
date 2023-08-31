@@ -1,4 +1,4 @@
-require './lib/symbols_inspector'
+require "./lib/symbols_inspectors"
 
 module Omnibus
   module ProjectExtensions
