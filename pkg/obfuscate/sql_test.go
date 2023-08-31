@@ -93,6 +93,31 @@ func TestDollarQuotedFunc(t *testing.T) {
 	})
 }
 
+func TestSingleDollarIdentifier(t *testing.T) {
+	q := `
+	MERGE INTO Employees AS target
+	USING EmployeeUpdates AS source
+	ON (target.EmployeeID = source.EmployeeID)
+	WHEN MATCHED THEN 
+		UPDATE SET 
+			target.Name = source.Name
+	WHEN NOT MATCHED BY TARGET THEN 
+		INSERT (EmployeeID, Name)
+		VALUES (source.EmployeeID, source.Name)
+	WHEN NOT MATCHED BY SOURCE THEN 
+		DELETE
+	OUTPUT $action, inserted.*, deleted.*;
+	`
+
+	t.Run("", func(t *testing.T) {
+		oq, err := NewObfuscator(Config{SQL: SQLConfig{
+			DBMS: DBMSSQLServer,
+		}}).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "MERGE INTO Employees USING EmployeeUpdates ON ( target.EmployeeID = source.EmployeeID ) WHEN MATCHED THEN UPDATE SET target.Name = source.Name WHEN NOT MATCHED BY TARGET THEN INSERT ( EmployeeID, Name ) VALUES ( source.EmployeeID, source.Name ) WHEN NOT MATCHED BY SOURCE THEN DELETE OUTPUT $action, inserted.*, deleted.*", oq.Query)
+	})
+}
+
 func TestScanDollarQuotedString(t *testing.T) {
 	for _, tt := range []struct {
 		in  string
