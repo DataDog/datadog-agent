@@ -44,6 +44,11 @@ func (d *Diagnoses) Add(result string, code string, message string) {
 
 // Report returns diagnosis metadata
 func (d *Diagnoses) Report() []metadata.DiagnosisMetadata {
+
+	if d.diagnoses == nil {
+		return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: []metadata.Diagnosis{}}}
+	}
+
 	return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: d.diagnoses}}
 }
 
