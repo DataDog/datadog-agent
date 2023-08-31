@@ -19,11 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 )
 
 const probeUID = "net"
@@ -49,21 +46,6 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 		}
 
 		initManager(m, config, perfHandlerTCP)
-
-		// Replace ebpf telemetry maps with Percpu maps if kernel supports
-		if features.HaveMapType(ebpf.PerCPUHash) == nil {
-			if mgrOpts.MapSpecEditors == nil {
-				mgrOpts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
-			}
-			mgrOpts.MapSpecEditors[probes.MapErrTelemetryMap] = manager.MapSpecEditor{
-				Type:       ebpf.PerCPUHash,
-				EditorFlag: manager.EditType,
-			}
-			mgrOpts.MapSpecEditors[probes.HelperErrTelemetryMap] = manager.MapSpecEditor{
-				Type:       ebpf.PerCPUHash,
-				EditorFlag: manager.EditType,
-			}
-		}
 
 		if err := errtelemetry.ActivateBPFTelemetry(m, nil); err != nil {
 			return fmt.Errorf("could not activate ebpf telemetry: %w", err)

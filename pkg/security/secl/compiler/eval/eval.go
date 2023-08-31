@@ -853,13 +853,8 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				}
 				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *CIDREvaluator:
-				switch next.(type) {
+				switch nextIP := next.(type) {
 				case *CIDREvaluator:
-					nextIP, ok := next.(*CIDREvaluator)
-					if !ok {
-						return nil, pos, NewTypeError(pos, reflect.TypeOf(CIDREvaluator{}).Kind())
-					}
-
 					switch *obj.ScalarComparison.Op {
 					case "!=":
 						boolEvaluator, err = CIDREquals(unary, nextIP, state)

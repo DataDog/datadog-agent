@@ -110,9 +110,7 @@ func doTestMemHigh(t *testing.T, n int) {
 		a[0] = 1
 		a[n-1] = 1
 		data <- a
-		select {
-		case <-done:
-		}
+		<-done
 	}()
 	time.Sleep(testDuration)
 	m := Mem()

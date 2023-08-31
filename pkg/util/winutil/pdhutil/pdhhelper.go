@@ -90,7 +90,7 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 		return false, nil
 	} else if refresh_interval < 0 {
 		// invalid value
-		e := fmt.Sprintf("windows_counter_refresh_interval cannot be a negative number")
+		e := "windows_counter_refresh_interval cannot be a negative number"
 		log.Errorf(e)
 		return false, fmt.Errorf(e)
 	}
