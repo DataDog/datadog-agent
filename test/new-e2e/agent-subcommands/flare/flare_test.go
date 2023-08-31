@@ -27,9 +27,6 @@ func TestFlareSuite(t *testing.T) {
 }
 
 func waitForAgentAndGetFlare(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	_ = v.Env().Agent.Flare(flareArgs...)
 
 	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
