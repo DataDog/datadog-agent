@@ -14,7 +14,7 @@ The version of `go` and `golangci-lint` can have a big impact on the output of t
 - Your `go` version (run `go version`) is identical to the CI's (content of the `.go-version` file).
 - Your `golangci-lint` version is identical to the CI's (look for `golangci-lint` in the `internal/tools/go.mod` file).
 - You did not install `go` using `brew` (`which go` path shouldn't contain `homebrew`).
-- Install the requirements with `python3 -m pip tasks/fix_revive_linter/install requirements-need-fixing-linter.txt`
+- Install the requirements with `python3 -m pip install tasks/fix_revive_linter/requirements-need-fixing-linter.txt`
 
 ## Fixing the `gosimple` linter
 
