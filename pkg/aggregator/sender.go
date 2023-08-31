@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -116,16 +115,6 @@ func newCheckSender(
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
 	}
-}
-
-// GetSender returns a Sender with passed ID, properly registered with the aggregator
-// If no error is returned here, DestroySender must be called with the same ID
-// once the sender is not used anymore
-func GetSender(id checkid.ID) (sender.Sender, error) {
-	if demultiplexerInstance == nil {
-		return nil, errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.GetSender(id)
 }
 
 // DisableDefaultHostname allows check to override the default hostname that will be injected
