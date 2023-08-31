@@ -497,8 +497,8 @@ func startAgent(
 	}
 
 	// Start SNMP trap server
-	if traps.IsEnabled() {
-		err = traps.StartServer(hostnameDetected, demux)
+	if traps.IsEnabled(pkgconfig.Datadog) {
+		err = traps.StartServer(hostnameDetected, demux, pkgconfig.Datadog)
 		if err != nil {
 			log.Errorf("Failed to start snmp-traps server: %s", err)
 		}

@@ -23,7 +23,6 @@ func TestStartFailure(t *testing.T) {
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	config := Config{Port: freePort, CommunityStrings: []string{"public"}}
-	Configure(t, config)
 
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()

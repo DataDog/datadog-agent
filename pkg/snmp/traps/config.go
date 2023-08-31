@@ -12,14 +12,14 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
-func IsEnabled() bool {
-	return config.Datadog.GetBool("network_devices.snmp_traps.enabled")
+func IsEnabled(conf config.Component) bool {
+	return conf.GetBool("network_devices.snmp_traps.enabled")
 }
 
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
@@ -46,9 +46,9 @@ type Config struct {
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
-func ReadConfig(agentHostname string) (*Config, error) {
+func ReadConfig(agentHostname string, conf config.Component) (*Config, error) {
 	var c Config
-	err := config.Datadog.UnmarshalKey("network_devices.snmp_traps", &c)
+	err := conf.UnmarshalKey("network_devices.snmp_traps", &c)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	c.authoritativeEngineID = string(engineID)
 
 	if c.Namespace == "" {
-		c.Namespace = config.Datadog.GetString("network_devices.namespace")
+		c.Namespace = conf.GetString("network_devices.namespace")
 	}
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {

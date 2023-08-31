@@ -9,8 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	ddconf "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 const mockedHostname = "VeryLongHostnameThatDoesNotFitIntoTheByteArray"
@@ -22,8 +26,31 @@ var expectedEngineIDs = map[string]string{
 	"VeryLongHostnameThatIsDifferent":                "\x80\xff\xff\xff\xff\xe7\x21\xcc\xd7\x0b\xe1\x60\xc5\x18\xd7\xde\x17\x86\xb0\x7d\x36",
 }
 
+func makeConfig(t *testing.T, trapConfig Config) config.Component {
+	return makeConfigWithGlobalNamespace(t, trapConfig, "")
+}
+
+func makeConfigWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamespace string) config.Component {
+	trapConfig.Enabled = true
+	conf := ddconf.SetupConf()
+	if globalNamespace != "" {
+		conf.Set("network_devices.namespace", globalNamespace)
+	}
+	conf.SetConfigType("yaml")
+	yamlData := map[string]map[string]interface{}{
+		"network_devices": {
+			"snmp_traps": trapConfig,
+		},
+	}
+	out, err := yaml.Marshal(yamlData)
+	require.NoError(t, err)
+	err = conf.ReadConfig(strings.NewReader(string(out)))
+	require.NoError(t, err)
+	return conf
+}
+
 func TestFullConfig(t *testing.T) {
-	Configure(t, Config{
+	rootConfig := makeConfig(t, Config{
 		Port: 1234,
 		Users: []UserV3{
 			{
@@ -39,7 +66,7 @@ func TestFullConfig(t *testing.T) {
 		StopTimeout:      12,
 		Namespace:        "foo",
 	})
-	config, err := ReadConfig(mockedHostname)
+	config, err := ReadConfig(mockedHostname, rootConfig)
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(1234), config.Port)
 	assert.Equal(t, 12, config.StopTimeout)
@@ -74,8 +101,7 @@ func TestFullConfig(t *testing.T) {
 }
 
 func TestMinimalConfig(t *testing.T) {
-	Configure(t, Config{})
-	config, err := ReadConfig("")
+	config, err := ReadConfig("", makeConfig(t, Config{}))
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(9162), config.Port)
 	assert.Equal(t, 5, config.StopTimeout)
@@ -94,58 +120,48 @@ func TestMinimalConfig(t *testing.T) {
 }
 
 func TestDefaultUsers(t *testing.T) {
-	Configure(t, Config{
+	config, err := ReadConfig("", makeConfig(t, Config{
 		CommunityStrings: []string{"public"},
 		StopTimeout:      11,
-	})
-	config, err := ReadConfig("")
+	}))
 	assert.NoError(t, err)
 
 	assert.Equal(t, 11, config.StopTimeout)
 }
 
 func TestBuildAuthoritativeEngineID(t *testing.T) {
-	Configure(t, Config{})
 	for hostname, engineID := range expectedEngineIDs {
-		config, err := ReadConfig(hostname)
+		config, err := ReadConfig(hostname, makeConfig(t, Config{}))
 		assert.NoError(t, err)
 		assert.Equal(t, engineID, config.authoritativeEngineID)
 	}
 }
 
 func TestNamespaceIsNormalized(t *testing.T) {
-	Configure(t, Config{
+	config, err := ReadConfig("", makeConfig(t, Config{
 		Namespace: "><\n\r\tfoo",
-	})
-
-	config, err := ReadConfig("")
+	}))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "--foo", config.Namespace)
 }
 
 func TestInvalidNamespace(t *testing.T) {
-	Configure(t, Config{
+	_, err := ReadConfig("", makeConfig(t, Config{
 		Namespace: strings.Repeat("x", 101),
-	})
-
-	_, err := ReadConfig("")
+	}))
 	assert.Error(t, err)
 }
 
 func TestNamespaceSetGlobally(t *testing.T) {
-	ConfigureWithGlobalNamespace(t, Config{}, "foo")
-
-	config, err := ReadConfig("")
+	config, err := ReadConfig("", makeConfigWithGlobalNamespace(t, Config{}, "foo"))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "foo", config.Namespace)
 }
 
 func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
-	ConfigureWithGlobalNamespace(t, Config{Namespace: "bar"}, "foo")
-
-	config, err := ReadConfig("")
+	config, err := ReadConfig("", makeConfigWithGlobalNamespace(t, Config{Namespace: "bar"}, "foo"))
 	assert.NoError(t, err)
 
 	assert.Equal(t, "bar", config.Namespace)
