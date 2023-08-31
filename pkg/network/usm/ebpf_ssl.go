@@ -233,6 +233,23 @@ const (
 // The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
 // a dynamic initialization.
 var opensslSpec = &protocols.ProtocolSpec{
+	Maps: []*manager.Map{
+		{
+			Name: sslSockByCtxMap,
+		},
+		{
+			Name: "ssl_read_args",
+		},
+		{
+			Name: "bio_new_socket_args",
+		},
+		{
+			Name: "fd_by_ssl_bio",
+		},
+		{
+			Name: "ssl_ctx_by_pid_tgid",
+		},
+	},
 	Probes: []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -443,7 +460,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 
-func (o *sslProgram) PreStart(*manager.Manager, protocols.BuildMode) error {
+func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
 	return nil

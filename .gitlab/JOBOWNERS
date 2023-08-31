@@ -15,6 +15,9 @@ prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 
 # Golang dependency list generation (currently disabled)
 golang_deps_generate                 @DataDog/agent-shared-components
+# Golang dependency diff generation
+golang_deps_diff                     @DataDog/ebpf-platform
+golang_deps_commenter                @DataDog/ebpf-platform
 
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform

@@ -294,7 +294,7 @@ func (counter *PdhEnglishMultiInstanceCounter) GetAllValues() (values map[string
 	values = make(map[string]float64)
 	for _, item := range items {
 		if counter.verifyfn != nil {
-			if counter.verifyfn(item.instance) == false {
+			if !counter.verifyfn(item.instance) {
 				// not interested, moving on
 				continue
 			}

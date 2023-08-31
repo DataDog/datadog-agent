@@ -118,7 +118,7 @@ Such rules can be written as follows:
 
 {% raw %}
 {{< code-block lang="javascript" >}}
-dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25", "10.0.0.0/24"]
+dns.question.name == "example.com" && network.destination.ip in [192.168.1.25, 10.0.0.0/24]
 
 {{< /code-block >}}
 {% endraw %}

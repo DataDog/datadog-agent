@@ -272,6 +272,9 @@ int hook_do_exit(ctx_t *ctx) {
         // send the entry to maintain userspace cache
         struct exit_event_t event = {};
         struct proc_cache_t *pc = fill_process_context(&event.process);
+        if (pc) {
+            dec_mount_ref(ctx, pc->entry.executable.path_key.mount_id);
+        }
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
         event.exit_code = (u32)(u64)CTX_PARM1(ctx);
@@ -637,6 +640,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         if (parent_pc) {
             // inherit the parent container context
             fill_container_context(parent_pc, &pc.container);
+            dec_mount_ref(ctx, parent_pc->entry.executable.path_key.mount_id);
         }
     }
 
