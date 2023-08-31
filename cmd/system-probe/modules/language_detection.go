@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -36,7 +37,7 @@ type languageDetectionModule struct {
 	languageDetector languagedetection.PrivilegedLanguageDetector
 }
 
-func (l languageDetectionModule) GetStats() map[string]interface{} {
+func (l *languageDetectionModule) GetStats() map[string]interface{} {
 	return nil
 }
 
@@ -45,12 +46,17 @@ func (l languageDetectionModule) Register(router *module.Router) error {
 	return nil
 }
 
+// RegisterGRPC register to system probe gRPC server
+func (l *languageDetectionModule) RegisterGRPC(_ *grpc.Server) error {
+	return nil
+}
+
 // Close closes resources associated with the language detection module.
 // The language detection module doesn't do anything except route to the privileged language detection api.
 // This API currently does not hold any resources over its lifetime, so there is no need to release any resources when the
 // module is closed.
 
-func (l languageDetectionModule) Close() {}
+func (l *languageDetectionModule) Close() {}
 
 func toDetectLanguageResponse(langs []languagemodels.Language) *languageDetectionProto.DetectLanguageResponse {
 	resp := &languageDetectionProto.DetectLanguageResponse{
