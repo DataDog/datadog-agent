@@ -6,7 +6,6 @@
 package encoding
 
 import (
-	"bytes"
 	"fmt"
 	"runtime"
 	"testing"
@@ -383,11 +382,7 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 		},
 	}
 
-	marshaler := GetMarshaler("application/protobuf")
-
-	blobWriter := bytes.NewBuffer(nil)
-	err = marshaler.Marshal(in, blobWriter)
-	require.NoError(t, err)
+	blobWriter := getBlobWriter(t, in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
