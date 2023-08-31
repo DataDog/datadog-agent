@@ -604,8 +604,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 		},
 	}
 
-	assert := assert.New(t)
-	blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
+	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -717,8 +716,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 			UsmEnabled: false,
 		},
 	}
-	assert := assert.New(t)
-	blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
+	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -754,8 +752,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	}
 
 	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
-		assert := assert.New(t)
-		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
+		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -821,8 +818,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	}
 
 	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
-		assert := assert.New(t)
-		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
+		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
@@ -864,7 +860,6 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 func TestUSMPayloadTelemetry(t *testing.T) {
 	telemetry.Clear()
 	t.Cleanup(telemetry.Clear)
-	assert := assert.New(t)
 
 	// Set metric present in the payload telemetry list to an arbitrary value
 	m1 := telemetry.NewCounter("usm.http.total_hits", telemetry.OptPayloadTelemetry)
@@ -878,7 +873,7 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 
 	// Perform a marshal/unmarshal cycle
 	in := new(network.Connections)
-	blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
+	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
