@@ -65,12 +65,13 @@ type ConnectionsModeler struct {
 // Furthermore, it stores the current agent configuration which applies to all instances related to the entire set of connections,
 // rather than just individual batches.
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+	ipc := make(ipCache, len(conns.Conns)/2)
 	return &ConnectionsModeler{
 		httpEncoder:  newHTTPEncoder(conns.HTTP),
 		http2Encoder: newHTTP2Encoder(conns.HTTP2),
 		kafkaEncoder: newKafkaEncoder(conns.Kafka),
-		ipc:          make(ipCache, len(conns.Conns)/2),
-		dnsFormatter: newDNSFormatter(conns, make(ipCache, len(conns.Conns)/2)),
+		ipc:          ipc,
+		dnsFormatter: newDNSFormatter(conns, ipc),
 	}
 }
 
