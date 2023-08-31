@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,7 +80,7 @@ var (
 )
 
 func getFreePort() uint16 {
-	sender := mocksender.NewMockSender("")
+	// sender := mocksender.NewMockSender("")
 
 	var port uint16
 	for i := 0; i < 5; i++ {
@@ -95,11 +93,11 @@ func getFreePort() uint16 {
 		if err != nil {
 			continue
 		}
-		listener, err := startSNMPTrapListener(Config{Port: port}, sender, nil)
-		if err != nil {
-			continue
-		}
-		listener.Stop()
+		// listener, err := startSNMPTrapListener(Config{Port: port}, sender, nil, nil)
+		// if err != nil {
+		// 	continue
+		// }
+		// listener.Stop()
 		return port
 	}
 	panic("unable to find free port for starting the trap listener")
@@ -119,7 +117,7 @@ func parsePort(addr string) (uint16, error) {
 }
 
 func sendTestV1GenericTrap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams()
+	params, err := trapConfig.BuildSNMPParams(nil)
 	require.NoError(t, err)
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
@@ -137,7 +135,7 @@ func sendTestV1GenericTrap(t *testing.T, trapConfig Config, community string) *g
 }
 
 func sendTestV1SpecificTrap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams()
+	params, err := trapConfig.BuildSNMPParams(nil)
 	require.NoError(t, err)
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
@@ -155,7 +153,7 @@ func sendTestV1SpecificTrap(t *testing.T, trapConfig Config, community string) *
 }
 
 func sendTestV2Trap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams()
+	params, err := trapConfig.BuildSNMPParams(nil)
 	require.NoError(t, err)
 	params.Community = community
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
@@ -173,7 +171,7 @@ func sendTestV2Trap(t *testing.T, trapConfig Config, community string) *gosnmp.G
 }
 
 func sendTestV3Trap(t *testing.T, trapConfig Config, securityParams *gosnmp.UsmSecurityParameters) *gosnmp.GoSNMP {
-	params, err := trapConfig.BuildSNMPParams()
+	params, err := trapConfig.BuildSNMPParams(nil)
 	require.NoError(t, err)
 	params.MsgFlags = gosnmp.AuthPriv
 	params.SecurityParameters = securityParams

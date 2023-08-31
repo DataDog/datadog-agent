@@ -12,6 +12,8 @@ import (
 	"io/fs"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -144,6 +146,7 @@ func TestDecoding(t *testing.T) {
 }
 
 func TestSortFiles(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	files := []fs.DirEntry{
 		MockedDirEntry{name: "totoro", isDir: false},
 		MockedDirEntry{name: "porco", isDir: false},
@@ -162,7 +165,7 @@ func TestSortFiles(t *testing.T) {
 		MockedDirEntry{name: "dd_traps_db.yaml.gz", isDir: false},
 		MockedDirEntry{name: "dd_traps_db.yaml", isDir: false},
 	}
-	sortedFiles := getSortedFileNames(files)
+	sortedFiles := getSortedFileNames(files, logger)
 	require.EqualValues(t,
 		[]string{
 			"dd_traps_db.json",
@@ -182,7 +185,8 @@ func TestSortFiles(t *testing.T) {
 }
 
 func TestResolverWithNonStandardOIDs(t *testing.T) {
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
 	trapData := trapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeat", MIBName: "NET-SNMP-EXAMPLES-MIB"}},
 		Variables: variableSpec{
@@ -210,7 +214,8 @@ func TestResolverWithNonStandardOIDs(t *testing.T) {
 
 }
 func TestResolverWithConflictingTrapOID(t *testing.T) {
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
 	trapDataA := trapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "foo", MIBName: "FOO-MIB"}},
 	}
@@ -226,7 +231,8 @@ func TestResolverWithConflictingTrapOID(t *testing.T) {
 }
 
 func TestResolverWithConflictingVariables(t *testing.T) {
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
 	trapDataA := trapDBFileContent{
 		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{}},
 		Variables: variableSpec{
@@ -256,7 +262,8 @@ func TestResolverWithConflictingVariables(t *testing.T) {
 }
 
 func TestResolverWithSuffixedVariable(t *testing.T) {
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
 	updateResolverWithIntermediateJSONReader(t, resolver, dummyTrapDB)
 
 	data, err := resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1")
@@ -277,7 +284,8 @@ func TestResolverWithSuffixedVariable(t *testing.T) {
 }
 
 func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
 	trapDB := trapDBFileContent{
 		Traps: TrapSpec{
 			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
@@ -314,7 +322,8 @@ func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
 }
 
 func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
 	trapDB := trapDBFileContent{
 		Traps: TrapSpec{
 			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},

@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -23,11 +25,12 @@ var initialTrapsPacketsAuthErrors int64
 const defaultTimeout = 1 * time.Second
 
 func listenerTestSetup(t *testing.T, config Config) (*mocksender.MockSender, *TrapListener) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 	packetOutChan := make(PacketsChannel, packetsChanSize)
 
-	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
+	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan, logger)
 	require.NoError(t, err)
 
 	// trapsPacketsAuthErrors is global so its value carries over from test to test.  Capture its initial value to determine if it changes during an individual test run.
