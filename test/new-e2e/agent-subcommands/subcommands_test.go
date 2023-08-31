@@ -71,13 +71,13 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 	v.UpdateEnv(e2e.FakeIntakeStackDef(nil))
 
 	metadata := client.NewEC2Metadata(v.Env().VM)
-	resourceId := metadata.Get("instance-id")
+	resourceID := metadata.Get("instance-id")
 
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
-			shouldContain:    []string{fmt.Sprintf("hostname: %v", resourceId), "hostname provider: aws"},
+			shouldContain:    []string{fmt.Sprintf("hostname: %v", resourceID), "hostname provider: aws"},
 			shouldNotContain: []string{"FIPS proxy"},
 		},
 		{
