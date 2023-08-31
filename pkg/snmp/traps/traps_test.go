@@ -8,19 +8,16 @@
 package traps
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"net"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // List of variables for a NetSNMP::ExampleHeartBeatNotification trap message.
@@ -119,31 +116,6 @@ func parsePort(addr string) (uint16, error) {
 		return 0, err
 	}
 	return uint16(port), nil
-}
-
-// Configure sets Datadog Agent configuration from a config object.
-func Configure(t *testing.T, trapConfig Config) {
-	ConfigureWithGlobalNamespace(t, trapConfig, "")
-}
-
-// ConfigureWithGlobalNamespace sets Datadog Agent configuration from a config object and a namespace
-func ConfigureWithGlobalNamespace(t *testing.T, trapConfig Config, globalNamespace string) {
-	trapConfig.Enabled = true
-	datadogYaml := map[string]map[string]interface{}{
-		"network_devices": {
-			"snmp_traps": trapConfig,
-		},
-	}
-	if globalNamespace != "" {
-		datadogYaml["network_devices"]["namespace"] = globalNamespace
-	}
-
-	config.Datadog.SetConfigType("yaml")
-	out, err := yaml.Marshal(datadogYaml)
-	require.NoError(t, err)
-
-	err = config.Datadog.ReadConfig(strings.NewReader(string(out)))
-	require.NoError(t, err)
 }
 
 func sendTestV1GenericTrap(t *testing.T, trapConfig Config, community string) *gosnmp.GoSNMP {

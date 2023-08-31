@@ -18,7 +18,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,9 +52,8 @@ type MultiFilesOIDResolver struct {
 
 // NewMultiFilesOIDResolver creates a new MultiFilesOIDResolver instance by loading json or yaml files
 // (optionnally gzipped) located in the directory snmp.d/traps_db/
-func NewMultiFilesOIDResolver() (*MultiFilesOIDResolver, error) {
+func NewMultiFilesOIDResolver(confdPath string) (*MultiFilesOIDResolver, error) {
 	oidResolver := &MultiFilesOIDResolver{traps: make(TrapSpec)}
-	confdPath := config.Datadog.GetString("confd_path")
 	trapsDBRoot := filepath.Join(confdPath, "snmp.d", "traps_db")
 	files, err := os.ReadDir(trapsDBRoot)
 	if err != nil {

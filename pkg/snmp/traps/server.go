@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,8 +29,8 @@ var (
 )
 
 // StartServer starts the global trap server.
-func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
-	config, err := ReadConfig(agentHostname)
+func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf config.Component) error {
+	config, err := ReadConfig(agentHostname, conf)
 	if err != nil {
 		return err
 	}
@@ -37,7 +38,7 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
 	if err != nil {
 		return err
 	}
-	oidResolver, err := NewMultiFilesOIDResolver()
+	oidResolver, err := NewMultiFilesOIDResolver(conf.GetString("confd_path"))
 	if err != nil {
 		return err
 	}
