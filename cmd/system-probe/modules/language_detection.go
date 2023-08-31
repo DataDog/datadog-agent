@@ -27,7 +27,7 @@ var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
-		return languageDetectionModule{
+		return &languageDetectionModule{
 			languageDetector: languagedetection.NewPrivilegedLanguageDetector(),
 		}, nil
 	},
@@ -41,7 +41,7 @@ func (l *languageDetectionModule) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (l languageDetectionModule) Register(router *module.Router) error {
+func (l *languageDetectionModule) Register(router *module.Router) error {
 	router.HandleFunc("/detect", l.detectLanguage)
 	return nil
 }
@@ -76,7 +76,7 @@ func handleError(writer http.ResponseWriter, status int, err error) {
 	writer.WriteHeader(status)
 }
 
-func (l languageDetectionModule) detectLanguage(writer http.ResponseWriter, request *http.Request) {
+func (l *languageDetectionModule) detectLanguage(writer http.ResponseWriter, request *http.Request) {
 	b, err := io.ReadAll(request.Body)
 	if err != nil {
 		handleError(writer, http.StatusInternalServerError, fmt.Errorf("read request body: %v", err))
