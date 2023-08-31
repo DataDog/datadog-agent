@@ -145,7 +145,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	if workloadmeta.Enabled(p.config) {
 		err = p.workloadMetaServer.Start()
 		if err != nil {
-			_ = log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
 		} else {
 			p.extractors = append(p.extractors, p.workloadMetaExtractor)
 		}
