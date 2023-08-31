@@ -88,6 +88,8 @@ def display_result(filtered_lints):
     """
     Displays results
     """
+    if not filtered_lints:
+        return "No linter error !"
     output = ""
     for linter in filtered_lints:
         output+= f"[{linter}]\n"
