@@ -128,7 +128,7 @@ func (cb *ManifestBuffer) Start(sender sender.Sender) {
 			select {
 			case msg, ok := <-cb.ManifestChan:
 				if !ok {
-					log.Warnf("Fail to read orchestrator manifest from channel")
+					log.Warnc("Fail to read orchestrator manifest from channel", orchestrator.ExtraLogContext...)
 					continue
 				}
 				cb.appendManifest(msg, sender)
