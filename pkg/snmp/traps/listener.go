@@ -7,13 +7,14 @@ package traps
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"net"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 // TrapListener opens an UDP socket and put all received traps in a channel
@@ -23,13 +24,14 @@ type TrapListener struct {
 	packets       PacketsChannel
 	listener      *gosnmp.TrapListener
 	errorsChannel chan error
+	logger        log.Component
 }
 
 // NewTrapListener creates a simple TrapListener instance but does not start it
-func NewTrapListener(config Config, aggregator sender.Sender, packets PacketsChannel) (*TrapListener, error) {
+func NewTrapListener(config Config, aggregator sender.Sender, packets PacketsChannel, logger log.Component) (*TrapListener, error) {
 	var err error
 	gosnmpListener := gosnmp.NewTrapListener()
-	gosnmpListener.Params, err = config.BuildSNMPParams()
+	gosnmpListener.Params, err = config.BuildSNMPParams(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +42,7 @@ func NewTrapListener(config Config, aggregator sender.Sender, packets PacketsCha
 		packets:       packets,
 		listener:      gosnmpListener,
 		errorsChannel: errorsChan,
+		logger:        logger,
 	}
 
 	gosnmpListener.OnNewTrap = trapListener.receiveTrap
@@ -48,7 +51,7 @@ func NewTrapListener(config Config, aggregator sender.Sender, packets PacketsCha
 
 // Start the TrapListener instance. Need to be manually Stopped
 func (t *TrapListener) Start() error {
-	log.Infof("Start listening for traps on %s", t.config.Addr())
+	t.logger.Infof("Start listening for traps on %s", t.config.Addr())
 	go t.run()
 	return t.blockUntilReady()
 }
@@ -86,12 +89,12 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	t.aggregator.Count("datadog.snmp_traps.received", 1, "", tags)
 
 	if err := validatePacket(p, t.config); err != nil {
-		log.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
+		t.logger.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
 		trapsPacketsAuthErrors.Add(1)
 		t.aggregator.Count("datadog.snmp_traps.invalid_packet", 1, "", append(tags, "reason:unknown_community_string"))
 		return
 	}
-	log.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
+	t.logger.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
 	trapsPackets.Add(1)
 	t.packets <- packet
 }

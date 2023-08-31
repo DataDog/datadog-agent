@@ -8,13 +8,14 @@ package traps
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"strings"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 const ddsource string = "snmp-traps"
@@ -28,6 +29,7 @@ type Formatter interface {
 type JSONFormatter struct {
 	oidResolver OIDResolver
 	aggregator  sender.Sender
+	logger      log.Component
 }
 
 type trapVariable struct {
@@ -46,11 +48,11 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver, aggregator sender.Sender) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver OIDResolver, aggregator sender.Sender, logger log.Component) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
-	return JSONFormatter{oidResolver, aggregator}, nil
+	return JSONFormatter{oidResolver, aggregator, logger}, nil
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
@@ -116,7 +118,7 @@ func (f JSONFormatter) formatV1Trap(packet *SnmpPacket) map[string]interface{} {
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
 		f.aggregator.Count(telemetryTrapsNotEnriched, 1, "", tags)
-		log.Debugf("unable to resolve OID: %s", err)
+		f.logger.Debugf("unable to resolve OID: %s", err)
 	} else {
 		data["snmpTrapName"] = trapMetadata.Name
 		data["snmpTrapMIB"] = trapMetadata.MIBName
@@ -169,7 +171,7 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
 		f.aggregator.Count(telemetryTrapsNotEnriched, 1, "", tags)
-		log.Debugf("unable to resolve OID: %s", err)
+		f.logger.Debugf("unable to resolve OID: %s", err)
 	} else {
 		data["snmpTrapName"] = trapMetadata.Name
 		data["snmpTrapMIB"] = trapMetadata.MIBName
@@ -213,11 +215,11 @@ func IsValidOID(value string) bool {
 
 // enrichEnum checks to see if the variable has a mapping in an enum and
 // returns the mapping if it exists, otherwise returns the value unchanged
-func enrichEnum(variable trapVariable, varMetadata VariableMetadata) interface{} {
+func enrichEnum(variable trapVariable, varMetadata VariableMetadata, logger log.Component) interface{} {
 	// if we find a mapping set it and return
 	i, ok := variable.Value.(int)
 	if !ok {
-		log.Warnf("unable to enrich variable %q %s with integer enum, received value was not int, was %T", varMetadata.Name, variable.OID, variable.Value)
+		logger.Warnf("unable to enrich variable %q %s with integer enum, received value was not int, was %T", varMetadata.Name, variable.OID, variable.Value)
 		return variable.Value
 	}
 	if value, ok := varMetadata.Enumeration[i]; ok {
@@ -225,17 +227,17 @@ func enrichEnum(variable trapVariable, varMetadata VariableMetadata) interface{}
 	}
 
 	// if no mapping is found or type is not integer
-	log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
+	logger.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
 	return variable.Value
 }
 
 // enrichBits checks to see if the variable has a mapping in bits, if so returns the mapping
 // and hex string of bits, if not returns the value unchanged and empty string
-func enrichBits(variable trapVariable, varMetadata VariableMetadata) (interface{}, string) {
+func enrichBits(variable trapVariable, varMetadata VariableMetadata, logger log.Component) (interface{}, string) {
 	// do bitwise search
 	bytes, ok := variable.Value.([]byte)
 	if !ok {
-		log.Warnf("unable to enrich variable %q %s with BITS mapping, received value was not []byte, was %T", varMetadata.Name, variable.OID, variable.Value)
+		logger.Warnf("unable to enrich variable %q %s with BITS mapping, received value was not []byte, was %T", varMetadata.Name, variable.OID, variable.Value)
 		return variable.Value, ""
 	}
 	enabledValues := make([]interface{}, 0)
@@ -244,12 +246,12 @@ func enrichBits(variable trapVariable, varMetadata VariableMetadata) (interface{
 			position := j + i*8 // position is the index in the current byte plus 8 * the position in the byte array
 			enabled, err := isBitEnabled(uint8(b), j)
 			if err != nil {
-				log.Debugf("unable to determine status at position %d: %s", position, err.Error())
+				logger.Debugf("unable to determine status at position %d: %s", position, err.Error())
 				continue
 			}
 			if enabled {
 				if value, ok := varMetadata.Bits[position]; !ok {
-					log.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
+					logger.Debugf("unable to find enum mapping for value %d variable %q", i, varMetadata.Name)
 					enabledValues = append(enabledValues, position)
 				} else {
 					enabledValues = append(enabledValues, value)
@@ -311,19 +313,19 @@ func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU
 
 		varMetadata, err := f.oidResolver.GetVariableMetadata(trapOID, varOID)
 		if err != nil {
-			log.Debugf("unable to enrich variable: %s", err)
+			f.logger.Debugf("unable to enrich variable: %s", err)
 			tv.Value = formatValue(variable)
 			parsedVariables = append(parsedVariables, tv)
 			continue
 		}
 
 		if len(varMetadata.Enumeration) > 0 && len(varMetadata.Bits) > 0 {
-			log.Errorf("Unable to enrich variable, trap variable %q has mappings for both integer enum and bits.", varMetadata.Name)
+			f.logger.Errorf("Unable to enrich variable, trap variable %q has mappings for both integer enum and bits.", varMetadata.Name)
 		} else if len(varMetadata.Enumeration) > 0 {
-			enrichedValues[varMetadata.Name] = enrichEnum(tv, varMetadata)
+			enrichedValues[varMetadata.Name] = enrichEnum(tv, varMetadata, f.logger)
 		} else if len(varMetadata.Bits) > 0 {
 			var hexString string
-			enrichedValues[varMetadata.Name], hexString = enrichBits(tv, varMetadata)
+			enrichedValues[varMetadata.Name], hexString = enrichBits(tv, varMetadata, f.logger)
 			if hexString != "" {
 				tv.Value = hexString
 			}

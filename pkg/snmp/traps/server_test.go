@@ -10,7 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var freePort = getFreePort()
@@ -19,18 +21,19 @@ func TestStartFailure(t *testing.T) {
 	/*
 		Start two servers with the same config to trigger an "address already in use" error.
 	*/
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
 	config := Config{Port: freePort, CommunityStrings: []string{"public"}}
 
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()
 
-	sucessServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender)
+	sucessServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender, logger)
 	require.NoError(t, err)
 	require.NotNil(t, sucessServer)
 	defer sucessServer.Stop()
 
-	failedServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender)
+	failedServer, err := NewTrapServer(config, &DummyFormatter{}, mockSender, logger)
 	require.Nil(t, failedServer)
 	require.Error(t, err)
 }
