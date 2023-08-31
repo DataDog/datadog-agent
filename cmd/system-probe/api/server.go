@@ -33,7 +33,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	}
 
 	var grpcServer *grpc.Server
-	srv := http.Server{}
+	var srv *http.Server
 
 	mux := gorilla.NewRouter()
 	if cfg.GRPCServerEnabled {
@@ -60,12 +60,16 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	mux.Handle("/telemetry", telemetry.Handler())
 
 	if cfg.GRPCServerEnabled {
-		srv = *grpcutil.NewMuxedGRPCServer(
+		srv = grpcutil.NewMuxedGRPCServer(
 			cfg.SocketAddress,
 			nil,
 			grpcServer,
 			mux,
 		)
+	} else {
+		srv = &http.Server{
+			Handler: mux,
+		}
 	}
 
 	go func() {
