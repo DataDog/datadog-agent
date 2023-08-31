@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
-	"github.com/DataDog/datadog-agent/pkg/network/proto/connectionserver"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -70,7 +69,7 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		return &networkTracer{tracer: t, done: done, maxConnsPerMessage: cfg.MaxConnsPerMessage, runCounter: atomic.NewUint64(0)}, err
+		return &networkTracer{tracer: t, done: done, runCounter: atomic.NewUint64(0)}, err
 	},
 }
 
@@ -81,9 +80,7 @@ type networkTracer struct {
 	done         chan struct{}
 	restartTimer *time.Timer
 
-	connectionserver.UnsafeSystemProbeServer
-	maxConnsPerMessage int
-	runCounter         *atomic.Uint64
+	runCounter *atomic.Uint64
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
