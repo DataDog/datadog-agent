@@ -25,7 +25,7 @@ docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" \
     -v"/tmp/gems:/gems" \
     --workdir=/go/src/github.com/DataDog/datadog-agent \
     datadog/agent-buildimages-deb_x64 \
-    inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
+    bash -c 'source /root/.bashrc && inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems'
 ```
 
 The container will share 3 volumes with the host to avoid starting from scratch
