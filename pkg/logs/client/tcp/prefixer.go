@@ -5,19 +5,25 @@
 
 package tcp
 
+import "bytes"
+
 // prefixer prepends a prefix to a message.
 type prefixer struct {
-	prefix []byte
+	prefix string
+	buffer bytes.Buffer
 }
 
 // newPrefixer returns a prefixer that prepends the given prefix to a message.
 func newPrefixer(prefix string) *prefixer {
 	return &prefixer{
-		prefix: []byte(prefix),
+		prefix: prefix,
 	}
 }
 
 // apply prepends the prefix to the message.
 func (p *prefixer) apply(content []byte) []byte {
-	return append(p.prefix, content...)
+	p.buffer.Reset()
+	p.buffer.WriteString(p.prefix)
+	p.buffer.Write(content)
+	return p.buffer.Bytes()
 }
