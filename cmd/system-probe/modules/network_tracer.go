@@ -69,7 +69,7 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		return &networkTracer{tracer: t, done: done, runCounter: atomic.NewUint64(0)}, err
+		return &networkTracer{tracer: t, done: done}, err
 	},
 }
 
@@ -79,8 +79,6 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	done         chan struct{}
 	restartTimer *time.Timer
-
-	runCounter *atomic.Uint64
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
