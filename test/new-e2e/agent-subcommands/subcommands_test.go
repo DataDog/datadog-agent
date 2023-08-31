@@ -39,8 +39,8 @@ func getStatusComponentContent(statusOutput string, sectionName string) (*sectio
 	// * a name (e.g. 'Forwarder')
 	// * followed by lines whose first character is not a blank (e.g. '==========')
 	// * and then lines starting with blank characters (which is basically the content of the section)
-	linesStartingWithNonWhiteCharRegex := `(?m:^[^[:blank:]]+\n)+` // new sections aren't indented
-	linesStartingWithWhiteCharRegex := `(?P<status>(?m:^[[:blank:]]+.*\n)+)`
+	linesStartingWithNonWhiteCharRegex := `([^[:blank:]]+\n)+`                 // new sections aren't indented
+	linesStartingWithWhiteCharRegex := `(?P<status>([[:blank:]]+.*\n|\r?\n)+)` // either match starting with blank or match empty line (\r\n and \n)
 	regexTemplate := fmt.Sprintf("%v\n", sectionName) + linesStartingWithNonWhiteCharRegex + linesStartingWithWhiteCharRegex
 
 	re := regexp.MustCompile(regexTemplate)
