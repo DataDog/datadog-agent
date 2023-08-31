@@ -39,8 +39,8 @@ func getStatusComponentContent(statusOutput string, sectionName string) (*sectio
 	// * a name (e.g. 'Forwarder')
 	// * followed by lines whose first character is not a blank (e.g. '==========')
 	// * and then lines starting with blank characters (which is basically the content of the section)
-	linesStartingWithNonWhiteCharRegex := `([^[:blank:]]+\n)+`                         // new sections aren't indented
-	linesStartingWithWhiteCharRegex := `(?P<sectionContent>([[:blank:]]+.*\n|\r?\n)+)` // either match starting with blank or match empty line (\r\n and \n)
+	linesStartingWithNonWhiteCharRegex := `([^[:blank:]]+\n)+`                              // new sections aren't indented
+	linesStartingWithWhiteCharRegex := `(?P<sectionContent>(?m:^[[:blank:]]+.*\n|^\r?\n)+)` // either match starting with blank or match empty line (\r\n and \n)
 	regexTemplate := fmt.Sprintf("%v\n", sectionName) + linesStartingWithNonWhiteCharRegex + linesStartingWithWhiteCharRegex
 
 	re := regexp.MustCompile(regexTemplate)
@@ -156,7 +156,8 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 		},
 		{
 			name:            "Remote Configuration",
-			shouldBePresent: false,
+			shouldBePresent: true,
+			shouldContain:   []string{"Organization enabled: False"},
 		},
 		{
 			name:            "Runtime Security",
