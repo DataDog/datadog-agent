@@ -8,15 +8,16 @@ package flare
 import (
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
-func GetClusterAgentDiagnose(w io.Writer) error {
+func GetClusterAgentDiagnose(w io.Writer, senderManager sender.SenderManager) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  false,
 		RunLocal: false,
 	}
-	return diagnose.RunStdOut(w, diagCfg)
+	return diagnose.RunStdOut(w, diagCfg, senderManager)
 }

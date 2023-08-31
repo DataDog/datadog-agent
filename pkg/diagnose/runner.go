@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	_ "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity" // no direct calls to connectivity but there is a callback
@@ -171,8 +172,8 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Su
 	return sortedFilteredSuites
 }
 
-func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis.Diagnosis {
-	diagnoses := ds.Diagnose(diagCfg)
+func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+	diagnoses := ds.Diagnose(diagCfg, senderManager)
 
 	// validate each diagnoses
 	for i, d := range diagnoses {
@@ -219,13 +220,13 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
 	suites := getSortedAndFilteredDiagnoseSuites(diagCfg)
 
 	var suitesDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
 		// Run particular diagnose
-		diagnoses := getSuiteDiagnoses(ds, diagCfg)
+		diagnoses := getSuiteDiagnoses(ds, diagCfg, senderManager)
 		if len(diagnoses) > 0 {
 			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
@@ -279,7 +280,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	return diagnoses, nil
 }
 
-func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+func Run(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
 
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
@@ -287,7 +288,7 @@ func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg)
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, senderManager)
 	if err != nil {
 		return nil, err
 	}
@@ -297,21 +298,21 @@ func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config) error {
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.SenderManager) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := Run(diagCfg)
+	diagnoses, err := Run(diagCfg, senderManager)
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 		// attempt to do so locally
 		diagCfg.RunLocal = true
-		diagnoses, err = Run(diagCfg)
+		diagnoses, err = Run(diagCfg, senderManager)
 	}
 
 	if err != nil {

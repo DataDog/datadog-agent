@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -46,5 +47,5 @@ func run(log log.Component, config config.Component) error {
 		Verbose:  false,
 		RunLocal: false,
 	}
-	return diagnose.RunStdOut(color.Output, diagCfg)
+	return diagnose.RunStdOut(color.Output, diagCfg, aggregator.GetSenderManager())
 }
