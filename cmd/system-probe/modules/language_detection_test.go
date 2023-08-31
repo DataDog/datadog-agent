@@ -45,9 +45,10 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 	reqBytes, err := proto.Marshal(&reqProto)
 	require.NoError(t, err)
 
-	languageDetectionModule{
+	m := languageDetectionModule{
 		languageDetector: languagedetection.NewPrivilegedLanguageDetector(),
-	}.detectLanguage(rec, httptest.NewRequest(http.MethodGet, "/", bytes.NewReader(reqBytes)))
+	}
+	m.detectLanguage(rec, httptest.NewRequest(http.MethodGet, "/", bytes.NewReader(reqBytes)))
 
 	resBody := rec.Result().Body
 	defer resBody.Close()
