@@ -8,6 +8,8 @@
 package consumer
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -23,24 +25,39 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 	var cmdline []string
 	if entry.ArgsEntry != nil {
 		// ignore if the args have been truncated
-		cmdline = entry.ArgsEntry.Values
+		//cmdline = entry.ArgsEntry.Values
+		cmdline = event.GetProcessArgv() // TODO: verify
 	}
 
 	return &model.ProcessEvent{
-		EventType:      model.NewEventType(event.GetEventType().String()),
-		CollectionTime: event.Timestamp,
-		Pid:            entry.Pid,
-		ContainerID:    entry.ContainerID,
-		Ppid:           entry.PPid,
-		UID:            entry.UID,
-		GID:            entry.GID,
-		Username:       entry.User,
-		Group:          entry.Group,
-		Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
+		EventType: model.NewEventType(event.GetEventType().String()),
+		//CollectionTime: event.Timestamp,
+		//Pid:            entry.Pid,
+		//ContainerID:    entry.ContainerID,
+		//Ppid:           entry.PPid,
+		//UID:            entry.UID,
+		//GID:            entry.GID,
+		//Username:       entry.User,
+		//Group:          entry.Group,
+		//Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
+		//Cmdline:        cmdline,
+		//ForkTime:       entry.ForkTime,
+		//ExecTime:       entry.ExecTime,
+		//ExitTime:       entry.ExitTime,
+		//ExitCode:       event.Exit.Code,
+		CollectionTime: time.Unix(0, int64(event.GetEventTimestamp())),
+		Pid:            event.GetProcessPid(),
+		ContainerID:    event.GetContainerId(),
+		Ppid:           event.GetProcessPpid(),
+		UID:            event.GetProcessUid(),
+		GID:            event.GetProcessGid(),
+		Username:       event.GetProcessUser(),
+		Group:          event.GetProcessGroup(),
+		Exe:            event.GetExecFilePath(),
 		Cmdline:        cmdline,
-		ForkTime:       entry.ForkTime,
-		ExecTime:       entry.ExecTime,
-		ExitTime:       entry.ExitTime,
-		ExitCode:       event.Exit.Code,
+		ForkTime:       time.Unix(0, int64(event.GetExecCreatedAt())), // TODO: investigate all assigments of forkTime
+		ExecTime:       time.Unix(0, int64(event.GetExecCreatedAt())), // TODO: investigate truncation
+		ExitTime:       time.Unix(0, int64(event.GetExitCreatedAt())),
+		ExitCode:       event.GetExitCode(),
 	}
 }
