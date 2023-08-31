@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
-var checkCtx *checkContext = nil
+var checkCtx *checkContext
 var checkContextMutex = sync.Mutex{}
 
 // As it is difficult to pass Go context to Go methods like SubmitMetric,
