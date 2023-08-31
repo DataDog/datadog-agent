@@ -45,9 +45,6 @@ func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()
 
-	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "default"}
-	Configure(t, config)
-
 	forwarder, err = NewTrapForwarder(&DummyFormatter{}, mockSender, packetsIn)
 	if err != nil {
 		return nil, err

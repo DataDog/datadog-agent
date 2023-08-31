@@ -7,9 +7,10 @@ package traps
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -25,8 +26,6 @@ func listenerTestSetup(t *testing.T, config Config) (*mocksender.MockSender, *Tr
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 	packetOutChan := make(PacketsChannel, packetsChanSize)
-
-	Configure(t, config)
 
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)

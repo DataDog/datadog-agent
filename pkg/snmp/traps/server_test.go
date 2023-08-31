@@ -21,7 +21,6 @@ func TestStartFailure(t *testing.T) {
 	*/
 
 	config := Config{Port: freePort, CommunityStrings: []string{"public"}}
-	Configure(t, config)
 
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()

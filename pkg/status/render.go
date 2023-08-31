@@ -84,7 +84,7 @@ func FormatStatus(data []byte) (string, error) {
 		return nil
 	}
 	snmpTrapFunc := func() error {
-		if traps.IsEnabled() {
+		if traps.IsEnabled(config.Datadog) {
 			return RenderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 		}
 		return nil
