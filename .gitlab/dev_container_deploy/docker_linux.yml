@@ -225,7 +225,7 @@ single_machine_performance-nightly-amd64-a7:
   stage: dev_container_deploy
   rules:
     - !reference [.on_deploy_nightly_repo_branch_a7]
-    - if: $CI_COMMIT_BRANCH == main
+    - !reference [.if_main_branch]
   needs:
     - docker_build_agent7
   variables:
