@@ -104,6 +104,8 @@ func (s *CheckScheduler) ScheduleWithErrors(config integration.Config) error {
 
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
+	s.m.Lock()
+	defer s.m.Unlock()
 	for _, config := range configs {
 		if !config.IsCheckConfig() || config.HasFilter(containers.MetricsFilter) {
 			// skip non check and excluded configs.

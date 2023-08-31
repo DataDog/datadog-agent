@@ -33,18 +33,10 @@ type agentIntegration struct {
 var secretsDecrypt = secrets.Decrypt
 
 // NewScheduler creates an instance of a remote config integration scheduler
-func NewScheduler() *Scheduler {
+func NewScheduler(scheduler *collector.CheckScheduler) *Scheduler {
 	return &Scheduler{
 		runningChecks: make([]integration.Config, 0),
-	}
-}
-
-// AddScheduler initiate the remote-config scheduler
-func (sc *Scheduler) AddScheduler(scheduler *collector.CheckScheduler) {
-	if sc.scheduler != nil {
-		pkglog.Errorf("Remote-config scheduler is already initiated")
-	} else {
-		sc.scheduler = scheduler
+		scheduler:     scheduler,
 	}
 }
 
