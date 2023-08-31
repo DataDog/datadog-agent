@@ -44,15 +44,15 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.1
 	github.com/DataDog/agent-payload/v5 v5.0.93
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
-	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.3.0
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.2.15
@@ -560,7 +560,7 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
