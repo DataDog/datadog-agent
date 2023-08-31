@@ -108,12 +108,7 @@ type subprogram interface {
 func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
-			{Name: sslSockByCtxMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
-			{Name: "ssl_read_args"},
-			{Name: "bio_new_socket_args"},
-			{Name: "fd_by_ssl_bio"},
-			{Name: "ssl_ctx_by_pid_tgid"},
 			{Name: connectionStatesMap},
 		},
 		Probes: []*manager.Probe{
@@ -288,7 +283,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
 		connectionStatesMap: {
-			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -300,7 +294,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	} else {
 		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		}
@@ -346,9 +339,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	// Add excluded functions from disabled protocols
 	for _, p := range e.disabledProtocols {
 		for _, m := range p.Maps {
-			// Unused maps still needs to have a non-zero size
+			// Unused maps still need to have a non-zero size
 			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
-				Type:       ebpf.Hash,
 				MaxEntries: uint32(1),
 				EditorFlag: manager.EditMaxEntries,
 			}
