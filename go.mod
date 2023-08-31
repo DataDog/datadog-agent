@@ -11,6 +11,9 @@ retract (
 	v0.8.0
 )
 
+// https://github.com/DataDog/opentelemetry-mapping-go/pull/157
+replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.7.2-0.20230825191052-cbf2a21bc303
+
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
