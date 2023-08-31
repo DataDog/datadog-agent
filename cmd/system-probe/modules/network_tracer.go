@@ -91,13 +91,6 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 	return stats
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // RegisterGRPC register system probe grpc server
 func (nt *networkTracer) RegisterGRPC(_ *grpc.Server) error {
 	return nil
