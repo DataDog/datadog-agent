@@ -42,3 +42,9 @@ func initializeCheckContext(senderManager sender.SenderManager) {
 	}
 	checkContextMutex.Unlock()
 }
+
+func releaseCheckContext() {
+	checkContextMutex.Lock()
+	checkCtx = nil
+	checkContextMutex.Unlock()
+}
