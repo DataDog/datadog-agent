@@ -393,6 +393,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		connectionsModeler := NewConnectionsModeler(in)
 		defer connectionsModeler.Close()
 		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		require.NoError(t, err)
 
 		unmarshaler := GetUnmarshaler("")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
