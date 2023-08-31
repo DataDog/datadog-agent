@@ -919,6 +919,15 @@ profiles:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "default:1.2.3.4",
+      "diagnoses": [
+
+      ]
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -2011,9 +2020,18 @@ metric_tags:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "%s",
+      "diagnoses": [
+
+      ]
+    }
+  ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
