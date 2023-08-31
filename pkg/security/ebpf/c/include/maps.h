@@ -23,24 +23,24 @@ BPF_ARRAY_MAP(selinux_enforce_status, u16, 2)
 BPF_ARRAY_MAP(splice_entry_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, u32, 1)
 
-BPF_HASH_MAP(activity_dumps_config, u32, struct activity_dump_config, 1) // max entries will be overridden at runtime
+BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
-BPF_HASH_MAP(traced_cgroups, struct container_context_t, u32, 1) // max entries will be overridden at runtime
+BPF_HASH_MAP(traced_cgroups, struct container_context_t, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(cgroup_wait_list, struct container_context_t, u64, 1) // max entries will be overridden at runtime
-BPF_HASH_MAP(traced_pids, u32, u32, 8192) // max entries will be overridden at runtime
-BPF_HASH_MAP(traced_comms, char[TASK_COMM_LEN], u32, 200)
+BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
+BPF_HASH_MAP(traced_comms, char[TASK_COMM_LEN], u64, 200)
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct basename_filter_t, 255)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
 
-BPF_LRU_MAP(activity_dump_rate_limiters, u32, struct activity_dump_rate_limiter_ctx, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct activity_dump_rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
 BPF_LRU_MAP(tgid_fd_map_id, struct bpf_tgid_fd_t, u32, 4096)
 BPF_LRU_MAP(tgid_fd_prog_id, struct bpf_tgid_fd_t, u32, 4096)
-BPF_LRU_MAP(proc_cache, u32, struct proc_cache_t, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(proc_cache, u64, struct proc_cache_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_ignored, u32, u32, 16738)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
