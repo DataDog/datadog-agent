@@ -139,7 +139,7 @@ func testLoadCustomCheck(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	loader, err := NewPythonCheckLoader()
+	loader, err := NewPythonCheckLoader(aggregator.GetSenderManager())
 	assert.Nil(t, err)
 
 	// testing loading custom checks
@@ -175,7 +175,7 @@ func testLoadWheelCheck(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
-	loader, err := NewPythonCheckLoader()
+	loader, err := NewPythonCheckLoader(aggregator.GetSenderManager())
 	assert.Nil(t, err)
 
 	// testing loading dd wheels
