@@ -54,10 +54,8 @@ def parse_file(golangci_lint_output: str):
         base_path = full_path.removeprefix(os.getcwd()).removeprefix('/')
         lints.append((base_path, row, col, lint, descr, linter))
 
-    lints_per_linter = dict()
+    lints_per_linter = defaultdict(list)
     for base_path, row, col, lint, descr, linter in lints:
-        if linter not in lints_per_linter:
-            lints_per_linter[linter] = []
         lints_per_linter[linter].append((base_path, row, col, lint, descr))
 
     return lints_per_linter
