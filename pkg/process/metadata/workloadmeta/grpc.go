@@ -12,8 +12,10 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -46,9 +48,11 @@ var (
 // NewGRPCServer creates a new instance of a GRPCServer
 func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
 	l := &GRPCServer{
-		config:      config,
-		extractor:   extractor,
-		server:      grpc.NewServer(),
+		config:    config,
+		extractor: extractor,
+		server: grpc.NewServer(grpc.KeepaliveParams(keepalive.ServerParameters{
+			Time: 10 * time.Second,
+		})),
 		streamMutex: &sync.Mutex{},
 	}
 
@@ -168,6 +172,10 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			}
 
 		case <-out.Context().Done():
+			err := out.Context().Err()
+			if err != nil {
+				log.Warn("The workloadmeta grpc stream was closed:", err)
+			}
 			return nil
 		case <-streamCtx.Done():
 			return DuplicateConnectionErr
