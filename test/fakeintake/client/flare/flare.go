@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flare implements helpers to parse a Datadog Agent Flare and fetch its content
 package flare
 
 import (
@@ -33,12 +34,12 @@ func (flare *Flare) GetEmail() string {
 	return flare.email
 }
 
-// GetEmail is a getter for the 'agentVersion' field
+// GetAgentVersion is a getter for the 'agentVersion' field
 func (flare *Flare) GetAgentVersion() string {
 	return flare.agentVersion
 }
 
-// GetEmail is a getter for the 'hostname' field
+// GetHostname is a getter for the 'hostname' field
 func (flare *Flare) GetHostname() string {
 	return flare.hostname
 }

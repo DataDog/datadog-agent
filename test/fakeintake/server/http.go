@@ -16,7 +16,7 @@ type httpResponse struct {
 	body        []byte
 }
 
-func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
+func writeHTTPResponse(w http.ResponseWriter, response httpResponse) {
 	if response.contentType != "" {
 		w.Header().Set("Content-Type", response.contentType)
 	}
@@ -38,7 +38,7 @@ func buildSuccessResponse(body interface{}) httpResponse {
 func buildResponse(body interface{}, statusCode int, contentType string) httpResponse {
 	resp := httpResponse{contentType: contentType, statusCode: statusCode}
 
-	bodyJson, err := json.Marshal(body)
+	bodyJSON, err := json.Marshal(body)
 
 	if err != nil {
 		return httpResponse{
@@ -48,6 +48,6 @@ func buildResponse(body interface{}, statusCode int, contentType string) httpRes
 		}
 	}
 
-	resp.body = bodyJson
+	resp.body = bodyJSON
 	return resp
 }
