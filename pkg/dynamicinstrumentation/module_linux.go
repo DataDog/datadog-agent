@@ -22,6 +22,7 @@ func (m *Module) Close() {
 	log.Info("Closing user tracer module")
 }
 
+// RegisterGRPC register to system probe gRPC server
 func (m *Module) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }

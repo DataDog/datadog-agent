@@ -8,13 +8,13 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 )
 

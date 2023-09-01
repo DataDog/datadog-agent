@@ -111,7 +111,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	defer network.Reclaim(cs)
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	//connectionsModeler := encoding.NewConnectionsModeler(cs)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
@@ -127,7 +127,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		rest := cs.Conns[finalBatchSize:]
 		cs.Conns = cs.Conns[:finalBatchSize]
 
-		err := marshaler.Marshal(cs, &buffer)
+		err := marshaler.Marshal(cs, &buffer, connectionsModeler)
 
 		if err != nil {
 			return fmt.Errorf("unable to marshal payload due to: %s", err)
@@ -356,7 +356,10 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	err := marshaler.Marshal(cs, w)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	defer connectionsModeler.Close()
+
+	err := marshaler.Marshal(cs, w, connectionsModeler)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)

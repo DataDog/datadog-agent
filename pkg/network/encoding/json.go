@@ -22,10 +22,9 @@ type jsonSerializer struct {
 	marshaller jsonpb.Marshaler
 }
 
-func (j jsonSerializer) Marshal(conns *network.Connections, writer io.Writer) error {
-	connectionsModeler := NewConnectionsModeler(conns)
+func (j jsonSerializer) Marshal(conns *network.Connections, writer io.Writer, connsModeler *ConnectionsModeler) error {
 	out := bytes.NewBuffer(nil)
-	modelConnections(model.NewConnectionsBuilder(out), conns, connectionsModeler)
+	connsModeler.modelConnections(model.NewConnectionsBuilder(out), conns)
 
 	var payload model.Connections
 	if err := payload.Unmarshal(out.Bytes()); err != nil {

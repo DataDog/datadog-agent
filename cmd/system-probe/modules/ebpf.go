@@ -63,6 +63,7 @@ func (o *ebpfModule) GetStats() map[string]interface{} {
 	}
 }
 
+// RegisterGRPC register to system probe gRPC server
 func (o *ebpfModule) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }

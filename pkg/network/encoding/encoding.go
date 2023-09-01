@@ -32,7 +32,7 @@ var (
 
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
-	Marshal(conns *network.Connections, writer io.Writer) error
+	Marshal(conns *network.Connections, writer io.Writer, connsModeler *ConnectionsModeler) error
 	ContentType() string
 }
 
@@ -55,18 +55,27 @@ type ConnectionsModeler struct {
 	httpEncoder  *httpEncoder
 	http2Encoder *http2Encoder
 	kafkaEncoder *kafkaEncoder
+	dnsFormatter *dnsFormatter
+	ipc          ipCache
+	routeIndex   map[string]RouteIdx
+	tagsSet      *network.TagsSet
 }
 
-// NewConnectionsModeler initializes the connection modeler with encoders, telemetry, and agent configuration for
+// NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
 // the existing connections. The ConnectionsModeler holds the traffic encoders grouped by USM logic.
 // It also includes formatted connection telemetry related to all batches, not specific batches.
 // Furthermore, it stores the current agent configuration which applies to all instances related to the entire set of connections,
 // rather than just individual batches.
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+	ipc := make(ipCache, len(conns.Conns)/2)
 	return &ConnectionsModeler{
 		httpEncoder:  newHTTPEncoder(conns.HTTP),
 		http2Encoder: newHTTP2Encoder(conns.HTTP2),
 		kafkaEncoder: newKafkaEncoder(conns.Kafka),
+		ipc:          ipc,
+		dnsFormatter: newDNSFormatter(conns, ipc),
+		routeIndex:   make(map[string]RouteIdx),
+		tagsSet:      network.NewTagsSet(),
 	}
 }
 
@@ -86,7 +95,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections, consModeler *ConnectionsModeler) {
+func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
@@ -95,20 +104,14 @@ func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connecti
 		}
 	})
 
-	routeIndex := make(map[string]RouteIdx)
-
-	ipc := make(ipCache, len(conns.Conns)/2)
-	dnsFormatter := newDNSFormatter(conns, ipc)
-	tagsSet := network.NewTagsSet()
-
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, routeIndex, consModeler.httpEncoder, consModeler.http2Encoder, consModeler.kafkaEncoder, dnsFormatter, ipc, tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
 		})
 	}
 
-	routes := make([]*model.Route, len(routeIndex))
-	for _, v := range routeIndex {
+	routes := make([]*model.Route, len(c.routeIndex))
+	for _, v := range c.routeIndex {
 		routes[v.Idx] = &v.Route
 	}
 
@@ -117,7 +120,7 @@ func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connecti
 		w.SetNpmEnabled(agentCfg.NpmEnabled)
 		w.SetUsmEnabled(agentCfg.UsmEnabled)
 	})
-	for _, d := range dnsFormatter.Domains() {
+	for _, d := range c.dnsFormatter.Domains() {
 		builder.AddDomains(d)
 	}
 
@@ -129,9 +132,9 @@ func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connecti
 		})
 	}
 
-	dnsFormatter.FormatDNS(builder)
+	c.dnsFormatter.FormatDNS(builder)
 
-	for _, tag := range tagsSet.GetStrings() {
+	for _, tag := range c.tagsSet.GetStrings() {
 		builder.AddTags(tag)
 	}
 

@@ -90,6 +90,7 @@ func (t *process) Register(httpMux *module.Router) error {
 	return nil
 }
 
+// RegisterGRPC register to system probe gRPC server
 func (t *process) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }
