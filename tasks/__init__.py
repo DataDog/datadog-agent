@@ -3,7 +3,6 @@ Invoke entrypoint, import here all the tasks we want to make available
 """
 
 from invoke import Collection
-from .show_linters_issues import show_linters_issues
 
 from . import (
     agent,
@@ -33,7 +32,6 @@ from . import (
     trace_agent,
     vscode,
 )
-
 from .build_tags import audit_tag_impact, print_default_build_tags
 from .components import lint_components
 from .fuzz import fuzz
@@ -50,6 +48,7 @@ from .go import (
     reset,
     tidy_all,
 )
+from .show_linters_issues import show_linters_issues
 from .test import (
     codecov,
     download_tools,

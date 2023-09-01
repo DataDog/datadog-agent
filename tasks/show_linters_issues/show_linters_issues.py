@@ -4,8 +4,9 @@ Invoke tasks to fix the linter
 
 from invoke import task
 from invoke.exceptions import Exit
+
 from ..libs.pipeline_notifications import GITHUB_SLACK_MAP
-from .golangci_lint_parser import filter_lints, display_result, merge_results
+from .golangci_lint_parser import display_result, filter_lints, merge_results
 
 FIRST_COMMIT_HASH = "52a313fe7f5e8e16d487bc5dc770038bc234608b"
 # See https://go.dev/doc/install/source#environment for all available combinations of GOOS x GOARCH.

@@ -2,10 +2,11 @@
 This module defines a parser for golangci-lint output.
 """
 
-import re
 import os
+import re
 from collections import defaultdict
 from typing import Dict
+
 from ..libs.pipeline_notifications import read_owners
 
 # Example lint message
