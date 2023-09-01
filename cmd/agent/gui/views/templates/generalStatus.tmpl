@@ -184,7 +184,14 @@
                 {{ $check -}}<br>
                 {{- range $instance := $instances }}
                   {{- range $k,$v := $instance }}
-                      {{ $k }} : {{ $v }}<br>
+                    - instance_name: {{ .instance_name }}<br>
+                      instance_bean_count: {{ .instance_bean_count }}<br>
+                      instance_attribute_count: {{ .instance_attribute_count }}<br>
+                      instance_metric_count: {{ .instance_metric_count }}<br>
+                      metric_count: {{ .metric_count }}<br>
+                      service_check_count: {{ .service_check_count }}<br>
+                      message: {{ .message }}<br>
+                      status: {{ .status }}<br>
                   {{- end -}}
                 {{- end -}}
               {{- end }}
