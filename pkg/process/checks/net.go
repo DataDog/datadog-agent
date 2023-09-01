@@ -9,8 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cihub/seelog"
 	"io"
-	nnet "net"
 	"sort"
 	"time"
 
@@ -133,44 +133,35 @@ func (c *ConnectionsCheck) Realtime() bool { return false }
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 
-func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
+func (c *ConnectionsCheck) runGRPC() (*model.Connections, error) {
 	// Create a context with a timeout of 10 seconds
 	timedContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	opts := []grpc.DialOption{
-		grpc.WithContextDialer(func(_ context.Context, _ string) (nnet.Conn, error) {
-			return nnet.Dial(net.NetType, c.syscfg.SocketAddress)
-		}),
-		grpc.WithInsecure(),
-	}
-
 	// the second parameter is unused because we use a custom  dialer that has the state to see the address.
-	conn, err := grpc.DialContext(timedContext, "unused", opts...)
+	conn, err := net.GetRemoteGRPCSysProbeConnection(timedContext, c.syscfg.SocketAddress)
+	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("unable to dial with context to grpc server due to: %v", err)
 	}
 	defer conn.Close()
 	client := connectionserver.NewSystemProbeClient(conn)
 
-	response, err := client.GetConnections(timedContext, &connectionserver.GetConnectionsRequest{ClientID: c.tracerClientID}, grpc.MaxCallRecvMsgSize(api.MaxGRPCServerMessage))
+	request := &connectionserver.GetConnectionsRequest{
+		ClientID: c.tracerClientID,
+	}
+
+	timedContext, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	connectionsStream, err := client.GetConnections(timedContext, request, grpc.MaxCallRecvMsgSize(api.SystemProbeMaxGRPCServerMessage))
 	if err != nil {
 		return nil, fmt.Errorf("unable to get connections from grpc server due to: %v", err)
 	}
 
-	// We only need to fetch once for a batch, and this boolean indicates that.
-	processFetchSucceeded := true
-	if err := c.processData.Fetch(); err != nil {
-		processFetchSucceeded = false
-		log.Warnf("error collecting processes for filter and extraction: %s", err)
-	}
-
 	unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
-	var batchMessages []model.MessageBody
+	outcome := new(model.Connections)
 
 	for {
-		start := time.Now()
-		res, err := response.Recv()
+		currentStreamStartTime := time.Now()
+		res, err := connectionsStream.Recv()
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -182,46 +173,62 @@ func (c *ConnectionsCheck) runGRPC(nextGroupID int32) (RunResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to unmarshal response due to: %v", err)
 		}
-		log.Debugf("[grpc] the number of connections in grpc is %d", len(batch.Conns))
-		if !processFetchSucceeded {
-			c.dockerFilter.Filter(batch)
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("[grpc] received %d connections in a batch (%v)", len(batch.Conns), time.Since(currentStreamStartTime))
 		}
-
-		// Resolve the Raddr side of connections for local containers
-		LocalResolver.Resolve(batch)
-
-		c.notifyProcessConnRates(c.config, batch)
-
-		log.Debugf("collected connections in %s", time.Since(start))
-
-		// When calling the processConnectionsBatch function, the last parameter is used to indicate whether we are
-		// in the first batch. This indicator is utilized to include telemetry specifically in the initial batch.
-		// In the process agent, the expectation is to  incorporate telemetry for individual connections solely
-		// within the first batch.
-		batchMessages = append(batchMessages, processConnectionsBatch(c.hostInfo, c.maxConnsPerMessage, nextGroupID, batch.Conns, batch.Dns, c.networkID,
-			batch.ConnTelemetryMap, batch.CompilationTelemetryByAsset, batch.KernelHeaderFetchResult,
-			batch.CORETelemetryByAsset, batch.PrebuiltEBPFAssets, batch.Domains, batch.Routes, batch.Tags,
-			batch.AgentConfiguration, c.serviceExtractor, len(batchMessages) == 0))
+		if len(batch.Conns) > 0 {
+			outcome.Conns = append(outcome.Conns, batch.Conns...)
+		}
+		if batch.AgentConfiguration != nil {
+			log.Debugf("[grpc] got unique batch")
+			// All other fields are being sent in a single (last) chunk, so we have to just copy them.
+			outcome.Dns = batch.Dns
+			outcome.ConnTelemetry = batch.ConnTelemetry
+			outcome.Domains = batch.Domains
+			outcome.Routes = batch.Routes
+			outcome.CompilationTelemetryByAsset = batch.CompilationTelemetryByAsset
+			outcome.AgentConfiguration = batch.AgentConfiguration
+			outcome.Tags = batch.Tags
+			outcome.ConnTelemetryMap = batch.ConnTelemetryMap
+			outcome.KernelHeaderFetchResult = batch.KernelHeaderFetchResult
+			outcome.CORETelemetryByAsset = batch.CORETelemetryByAsset
+			outcome.PrebuiltEBPFAssets = batch.PrebuiltEBPFAssets
+		}
 		netEncoding.ConnsToPool(batch)
 	}
-	return StandardRunResult(batchMessages), nil
+	return outcome, nil
 }
 
-func (c *ConnectionsCheck) runHTTP(nextGroupID int32) (RunResult, error) {
+// Run runs the ConnectionsCheck to collect the active network connections
+// and any closed network connections since the last Run.
+// For each connection we'll return a `model.Connection`
+// that will be bundled up into a `CollectorConnections`.
+// See agent.proto for the schema of the message and models.
+func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
-	conns, err := c.getConnections()
-	if err != nil {
-		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
-			return nil, nil
+	var err error
+	var conns *model.Connections
+	// Pulling all connections
+	if c.syscfg.GRPCServerEnabled {
+		// For gRPC - we're pulling the connections from the batches and accumulating all together.
+		conns, err = c.runGRPC()
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+	} else {
+		conns, err = c.getConnections()
+		if err != nil {
+			// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
+			if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+				return nil, nil
+			}
+			return nil, err
+		}
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	err = c.processData.Fetch()
-	if err != nil {
+	if err := c.processData.Fetch(); err != nil {
 		log.Warnf("error collecting processes for filter and extraction: %s", err)
 	} else {
 		c.dockerFilter.Filter(conns)
@@ -233,21 +240,8 @@ func (c *ConnectionsCheck) runHTTP(nextGroupID int32) (RunResult, error) {
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	groupID := nextGroupID
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, nextGroupID(), conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
-}
-
-// Run runs the ConnectionsCheck to collect the active network connections
-// and any closed network connections since the last Run.
-// For each connection we'll return a `model.Connection`
-// that will be bundled up into a `CollectorConnections`.
-// See agent.proto for the schema of the message and models.
-func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
-	if c.syscfg.GRPCServerEnabled {
-		return c.runGRPC(nextGroupID())
-	}
-	return c.runHTTP(nextGroupID())
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits

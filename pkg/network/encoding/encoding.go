@@ -6,11 +6,9 @@
 package encoding
 
 import (
+	"github.com/gogo/protobuf/jsonpb"
 	"io"
 	"strings"
-	"sync"
-
-	"github.com/gogo/protobuf/jsonpb"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -25,9 +23,6 @@ var (
 			EmitDefaults: true,
 		},
 	}
-
-	cfgOnce  = sync.Once{}
-	agentCfg *model.AgentConfiguration
 )
 
 // Marshaler is an interface implemented by all Connections serializers
@@ -52,6 +47,7 @@ func GetMarshaler(accept string) Marshaler {
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
+	agentCfg     *model.AgentConfiguration
 	httpEncoder  *httpEncoder
 	http2Encoder *http2Encoder
 	kafkaEncoder *kafkaEncoder
@@ -59,6 +55,8 @@ type ConnectionsModeler struct {
 	ipc          ipCache
 	routeIndex   map[string]RouteIdx
 	tagsSet      *network.TagsSet
+	batchIndex   int
+	batchCount   int
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -69,6 +67,11 @@ type ConnectionsModeler struct {
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	ipc := make(ipCache, len(conns.Conns)/2)
 	return &ConnectionsModeler{
+		agentCfg: &model.AgentConfiguration{
+			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
+			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
+			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
+		},
 		httpEncoder:  newHTTPEncoder(conns.HTTP),
 		http2Encoder: newHTTP2Encoder(conns.HTTP2),
 		kafkaEncoder: newKafkaEncoder(conns.Kafka),
@@ -76,7 +79,12 @@ func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 		dnsFormatter: newDNSFormatter(conns, ipc),
 		routeIndex:   make(map[string]RouteIdx),
 		tagsSet:      network.NewTagsSet(),
+		batchCount:   1,
 	}
+}
+
+func (c *ConnectionsModeler) WithBatchCount(count int) {
+	c.batchCount = count
 }
 
 // Close cleans all encoders resources.
@@ -96,13 +104,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 }
 
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
-	cfgOnce.Do(func() {
-		agentCfg = &model.AgentConfiguration{
-			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
-			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
-			DsmEnabled: config.SystemProbe.GetBool("data_streams_config.enabled"),
-		}
-	})
+	c.batchIndex++
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
@@ -110,40 +112,41 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		})
 	}
 
-	routes := make([]*model.Route, len(c.routeIndex))
-	for _, v := range c.routeIndex {
-		routes[v.Idx] = &v.Route
-	}
+	if c.batchCount == c.batchIndex {
+		routes := make([]*model.Route, len(c.routeIndex))
+		for _, v := range c.routeIndex {
+			routes[v.Idx] = &v.Route
+		}
 
-	builder.SetAgentConfiguration(func(w *model.AgentConfigurationBuilder) {
-		w.SetDsmEnabled(agentCfg.DsmEnabled)
-		w.SetNpmEnabled(agentCfg.NpmEnabled)
-		w.SetUsmEnabled(agentCfg.UsmEnabled)
-	})
-	for _, d := range c.dnsFormatter.Domains() {
-		builder.AddDomains(d)
-	}
-
-	for _, route := range routes {
-		builder.AddRoutes(func(w *model.RouteBuilder) {
-			w.SetSubnet(func(w *model.SubnetBuilder) {
-				w.SetAlias(route.Subnet.Alias)
-			})
+		builder.SetAgentConfiguration(func(w *model.AgentConfigurationBuilder) {
+			w.SetDsmEnabled(c.agentCfg.DsmEnabled)
+			w.SetNpmEnabled(c.agentCfg.NpmEnabled)
+			w.SetUsmEnabled(c.agentCfg.UsmEnabled)
 		})
+		for _, d := range c.dnsFormatter.Domains() {
+			builder.AddDomains(d)
+		}
+
+		for _, route := range routes {
+			builder.AddRoutes(func(w *model.RouteBuilder) {
+				w.SetSubnet(func(w *model.SubnetBuilder) {
+					w.SetAlias(route.Subnet.Alias)
+				})
+			})
+		}
+
+		c.dnsFormatter.FormatDNS(builder)
+
+		for _, tag := range c.tagsSet.GetStrings() {
+			builder.AddTags(tag)
+		}
+
+		FormatConnectionTelemetry(builder, conns.ConnTelemetry)
+		FormatCompilationTelemetry(builder, conns.CompilationTelemetryByAsset)
+		FormatCORETelemetry(builder, conns.CORETelemetryByAsset)
+		builder.SetKernelHeaderFetchResult(uint64(conns.KernelHeaderFetchResult))
+		for _, asset := range conns.PrebuiltAssets {
+			builder.AddPrebuiltEBPFAssets(asset)
+		}
 	}
-
-	c.dnsFormatter.FormatDNS(builder)
-
-	for _, tag := range c.tagsSet.GetStrings() {
-		builder.AddTags(tag)
-	}
-
-	FormatConnectionTelemetry(builder, conns.ConnTelemetry)
-	FormatCompilationTelemetry(builder, conns.CompilationTelemetryByAsset)
-	FormatCORETelemetry(builder, conns.CORETelemetryByAsset)
-	builder.SetKernelHeaderFetchResult(uint64(conns.KernelHeaderFetchResult))
-	for _, asset := range conns.PrebuiltAssets {
-		builder.AddPrebuiltEBPFAssets(asset)
-	}
-
 }

@@ -33,6 +33,7 @@ var connsPool = sync.Pool{
 	},
 }
 
+// ConnsToPool returns the given model.Connections to the pool.
 func ConnsToPool(o *model.Connections) {
 	o.Reset()
 	connsPool.Put(o)

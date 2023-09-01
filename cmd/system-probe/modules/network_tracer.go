@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"runtime"
@@ -112,6 +113,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
 	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	connectionsModeler.WithBatchCount(int(math.Ceil(float64(len(cs.Conns)) / float64(nt.maxConnsPerMessage))))
 	if nt.restartTimer != nil {
 		nt.restartTimer.Reset(inactivityRestartDuration)
 	}
