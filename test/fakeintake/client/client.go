@@ -45,10 +45,17 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
+
+var retrySchedule = []time.Duration{
+	1 * time.Second,
+	3 * time.Second,
+	9 * time.Second,
+}
 
 type Client struct {
 	fakeIntakeURL string
@@ -94,11 +101,18 @@ func (c *Client) getLogs() error {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
-	if err != nil {
-		return nil, err
-	}
+	var resp *http.Response
+	for _, sleepTime := range retrySchedule {
+		tmp_resp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
+		if err != nil {
+			return nil, err
+		}
 
+		if resp.StatusCode != http.StatusOK {
+			time.Sleep(sleepTime)
+		}
+		resp = tmp_resp
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error querying fake payloads, status code %s", resp.Status)
 	}
