@@ -48,6 +48,7 @@ from .go import (
     reset,
     tidy_all,
 )
+from .show_linters_issues import show_linters_issues
 from .test import (
     codecov,
     download_tools,
@@ -92,6 +93,7 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
+ns.add_task(show_linters_issues)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
