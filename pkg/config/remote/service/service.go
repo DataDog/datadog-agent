@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -240,7 +241,7 @@ func NewService() (*Service, error) {
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
 		hostname:                       hname,
-		traceAgentEnv:                  config.GetTraceAgentDefaultEnv(),
+		traceAgentEnv:                  configUtils.GetTraceAgentDefaultEnv(config.Datadog),
 		clock:                          clock,
 		db:                             db,
 		api:                            http,

@@ -6,9 +6,9 @@
 package filesystem
 
 import (
-	"strconv"
-	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // Handle represents a pointer used by FindFirstVolumeW and similar functions
@@ -18,7 +18,7 @@ type Handle uintptr
 const InvalidHandle Handle = ^Handle(0)
 
 // ERRORMoreData is the error returned when the size is not big enough
-const ERRORMoreData syscall.Errno = 234
+const ERRORMoreData windows.Errno = 234
 
 // this would probably go in a common utilities rather than here
 
@@ -54,12 +54,12 @@ func convertWindowsString(winput []uint16) string {
 }
 
 func getDiskSize(vol string) (size uint64, freespace uint64) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getDisk = mod.NewProc("GetDiskFreeSpaceExW")
 	var sz uint64
 	var fr uint64
 
-	volWinStr, err := syscall.UTF16PtrFromString(vol)
+	volWinStr, err := windows.UTF16PtrFromString(vol)
 	if err != nil {
 		return 0, 0
 	}
@@ -74,13 +74,13 @@ func getDiskSize(vol string) (size uint64, freespace uint64) {
 }
 
 func getMountPoints(vol string) []string {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var getPaths = mod.NewProc("GetVolumePathNamesForVolumeNameW")
 	var tmp uint32
 	var objlistsize uint32 = 0x0
 	var retval []string
 
-	volWinStr, err := syscall.UTF16PtrFromString(vol)
+	volWinStr, err := windows.UTF16PtrFromString(vol)
 	if err != nil {
 		return retval
 	}
@@ -106,8 +106,8 @@ func getMountPoints(vol string) []string {
 
 }
 
-func getFileSystemInfo() (interface{}, error) {
-	var mod = syscall.NewLazyDLL("kernel32.dll")
+func getFileSystemInfo() ([]MountInfo, error) {
+	var mod = windows.NewLazyDLL("kernel32.dll")
 	var findFirst = mod.NewProc("FindFirstVolumeW")
 	var findNext = mod.NewProc("FindNextVolumeW")
 	var findClose = mod.NewProc("FindVolumeClose")
@@ -118,7 +118,7 @@ func getFileSystemInfo() (interface{}, error) {
 	fh, _, _ := findFirst.Call(uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(sz))
 	var findHandle = Handle(fh)
-	var fileSystemInfo []interface{}
+	var fileSystemInfo []MountInfo
 
 	if findHandle != InvalidHandle {
 		// ignore close error
@@ -127,27 +127,23 @@ func getFileSystemInfo() (interface{}, error) {
 		moreData := true
 		for moreData {
 			outstring := convertWindowsString(buf)
-			sz, _ := getDiskSize(outstring)
-			var capacity string
-			if 0 == sz {
-				capacity = "Unknown"
-			} else {
-				capacity = strconv.FormatInt(int64(sz)/1024.0, 10)
-			}
+
+			size, _ := getDiskSize(outstring)
+
 			mountpts := getMountPoints(outstring)
 			var mountName string
 			if len(mountpts) > 0 {
 				mountName = mountpts[0]
 			}
-			iface := map[string]interface{}{
-				"name":       outstring,
-				"kb_size":    capacity,
-				"mounted_on": mountName,
+			mountInfo := MountInfo{
+				Name:      outstring,
+				SizeKB:    size / 1024,
+				MountedOn: mountName,
 			}
-			fileSystemInfo = append(fileSystemInfo, iface)
+			fileSystemInfo = append(fileSystemInfo, mountInfo)
 			status, _, _ := findNext.Call(fh,
 				uintptr(unsafe.Pointer(&buf[0])),
-				uintptr(sz))
+				uintptr(size))
 			if 0 == status {
 				moreData = false
 			}

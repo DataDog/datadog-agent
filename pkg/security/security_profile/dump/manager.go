@@ -22,6 +22,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -311,7 +312,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetGlobalConfiguredTags(true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}

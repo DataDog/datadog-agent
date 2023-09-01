@@ -158,6 +158,9 @@ func (m *EventMonitor) Start() error {
 
 // Close the module
 func (m *EventMonitor) Close() {
+	// stop so that consumers won't receive events anymore
+	m.Probe.Stop()
+
 	// stop event consumers
 	for _, em := range m.eventConsumers {
 		em.Stop()

@@ -78,30 +78,31 @@ type CustomQuery struct {
 
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                 string               `yaml:"server"`
-	Port                   int                  `yaml:"port"`
-	ServiceName            string               `yaml:"service_name"`
-	Username               string               `yaml:"username"`
-	Password               string               `yaml:"password"`
-	TnsAlias               string               `yaml:"tns_alias"`
-	TnsAdmin               string               `yaml:"tns_admin"`
-	Protocol               string               `yaml:"protocol"`
-	Wallet                 string               `yaml:"wallet"`
-	DBM                    bool                 `yaml:"dbm"`
-	Tags                   []string             `yaml:"tags"`
-	LogUnobfuscatedQueries bool                 `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions      obfuscate.SQLConfig  `yaml:"obfuscator_options"`
-	InstantClient          bool                 `yaml:"instant_client"`
-	ReportedHostname       string               `yaml:"reported_hostname"`
-	QuerySamples           QuerySamplesConfig   `yaml:"query_samples"`
-	QueryMetrics           QueryMetricsConfig   `yaml:"query_metrics"`
-	SysMetrics             SysMetricsConfig     `yaml:"sysmetrics"`
-	Tablespaces            TablespacesConfig    `yaml:"tablespaces"`
-	ProcessMemory          ProcessMemoryConfig  `yaml:"process_memory"`
-	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
-	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
-	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
-	CustomQueries          []CustomQuery        `yaml:"custom_queries"`
+	Server                   string               `yaml:"server"`
+	Port                     int                  `yaml:"port"`
+	ServiceName              string               `yaml:"service_name"`
+	Username                 string               `yaml:"username"`
+	Password                 string               `yaml:"password"`
+	TnsAlias                 string               `yaml:"tns_alias"`
+	TnsAdmin                 string               `yaml:"tns_admin"`
+	Protocol                 string               `yaml:"protocol"`
+	Wallet                   string               `yaml:"wallet"`
+	DBM                      bool                 `yaml:"dbm"`
+	Tags                     []string             `yaml:"tags"`
+	LogUnobfuscatedQueries   bool                 `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions        obfuscate.SQLConfig  `yaml:"obfuscator_options"`
+	InstantClient            bool                 `yaml:"instant_client"`
+	ReportedHostname         string               `yaml:"reported_hostname"`
+	QuerySamples             QuerySamplesConfig   `yaml:"query_samples"`
+	QueryMetrics             QueryMetricsConfig   `yaml:"query_metrics"`
+	SysMetrics               SysMetricsConfig     `yaml:"sysmetrics"`
+	Tablespaces              TablespacesConfig    `yaml:"tablespaces"`
+	ProcessMemory            ProcessMemoryConfig  `yaml:"process_memory"`
+	SharedMemory             SharedMemoryConfig   `yaml:"shared_memory"`
+	ExecutionPlans           ExecutionPlansConfig `yaml:"execution_plans"`
+	AgentSQLTrace            AgentSQLTrace        `yaml:"agent_sql_trace"`
+	CustomQueries            []CustomQuery        `yaml:"custom_queries"`
+	MetricCollectionInterval int64                `yaml:"metric_collection_interval"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -125,6 +126,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	initCfg := InitConfig{}
 
 	// Defaults begin
+	var defaultMetricCollectionInterval int64 = 60
+	instance.MetricCollectionInterval = defaultMetricCollectionInterval
+
 	instance.ObfuscatorOptions.DBMS = common.IntegrationName
 	instance.ObfuscatorOptions.TableNames = true
 	instance.ObfuscatorOptions.CollectCommands = true
@@ -133,7 +137,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QuerySamples.Enabled = true
 
 	instance.QueryMetrics.Enabled = true
-	instance.QueryMetrics.CollectionInterval = 60
+	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
 	instance.QueryMetrics.PlanCacheRetention = 15
 

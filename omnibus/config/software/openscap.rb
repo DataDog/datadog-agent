@@ -53,6 +53,7 @@ build do
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
+  patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

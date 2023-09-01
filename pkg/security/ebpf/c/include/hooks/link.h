@@ -41,9 +41,8 @@ int hook_do_linkat(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/vfs_link")
-int kprobe_vfs_link(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_link")
+int hook_vfs_link(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -53,15 +52,15 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    struct dentry *src_dentry = (struct dentry *)CTX_PARM1(ctx);
     syscall->link.src_dentry = src_dentry;
 
-    syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
+    syscall->link.target_dentry = (struct dentry *)CTX_PARM3(ctx);
     // change the register based on the value of vfs_link_target_dentry_position
     if (get_vfs_link_target_dentry_position() == VFS_ARG_POSITION4) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->link.target_dentry, sizeof(syscall->link.target_dentry), &syscall->link.target_dentry);
-        syscall->link.target_dentry = (struct dentry *) PT_REGS_PARM4(ctx);
+        syscall->link.target_dentry = (struct dentry *) CTX_PARM4(ctx);
     }
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
@@ -92,7 +91,7 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_LINK);
@@ -100,25 +99,8 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_link_src_callback")
-int kprobe_dr_link_src_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
-    if (!syscall) {
-        return 0;
-    }
-
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_LINK);
-        return mark_as_discarded(syscall);
-    }
-
-    return 0;
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_link_src_callback")
-int fentry_dr_link_src_callback(ctx_t *ctx) {
+int tail_call_target_dr_link_src_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -131,8 +113,6 @@ int fentry_dr_link_src_callback(ctx_t *ctx) {
 
     return 0;
 }
-
-#endif // USE_FENTRY
 
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
@@ -157,7 +137,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
         syscall->resolver.discarder_type = 0;
-        syscall->resolver.callback = dr_type == DR_KPROBE ? DR_LINK_DST_CALLBACK_KPROBE_KEY : DR_LINK_DST_CALLBACK_TRACEPOINT_KEY;
+        syscall->resolver.callback = select_dr_key(dr_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
         syscall->resolver.sysretval = retval;
@@ -170,16 +150,10 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kretprobe/do_linkat")
-int kretprobe_do_linkat(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_link_ret(ctx, retval, DR_KPROBE);
-}
-
-int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_link_ret(ctx, retval, DR_KPROBE);
+HOOK_EXIT("do_linkat")
+int rethook_do_linkat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx, 5);
+    return sys_link_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 HOOK_SYSCALL_EXIT(link) {
@@ -227,19 +201,10 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_link_dst_callback")
-int kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
-    return dr_link_dst_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_link_dst_callback")
-int fentry_dr_link_dst_callback(ctx_t *ctx) {
+int tail_call_target_dr_link_dst_callback(ctx_t *ctx) {
     return dr_link_dst_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_link_dst_callback")
 int tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {

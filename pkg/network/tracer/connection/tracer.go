@@ -24,6 +24,8 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -37,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // TracerType is the type of the underlying tracer
@@ -95,7 +96,6 @@ var ConnTracerTelemetry = struct {
 	UdpSendsProcessed *prometheus.Desc
 	UdpSendsMissed    *prometheus.Desc
 	UdpDroppedConns   *prometheus.Desc
-	TcpDroppedConns   *prometheus.Desc
 	PidCollisions     *nettelemetry.StatCounterWrapper
 	iterationDups     telemetry.Counter
 	iterationAborts   telemetry.Counter
@@ -107,7 +107,6 @@ var ConnTracerTelemetry = struct {
 	lastUdpSendsProcessed *atomic.Int64
 	lastUdpSendsMissed    *atomic.Int64
 	lastUdpDroppedConns   *atomic.Int64
-	lastTcpDroppedConns   *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -117,11 +116,9 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__tcp_dropped_conns", "Counter measuring the number of dropped TCP connections in the EBPF map", nil, nil),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
-	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -168,19 +165,24 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			probes.ConnMap:                           {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.TCPStatsMap:                       {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.TCPRetransmitsMap:                 {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.PortBindingsMap:                   {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.UDPPortBindingsMap:                {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.SockByPidFDMap:                    {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.PidFDBySockMap:                    {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.ConnMap:                           {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPStatsMap:                       {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPRetransmitsMap:                 {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.PortBindingsMap:                   {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.UDPPortBindingsMap:                {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.SockByPidFDMap:                    {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.PidFDBySockMap:                    {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
+		},
+		VerifierOptions: ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				LogSize: 10 * 1024 * 1024,
+			},
 		},
 	}
 
@@ -194,13 +196,10 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		closedChannelSize = config.ClosedChannelSize
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := &manager.Manager{
-		DumpHandler: dumpMapsHandler,
-	}
-
+	var m *manager.Manager
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -210,12 +209,13 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
 		}
 		tracerType = TracerType(kprobeTracerType)
 	}
+	m.DumpHandler = dumpMapsHandler
 	ebpfcheck.AddNameMappings(m, "npm_tracer")
 
 	batchMgr, err := newConnBatchManager(m)
@@ -505,7 +505,6 @@ func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.UdpSendsProcessed
 	ch <- ConnTracerTelemetry.UdpSendsMissed
 	ch <- ConnTracerTelemetry.UdpDroppedConns
-	ch <- ConnTracerTelemetry.TcpDroppedConns
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -541,10 +540,6 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.lastUdpDroppedConns.Load()
 	ConnTracerTelemetry.lastUdpDroppedConns.Store(int64(ebpfTelemetry.Udp_dropped_conns))
 	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.UdpDroppedConns, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_dropped_conns) - ConnTracerTelemetry.lastTcpDroppedConns.Load()
-	ConnTracerTelemetry.lastTcpDroppedConns.Store(int64(ebpfTelemetry.Tcp_dropped_conns))
-	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.TcpDroppedConns, prometheus.CounterValue, float64(delta))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

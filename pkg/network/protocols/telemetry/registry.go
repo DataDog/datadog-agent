@@ -64,8 +64,12 @@ func (r *registry) GetMetrics(params ...string) []metric {
 // WARNING: Only intended for tests
 func Clear() {
 	globalRegistry.Lock()
-	defer globalRegistry.Unlock()
 	globalRegistry.metrics = nil
+	globalRegistry.Unlock()
+
+	telemetryDelta.mux.Lock()
+	telemetryDelta.stateByClientID = make(map[string]*clientState)
+	telemetryDelta.mux.Unlock()
 }
 
 func init() {

@@ -312,10 +312,19 @@ func cronJobLastScheduleTransformer(s sender.Sender, name string, metric ksmstor
 func jobCompleteTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
-			jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, append(tags[:i], tags[i+1:]...))
+			tags = append(tags[:i], tags[i+1:]...)
 			break
 		}
 	}
+
+	// jobMetric calls sender.Gauge. Like the rest of the sender.Sender funcs,
+	// Gauge might modify the tags slice that it receives, so it's not safe to
+	// reuse it later. We need the slice for the jobServiceCheck call, so we
+	// need to create a copy.
+	tagsCopy := make([]string, len(tags))
+	copy(tagsCopy, tags)
+	jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, tagsCopy)
+
 	jobServiceCheck(s, metric, servicecheck.ServiceCheckOK, hostname, tags)
 }
 
@@ -323,10 +332,16 @@ func jobCompleteTransformer(s sender.Sender, name string, metric ksmstore.DDMetr
 func jobFailedTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
-			jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, append(tags[:i], tags[i+1:]...))
+			tags = append(tags[:i], tags[i+1:]...)
 			break
 		}
 	}
+
+	// Need a copy for the same reason as in the func jobCompleteTransformer defined above
+	tagsCopy := make([]string, len(tags))
+	copy(tagsCopy, tags)
+	jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, tagsCopy)
+
 	jobServiceCheck(s, metric, servicecheck.ServiceCheckCritical, hostname, tags)
 }
 

@@ -9,9 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -25,7 +25,7 @@ type Payload struct {
 
 // MetaPayload wraps Meta from the host package (this is cached)
 type MetaPayload struct {
-	host.Meta `json:"meta"`
+	hostMetadataUtils.Meta `json:"meta"`
 }
 
 // CommonPayload wraps Payload from the common package

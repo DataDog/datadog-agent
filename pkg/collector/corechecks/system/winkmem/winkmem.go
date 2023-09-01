@@ -14,6 +14,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -78,7 +79,7 @@ init_config:
 */
 
 // Configure is called to configure the object prior to the first run
-func (w *KMemCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (w *KMemCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// check to make sure the function is actually there, so we can fail gracefully
 	// if it's not
 	if err := modntdll.Load(); err != nil {
@@ -88,7 +89,7 @@ func (w *KMemCheck) Configure(integrationConfigDigest uint64, data integration.D
 		return err
 	}
 
-	if err := w.CommonConfigure(integrationConfigDigest, initConfig, data, source); err != nil {
+	if err := w.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
 	}
 	cf := Config{

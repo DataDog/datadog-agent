@@ -14,13 +14,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,9 +62,10 @@ type AgentOptions struct {
 }
 
 type Agent struct {
-	opts AgentOptions
+	senderManager sender.SenderManager
+	opts          AgentOptions
 
-	telemetry  *common.ContainersTelemetry
+	telemetry  *telemetry.ContainersTelemetry
 	statuses   map[string]*CheckStatus
 	statusesMu sync.RWMutex
 
@@ -105,7 +107,7 @@ func DefaultRuleFilter(r *Rule) bool {
 	return true
 }
 
-func NewAgent(opts AgentOptions) *Agent {
+func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -132,13 +134,14 @@ func NewAgent(opts AgentOptions) *Agent {
 		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
 	}
 	return &Agent{
-		opts:     opts,
-		statuses: make(map[string]*CheckStatus),
+		senderManager: senderManager,
+		opts:          opts,
+		statuses:      make(map[string]*CheckStatus),
 	}
 }
 
 func (a *Agent) Start() error {
-	telemetry, err := common.NewContainersTelemetry()
+	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err

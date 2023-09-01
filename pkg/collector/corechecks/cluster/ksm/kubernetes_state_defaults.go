@@ -51,6 +51,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_pod_status_scheduled":                                                                "pod.scheduled",
 		"kube_pod_spec_volumes_persistentvolumeclaims_readonly":                                    "pod.volumes.persistentvolumeclaims_readonly",
 		"kube_pod_status_unschedulable":                                                            "pod.unschedulable",
+		"kube_pod_tolerations":                                                                     "pod.tolerations",
 		"kube_poddisruptionbudget_status_current_healthy":                                          "pdb.pods_healthy",
 		"kube_poddisruptionbudget_status_desired_healthy":                                          "pdb.pods_desired",
 		"kube_poddisruptionbudget_status_pod_disruptions_allowed":                                  "pdb.disruptions_allowed",

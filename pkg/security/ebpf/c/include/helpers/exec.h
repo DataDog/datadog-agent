@@ -21,6 +21,8 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     syscall->exec.file.path_key.mount_id = mount_id;
     syscall->exec.file.path_key.path_id = get_path_id(mount_id, 0);
 
+    inc_mount_ref(mount_id);
+
     // resolve dentry
     syscall->resolver.key = syscall->exec.file.path_key;
     syscall->resolver.dentry = syscall->exec.dentry;
@@ -30,6 +32,9 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_EXEC);
 
     return 0;
 }

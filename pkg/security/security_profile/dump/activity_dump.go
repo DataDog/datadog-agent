@@ -680,7 +680,7 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 // Encode encodes an activity dump in the provided format
 func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
 	switch format {
-	case config.Json:
+	case config.JSON:
 		return ad.EncodeJSON("")
 	case config.Protobuf:
 		return ad.EncodeProtobuf()
@@ -737,7 +737,7 @@ func (ad *ActivityDump) EncodeJSON(indent string) (*bytes.Buffer, error) {
 
 	raw, err := opts.Marshal(pad)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", config.Json, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", config.JSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -810,7 +810,7 @@ func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.Storage
 		return ad.DecodeProtobuf(reader)
 	case config.Profile:
 		return ad.DecodeProfileProtobuf(reader)
-	case config.Json:
+	case config.JSON:
 		return ad.DecodeJSON(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)

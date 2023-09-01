@@ -8,6 +8,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -105,6 +106,32 @@ func TestRepeatedRegistrationsFromSamePID(t *testing.T) {
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid)
 }
 
+func TestFailedRegistration(t *testing.T) {
+	// Create a callback recorder that returns an error on purpose
+	registerRecorder := new(CallbackRecorder)
+	registerRecorder.ReturnError = fmt.Errorf("failed registration")
+	registerCallback := registerRecorder.Callback()
+
+	r := newFileRegistry()
+	path, pathID := createTempTestFile(t, "foobar")
+	cmd := testutil.OpenFromAnotherProcess(t, path)
+	pid := uint32(cmd.Process.Pid)
+
+	r.Register(path, pid, registerCallback, IgnoreCB)
+
+	// First let's assert that the callback was executed once, but there are no
+	// registered processes because the registration should have failed
+	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
+	assert.Empty(t, r.GetRegisteredProcesses())
+
+	// Now let's try to register the same process again
+	r.Register(path, pid, registerCallback, IgnoreCB)
+
+	// Assert that the number of callback executions hasn't changed for this pathID
+	// This is because we have block-listed this file
+	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
+}
+
 func TestFilePathInCallbackArgument(t *testing.T) {
 	var capturedPath string
 	callback := func(f FilePath) error {
@@ -140,5 +167,5 @@ func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
-	return NewFileRegistry()
+	return NewFileRegistry("")
 }

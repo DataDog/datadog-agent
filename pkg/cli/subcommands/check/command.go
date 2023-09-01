@@ -200,12 +200,12 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.UseNoopOrchestratorForwarder = true
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
-	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll)
+	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
@@ -340,22 +340,22 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	if len(cs) == 0 {
 		for check, error := range autodiscovery.GetConfigErrors() {
 			if cliParams.checkName == check {
-				fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: invalid config for %s: %s", color.RedString("Error"), color.YellowString(check), error))
+				fmt.Fprintf(color.Output, "\n%s: invalid config for %s: %s\n", color.RedString("Error"), color.YellowString(check), error)
 			}
 		}
 		for check, errors := range collector.GetLoaderErrors() {
 			if cliParams.checkName == check {
-				fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: could not load %s:", color.RedString("Error"), color.YellowString(cliParams.checkName)))
+				fmt.Fprintf(color.Output, "\n%s: could not load %s:\n", color.RedString("Error"), color.YellowString(cliParams.checkName))
 				for loader, error := range errors {
-					fmt.Fprintln(color.Output, fmt.Sprintf("* %s: %s", color.YellowString(loader), error))
+					fmt.Fprintf(color.Output, "* %s: %s\n", color.YellowString(loader), error)
 				}
 			}
 		}
 		for check, warnings := range autodiscovery.GetResolveWarnings() {
 			if cliParams.checkName == check {
-				fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: could not resolve %s config:", color.YellowString("Warning"), color.YellowString(check)))
+				fmt.Fprintf(color.Output, "\n%s: could not resolve %s config:\n", color.YellowString("Warning"), color.YellowString(check))
 				for _, warning := range warnings {
-					fmt.Fprintln(color.Output, fmt.Sprintf("* %s", warning))
+					fmt.Fprintf(color.Output, "* %s\n", warning)
 				}
 			}
 		}
@@ -558,7 +558,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 }
 
 func singleCheckRun(cliParams *cliParams) bool {
-	return cliParams.checkRate == false && cliParams.checkTimes < 2
+	return !cliParams.checkRate && cliParams.checkTimes < 2
 }
 
 func createHiddenStringFlag(cmd *cobra.Command, p *string, name string, value string, usage string) {

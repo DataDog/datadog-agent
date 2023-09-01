@@ -28,8 +28,6 @@ const (
 )
 
 var (
-	// allProbes contain the list of all the probes of the runtime security module
-	allProbes []*manager.Probe
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
@@ -55,10 +53,7 @@ func computeDefaultEventsRingBufferSize() uint32 {
 
 // AllProbes returns the list of all the probes of the runtime security module
 func AllProbes(fentry bool) []*manager.Probe {
-	if len(allProbes) > 0 {
-		return allProbes
-	}
-
+	var allProbes []*manager.Probe
 	allProbes = append(allProbes, getAttrProbes(fentry)...)
 	allProbes = append(allProbes, getExecProbes(fentry)...)
 	allProbes = append(allProbes, getLinkProbe(fentry)...)
@@ -72,7 +67,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getUnlinkProbes(fentry)...)
 	allProbes = append(allProbes, getXattrProbes(fentry)...)
 	allProbes = append(allProbes, getIoctlProbes()...)
-	allProbes = append(allProbes, getSELinuxProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes(fentry)...)
 	allProbes = append(allProbes, getBPFProbes(fentry)...)
 	allProbes = append(allProbes, getPTraceProbes(fentry)...)
 	allProbes = append(allProbes, getMMapProbes(fentry)...)
@@ -158,7 +153,7 @@ type MapSpecEditorOpts struct {
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"syscalls": {
-			MaxEntries: 1024,
+			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"proc_cache": {
@@ -248,7 +243,7 @@ func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableM
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps, fentry)...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes()...)
@@ -260,9 +255,9 @@ func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableM
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"kprobe_dentry_resolver_erpc_write_user",
-		"kprobe_dentry_resolver_parent_erpc_write_user",
-		"kprobe_dentry_resolver_segment_erpc_write_user",
+		"tail_call_target_dentry_resolver_erpc_write_user",
+		"tail_call_target_dentry_resolver_parent_erpc_write_user",
+		"tail_call_target_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

@@ -8,8 +8,6 @@
 package probes
 
 import (
-	"strings"
-
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -48,6 +46,18 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_kernel_thread",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_user_mode_thread",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_cgroup_procs_write",
 			},
 		},
@@ -66,7 +76,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_new_exec_interp",
+				EBPFFuncName: "hook_setup_new_exec_interp",
 			},
 		},
 		{
@@ -105,41 +115,36 @@ func getExecProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_do_coredump",
 			},
 		},
-	}
-
-	if !fentry {
-		execProbes = append(execProbes, []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_prepare_binprm",
-				},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_prepare_binprm",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_do_fork",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_do_fork",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook__do_fork",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook__do_fork",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_cgroup_tasks_write",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_cgroup_tasks_write",
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          SecurityAgentUID,
-					EBPFFuncName: "hook_cgroup1_tasks_write",
-				},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_cgroup1_tasks_write",
 			},
-		}...)
+		},
 	}
 
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
@@ -153,30 +158,6 @@ func getExecProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execveat",
-	}, fentry, Entry|SupportFentry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "fork",
-	}, fentry, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "vfork",
-	}, fentry, Entry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "clone",
-	}, fentry, Entry|SupportFentry)...)
-	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "clone3",
 	}, fentry, Entry|SupportFentry)...)
 
 	for _, name := range []string{
@@ -198,10 +179,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setresgid16",
 		"capset",
 	} {
-		flags := EntryAndExit
-		if !strings.HasSuffix(name, "16") {
-			flags |= SupportFentry | SupportFexit
-		}
+		flags := EntryAndExit | SupportFentry | SupportFexit
 
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

@@ -80,15 +80,8 @@ directory "/tmp/junit" do
   recursive true
 end
 
-cookbook_file "/tmp/junit/job_url.txt" do
-  source "job_url.txt"
-  mode '0444'
-  action :create
-  ignore_failure true
-end
-
-cookbook_file "/tmp/junit/tags.txt" do
-  source "tags.txt"
+cookbook_file "/tmp/junit/job_env.txt" do
+  source "job_env.txt"
   mode '0444'
   action :create
   ignore_failure true
@@ -119,11 +112,11 @@ end
 
 # Some functional tests, TestProcessIdentifyInterpreter for example, require python
 # Re: the container tests: Python comes with the Dockerfile, Perl needs to be installed manually
-if (not ['redhat', 'oracle'].include?(node[:platform])) or node[:platform_version].start_with?("7")
+if (not ['redhat', 'oracle', 'rocky'].include?(node[:platform])) or node[:platform_version].start_with?("7")
   package 'python3'
 end
 
-if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
+if not ['redhat', 'suse', 'opensuseleap', 'rocky'].include?(node[:platform])
   if ['ubuntu', 'debian'].include?(node[:platform])
     apt_update
 
@@ -172,7 +165,7 @@ if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     end
   end
 
-  if node[:cws_platform] == "docker"
+  if ['docker', 'docker-fentry'].include?(node[:cws_platform])
     # Please see https://github.com/paulcacheux/cws-buildimages/blob/main/Dockerfile
     # for the definition of this base image.
     # If this successfully helps in reducing the amount of rate limits, this should be moved

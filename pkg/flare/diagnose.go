@@ -9,9 +9,14 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
 func GetClusterAgentDiagnose(w io.Writer) error {
-	return diagnose.RunMetadataAvail(w)
+	diagCfg := diagnosis.Config{
+		Verbose:  false,
+		RunLocal: false,
+	}
+	return diagnose.RunStdOut(w, diagCfg)
 }

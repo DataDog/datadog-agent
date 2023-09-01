@@ -8,21 +8,24 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/viper"
 	"io/fs"
 	"runtime"
 	"strings"
+
+	"github.com/DataDog/viper"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(deps dependencies) (*config.Warnings, error) {
-	confFilePath := deps.Params.confFilePath
-	configName := deps.Params.configName
-	withoutSecrets := !deps.Params.configLoadSecrets
-	failOnMissingFile := !deps.Params.configMissingOK
-	defaultConfPath := deps.Params.defaultConfPath
+func setupConfig(deps configDependencies) (*config.Warnings, error) {
+	p := deps.getParams()
+
+	confFilePath := p.ConfFilePath
+	configName := p.configName
+	withoutSecrets := !p.configLoadSecrets
+	failOnMissingFile := !p.configMissingOK
+	defaultConfPath := p.defaultConfPath
 
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
@@ -34,7 +37,7 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 		// add that first so it's first in line
 		config.Datadog.AddConfigPath(confFilePath)
 		// If they set a config file directly, let's try to honor that
-		if strings.HasSuffix(confFilePath, ".yaml") {
+		if strings.HasSuffix(confFilePath, ".yaml") || strings.HasSuffix(confFilePath, ".yml") {
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}

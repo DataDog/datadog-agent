@@ -10,16 +10,15 @@ import (
 	"strings"
 	"sync"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -236,14 +235,14 @@ func diagnose(diagnoseCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	for _, desc := range passthroughPipelineDescs {
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		endpoints, err := config.BuildHTTPEndpointsWithConfig(coreConfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Result:      diagnosis.DiagnosisFail,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
-				RawError:    err,
+				RawError:    err.Error(),
 			})
 			continue
 		}
@@ -264,7 +263,7 @@ func diagnose(diagnoseCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Name:        name,
 				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
 				Remediation: "Please validate Agent configuration and firewall to access " + url,
-				RawError:    err,
+				RawError:    err.Error(),
 			})
 		}
 	}
@@ -361,7 +360,7 @@ type passthroughPipelineDesc struct {
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(coreConfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
 		return nil, err
 	}

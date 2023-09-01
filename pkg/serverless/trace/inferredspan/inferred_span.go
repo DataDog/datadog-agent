@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -78,7 +79,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
-	ddTags := config.GetGlobalConfiguredTags(false)
+	ddTags := configUtils.GetConfiguredTags(config.Datadog, false)
 	for _, tag := range ddTags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {

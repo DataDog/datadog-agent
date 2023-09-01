@@ -665,7 +665,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		}
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, protocols.HTTP, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, &protocols.Stack{Application: protocols.HTTP})
 		HTTPServer.Shutdown()
 
 		gRPCServer, err := grpc.NewServer(HTTPServer.address)
@@ -679,7 +679,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
 		gRPCServer.Stop()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, protocols.HTTP2, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, &protocols.Stack{Api: protocols.GRPC, Application: protocols.HTTP2})
 	})
 }
 
@@ -702,7 +702,6 @@ func (s *USMSuite) TestJavaInjection() {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableJavaTLSSupport = true
 	defaultCfg := cfg
 
@@ -934,16 +933,22 @@ func (s *USMSuite) TestJavaInjection() {
 	}
 }
 
+func skipFedora(t *testing.T) bool {
+	info, err := host.Info()
+	require.NoError(t, err)
+
+	return info.Platform == "fedora" && (info.PlatformVersion == "35" || info.PlatformVersion == "36" || info.PlatformVersion == "37" || info.PlatformVersion == "38")
+}
+
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !goTLSSupported() {
 			t.Skip("GoTLS not supported for this setup")
 		}
-		info, err := host.Info()
-		require.NoError(t, err)
+
 		// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
-		if info.Platform == "fedora" && (info.PlatformVersion == "36" || info.PlatformVersion == "37") {
+		if skipFedora(t) {
 			// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
 			t.Skip("TestHTTPGoTLSAttachProbes fails on this OS consistently")
 		}
@@ -990,7 +995,6 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 
 	tr := setupTracer(t, cfg)
 
@@ -1024,7 +1028,6 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 
 	tr := setupTracer(t, cfg)
 
@@ -1059,7 +1062,6 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPStatsByStatusCode = true
 
 	tr := setupTracer(t, cfg)
@@ -1095,7 +1097,6 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	// Setup
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableHTTPStatsByStatusCode = true
 
 	tr := setupTracer(t, cfg)
@@ -1342,7 +1343,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 					client.CloseIdleConnections()
 				}
 
-				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, protocols.HTTP, tlsExpected)
+				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
 			},
 		},
 	}

@@ -83,8 +83,6 @@ const (
 	// logTypePlatformInitStart is received when init starts
 	logTypePlatformInitStart = "platform.initStart"
 
-	// success indicates the init or invoke phase was successful
-	successStatus string = "success"
 	// errorStatus indicates the init or invoke phase has errored out
 	errorStatus string = "error"
 	// timeoutStatus indicates the init or invoke phase has timed out

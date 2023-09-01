@@ -44,11 +44,14 @@ var (
 	startupError error
 
 	// knownProtocols holds all known protocols supported by USM to initialize.
-	knownProtocols = []protocols.ProtocolSpec{
+	knownProtocols = []*protocols.ProtocolSpec{
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
 		javaTLSSpec,
+		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
+		// factory.
+		opensslSpec,
 	}
 )
 
@@ -59,12 +62,13 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
+	cfg *config.Config
+
 	enabledProtocols []protocols.Protocol
 
 	ebpfProgram *ebpfProgram
 
 	processMonitor *monitor.ProcessMonitor
-	httpTLSEnabled bool
 
 	// termination
 	closeFilterFn func()
@@ -83,10 +87,12 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}()
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, sockFD, connectionProtocolMap, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
+
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr.Manager.Manager, sockFD, bpfTelemetry)
 
 	enabledProtocols, disabledProtocols, err := initProtocols(c, mgr)
 	if err != nil {
@@ -121,11 +127,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	state = Running
 
 	usmMonitor := &Monitor{
+		cfg:              c,
 		enabledProtocols: enabledProtocols,
 		ebpfProgram:      mgr,
 		closeFilterFn:    closeFilterFn,
 		processMonitor:   processMonitor,
-		httpTLSEnabled:   c.EnableHTTPSMonitoring,
 	}
 
 	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
@@ -145,16 +151,12 @@ func (m *Monitor) Start() error {
 		if err != nil {
 			if errors.Is(err, syscall.ENOMEM) {
 				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
-			}
-
-			// Cleanup every remaining protocols
-			for _, protocol := range m.enabledProtocols {
-				protocol.Stop(m.ebpfProgram.Manager.Manager)
-			}
-
-			if err != nil {
+			} else {
 				err = fmt.Errorf("could not enable USM: %s", err)
 			}
+
+			m.Stop()
+
 			startupError = err
 		}
 	}()
@@ -212,7 +214,7 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.httpTLSEnabled {
+	if m.cfg.EnableHTTPSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring {
 		err = m.processMonitor.Initialize()
 	}
 
@@ -319,11 +321,7 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []
 
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {
-			// As we're keeping pointers to the disables specs, we're suffering from a common golang-gotcha
-			// Assuming we have http and kafka, http is disabled, kafka is not. Without the following line we'll end up
-			// with enabledProtocols = [kafka] and disabledProtocols = [kafka].
-			spec := spec
-			disabledProtocols = append(disabledProtocols, &spec)
+			disabledProtocols = append(disabledProtocols, spec)
 		}
 	}
 

@@ -13,12 +13,11 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/prometheus/client_golang/prometheus"
-
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -181,7 +180,11 @@ func getErrCount(v *HelperErrTelemetry, indx int) map[string]uint64 {
 				continue
 			}
 
-			errCount[syscall.Errno(i).Error()] = count
+			if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+				errCount[name] = count
+			} else {
+				errCount[syscall.Errno(i).Error()] = count
+			}
 		}
 	}
 
@@ -200,7 +203,11 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint64 {
 			errCount[maxErrnoStr] = count
 			continue
 		}
-		errCount[syscall.Errno(i).Error()] = count
+		if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+			errCount[name] = count
+		} else {
+			errCount[syscall.Errno(i).Error()] = count
+		}
 	}
 
 	return errCount
@@ -376,4 +383,16 @@ func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIde
 	}
 
 	return nil
+}
+
+// EBPFTelemetrySupported returns whether eBPF telemetry is supported.
+// eBPF telemetry depends on the verifier in 4.14+
+func EBPFTelemetrySupported() bool {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. EBPF telemetry disabled.")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(4, 14, 0)
 }

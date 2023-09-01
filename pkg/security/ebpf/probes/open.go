@@ -9,59 +9,58 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// openProbes holds the list of probes used to track file open events
-var openProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_vfs_truncate",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_vfs_open",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_do_dentry_open",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_io_openat",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_io_openat2",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_io_openat2",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_filp_close",
-		},
-	},
-}
-
 func getOpenProbes(fentry bool) []*manager.Probe {
+	var openProbes = []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_vfs_truncate",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_vfs_open",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_do_dentry_open",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_io_openat",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_io_openat2",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_io_openat2",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_filp_close",
+			},
+		},
+	}
+
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "open",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
@@ -73,19 +72,19 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "open_by_handle_at",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "truncate",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "openat",
-	}, fentry, EntryAndExit|SupportFentry, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,

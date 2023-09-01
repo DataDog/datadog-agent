@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/cihub/seelog"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 )
 
 // FileRegistry is responsible for tracking open files and executing callbacks
@@ -46,7 +48,7 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID pathIdentifierSet
+	blocklistByID *simplelru.LRU[PathIdentifier, struct{}]
 
 	telemetry registryTelemetry
 }
@@ -74,27 +76,18 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 
 type callback func(FilePath) error
 
-func NewFileRegistry() *FileRegistry {
-	metricGroup := telemetry.NewMetricGroup(
-		"usm.so_watcher",
-		telemetry.OptPrometheus,
-	)
-
+func NewFileRegistry(programName string) *FileRegistry {
+	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
+	if err != nil {
+		log.Warnf("running without block cache list, creation error: %s", err)
+		blocklistByID = nil
+	}
 	return &FileRegistry{
-		procRoot:      util.GetProcRoot(),
+		procRoot:      kernel.ProcFSRoot(),
 		byID:          make(map[PathIdentifier]*registration),
 		byPID:         make(map[uint32]pathIdentifierSet),
-		blocklistByID: make(pathIdentifierSet),
-		telemetry: registryTelemetry{
-			fileHookFailed:               metricGroup.NewCounter("hook_failed"),
-			fileRegistered:               metricGroup.NewCounter("registered"),
-			fileAlreadyRegistered:        metricGroup.NewCounter("already_registered"),
-			fileBlocked:                  metricGroup.NewCounter("blocked"),
-			fileUnregistered:             metricGroup.NewCounter("unregistered"),
-			fileUnregisterErrors:         metricGroup.NewCounter("unregister_errors"),
-			fileUnregisterFailedCB:       metricGroup.NewCounter("unregister_failed_cb"),
-			fileUnregisterPathIDNotFound: metricGroup.NewCounter("unregister_path_id_not_found"),
-		},
+		blocklistByID: blocklistByID,
+		telemetry:     newRegistryTelemetry(programName),
 	}
 }
 
@@ -126,9 +119,11 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		return
 	}
 
-	if _, found := r.blocklistByID[pathID]; found {
-		r.telemetry.fileBlocked.Add(1)
-		return
+	if r.blocklistByID != nil {
+		if _, found := r.blocklistByID.Get(pathID); found {
+			r.telemetry.fileBlocked.Add(1)
+			return
+		}
 	}
 
 	if reg, found := r.byID[pathID]; found {
@@ -147,9 +142,11 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	if err := activationCB(path); err != nil {
 		// we are calling `deactivationCB` here as some uprobes could be already attached
 		_ = deactivationCB(FilePath{ID: pathID})
-		// add `pathID` to blocklist so we don't attempt to re-register files
-		// that are problematic for some reason
-		r.blocklistByID[pathID] = struct{}{}
+		if r.blocklistByID != nil {
+			// add `pathID` to blocklist so we don't attempt to re-register files
+			// that are problematic for some reason
+			r.blocklistByID.Add(pathID, struct{}{})
+		}
 		r.telemetry.fileHookFailed.Add(1)
 		return
 	}
@@ -160,8 +157,10 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		r.byPID[pid] = pathIdentifierSet{}
 	}
 	r.byPID[pid][pathID] = struct{}{}
-	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
 	r.telemetry.fileRegistered.Add(1)
+	r.telemetry.totalFiles.Set(int64(len(r.byID)))
+	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
+	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
 	return
 }
 
@@ -182,6 +181,7 @@ func (r *FileRegistry) Unregister(pid uint32) {
 	if !found {
 		return
 	}
+
 	for pathID := range paths {
 		reg, found := r.byID[pathID]
 		if !found {
@@ -194,6 +194,8 @@ func (r *FileRegistry) Unregister(pid uint32) {
 		}
 	}
 	delete(r.byPID, pid)
+	r.telemetry.totalFiles.Set(int64(len(r.byID)))
+	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
 }
 
 // GetRegisteredProcesses returns a set with all PIDs currently being tracked by
@@ -207,6 +209,11 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 		result[pid] = struct{}{}
 	}
 	return result
+}
+
+// Log state of `FileRegistry`
+func (r *FileRegistry) Log() {
+	log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
 }
 
 // Clear removes all registrations calling their deactivation callbacks
@@ -264,6 +271,19 @@ func (r *registration) unregisterPath(pathID PathIdentifier) bool {
 }
 
 type registryTelemetry struct {
+	programName string
+	metricGroup *telemetry.MetricGroup
+
+	// These metrics are Gauges, so their value can go up and down
+	//
+	// totalFiles: represents the total number of "unique file instances"
+	// (dev/inode) being tracked at a given time
+	//
+	// totalPIDs: represents the number of processes being traced at a given
+	// moment
+	totalFiles *telemetry.Gauge
+	totalPIDs  *telemetry.Gauge
+
 	// a file can be :
 	//  o Registered : it's a new file
 	//  o AlreadyRegistered : we have already hooked (uprobe) this file (unique by pathID)
@@ -281,4 +301,30 @@ type registryTelemetry struct {
 	fileUnregisterErrors         *telemetry.Counter
 	fileUnregisterFailedCB       *telemetry.Counter
 	fileUnregisterPathIDNotFound *telemetry.Counter
+}
+
+func newRegistryTelemetry(programName string) registryTelemetry {
+	metricGroup := telemetry.NewMetricGroup(
+		"usm.file_registry",
+		fmt.Sprintf("program:%s", programName),
+		telemetry.OptPrometheus,
+	)
+
+	return registryTelemetry{
+		programName: programName,
+		metricGroup: metricGroup,
+
+		totalFiles: metricGroup.NewGauge("total_files"),
+		totalPIDs:  metricGroup.NewGauge("total_pids"),
+
+		// Counters
+		fileHookFailed:               metricGroup.NewCounter("hook_failed"),
+		fileRegistered:               metricGroup.NewCounter("registered"),
+		fileAlreadyRegistered:        metricGroup.NewCounter("already_registered"),
+		fileBlocked:                  metricGroup.NewCounter("blocked"),
+		fileUnregistered:             metricGroup.NewCounter("unregistered"),
+		fileUnregisterErrors:         metricGroup.NewCounter("unregister_errors"),
+		fileUnregisterFailedCB:       metricGroup.NewCounter("unregister_failed_cb"),
+		fileUnregisterPathIDNotFound: metricGroup.NewCounter("unregister_path_id_not_found"),
+	}
 }

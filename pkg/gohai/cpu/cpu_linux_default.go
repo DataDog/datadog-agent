@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -29,15 +28,19 @@ func getCPUValueSetter(cpuInfo *Info) map[string]func(string, error) {
 		"model name": utils.ValueStringSetter(&cpuInfo.ModelName),
 		"cpu cores":  utils.ValueParseInt64Setter(&cpuInfo.CPUCores),
 		"siblings":   utils.ValueParseInt64Setter(&cpuInfo.CPULogicalProcessors),
-		"cpu MHz\t":  utils.ValueParseFloat64Setter(&cpuInfo.Mhz),
+		"cpu MHz":    utils.ValueParseFloat64Setter(&cpuInfo.Mhz),
 		"cache size": utils.ValueParseSetter(&cpuInfo.CacheSizeKB, cacheSizeParse),
 		"cpu family": utils.ValueStringSetter(&cpuInfo.Family),
-		"model\t":    utils.ValueStringSetter(&cpuInfo.Model),
+		"model":      utils.ValueStringSetter(&cpuInfo.Model),
 		"stepping":   utils.ValueStringSetter(&cpuInfo.Stepping),
 	}
 }
 
 func getCPUInfo() *Info {
+	return getCPUInfoWithReader(readProcFile)
+}
+
+func getCPUInfoWithReader(readProcFile func() ([]string, error)) *Info {
 	cpuInfo := &Info{
 		CPUPkgs:          utils.NewErrorValue[uint64](utils.ErrNotCollectable),
 		CPUNumaNodes:     utils.NewErrorValue[uint64](utils.ErrNotCollectable),
@@ -65,15 +68,20 @@ func getCPUInfo() *Info {
 	physicalProcIDs := make(map[string]struct{})
 
 	for _, line := range lines {
-		pair := regexp.MustCompile("\t: ").Split(line, 2)
+		key, value, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
 
-		if pair[0] == "physical id" {
-			physicalProcIDs[pair[1]] = struct{}{}
+		if key == "physical id" {
+			physicalProcIDs[value] = struct{}{}
 		}
 
-		setter, ok := cpuMap[pair[0]]
+		setter, ok := cpuMap[key]
 		if ok {
-			setter(pair[1], nil)
+			setter(value, nil)
 		}
 	}
 

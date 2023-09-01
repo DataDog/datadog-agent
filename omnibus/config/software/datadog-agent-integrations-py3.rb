@@ -16,9 +16,6 @@ dependency 'snowflake-connector-python-py3'
 dependency 'confluent-kafka-python'
 
 if arm?
-  # psycopg2 doesn't come with pre-built wheel on the arm architecture.
-  # to compile from source, it requires the `pg_config` executable present on the $PATH
-  dependency 'postgresql'
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
@@ -27,10 +24,19 @@ if arm?
 end
 
 if osx?
+  dependency 'postgresql'
   dependency 'unixodbc'
 end
 
 if linux?
+  # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
+  #   to compile from source, it requires the `pg_config` executable present on the $PATH
+  # * We also need it to build psycopg[c] Python dependency
+  # * Note: because having unixodbc already built breaks postgresql build,
+  #   we made unixodbc depend on postgresql to ensure proper build order.
+  #   If we're ever removing/changing one of these dependencies, we need to
+  #   take this into account.
+  dependency 'postgresql'
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
@@ -179,13 +185,10 @@ build do
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
+
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
-    }
-    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    specific_build_env = {
-      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
 
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
@@ -204,6 +207,27 @@ build do
     if linux?
       nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
       nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
+    end
+
+    # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
+    specific_build_env = {
+      "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+    }
+
+    # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
+    # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
+    if redhat? && !arm?
+        specific_build_env["cryptography"] = nix_build_env.merge(
+            {
+                "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
+                "PIP_NO_BINARY" => ":all:",
+                "OPENSSL_DIR" => "#{install_dir}/embedded/",
+                # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
+                # We force reinstall it from source to be sure we use the flag
+                "PIP_NO_CACHE_DIR" => "off",
+                "PIP_FORCE_REINSTALL" => "1",
+            }
+        )
     end
 
     #
@@ -244,15 +268,19 @@ build do
       end
 
       if !blacklist_flag
+        # on non windows OS, we use the c version of the psycopg installation
+        if line.start_with?('psycopg[binary]') && !windows?
+          line.sub! 'psycopg[binary]', 'psycopg[c]'
+        end
         # Keeping the custom env requirements lines apart to install them with a specific env
         requirements_custom.each do |lib, lib_req|
           if Regexp.new('^' + lib + '==').freeze.match line
             lib_req["req_lines"].push(line)
           end
+        end
         # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
         # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
         requirements.push(line)
-        end
       end
     end
 

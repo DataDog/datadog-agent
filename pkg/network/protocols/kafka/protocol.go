@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 type protocol struct {
@@ -34,7 +35,7 @@ const (
 	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
 )
 
-var Spec = protocols.ProtocolSpec{
+var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{
 		{
@@ -85,10 +86,10 @@ func (p *protocol) Name() string {
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	events.Configure(eventStreamName, mgr, opts)
 	opts.MapSpecEditors[kafkaLastTCPSeqPerConnectionMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 
 func (p *protocol) PreStart(mgr *manager.Manager) error {

@@ -86,8 +86,9 @@ type Agent struct {
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	dynConf := sampler.NewDynamicConfig()
-	in := make(chan *api.Payload, 1000)
-	statsChan := make(chan *pb.StatsPayload, 100)
+	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
+	in := make(chan *api.Payload, conf.TraceBuffer)
+	statsChan := make(chan *pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = metrics.Client
@@ -137,7 +138,16 @@ func (a *Agent) Run() {
 	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
 
-	for i := 0; i < runtime.NumCPU(); i++ {
+	// Having GOMAXPROCS/2 processor threads is
+	// enough to keep the downstream writer busy.
+	// Having more processor threads would not speed
+	// up processing, but just expand memory.
+	workers := runtime.GOMAXPROCS(0) / 2
+	if workers < 1 {
+		workers = 1
+	}
+
+	for i := 0; i < workers; i++ {
 		go a.work()
 	}
 
@@ -164,45 +174,38 @@ func (a *Agent) FlushSync() {
 
 func (a *Agent) work() {
 	for {
-		select {
-		case p, ok := <-a.In:
-			if !ok {
-				return
-			}
-			a.Process(p)
+		p, ok := <-a.In
+		if !ok {
+			return
 		}
+		a.Process(p)
 	}
 
 }
 
 func (a *Agent) loop() {
-	for {
-		select {
-		case <-a.ctx.Done():
-			log.Info("Exiting...")
-			if err := a.Receiver.Stop(); err != nil {
-				log.Error(err)
-			}
-			for _, stopper := range []interface{ Stop() }{
-				a.Concentrator,
-				a.ClientStatsAggregator,
-				a.TraceWriter,
-				a.StatsWriter,
-				a.PrioritySampler,
-				a.ErrorsSampler,
-				a.NoPrioritySampler,
-				a.RareSampler,
-				a.EventProcessor,
-				a.OTLPReceiver,
-				a.obfuscator,
-				a.obfuscator,
-				a.cardObfuscator,
-				a.DebugServer,
-			} {
-				stopper.Stop()
-			}
-			return
-		}
+	<-a.ctx.Done()
+	log.Info("Exiting...")
+	if err := a.Receiver.Stop(); err != nil {
+		log.Error(err)
+	}
+	for _, stopper := range []interface{ Stop() }{
+		a.Concentrator,
+		a.ClientStatsAggregator,
+		a.TraceWriter,
+		a.StatsWriter,
+		a.PrioritySampler,
+		a.ErrorsSampler,
+		a.NoPrioritySampler,
+		a.RareSampler,
+		a.EventProcessor,
+		a.OTLPReceiver,
+		a.obfuscator,
+		a.obfuscator,
+		a.cardObfuscator,
+		a.DebugServer,
+	} {
+		stopper.Stop()
 	}
 }
 
@@ -210,12 +213,6 @@ func (a *Agent) loop() {
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
-
-	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-		rate := ratelimiter.RealRate()
-		sampler.SetPreSampleRate(root, rate)
-	}
-
 	if a.conf.InAzureAppServices {
 		for k, v := range traceutil.GetAppServicesTags() {
 			traceutil.SetMeta(root, k, v)

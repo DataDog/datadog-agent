@@ -18,15 +18,16 @@ class TestVerifyWorkspace(unittest.TestCase):
         context_mock = MockContext(run=Result("haddock"))
         branch = pipeline.verify_workspace(context_mock, branch_test_name)
         self.assertEqual(branch_test_name, branch)
-        mock_gh.assert_called()
+        mock_gh.assert_not_called()
 
     @patch('tasks.pipeline.GithubAPI', autospec=True)
     @patch('tasks.pipeline.get_github_token', new=MagicMock())
     @patch('tasks.pipeline.check_clean_branch_state', new=MagicMock())
-    def test_without_branch(self, _):
+    def test_without_branch(self, mock_gh):
         context_mock = MockContext(run=Result("haddock"))
         branch = pipeline.verify_workspace(context_mock, None)
         self.assertEqual("haddock/test_buildimages", branch)
+        mock_gh.assert_called()
 
     @patch('tasks.pipeline.GithubAPI', autospec=True)
     @patch('tasks.pipeline.get_github_token', new=MagicMock())
@@ -35,7 +36,7 @@ class TestVerifyWorkspace(unittest.TestCase):
             f.write("# test comment")
         with self.assertRaises(Exit):
             context_mock = MockContext(run=Result("haddock"))
-            _ = pipeline.verify_workspace(context_mock, "foo")
+            _ = pipeline.verify_workspace(context_mock)
         subprocess.run("git checkout -- .gitignore".split())
 
 

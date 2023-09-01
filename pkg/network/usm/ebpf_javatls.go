@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -78,7 +78,7 @@ type javaTLSProgram struct {
 	procRoot string
 }
 
-var javaTLSSpec = protocols.ProtocolSpec{
+var javaTLSSpec = &protocols.ProtocolSpec{
 	Factory: newJavaTLSProgram,
 	Maps: []*manager.Map{
 		{
@@ -127,7 +127,7 @@ var javaTLSSpec = protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+	if !c.EnableJavaTLSSupport || !http.HTTPSSupported(c) {
 		return nil, nil
 	}
 
@@ -147,7 +147,7 @@ func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 		tracerJarPath:       javaUSMAgentJarPath,
 		injectionAllowRegex: buildRegex(c.JavaAgentAllowRegex, "allow"),
 		injectionBlockRegex: buildRegex(c.JavaAgentBlockRegex, "block"),
-		procRoot:            util.GetProcRoot(),
+		procRoot:            kernel.ProcFSRoot(),
 	}, nil
 }
 
@@ -157,12 +157,10 @@ func (p *javaTLSProgram) Name() string {
 
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -216,7 +214,7 @@ func (p *javaTLSProgram) isAttachmentAllowed(pid uint32) bool {
 		return true
 	}
 
-	procCmdline := fmt.Sprintf("%s/%d/cmdline", util.HostProc(), pid)
+	procCmdline := fmt.Sprintf("%s/%d/cmdline", p.procRoot, pid)
 	cmd, err := os.ReadFile(procCmdline)
 	if err != nil {
 		log.Debugf("injection filter can't open commandline %q : %s", procCmdline, err)

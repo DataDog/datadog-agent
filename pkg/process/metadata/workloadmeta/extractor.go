@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -40,11 +41,9 @@ type WorkloadMetaExtractor struct {
 
 	diffChan chan *ProcessCacheDiff
 
-	cacheSizeGuage  telemetry.Gauge
-	oldDiffDropped  telemetry.SimpleCounter
-	diffChannelFull telemetry.SimpleCounter
-
 	pidToCid map[int]string
+
+	sysprobeConfig config.ConfigReader
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
@@ -55,17 +54,22 @@ type ProcessCacheDiff struct {
 	deletion     []*ProcessEntity
 }
 
+var (
+	cacheSizeGuage = telemetry.NewGauge(subsystem, "cache_size", nil, "The cache size for the workloadMetaExtractor")
+	oldDiffDropped = telemetry.NewSimpleCounter(subsystem, "diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full.")
+	diffChanFull   = telemetry.NewSimpleCounter(subsystem, "diff_chan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen.")
+)
+
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(sysprobeConfig config.ConfigReader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
+
 	return &WorkloadMetaExtractor{
 		cache:        make(map[string]*ProcessEntity),
 		cacheVersion: 0,
 		// Keep only the latest diff in memory in case there's no consumer for it
-		diffChan:        make(chan *ProcessCacheDiff, 1),
-		cacheSizeGuage:  telemetry.NewGauge(subsystem, "cache_size", nil, "The cache size for the workloadMetaExtractor"),
-		oldDiffDropped:  telemetry.NewSimpleCounter(subsystem, "diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full."),
-		diffChannelFull: telemetry.NewSimpleCounter(subsystem, "diff_chan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen."),
+		diffChan:       make(chan *ProcessCacheDiff, 1),
+		sysprobeConfig: sysprobeConfig,
 	}
 }
 
@@ -82,7 +86,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	defer w.reportTelemetry()
 
 	newEntities := make([]*ProcessEntity, 0, len(procs))
-	newProcs := make([]*procutil.Process, 0, len(procs))
+	newProcs := make([]languagemodels.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
@@ -108,9 +112,9 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		return
 	}
 
-	languages := languagedetection.DetectLanguage(newProcs)
+	languages := languagedetection.DetectLanguage(newProcs, w.sysprobeConfig)
 	for i, lang := range languages {
-		pid := newProcs[i].Pid
+		pid := newProcs[i].GetPid()
 		proc := procs[pid]
 
 		var creationTime int64
@@ -140,7 +144,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	select {
 	case <-w.diffChan:
 		// drop message
-		w.oldDiffDropped.Inc()
+		oldDiffDropped.Inc()
 		log.Debug("Dropping old process diff in WorkloadMetaExtractor")
 		break
 	default:
@@ -157,7 +161,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	case w.diffChan <- diff:
 		break
 	default:
-		w.diffChannelFull.Inc()
+		diffChanFull.Inc()
 		log.Error("Dropping newer process diff in WorkloadMetaExtractor")
 	}
 }
@@ -175,7 +179,12 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 
 // Enabled returns whether the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
-	return ddconfig.GetBool("process_config.language_detection.enabled")
+	enabled := ddconfig.GetBool("language_detection.enabled")
+	if enabled && runtime.GOOS == "darwin" {
+		log.Warn("Language detection is not supported on macOS")
+		return false
+	}
+	return enabled
 }
 
 func hashProcess(pid int32, createTime int64) string {
@@ -203,5 +212,5 @@ func (w *WorkloadMetaExtractor) ProcessCacheDiff() <-chan *ProcessCacheDiff {
 }
 
 func (w *WorkloadMetaExtractor) reportTelemetry() {
-	w.cacheSizeGuage.Set(float64(len(w.cache)))
+	cacheSizeGuage.Set(float64(len(w.cache)))
 }

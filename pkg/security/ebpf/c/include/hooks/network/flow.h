@@ -5,10 +5,10 @@
 #include "constants/offsets/netns.h"
 #include "helpers/network.h"
 
-SEC("kprobe/security_sk_classify_flow")
-int kprobe_security_sk_classify_flow(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    struct flowi *fl = (struct flowi *)PT_REGS_PARM2(ctx);
+HOOK_ENTRY("security_sk_classify_flow")
+int hook_security_sk_classify_flow(ctx_t *ctx) {
+    struct sock *sk = (struct sock *)CTX_PARM1(ctx);
+    struct flowi *fl = (struct flowi *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
     union flowi_uli uli;
 
@@ -40,14 +40,14 @@ int kprobe_security_sk_classify_flow(struct pt_regs *ctx) {
         bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 
 #ifdef DEBUG
-        bpf_printk("# registered (flow) pid:%d netns:%u\n", pid, key.netns);
-        bpf_printk("# p:%d a:%d a:%d\n", key.port, key.addr[0], key.addr[1]);
+        bpf_printk("# registered (flow) pid:%d netns:%u", pid, key.netns);
+        bpf_printk("# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
 #endif
     }
     return 0;
 }
 
-__attribute__((always_inline)) int trace_nat_manip_pkt(struct pt_regs *ctx, struct nf_conn *ct) {
+__attribute__((always_inline)) int trace_nat_manip_pkt(struct nf_conn *ct) {
     u32 netns = get_netns_from_nf_conn(ct);
 
     struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
@@ -77,16 +77,16 @@ __attribute__((always_inline)) int trace_nat_manip_pkt(struct pt_regs *ctx, stru
     return 0;
 }
 
-SEC("kprobe/nf_nat_manip_pkt")
-int kprobe_nf_nat_manip_pkt(struct pt_regs *ctx) {
-    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM2(ctx);
-    return trace_nat_manip_pkt(ctx, ct);
+HOOK_ENTRY("nf_nat_manip_pkt")
+int hook_nf_nat_manip_pkt(ctx_t *ctx) {
+    struct nf_conn *ct = (struct nf_conn *)CTX_PARM2(ctx);
+    return trace_nat_manip_pkt(ct);
 }
 
-SEC("kprobe/nf_nat_packet")
-int kprobe_nf_nat_packet(struct pt_regs *ctx) {
-    struct nf_conn *ct = (struct nf_conn *)PT_REGS_PARM1(ctx);
-    return trace_nat_manip_pkt(ctx, ct);
+HOOK_ENTRY("nf_nat_packet")
+int hook_nf_nat_packet(ctx_t *ctx) {
+    struct nf_conn *ct = (struct nf_conn *)CTX_PARM1(ctx);
+    return trace_nat_manip_pkt(ct);
 }
 
 #endif

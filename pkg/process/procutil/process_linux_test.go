@@ -134,6 +134,18 @@ func testGetCmdline(t *testing.T) {
 	}
 }
 
+func TestGetCommandName(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
+
+	probe := getProbeWithPermission()
+	defer probe.Close()
+
+	// Hardcode pid that has `comm` file set
+	pid := 3254
+	actual := probe.getCommandName(filepath.Join(probe.procRootLoc, strconv.Itoa(pid)))
+	assert.Equal(t, "ruby", actual)
+}
+
 func TestProcessesByPIDTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 

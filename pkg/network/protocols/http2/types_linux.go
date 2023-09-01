@@ -30,14 +30,6 @@ type EbpfTx struct {
 	Request_path          [160]uint8
 }
 
-type StaticTableEnumKey = uint32
-
-const (
-	MethodKey StaticTableEnumKey = 0x2
-	PathKey   StaticTableEnumKey = 0x4
-	StatusKey StaticTableEnumKey = 0x9
-)
-
 type StaticTableEnumValue = uint32
 
 const (
@@ -53,8 +45,3 @@ const (
 	K404Value      StaticTableEnumValue = 0xd
 	K500Value      StaticTableEnumValue = 0xe
 )
-
-type StaticTableValue = struct {
-	Key   uint32
-	Value uint32
-}

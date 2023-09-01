@@ -74,7 +74,7 @@ type Client struct {
 
 	state *state.Repository
 
-	listeners map[string][]func(update map[string]state.RawConfig)
+	listeners map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -197,7 +197,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		state:         repository,
 		pollInterval:  pollInterval,
 		backoffPolicy: backoffPolicy,
-		listeners:     make(map[string][]func(update map[string]state.RawConfig)),
+		listeners:     make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
 		updater:       updater,
 	}, nil
 }
@@ -222,12 +222,35 @@ func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
 }
 
-// Subscribe subscribes to config updates of a product.
-func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig)) {
+// SetAgentName updates the agent name of the RC client
+// should only be used by the fx component
+func (c *Client) SetAgentName(agentName string) {
 	c.m.Lock()
 	defer c.m.Unlock()
+	if c.agentName == "unknown" {
+		c.agentName = agentName
+	}
+}
+
+// Subscribe subscribes to config updates of a product.
+func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	// Make sure the product belongs to the list of requested product
+	knownProduct := false
+	for _, p := range c.products {
+		if p == product {
+			knownProduct = true
+			break
+		}
+	}
+	if !knownProduct {
+		c.products = append(c.products, product)
+	}
+
 	c.listeners[product] = append(c.listeners[product], fn)
-	fn(c.state.GetConfigs(product))
+	fn(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 }
 
 // GetConfigs returns the current configs applied of a product.
@@ -319,7 +342,7 @@ func (c *Client) update() error {
 	for product, productListeners := range c.listeners {
 		if containsProduct(changedProducts, product) {
 			for _, listener := range productListeners {
-				listener(c.state.GetConfigs(product))
+				listener(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 			}
 		}
 	}
@@ -392,6 +415,9 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 		})
 	}
 
+	// Lock for the product list
+	c.m.Lock()
+	defer c.m.Unlock()
 	req := &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			State: &pbgo.ClientState{

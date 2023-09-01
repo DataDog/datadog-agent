@@ -52,13 +52,14 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					log := lsl.At(k)
 					ddLog := logsmapping.Transform(log, res, logger)
 
-					content, err := ddLog.MarshalJSON()
-					if err != nil {
-						logger.Error("Error parsing log: " + err.Error())
+					var tags []string
+					if ddTags := ddLog.GetDdtags(); ddTags == "" {
+						tags = []string{otelTag}
+					} else {
+						tags = append(strings.Split(ddTags, ","), otelTag)
 					}
-
-					tags := append(strings.Split(ddLog.GetDdtags(), ","), otelTag)
-					// TODO: remove tags in ddLog.Ddtags
+					// Tags are set in the message origin instead
+					ddLog.Ddtags = nil
 					service := ""
 					if ddLog.Service != nil {
 						service = *ddLog.Service
@@ -67,15 +68,19 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					if status == "" {
 						status = message.StatusInfo
 					}
-					timestamp, err := time.Parse(time.RFC3339, ddLog.AdditionalProperties["@timestamp"])
-					if err != nil {
-						logger.Error("Error parsing timestamp: " + err.Error())
-					}
 					origin := message.NewOrigin(logSource)
 					origin.SetTags(tags)
 					origin.SetService(service)
+					origin.SetSource(logSourceName)
 
-					message := message.NewMessage(content, origin, status, timestamp.Unix())
+					content, err := ddLog.MarshalJSON()
+					if err != nil {
+						logger.Error("Error parsing log: " + err.Error())
+					}
+
+					// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
+					ingestionTs := time.Now().UnixNano()
+					message := message.NewMessage(content, origin, status, ingestionTs)
 
 					logsAgentChannel <- message
 				}

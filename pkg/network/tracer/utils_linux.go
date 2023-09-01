@@ -10,12 +10,11 @@ package tracer
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// IsTracerSupportedByOS returns whether or not the current kernel version supports tracer functionality
+// IsTracerSupportedByOS returns whether the current kernel version supports tracer functionality
 // along with some context on why it's not supported
 func IsTracerSupportedByOS(exclusionList []string) (bool, error) {
 	currentKernelCode, err := kernel.HostVersion()
@@ -23,9 +22,12 @@ func IsTracerSupportedByOS(exclusionList []string) (bool, error) {
 		return false, fmt.Errorf("could not get kernel version: %s", err)
 	}
 
-	hostInfo := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostInfo.Platform)
-	return verifyOSVersion(currentKernelCode, hostInfo.Platform, exclusionList)
+	platform, err := kernel.Platform()
+	if err != nil {
+		return false, fmt.Errorf("kernel platform: %s", err)
+	}
+	log.Infof("running on platform: %s", platform)
+	return verifyOSVersion(currentKernelCode, platform, exclusionList)
 }
 
 func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList []string) (bool, error) {

@@ -35,14 +35,3 @@ var Bundle = fxutil.Bundle(
 	sysprobeconfig.Module,
 	telemetry.Module,
 )
-
-// MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.MockModule,
-	fx.Supply(log.Params{}),
-	log.MockModule,
-	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
-	sysprobeconfig.MockModule,
-	telemetry.Module,
-)

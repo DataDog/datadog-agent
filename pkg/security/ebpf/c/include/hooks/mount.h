@@ -107,13 +107,11 @@ int hook_mnt_want_write_file(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
-#ifndef USE_FENTRY
 // mnt_want_write_file_path was used on old kernels (RHEL 7)
 HOOK_ENTRY("mnt_want_write_file_path")
 int hook_mnt_want_write_file_path(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
-#endif
 
 HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
@@ -148,32 +146,30 @@ HOOK_SYSCALL_EXIT(unshare) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/attach_mnt")
-int kprobe_attach_mnt(struct pt_regs *ctx) {
+HOOK_ENTRY("attach_mnt")
+int hook_attach_mnt(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
     }
 
-    syscall->unshare_mntns.mnt = (struct mount *)PT_REGS_PARM1(ctx);
-    syscall->unshare_mntns.parent = (struct mount *)PT_REGS_PARM2(ctx);
-    struct mountpoint *mp = (struct mountpoint *)PT_REGS_PARM3(ctx);
+    syscall->unshare_mntns.mnt = (struct mount *)CTX_PARM1(ctx);
+    syscall->unshare_mntns.parent = (struct mount *)CTX_PARM2(ctx);
+    struct mountpoint *mp = (struct mountpoint *)CTX_PARM3(ctx);
     syscall->unshare_mntns.mp_dentry = get_mountpoint_dentry(mp);
 
-    fill_resolver_mnt(ctx, syscall);
+    fill_resolver_mnt(ctx, syscall, DR_KPROBE_OR_FENTRY);
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/__attach_mnt")
-int kprobe___attach_mnt(struct pt_regs *ctx) {
+HOOK_ENTRY("__attach_mnt")
+int hook___attach_mnt(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
     }
 
-    struct mount *mnt = (struct mount *)PT_REGS_PARM1(ctx);
+    struct mount *mnt = (struct mount *)CTX_PARM1(ctx);
 
     // check if mnt has already been processed in case both attach_mnt and __attach_mnt are loaded
     if (syscall->unshare_mntns.mnt == mnt) {
@@ -181,22 +177,21 @@ int kprobe___attach_mnt(struct pt_regs *ctx) {
     }
 
     syscall->unshare_mntns.mnt = mnt;
-    syscall->unshare_mntns.parent = (struct mount *)PT_REGS_PARM2(ctx);
+    syscall->unshare_mntns.parent = (struct mount *)CTX_PARM2(ctx);
     syscall->unshare_mntns.mp_dentry = get_mount_mountpoint_dentry(syscall->unshare_mntns.mnt);
 
-    fill_resolver_mnt(ctx, syscall);
+    fill_resolver_mnt(ctx, syscall, DR_KPROBE_OR_FENTRY);
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/mnt_set_mountpoint")
-int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
+HOOK_ENTRY("mnt_set_mountpoint")
+int hook_mnt_set_mountpoint(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
     }
 
-    struct mount *mnt = (struct mount *)PT_REGS_PARM3(ctx);
+    struct mount *mnt = (struct mount *)CTX_PARM3(ctx);
 
     // check if mnt has already been processed in case both attach_mnt and __attach_mnt are loaded
     if (syscall->unshare_mntns.mnt == mnt) {
@@ -204,75 +199,16 @@ int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
     }
 
     syscall->unshare_mntns.mnt = mnt;
-    syscall->unshare_mntns.parent = (struct mount *)PT_REGS_PARM1(ctx);
-    struct mountpoint *mp = (struct mountpoint *)PT_REGS_PARM2(ctx);
+    syscall->unshare_mntns.parent = (struct mount *)CTX_PARM1(ctx);
+    struct mountpoint *mp = (struct mountpoint *)CTX_PARM2(ctx);
     syscall->unshare_mntns.mp_dentry = get_mountpoint_dentry(mp);
 
-    fill_resolver_mnt(ctx, syscall);
+    fill_resolver_mnt(ctx, syscall, DR_KPROBE_OR_FENTRY);
     return 0;
 }
-
-SEC("kprobe/dr_unshare_mntns_stage_one_callback")
-int kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
-    if (!syscall) {
-        return 0;
-    }
-
-    struct dentry *mp_dentry = syscall->unshare_mntns.mp_dentry;
-
-    syscall->unshare_mntns.path_key.mount_id = get_mount_mount_id(syscall->unshare_mntns.parent);
-    syscall->unshare_mntns.path_key.ino = get_dentry_ino(mp_dentry);
-    update_path_id(&syscall->unshare_mntns.path_key, 0);
-
-    syscall->resolver.key = syscall->unshare_mntns.path_key;
-    syscall->resolver.dentry = mp_dentry;
-    syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = DR_UNSHARE_MNTNS_STAGE_TWO_CALLBACK_KPROBE_KEY;
-    syscall->resolver.iteration = 0;
-    syscall->resolver.ret = 0;
-
-    resolve_dentry(ctx, DR_KPROBE);
-
-    // if the tail call fails, we need to pop the syscall cache entry
-    pop_syscall(EVENT_UNSHARE_MNTNS);
-
-    return 0;
-}
-
-SEC("kprobe/dr_unshare_mntns_stage_two_callback")
-int kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
-    if (!syscall) {
-        return 0;
-    }
-
-    struct unshare_mntns_event_t event = {
-        .mountfields.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt),
-        .mountfields.device = get_mount_dev(syscall->unshare_mntns.mnt),
-        .mountfields.parent_key.mount_id = syscall->unshare_mntns.path_key.mount_id,
-        .mountfields.parent_key.ino= syscall->unshare_mntns.path_key.ino,
-        .mountfields.parent_key.path_id = syscall->unshare_mntns.path_key.path_id,
-        .mountfields.root_key.mount_id = syscall->unshare_mntns.root_key.mount_id,
-        .mountfields.root_key.ino = syscall->unshare_mntns.root_key.ino,
-        .mountfields.root_key.path_id = syscall->unshare_mntns.root_key.path_id,
-        .mountfields.bind_src_mount_id = 0, // do not consider mnt ns copies as bind mounts
-    };
-    bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->unshare_mntns.fstype);
-
-    if (event.mountfields.mount_id == 0 && event.mountfields.device == 0) {
-        return 0;
-    }
-
-    send_event(ctx, EVENT_UNSHARE_MNTNS, event);
-
-    return 0;
-}
-
-#ifdef USE_FENTRY
 
 TAIL_CALL_TARGET("dr_unshare_mntns_stage_one_callback")
-int fentry_dr_unshare_mntns_stage_one_callback(ctx_t *ctx) {
+int tail_call_target_dr_unshare_mntns_stage_one_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
@@ -291,7 +227,7 @@ int fentry_dr_unshare_mntns_stage_one_callback(ctx_t *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_FENTRY);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_UNSHARE_MNTNS);
@@ -300,7 +236,7 @@ int fentry_dr_unshare_mntns_stage_one_callback(ctx_t *ctx) {
 }
 
 TAIL_CALL_TARGET("dr_unshare_mntns_stage_two_callback")
-int fentry_dr_unshare_mntns_stage_two_callback(ctx_t *ctx) {
+int tail_call_target_dr_unshare_mntns_stage_two_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
@@ -328,11 +264,8 @@ int fentry_dr_unshare_mntns_stage_two_callback(ctx_t *ctx) {
     return 0;
 }
 
-#endif // USE_FENTRY
-
-// fentry blocked by: tail call
-SEC("kprobe/clone_mnt")
-int kprobe_clone_mnt(struct pt_regs *ctx) {
+HOOK_ENTRY("clone_mnt")
+int hook_clone_mnt(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall) {
         return 0;
@@ -342,7 +275,7 @@ int kprobe_clone_mnt(struct pt_regs *ctx) {
         return 0;
     }
 
-    syscall->mount.bind_src_mnt = (struct mount *)PT_REGS_PARM1(ctx);
+    syscall->mount.bind_src_mnt = (struct mount *)CTX_PARM1(ctx);
 
     syscall->mount.bind_src_key.mount_id = get_mount_mount_id(syscall->mount.bind_src_mnt);
     struct dentry *mount_dentry = get_mount_mountpoint_dentry(syscall->mount.bind_src_mnt);
@@ -356,7 +289,7 @@ int kprobe_clone_mnt(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MOUNT);
@@ -364,17 +297,16 @@ int kprobe_clone_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/attach_recursive_mnt")
-int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
+HOOK_ENTRY("attach_recursive_mnt")
+int hook_attach_recursive_mnt(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall) {
         return 0;
     }
 
-    syscall->mount.src_mnt = (struct mount *)PT_REGS_PARM1(ctx);
-    syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM2(ctx);
-    syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM3(ctx);
+    syscall->mount.src_mnt = (struct mount *)CTX_PARM1(ctx);
+    syscall->mount.dest_mnt = (struct mount *)CTX_PARM2(ctx);
+    syscall->mount.dest_mountpoint = (struct mountpoint *)CTX_PARM3(ctx);
 
     // resolve root dentry
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
@@ -393,7 +325,7 @@ int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MOUNT);
@@ -401,17 +333,16 @@ int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/propagate_mnt")
-int kprobe_propagate_mnt(struct pt_regs *ctx) {
+HOOK_ENTRY("propagate_mnt")
+int hook_propagate_mnt(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall) {
         return 0;
     }
 
-    syscall->mount.dest_mnt = (struct mount *)PT_REGS_PARM1(ctx);
-    syscall->mount.dest_mountpoint = (struct mountpoint *)PT_REGS_PARM2(ctx);
-    syscall->mount.src_mnt = (struct mount *)PT_REGS_PARM3(ctx);
+    syscall->mount.dest_mnt = (struct mount *)CTX_PARM1(ctx);
+    syscall->mount.dest_mountpoint = (struct mountpoint *)CTX_PARM2(ctx);
+    syscall->mount.src_mnt = (struct mount *)CTX_PARM3(ctx);
 
     // resolve root dentry
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
@@ -430,7 +361,7 @@ int kprobe_propagate_mnt(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MOUNT);
@@ -462,7 +393,7 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
     syscall->resolver.key = path_key;
     syscall->resolver.dentry = dentry;
     syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_MOUNT_CALLBACK_KPROBE_KEY : DR_MOUNT_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.callback = select_dr_key(dr_type, DR_MOUNT_CALLBACK_KPROBE_KEY, DR_MOUNT_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
     syscall->resolver.sysretval = retval;
@@ -474,9 +405,9 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
     return 0;
 }
 
-SYSCALL_COMPAT_KRETPROBE(mount) {
-    int retval = PT_REGS_RC(ctx);
-    return sys_mount_ret(ctx, retval, DR_KPROBE);
+HOOK_SYSCALL_COMPAT_EXIT(mount) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_mount_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_mount_exit")
@@ -519,19 +450,10 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/dr_mount_callback")
-int kprobe_dr_mount_callback(struct pt_regs *ctx) {
-    return dr_mount_callback(ctx);
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_mount_callback")
-int fentry_dr_mount_callback(ctx_t *ctx) {
+int tail_call_target_dr_mount_callback(ctx_t *ctx) {
     return dr_mount_callback(ctx);
 }
-
-#endif // USE_FENTRY
 
 SEC("tracepoint/dr_mount_callback")
 int tracepoint_dr_mount_callback(struct tracepoint_syscalls_sys_exit_t *args) {

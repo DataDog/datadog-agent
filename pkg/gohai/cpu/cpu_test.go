@@ -5,13 +5,10 @@
 package cpu
 
 import (
-	"bytes"
-	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCollectCPU(t *testing.T) {
@@ -43,11 +40,6 @@ func TestCollectCPU(t *testing.T) {
 
 func TestCPUAsJSON(t *testing.T) {
 	cpuInfo := CollectInfo()
-	marshallable, _, err := cpuInfo.AsJSON()
-	require.NoError(t, err)
-
-	marshalled, err := json.Marshal(marshallable)
-	require.NoError(t, err)
 
 	// Any change to this datastructure should be notified to the backend
 	// team to ensure compatibility.
@@ -68,16 +60,8 @@ func TestCPUAsJSON(t *testing.T) {
 		CPUPkgs              string `json:"cpu_pkgs"`
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(marshalled))
-	// do not ignore unknown fields
-	decoder.DisallowUnknownFields()
-
 	var decodedCPU CPU
-	err = decoder.Decode(&decodedCPU)
-	require.NoError(t, err)
-
-	// check that we read the full json
-	require.False(t, decoder.More())
+	utils.RequireMarshallJSON(t, cpuInfo, &decodedCPU)
 
 	utils.AssertDecodedValue(t, decodedCPU.CPUCores, &cpuInfo.CPUCores, "")
 	utils.AssertDecodedValue(t, decodedCPU.CPULogicalProcessors, &cpuInfo.CPULogicalProcessors, "")

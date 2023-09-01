@@ -356,10 +356,7 @@ func AddRecurrentSeries(newSerie *metrics.Serie) {
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
-	if len(agg.checkItems)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.eventPlatformIn) == 0 {
-		return true
-	}
-	return false
+	return len(agg.checkItems)+len(agg.serviceCheckIn)+len(agg.eventIn)+len(agg.eventPlatformIn) == 0
 }
 
 // GetBufferedChannels returns a channel which can be subsequently used to send Event or ServiceCheck.
@@ -789,13 +786,13 @@ func (agg *BufferedAggregator) run() {
 // Container agent tags may be missing in the first seconds after agent startup
 func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
-	if agg.hostname == "" {
-		var err error
-		tags, err = agg.globalTags(tagger.ChecksCardinality)
-		if err != nil {
-			log.Debugf("Couldn't get Global tags: %v", err)
-		}
+
+	var err error
+	tags, err = agg.globalTags(tagger.ChecksCardinality)
+	if err != nil {
+		log.Debugf("Couldn't get Global tags: %v", err)
 	}
+
 	if agg.tlmContainerTagsEnabled {
 		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
 		if err == nil {

@@ -97,12 +97,11 @@ func (mg *MetricGroup) Summary() string {
 
 	valueDeltas := mg.deltas.GetState("")
 	var b strings.Builder
-	for _, metric := range mg.metrics {
-		m := metric.base()
-		_, name := splitName(m)
-		v := valueDeltas.ValueFor(m)
+	for i, metric := range mg.metrics {
+		_, name := splitName(metric)
+		v := valueDeltas.ValueFor(metric)
 
-		uniqueTags := m.tags.Difference(mg.commonTags)
+		uniqueTags := metric.base().tags.Difference(mg.commonTags)
 		if uniqueTags.Len() > 0 {
 			// if the metric has tags print them but excluding the ones that are
 			// common to the metric group
@@ -115,7 +114,10 @@ func (mg *MetricGroup) Summary() string {
 		if _, ok := metric.(*Counter); ok {
 			b.WriteString(fmt.Sprintf("(%.2f/s)", float64(v)/timeDelta))
 		}
-		b.WriteByte(' ')
+
+		if i < len(mg.metrics)-1 {
+			b.WriteByte(' ')
+		}
 	}
 	mg.then = now
 	return b.String()

@@ -10,17 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/require"
 )
 
 type agentSuiteEx5 struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
 func TestAgentSuiteEx5(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx5{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &agentSuiteEx5{}, e2e.FakeIntakeStackDef(nil))
 }
 
 func (s *agentSuiteEx5) TestCheckRuns() {

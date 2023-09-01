@@ -249,11 +249,11 @@ func makeFlare(flareComp flare.Component, log log.Component, config config.Compo
 		return err
 	}
 
-	fmt.Fprintln(color.Output, fmt.Sprintf("%s is going to be uploaded to Datadog", color.YellowString(filePath)))
+	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))
 	if !cliParams.autoconfirm {
 		confirmation := input.AskForConfirmation("Are you sure you want to upload a flare? [y/N]")
 		if !confirmation {
-			fmt.Fprintln(color.Output, fmt.Sprintf("Aborting. (You can still use %s)", color.YellowString(filePath)))
+			fmt.Fprintf(color.Output, "Aborting. (You can still use %s)\n", color.YellowString(filePath))
 			return nil
 		}
 	}
@@ -292,7 +292,7 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string,
 	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
+			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(string(r)))
 			err = fmt.Errorf("Error getting flare from running agent: %s", r)
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))

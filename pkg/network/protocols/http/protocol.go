@@ -22,6 +22,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,7 +41,7 @@ const (
 	eventStream    = "http"
 )
 
-var Spec = protocols.ProtocolSpec{
+var Spec = &protocols.ProtocolSpec{
 	Factory: newHttpProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
@@ -70,7 +71,7 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String())
 	}
 
-	telemetry := NewTelemetry()
+	telemetry := NewTelemetry("http")
 
 	return &protocol{
 		cfg:       cfg,
@@ -89,11 +90,10 @@ func (p *protocol) Name() string {
 // We also configure the http event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
+	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
 }

@@ -7,6 +7,6 @@ package processes
 
 import "errors"
 
-func getProcesses(_ int) ([]interface{}, error) {
+func getProcessGroups(_ int) ([]ProcessGroup, error) {
 	return nil, errors.New("Not implemented on Windows")
 }

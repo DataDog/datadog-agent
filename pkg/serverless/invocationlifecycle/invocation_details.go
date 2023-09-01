@@ -37,6 +37,7 @@ type InvocationEndDetails struct {
 	IsError            bool
 	RequestID          string
 	ResponseRawPayload []byte
-	Coldstart          bool
+	ColdStart          bool
 	ProactiveInit      bool
+	Runtime            string
 }

@@ -7,28 +7,30 @@
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant
 // classification procedures on the same connection
-#if(defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0))
-// If *runtime compilation is enabled*, but we don't support LRUs, fallback to a HashMap
-BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
-#else
-// Otherwise use a LRU map instead. Note that Kernels older than 4.10 will use
-// this map definifition in the context of either pre-built or CO-RE, but in this
-// case we change the map spec during load time from userspace.
-BPF_LRU_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
-#endif
+BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_wrapper_t, 0)
+
+static __always_inline protocol_stack_t* __get_protocol_stack(conn_tuple_t* tuple) {
+    protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
+    if (!wrapper) {
+        return NULL;
+    }
+    return &wrapper->stack;
+}
 
 static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
-    protocol_stack_t* stack = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
-    if (stack) {
-        return stack;
+    protocol_stack_wrapper_t* wrapper = bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    if (wrapper) {
+        wrapper->updated = bpf_ktime_get_ns();
+        return &wrapper->stack;
     }
 
     // this code path is executed once during the entire connection lifecycle
-    protocol_stack_t empty_stack = {0};
-    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_stack, BPF_NOEXIST);
-    return bpf_map_lookup_elem(&connection_protocol, &normalized_tup);
+    protocol_stack_wrapper_t empty_wrapper = {0};
+    empty_wrapper.updated = bpf_ktime_get_ns();
+    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST);
+    return __get_protocol_stack(&normalized_tup);
 }
 
 __maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {

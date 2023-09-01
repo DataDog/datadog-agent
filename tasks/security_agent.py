@@ -14,11 +14,10 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint
+from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    SBOM_TAG,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
@@ -109,24 +108,7 @@ def gen_mocks(ctx):
     """
     Generate mocks.
     """
-
-    interfaces = {
-        "./pkg/security/proto/api": [
-            "SecurityModuleServer",
-            "SecurityModuleClient",
-        ],
-        "./pkg/eventmonitor/proto/api": [
-            "EventMonitoringModuleServer",
-            "EventMonitoringModuleClient",
-            "EventMonitoringModule_GetProcessEventsClient",
-        ],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
+    ctx.run("mockery")
 
 
 @task
@@ -289,12 +271,14 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
+    debug=False,
 ):
     build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
+        debug=debug,
     )
 
     build_embed_syscall_tester(ctx)
@@ -307,7 +291,7 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("linux_bpf")
-    build_tags.append(SBOM_TAG)
+    build_tags.append("trivy")
     build_tags.append("containerd")
 
     if bundle_ebpf:
@@ -318,7 +302,12 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        for result in results:
+            # golangci exits with status 1 when it finds an issue
+            if result.exited != 0:
+                raise Exit(code=1)
+        print("golangci-lint found no issues")
 
     if race:
         build_flags += " -race"
@@ -565,12 +554,19 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
-    ctx.run(
-        "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
+
+    # skip generation of serializer for windows
+    if sys.platform == "win32":
+        return
+
+    shutil.copy(
+        "./pkg/security/serializers/serializers_easyjson.mock", "./pkg/security/serializers/serializers_easyjson.go"
     )
-    ctx.run(
-        "cp ./pkg/security/security_profile/dump/activity_dump_easyjson.mock ./pkg/security/security_profile/dump/activity_dump_easyjson.go"
+    shutil.copy(
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+        "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
     )
+
     ctx.run("go generate ./pkg/security/...")
 
 
@@ -704,6 +700,7 @@ def kitchen_prepare(ctx, skip_linters=False):
         ctx,
         bundle_ebpf=False,
         race=True,
+        debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
     )
@@ -761,6 +758,10 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
 
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:

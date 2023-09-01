@@ -94,6 +94,14 @@ const (
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
+
+	// DefaultLocalProcessCollectorInterval is the interval at which processes are collected and sent to the workloadmeta
+	// in the core agent if the process check is disabled.
+	DefaultLocalProcessCollectorInterval = 1 * time.Minute
+
+	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
+	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
+	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
 // Datadog is the global configuration object
@@ -169,25 +177,25 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 
 // MappingProfile represent a group of mappings
 type MappingProfile struct {
-	Name     string          `mapstructure:"name" json:"name"`
-	Prefix   string          `mapstructure:"prefix" json:"prefix"`
-	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings"`
+	Name     string          `mapstructure:"name" json:"name" yaml:"name"`
+	Prefix   string          `mapstructure:"prefix" json:"prefix" yaml:"prefix"`
+	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings" yaml:"mappings"`
 }
 
 // MetricMapping represent one mapping rule
 type MetricMapping struct {
-	Match     string            `mapstructure:"match" json:"match"`
-	MatchType string            `mapstructure:"match_type" json:"match_type"`
-	Name      string            `mapstructure:"name" json:"name"`
-	Tags      map[string]string `mapstructure:"tags" json:"tags"`
+	Match     string            `mapstructure:"match" json:"match" yaml:"match"`
+	MatchType string            `mapstructure:"match_type" json:"match_type" yaml:"match_type"`
+	Name      string            `mapstructure:"name" json:"name" yaml:"name"`
+	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 }
 
 // Endpoint represent a datadog endpoint
 type Endpoint struct {
-	Site   string `mapstructure:"site" json:"site"`
-	URL    string `mapstructure:"url" json:"url"`
-	APIKey string `mapstructure:"api_key" json:"api_key"`
-	APPKey string `mapstructure:"app_key" json:"app_key" `
+	Site   string `mapstructure:"site" json:"site" yaml:"site"`
+	URL    string `mapstructure:"url" json:"url" yaml:"url"`
+	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
 }
 
 // Warnings represent the warnings in the config
@@ -771,7 +779,7 @@ func InitConfig(config Config) {
 		"kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script",
 		"configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest",
 		"bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable",
-		"enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig",
+		"enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig", "gce-container-declaration",
 	})
 	config.BindEnvAndSetDefault("gce_send_project_id_tag", false)
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
@@ -843,12 +851,14 @@ func InitConfig(config Config) {
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
 	config.BindEnv("internal_profiling.profile_dd_url")
+	config.BindEnvAndSetDefault("internal_profiling.unix_socket", "") // file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
 	config.BindEnvAndSetDefault("internal_profiling.period", 5*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.cpu_duration", 1*time.Minute)
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
+	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
 
@@ -871,6 +881,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
+	// maximum log message size in bytes
+	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
 
 	// increase the number of files that can be tailed in parallel:
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
@@ -1009,6 +1021,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", false)        // Experimental. Subject to change. Uses the runners utilization to balance.
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 
@@ -1107,7 +1121,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector
-	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
+	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
@@ -1170,6 +1184,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("security_agent.internal_profiling.delta_profiles", true)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
@@ -1245,6 +1260,9 @@ func InitConfig(config Config) {
 
 	// Datadog Agent Manager System Tray
 	config.BindEnvAndSetDefault("system_tray.log_file", "")
+
+	// Language Detection
+	config.BindEnvAndSetDefault("language_detection.enabled", false)
 
 	setupAPM(config)
 	SetupOTLP(config)
@@ -1541,6 +1559,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	}
 
 	SanitizeAPIKeyConfig(config, "api_key")
+	SanitizeAPIKeyConfig(config, "logs_config.api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
@@ -1992,34 +2011,6 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-// GetConfiguredTags returns list of tags from a configuration, based on
-// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
-// if includeDogdstatsd is true.
-func GetConfiguredTags(config Config, includeDogstatsd bool) []string {
-	tags := config.GetStringSlice("tags")
-	extraTags := config.GetStringSlice("extra_tags")
-
-	var dsdTags []string
-	if includeDogstatsd {
-		dsdTags = config.GetStringSlice("dogstatsd_tags")
-	}
-
-	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
-	combined = append(combined, tags...)
-	combined = append(combined, extraTags...)
-	combined = append(combined, dsdTags...)
-
-	return combined
-}
-
-// GetGlobalConfiguredTags returns complete list of user configured tags.
-//
-// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
-// if includeDogstatsd is true.
-func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
-	return GetConfiguredTags(Datadog, includeDogstatsd)
-}
-
 func bindVectorOptions(config Config, datatype DataType) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
@@ -2053,28 +2044,6 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 		return pipelineURL, nil
 	}
 	return "", nil
-}
-
-// GetTraceAgentDefaultEnv returns the default env for the trace agent
-func GetTraceAgentDefaultEnv() string {
-	defaultEnv := ""
-	if Datadog.IsSet("apm_config.env") {
-		defaultEnv = Datadog.GetString("apm_config.env")
-		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
-	} else if Datadog.IsSet("env") {
-		defaultEnv = Datadog.GetString("env")
-		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
-	} else {
-		for _, tag := range GetConfiguredTags(Datadog, false) {
-			if strings.HasPrefix(tag, "env:") {
-				defaultEnv = strings.TrimPrefix(tag, "env:")
-				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
-				return defaultEnv
-			}
-		}
-	}
-
-	return defaultEnv
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled

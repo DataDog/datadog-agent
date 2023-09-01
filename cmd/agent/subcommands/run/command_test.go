@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestCommand(t *testing.T) {
@@ -23,6 +24,7 @@ func TestCommand(t *testing.T) {
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
+	workloadmeta.ResetGlobalStore()
 }
 
 func TestCommandPidfile(t *testing.T) {
@@ -34,4 +36,5 @@ func TestCommandPidfile(t *testing.T) {
 			require.Equal(t, "/pid/file", cliParams.pidfilePath)
 			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
+	workloadmeta.ResetGlobalStore()
 }

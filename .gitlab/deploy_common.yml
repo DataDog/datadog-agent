@@ -2,7 +2,7 @@
 .deploy_packages_deb:
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -10,7 +10,7 @@
 
 .deploy_packages_deb-6:
   extends: .deploy_packages_deb
-  stage: deploy6
+  stage: deploy_packages
   rules:
     !reference [.on_deploy_a6]
   variables:
@@ -18,7 +18,7 @@
 
 .deploy_packages_deb-7:
   extends: .deploy_packages_deb
-  stage: deploy7
+  stage: deploy_packages
   rules:
     !reference [.on_deploy_a7]
   variables:
@@ -27,7 +27,7 @@
 .deploy_packages_rpm:
   resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   variables:
     ARTIFACTS_PREFIX: ""
   before_script:
@@ -37,7 +37,7 @@
 
 .deploy_packages_rpm-6:
   extends: .deploy_packages_rpm
-  stage: deploy6
+  stage: deploy_packages
   rules:
     !reference [.on_deploy_a6]
   variables:
@@ -45,7 +45,7 @@
 
 .deploy_packages_rpm-7:
   extends: .deploy_packages_rpm
-  stage: deploy7
+  stage: deploy_packages
   rules:
     !reference [.on_deploy_a7]
   variables:
@@ -59,7 +59,7 @@
 
 .deploy_packages_suse_rpm-6:
   extends: .deploy_packages_suse_rpm
-  stage: deploy6
+  stage: deploy_packages
   rules:
     !reference [.on_deploy_a6]
   variables:
@@ -67,7 +67,7 @@
 
 .deploy_packages_suse_rpm-7:
   extends: .deploy_packages_suse_rpm
-  stage: deploy7
+  stage: deploy_packages
   rules:
     !reference [.on_deploy_a7]
   variables:

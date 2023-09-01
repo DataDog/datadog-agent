@@ -114,8 +114,8 @@ int hook_security_socket_bind(ctx_t *ctx) {
 #endif
 
 #ifdef DEBUG
-        bpf_printk("# registered (bind) pid:%d\n", pid);
-        bpf_printk("# p:%d a:%d a:%d\n", key.port, key.addr[0], key.addr[1]);
+        bpf_printk("# registered (bind) pid:%d", pid);
+        bpf_printk("# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
 #endif
     }
     return 0;

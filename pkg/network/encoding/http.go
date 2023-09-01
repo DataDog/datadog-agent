@@ -48,13 +48,13 @@ type httpEncoder struct {
 	toRelease []*map[int32]*model.HTTPStats_Data
 }
 
-func newHTTPEncoder(payload *network.Connections) *httpEncoder {
-	if len(payload.HTTP) == 0 {
+func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
+	if len(httpPayloads) == 0 {
 		return nil
 	}
 
 	return &httpEncoder{
-		byConnection: GroupByConnection("http", payload.HTTP, func(key http.Key) types.ConnectionKey {
+		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 		aggregations: new(model.HTTPAggregations),

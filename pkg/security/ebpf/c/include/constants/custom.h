@@ -44,9 +44,8 @@ enum MONITOR_KEYS {
 #define DR_MAX_SEGMENT_LENGTH 255
 #define DR_NO_CALLBACK -1
 
-#define DR_KPROBE     1
-#define DR_FENTRY     2
-#define DR_TRACEPOINT 3
+#define DR_KPROBE_OR_FENTRY     1
+#define DR_TRACEPOINT           2
 
 enum DENTRY_RESOLVER_KEYS {
     DR_DENTRY_RESOLVER_KERN_KEY,
@@ -105,6 +104,8 @@ enum DENTRY_ERPC_RESOLUTION_CODE {
 #ifndef BPF_OBJ_NAME_LEN
 #define BPF_OBJ_NAME_LEN 16U
 #endif
+
+#define EVENT_GEN_SIZE 16
 
 #ifndef VALID_OPEN_FLAGS
 #define VALID_OPEN_FLAGS \

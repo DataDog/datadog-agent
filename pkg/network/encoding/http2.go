@@ -49,13 +49,13 @@ type http2Encoder struct {
 	toRelease []*map[int32]*model.HTTPStats_Data
 }
 
-func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
-	if len(payload.HTTP2) == 0 {
+func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
+	if len(http2Payloads) == 0 {
 		return nil
 	}
 
 	return &http2Encoder{
-		byConnection: GroupByConnection("http2", payload.HTTP2, func(key http.Key) types.ConnectionKey {
+		byConnection: GroupByConnection("http2", http2Payloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 		aggregations: new(model.HTTP2Aggregations),

@@ -6,51 +6,10 @@
 package command
 
 import (
-	"fmt"
 	"io"
-	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cli"
 )
-
-func deprecatedFlagWarning(deprecated, replaceWith string) string {
-	return fmt.Sprintf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `%s` instead.\n", deprecated, replaceWith)
-}
-
-type replaceFlag struct {
-	hint string
-	args []string
-}
-
-type replaceFlagFunc func(arg string, flag string) replaceFlag
-
-func replaceFlagPosix(arg string, flag string) replaceFlag {
-	newFlag := "-" + flag
-	return replaceFlag{
-		hint: newFlag,
-		args: []string{
-			strings.Replace(arg, flag, newFlag, 1),
-		},
-	}
-}
-
-func replaceFlagExact(replaceWith string) replaceFlagFunc {
-	return func(arg string, flag string) replaceFlag {
-		return replaceFlag{
-			hint: replaceWith,
-			args: []string{strings.Replace(arg, flag, replaceWith, 1)},
-		}
-	}
-}
-
-func replaceFlagSubCommandPosArg(replaceWith string) replaceFlagFunc {
-	return func(arg string, _ string) replaceFlag {
-		parts := strings.SplitN(arg, "=", 2)
-		parts[0] = replaceWith
-		return replaceFlag{
-			hint: replaceWith,
-			args: parts,
-		}
-	}
-}
 
 // FixDeprecatedFlags transforms args so that they are conforming to the new CLI structure:
 // - replace non-posix flags posix flags
@@ -58,46 +17,27 @@ func replaceFlagSubCommandPosArg(replaceWith string) replaceFlagFunc {
 // - display warnings when deprecated flags are encountered
 func FixDeprecatedFlags(args []string, w io.Writer) []string {
 	var (
-		replaceCfgPath = replaceFlagExact("--cfgpath")
-		replaceVersion = replaceFlagExact("version")
-		replaceCheck   = replaceFlagSubCommandPosArg("check")
+		replaceCfgPath = cli.ReplaceFlagExact("--cfgpath")
+		replaceVersion = cli.ReplaceFlagExact("version")
+		replaceCheck   = cli.ReplaceFlagSubCommandPosArg("check")
 	)
 
-	deprecatedFlags := map[string]replaceFlagFunc{
+	deprecatedFlags := map[string]cli.ReplaceFlagFunc{
 		// Global flags
 		"-config":          replaceCfgPath,
 		"--config":         replaceCfgPath,
-		"-sysprobe-config": replaceFlagPosix,
+		"-sysprobe-config": cli.ReplaceFlagPosix,
 		"-version":         replaceVersion,
 		"--version":        replaceVersion,
 		"-check":           replaceCheck,
 		"--check":          replaceCheck,
-		"-pid":             replaceFlagPosix,
-		"-info":            replaceFlagPosix,
+		"-pid":             cli.ReplaceFlagPosix,
+		"-info":            cli.ReplaceFlagPosix,
 		// Windows flags
-		"-start-service": replaceFlagPosix,
-		"-stop-service":  replaceFlagPosix,
-		"-foreground":    replaceFlagPosix,
+		"-start-service": cli.ReplaceFlagPosix,
+		"-stop-service":  cli.ReplaceFlagPosix,
+		"-foreground":    cli.ReplaceFlagPosix,
 	}
 
-	var newArgs []string
-	for _, arg := range args {
-		var replaced bool
-
-		for f, replacer := range deprecatedFlags {
-			if strings.HasPrefix(arg, f) {
-				replacement := replacer(arg, f)
-				newArgs = append(newArgs, replacement.args...)
-
-				fmt.Fprint(w, deprecatedFlagWarning(f, replacement.hint))
-				replaced = true
-				break
-			}
-		}
-
-		if !replaced {
-			newArgs = append(newArgs, arg)
-		}
-	}
-	return newArgs
+	return cli.FixDeprecatedFlags(args, w, deprecatedFlags)
 }

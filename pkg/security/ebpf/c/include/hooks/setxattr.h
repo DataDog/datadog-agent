@@ -68,7 +68,7 @@ HOOK_SYSCALL_ENTRY2(fremovexattr, int, fd, const char *, name) {
     return trace__sys_removexattr(name);
 }
 
-int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 event_type) {
+int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_type) {
     struct syscall_cache_t *syscall = peek_syscall(event_type);
     if (!syscall) {
         return 0;
@@ -78,13 +78,13 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
         return 0;
     }
 
-    syscall->xattr.dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    syscall->xattr.dentry = (struct dentry *)CTX_PARM1(ctx);
 
     if ((event_type == EVENT_SETXATTR && get_vfs_setxattr_dentry_position() == VFS_ARG_POSITION2) ||
         (event_type == EVENT_REMOVEXATTR && get_vfs_removexattr_dentry_position() == VFS_ARG_POSITION2)) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->xattr.dentry, sizeof(syscall->xattr.dentry), &syscall->xattr.dentry);
-        syscall->xattr.dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+        syscall->xattr.dentry = (struct dentry *) CTX_PARM2(ctx);
     }
 
     set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
@@ -97,7 +97,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(event_type);
@@ -105,25 +105,8 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
     return 0;
 }
 
-SEC("kprobe/dr_setxattr_callback")
-int kprobe_dr_setxattr_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);
-    if (!syscall) {
-        return 0;
-    }
-
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_SETXATTR);
-        return discard_syscall(syscall);
-    }
-
-    return 0;
-}
-
-#ifdef USE_FENTRY
-
 TAIL_CALL_TARGET("dr_setxattr_callback")
-int fentry_dr_setxattr_callback(ctx_t *ctx) {
+int tail_call_target_dr_setxattr_callback(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);
     if (!syscall) {
         return 0;
@@ -137,17 +120,13 @@ int fentry_dr_setxattr_callback(ctx_t *ctx) {
     return 0;
 }
 
-#endif // USE_FENTRY
-
-// fentry blocked by: tail call
-SEC("kprobe/vfs_setxattr")
-int kprobe_vfs_setxattr(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_setxattr")
+int hook_vfs_setxattr(ctx_t *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_SETXATTR);
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/vfs_removexattr")
-int kprobe_vfs_removexattr(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_removexattr")
+int hook_vfs_removexattr(ctx_t *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);
 }
 

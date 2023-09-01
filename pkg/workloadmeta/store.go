@@ -532,7 +532,7 @@ func (s *store) pull(ctx context.Context) {
 		ongoingPullStartTime := s.ongoingPulls[id]
 		alreadyRunning := !ongoingPullStartTime.IsZero()
 		if alreadyRunning {
-			timeRunning := time.Now().Sub(ongoingPullStartTime)
+			timeRunning := time.Since(ongoingPullStartTime)
 			if timeRunning > maxCollectorPullTime {
 				log.Errorf("collector %q has been running for too long (%d seconds)", id, timeRunning/time.Second)
 			} else {
@@ -558,7 +558,7 @@ func (s *store) pull(ctx context.Context) {
 			}
 
 			s.ongoingPullsMut.Lock()
-			pullDuration := time.Now().Sub(s.ongoingPulls[id])
+			pullDuration := time.Since(s.ongoingPulls[id])
 			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
 			s.ongoingPulls[id] = time.Time{}
 			s.ongoingPullsMut.Unlock()
@@ -802,4 +802,10 @@ func CreateGlobalStore(catalog CollectorCatalog) Store {
 // nil in that case.
 func GetGlobalStore() Store {
 	return globalStore
+}
+
+// ResetGlobalStore resets the global store back to nil. This is useful in lifecycle
+// tests that start and stop parts of the agent multiple times.
+func ResetGlobalStore() {
+	globalStore = nil
 }
