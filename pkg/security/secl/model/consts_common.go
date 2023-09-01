@@ -992,18 +992,31 @@ func bitmaskU64ToString(bitmask uint64, intToStrMap map[uint64]string) string {
 type OpenFlags int
 
 func (f OpenFlags) String() string {
-	if int(f) == syscall.O_RDONLY {
-		return openFlagsStrings[syscall.O_RDONLY]
-	}
-	return bitmaskToString(int(f), openFlagsStrings)
+	return strings.Join(f.StringArray(), " | ")
 }
 
 // StringArray returns the open flags as an array of strings
 func (f OpenFlags) StringArray() []string {
-	if int(f) == syscall.O_RDONLY {
-		return []string{openFlagsStrings[syscall.O_RDONLY]}
+	// open flags are actually composed of 2 sets of flags
+	// the lowest 2 bits manage the read/write access modes
+	readWriteBits := int(f) & 0b11
+	// the other bits manage the general purpose flags (like O_CLOEXEC, or O_TRUNC)
+	flagsBits := int(f) & ^0b11
+
+	// in order to default to O_RDONLY even if other bits are set we convert
+	// both bitmask separately
+	readWrite := bitmaskToStringArray(readWriteBits, openFlagsStrings)
+	flags := bitmaskToStringArray(flagsBits, openFlagsStrings)
+
+	if len(readWrite) == 0 {
+		readWrite = []string{openFlagsStrings[syscall.O_RDONLY]}
 	}
-	return bitmaskToStringArray(int(f), openFlagsStrings)
+
+	if len(flags) == 0 {
+		return readWrite
+	}
+
+	return append(readWrite, flags...)
 }
 
 // FileMode represents a file mode bitmask value

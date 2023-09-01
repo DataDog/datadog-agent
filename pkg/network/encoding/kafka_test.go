@@ -382,12 +382,10 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 		},
 	}
 
-	marshaler := GetMarshaler("application/protobuf")
-	blob, err := marshaler.Marshal(in)
-	require.NoError(t, err)
+	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
-	result, err := unmarshaler.Unmarshal(blob)
+	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 
 	require.Equal(t, out, result)

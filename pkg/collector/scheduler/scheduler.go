@@ -205,10 +205,8 @@ func (s *Scheduler) Stop() error {
 
 	log.Debugf("Waiting for the scheduler to shutdown")
 
-	select {
-	case <-s.halted:
-		return nil
-	}
+	<-s.halted
+	return nil
 }
 
 // IsCheckScheduled returns whether a check is in the schedule or not
