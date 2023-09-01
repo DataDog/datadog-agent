@@ -3,11 +3,9 @@ benchmark:
   # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
   timeout: 1h
-  rules:
-    !reference [.manual] # TODO: run this benchmark automatically when the trace-agent changes
+  rules: !reference [.manual] # TODO: run this benchmark automatically when the trace-agent changes
   interruptible: true
-  # tags: ["runner:apm-k8s-tweaked-metal"] # TODO: Commented out until we have the metal runners available in this repo
-  tags: ["runner:main"]
+  tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   script:
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
