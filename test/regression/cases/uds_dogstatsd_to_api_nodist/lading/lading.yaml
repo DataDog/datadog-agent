@@ -1,0 +1,34 @@
+generator:
+  - unix_datagram:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      path: "/tmp/dsd.socket"
+      variant:
+        dogstatsd:
+          context_range: 1000-8000
+          name_length_range: 32-128
+          tag_key_length_range: 1-128
+          tag_value_length_range: 1:128
+          tags_per_msg_range: 5-71
+          multivalue_count_range: 2-40
+          multivalue_pack_probability: 0.25
+          kind_weights:
+            metric: 100
+            event: 0
+            service_check: 0
+          metric_weights:
+            count: 45
+            gauge: 45
+            timer: 0
+            distribution: 0
+            set: 0
+            histogram: 0
+      bytes_per_second: "1000 Mb"
+      block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
+      maximum_prebuild_cache_size_bytes: "500 Mb"
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9092"
