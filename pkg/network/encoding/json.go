@@ -35,7 +35,7 @@ func (j jsonSerializer) Marshal(conns *network.Connections, writer io.Writer, co
 }
 
 func (jsonSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
-	conns := new(model.Connections)
+	conns := connsPool.Get().(*model.Connections)
 	reader := bytes.NewReader(blob)
 	if err := jsonpb.Unmarshal(reader, conns); err != nil {
 		return nil, err
