@@ -6,8 +6,10 @@ module Omnibus
       # Unfortunately the stripper runs before the `package_me` method is called
       # so we have to override `install_sources` which runs before the stripper
       # to inspect non-stripped binaries
-      @inspectors.each do|i|
-        i.inspect()
+      if @inspectors
+        @inspectors.each do|i|
+          i.inspect()
+        end
       end
       super
     end
