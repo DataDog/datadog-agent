@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"os"
@@ -144,7 +143,7 @@ func parseFlareMultipartData(data string, boundary string) (map[string][]byte, e
 			return multipartNameToContent, err
 		}
 
-		body, err := ioutil.ReadAll(part)
+		body, err := io.ReadAll(part)
 		if err != nil {
 			return multipartNameToContent, err
 		}
