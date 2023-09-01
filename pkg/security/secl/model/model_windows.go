@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go
 
+// Package model holds model related files
 package model
 
 import (
@@ -87,4 +88,5 @@ type PIDContext struct {
 	ExecInode uint64 `field:"-"` // used to track exec and event loss
 }
 
+// NetworkDeviceContext defines a network device context
 type NetworkDeviceContext struct{}

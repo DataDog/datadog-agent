@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -98,7 +99,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check", fentry),
 				}},
 				kprobeOrFentry("setup_new_exec_interp", fentry),
-				kprobeOrFentry("setup_new_exec_args_envs", fentry, withUid(SecurityAgentUID+"_a")),
+				kprobeOrFentry("setup_new_exec_args_envs", fentry, withUID(SecurityAgentUID+"_a")),
 				kprobeOrFentry("setup_arg_pages", fentry),
 				kprobeOrFentry("mprotect_fixup", fentry),
 				kprobeOrFentry("exit_itimers", fentry),

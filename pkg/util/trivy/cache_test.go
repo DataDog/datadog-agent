@@ -135,7 +135,7 @@ func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 	}
 
 	// Check that the currentCachedObjectTotalSize is equal to the size of the two artifacts
-	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	persistentCache := cache.(*TCache).Cache.(*PersistentCache)
 	require.Equal(t, len(serializedArtifactInfo)*len(artifactIDs), persistentCache.GetCurrentCachedObjectTotalSize())
 
 	// Remove one artifact and check that currentCachedObjectTotalSize is the size of 1 artifact
@@ -174,7 +174,7 @@ func TestCustomBoltCache_Eviction(t *testing.T) {
 	}
 
 	// Make sure only the artifact 2 and 3 are stored and currentCachedObjectTotalSize is correctly updated
-	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	persistentCache := cache.(*TCache).Cache.(*PersistentCache)
 	require.Equal(t, artifactSize["key2"]+artifactSize["key3"], persistentCache.GetCurrentCachedObjectTotalSize())
 
 	_, err = cache.GetArtifact("key2")
@@ -215,7 +215,7 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 	_, err = cache.GetArtifact("key1")
 	require.Error(t, err)
 
-	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	persistentCache := cache.(*TCache).Cache.(*PersistentCache)
 	require.Equal(t, len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
 }
 
@@ -338,7 +338,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	serializedBlobInfo, err := json.Marshal(newTestBlobInfo())
 	require.NoError(t, err)
 
-	persistentCache := cache.(*TrivyCache).Cache.(*PersistentCache)
+	persistentCache := cache.(*TCache).Cache.(*PersistentCache)
 	require.Equal(t, 2*len(serializedBlobInfo)+len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
 }
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package common holds common related files
 package common
 
 // EventTypeMetadata is used to iterate over the model from the event types
@@ -22,9 +23,9 @@ func NewEventTypeMetada(fields ...string) *EventTypeMetadata {
 type Platform string
 
 const (
-	Unspecified Platform = "unspecified"
-	Linux       Platform = "linux"
-	Windows     Platform = "windows"
+	Unspecified Platform = "unspecified" // Unspecified defines unspecified platforms
+	Linux       Platform = "linux"       // Linux defines linux platforms
+	Windows     Platform = "windows"     // Windows defines windows platforms
 )
 
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
