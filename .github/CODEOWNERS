@@ -201,6 +201,7 @@
 /comp/forwarder @DataDog/agent-shared-components
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
+/comp/netflow @DataDog/network-device-monitoring
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
 /comp/systray @DataDog/windows-agent
