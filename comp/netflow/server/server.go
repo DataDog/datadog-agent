@@ -53,15 +53,20 @@ type dependencies struct {
 	Hostname    netflowHostname
 }
 
+// newServer configures a netflow server.
 func newServer(lc fx.Lifecycle, dep dependencies) (Component, error) {
 	if !dep.Config.Enabled {
 		// no-op
 		return nil, nil
 	}
-	server, err := NewServer(dep.Sender, dep.EPForwarder, dep.Config, dep.Logger, string(dep.Hostname))
-	if err != nil {
-		return nil, err
+	flowAgg := flowaggregator.NewFlowAggregator(dep.Sender, dep.EPForwarder, dep.Config, string(dep.Hostname), dep.Logger)
+
+	server := &Server{
+		config:  dep.Config,
+		FlowAgg: flowAgg,
+		logger:  dep.Logger,
 	}
+
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			return server.Start()
@@ -82,21 +87,6 @@ type Server struct {
 	FlowAgg   *flowaggregator.FlowAggregator
 	logger    log.Component
 	started   bool
-}
-
-// NewServer configures and returns a netflow server.
-func NewServer(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder, conf *config.NetflowConfig, logger log.Component, hostname string) (*Server, error) {
-	var listeners []*netflowListener
-
-	flowAgg := flowaggregator.NewFlowAggregator(sender, epForwarder, conf, hostname, logger)
-
-	return &Server{
-		listeners: listeners,
-		config:    conf,
-		FlowAgg:   flowAgg,
-		logger:    logger,
-	}, nil
-
 }
 
 // Start starts the server running
