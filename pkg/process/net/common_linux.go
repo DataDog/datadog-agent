@@ -20,7 +20,7 @@ const (
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL             = "http://unix/debug/stats"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
-	NetType              = "unix"
+	netType              = "unix"
 )
 
 // CheckPath is used in conjunction with calling the stats endpoint, since we are calling this
