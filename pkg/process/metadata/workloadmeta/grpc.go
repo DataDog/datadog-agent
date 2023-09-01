@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"net"
 	"strconv"
 	"sync"
@@ -40,8 +41,8 @@ type GRPCServer struct {
 	closeExistingStream context.CancelFunc
 }
 
-const connectionTimeout = 10 * time.Minute
 const keepaliveInterval = 10 * time.Second
+const streamSendTimeout = 1 * time.Minute
 
 var (
 	invalidVersionError = telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version.")
@@ -57,7 +58,6 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 			grpc.KeepaliveParams(keepalive.ServerParameters{
 				Time: keepaliveInterval,
 			}),
-			grpc.ConnectionTimeout(connectionTimeout),
 		),
 		streamMutex: &sync.Mutex{},
 	}
@@ -115,6 +115,12 @@ func (l *GRPCServer) Stop() {
 	log.Info("Process Entity WorkloadMeta gRPC server stopped")
 }
 
+func sendMsg(stream pbgo.ProcessEntityStream_StreamEntitiesServer, msg *pbgo.ProcessStreamResponse) error {
+	return grpcutil.DoWithTimeout(func() error {
+		return stream.Send(msg)
+	}, streamSendTimeout)
+}
+
 // StreamEntities streams Process Entities collected through the WorkloadMetaExtractor
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
 	streamCtx := l.acquireStreamCtx()
@@ -130,7 +136,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 		EventID:   snapshotVersion,
 		SetEvents: setEvents,
 	}
-	err := out.Send(syncMessage)
+	err := sendMsg(out, syncMessage)
 	if err != nil {
 		streamServerError.Inc()
 		log.Warnf("error sending process entity event: %s", err)
@@ -170,7 +176,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 				SetEvents:   sets,
 				UnsetEvents: unsets,
 			}
-			err := out.Send(msg)
+			err := sendMsg(out, msg)
 			if err != nil {
 				streamServerError.Inc()
 				log.Warnf("error sending process entity event: %s", err)
