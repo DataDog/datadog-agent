@@ -18,6 +18,7 @@ MODULE_PATTERN = re.compile("^.*Linters for module ([^ ]+) failed \\((.+)\\).*$"
 
 CODEOWNERS_FILE_PATH = ".github/CODEOWNERS"
 
+
 def is_team_owner(file: str, team: str) -> bool:
     codeowners = read_owners(CODEOWNERS_FILE_PATH)
     team = team.lower()
@@ -61,7 +62,7 @@ def parse_file(golangci_lint_output: str):
     return lints_per_linter
 
 
-def filter_lints(lints_per_linter, filter_team: str=None, filter_linters: str=None):
+def filter_lints(lints_per_linter, filter_team: str = None, filter_linters: str = None):
     """
     Keeps only the lints from a specific team and specific linters.
 
@@ -92,11 +93,12 @@ def display_result(filtered_lints):
         return "No linter error !"
     output = ""
     for linter in filtered_lints:
-        output+= f"[{linter}]\n"
+        output += f"[{linter}]\n"
         for lint in filtered_lints[linter]:
             output += f"\n{lint[0]}:{lint[1]}:{lint[2]} {lint[3]}{lint[4]}"
         output += "\n"
     return output
+
 
 def merge_results(results_per_os_x_arch: Dict[str, str]):
     """

@@ -11,6 +11,7 @@ FIRST_COMMIT_HASH = "52a313fe7f5e8e16d487bc5dc770038bc234608b"
 # See https://go.dev/doc/install/source#environment for all available combinations of GOOS x GOARCH.
 CI_TESTED_OS_AND_ARCH = ["linux,arm64", "linux,amd64", "windows,amd64", "darwin,amd64"]
 
+
 def check_if_team_exists(team: str):
     """
     Check if an input team exists in the GITHUB_SLACK_MAP. Exits the code if it doesn't.
@@ -21,8 +22,16 @@ def check_if_team_exists(team: str):
     else:
         print("[WARNING] No team entered. Displaying linters errors for all teams.\n")
 
+
 @task(iterable=['tested_os_and_arch'])
-def show_linters_issues(ctx, filter_team: str=None, from_commit_hash: str=FIRST_COMMIT_HASH, filter_linters: str="revive", show_output=False, platforms=None):
+def show_linters_issues(
+    ctx,
+    filter_team: str = None,
+    from_commit_hash: str = FIRST_COMMIT_HASH,
+    filter_linters: str = "revive",
+    show_output = False,
+    platforms = None
+):
     """
     This function displays the list of files that need fixing for a specific team and for specific linters.
 
@@ -39,7 +48,7 @@ def show_linters_issues(ctx, filter_team: str=None, from_commit_hash: str=FIRST_
     if filter_team:
         filter_team = filter_team.lower()
     check_if_team_exists(filter_team)
-    golangci_lint_kwargs=f'"--new-from-rev {from_commit_hash} --print-issued-lines=false"'
+    golangci_lint_kwargs = f'"--new-from-rev {from_commit_hash} --print-issued-lines=false"'
     command = f"inv lint-go --golangci-lint-kwargs {golangci_lint_kwargs}"
 
     # Run the linters for every OS x Arch and merge the results
@@ -49,7 +58,9 @@ def show_linters_issues(ctx, filter_team: str=None, from_commit_hash: str=FIRST_
     for tested_os, tested_arch in platforms:
         env = {"GOOS": tested_os, "GOARCH": tested_arch}
         print(f"Running linters for {tested_os}_{tested_arch}...")
-        results_per_os_x_arch[f"{tested_os}_{tested_arch}"] = ctx.run(command, env=env, warn=True, hide=not show_output).stdout
+        results_per_os_x_arch[f"{tested_os}_{tested_arch}"] = ctx.run(
+            command, env=env, warn=True, hide=not show_output
+        ).stdout
     merged_results = merge_results(results_per_os_x_arch)
 
     # Filter the results by filtering with filter_team and filter_linters.
