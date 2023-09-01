@@ -293,6 +293,7 @@ var defaultBackoffConfig = backoff.Config{
 	MaxDelay:   5 * time.Minute,
 }
 
+// GetRemoteGRPCSysProbeConnection returns a new gRPC client connection to system-probe.
 func GetRemoteGRPCSysProbeConnection(ctx context.Context, path string) (*grpc.ClientConn, error) {
 	err := CheckPath(path)
 	if err != nil {

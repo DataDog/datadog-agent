@@ -9,8 +9,9 @@ import (
 	"io"
 	"strings"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/jsonpb"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -83,7 +84,8 @@ func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	}
 }
 
-func (c *ConnectionsModeler) WithBatchCount(count int) {
+// SetBatchCount sets the number of batches the modeler should have.
+func (c *ConnectionsModeler) SetBatchCount(count int) {
 	c.batchCount = count
 }
 
