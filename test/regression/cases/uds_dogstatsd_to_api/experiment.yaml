@@ -3,6 +3,7 @@ erratic: false
 
 environment:
   DD_TELEMETRY_ENABLED: true
+  DD_DOGSTATSD_PIPELINE_COUNT: 2
 
 profiling_environment:
   DD_INTERNAL_PROFILING_ENABLED: true
