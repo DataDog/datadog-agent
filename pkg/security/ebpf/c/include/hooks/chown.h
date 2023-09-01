@@ -64,6 +64,7 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
         return 0;
     }
 
+    // TODO: remove?
     if (is_pipefs_mount_id(syscall->setattr.file.path_key.mount_id)) {
         return 0;
     }
