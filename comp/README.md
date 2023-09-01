@@ -88,6 +88,19 @@ Package runner implements a component to generate the 'resources' metadata paylo
 
 Package runner implements a component to generate metadata payload at the right interval.
 
+## [comp/netflow](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package netflow implements the "netflow" bundle
+
+### [comp/netflow/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/server)
+
+Package server implements a component that runs the netflow server.
+When running, it listens for network traffic according to configured
+listeners and aggregates traffic data to send to the backend.
+It does not expose any public methods.
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
 *Datadog Team*: processes
