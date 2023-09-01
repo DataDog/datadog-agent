@@ -10,11 +10,13 @@ package discovery
 import (
 	"fmt"
 
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type discoveryCache struct {
@@ -39,7 +41,7 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	}
 	err := dc.fillCache()
 	if err != nil {
-		log.Error("Fail to init discovery collector", err)
+		log.Errorc(fmt.Sprintf("Fail to init discovery collector : %s", err.Error()), orchestrator.ExtraLogContext...)
 	}
 	return dc
 }

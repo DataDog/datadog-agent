@@ -73,6 +73,8 @@ else
     if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
+  else
+    conflict 'datadog-iot-agent'
   end
 end
 

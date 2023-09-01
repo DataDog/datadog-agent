@@ -46,6 +46,7 @@ build do
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
   patch source: "session_result_reset.patch", env: env # add a function to reset results from session
   patch source: "session_reset_syschar.patch", env: env # also reset system characteristics
+  patch source: "session_reset_results.patch", env: env # also reset OVAL results
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
   patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe

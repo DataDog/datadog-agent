@@ -19,7 +19,6 @@ retract (
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
-	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
@@ -42,17 +41,16 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.93
 	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
-	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/gohai v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.3.0
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.2.15
@@ -560,7 +558,8 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.1
+	github.com/DataDog/agent-payload/v5 v5.0.94
+	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
@@ -571,6 +570,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
+	go4.org/intern v0.0.0-20211027215823-ae77deb06f29
 )
 
 require (
@@ -594,8 +594,7 @@ require (
 	github.com/sigstore/rekor v1.2.2 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
-	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect

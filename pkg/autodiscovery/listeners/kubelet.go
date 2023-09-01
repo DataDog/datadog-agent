@@ -129,7 +129,7 @@ func (l *KubeletListener) createContainerService(
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
 		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
-		if time.Now().Sub(finishedAt) > excludeAge {
+		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
 		}

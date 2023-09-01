@@ -35,10 +35,7 @@ var rubyPattern = regexp.MustCompile(`^ruby\d+\.\d+$`)
 var knownPrefixes = map[string]languageFromCLI{
 	"python": {name: languagemodels.Python},
 	"java": {name: languagemodels.Java, validator: func(exe string) bool {
-		if exe == "javac" {
-			return false
-		}
-		return true
+		return exe != "javac"
 	}},
 	"ruby": {name: languagemodels.Ruby, validator: func(exe string) bool {
 		return rubyPattern.MatchString(exe)

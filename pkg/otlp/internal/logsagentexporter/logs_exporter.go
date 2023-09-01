@@ -68,10 +68,6 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					if status == "" {
 						status = message.StatusInfo
 					}
-					timestamp, err := time.Parse(time.RFC3339, ddLog.AdditionalProperties["@timestamp"])
-					if err != nil {
-						logger.Error("Error parsing timestamp: " + err.Error())
-					}
 					origin := message.NewOrigin(logSource)
 					origin.SetTags(tags)
 					origin.SetService(service)
@@ -82,7 +78,9 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 						logger.Error("Error parsing log: " + err.Error())
 					}
 
-					message := message.NewMessage(content, origin, status, timestamp.Unix())
+					// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
+					ingestionTs := time.Now().UnixNano()
+					message := message.NewMessage(content, origin, status, ingestionTs)
 
 					logsAgentChannel <- message
 				}
