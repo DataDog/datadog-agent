@@ -81,7 +81,7 @@ func (ev *Event) GetBpfProgAttachType() uint32 {
 // GetBpfProgHelpers returns the value of the field, resolving if necessary
 func (ev *Event) GetBpfProgHelpers() []uint32 {
 	if ev.GetEventType().String() != "bpf" {
-		return []int{}
+		return []uint32{}
 	}
 	return ev.BPF.Program.Helpers
 }
@@ -3109,7 +3109,7 @@ func (ev *Event) GetProcessAncestorsArgv0() []string {
 // GetProcessAncestorsCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCapEffective() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3127,7 +3127,7 @@ func (ev *Event) GetProcessAncestorsCapEffective() []uint64 {
 // GetProcessAncestorsCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3199,7 +3199,7 @@ func (ev *Event) GetProcessAncestorsCreatedAt() []int {
 // GetProcessAncestorsEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEgid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3289,7 +3289,7 @@ func (ev *Event) GetProcessAncestorsEnvsTruncated() []bool {
 // GetProcessAncestorsEuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEuid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3325,7 +3325,7 @@ func (ev *Event) GetProcessAncestorsEuser() []string {
 // GetProcessAncestorsFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileChangeTime() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3361,7 +3361,7 @@ func (ev *Event) GetProcessAncestorsFileFilesystem() []string {
 // GetProcessAncestorsFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileGid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3433,7 +3433,7 @@ func (ev *Event) GetProcessAncestorsFileInUpperLayer() []bool {
 // GetProcessAncestorsFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileInode() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3451,7 +3451,7 @@ func (ev *Event) GetProcessAncestorsFileInode() []uint64 {
 // GetProcessAncestorsFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileMode() []uint16 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint16{}
 	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
@@ -3469,7 +3469,7 @@ func (ev *Event) GetProcessAncestorsFileMode() []uint16 {
 // GetProcessAncestorsFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileModificationTime() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3487,7 +3487,7 @@ func (ev *Event) GetProcessAncestorsFileModificationTime() []uint64 {
 // GetProcessAncestorsFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileMountId() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3649,7 +3649,7 @@ func (ev *Event) GetProcessAncestorsFileRights() []int {
 // GetProcessAncestorsFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileUid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3685,7 +3685,7 @@ func (ev *Event) GetProcessAncestorsFileUser() []string {
 // GetProcessAncestorsFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFsgid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3721,7 +3721,7 @@ func (ev *Event) GetProcessAncestorsFsgroup() []string {
 // GetProcessAncestorsFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFsuid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3757,7 +3757,7 @@ func (ev *Event) GetProcessAncestorsFsuser() []string {
 // GetProcessAncestorsGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsGid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3793,7 +3793,7 @@ func (ev *Event) GetProcessAncestorsGroup() []string {
 // GetProcessAncestorsInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileChangeTime() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3829,7 +3829,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileFilesystem() []string {
 // GetProcessAncestorsInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileGid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -3901,7 +3901,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileInUpperLayer() []bool {
 // GetProcessAncestorsInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileInode() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3919,7 +3919,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileInode() []uint64 {
 // GetProcessAncestorsInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileMode() []uint16 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint16{}
 	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
@@ -3937,7 +3937,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileMode() []uint16 {
 // GetProcessAncestorsInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileModificationTime() []uint64 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -3955,7 +3955,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileModificationTime() []uint64 {
 // GetProcessAncestorsInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileMountId() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -4117,7 +4117,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileRights() []int {
 // GetProcessAncestorsInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileUid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -4189,7 +4189,7 @@ func (ev *Event) GetProcessAncestorsIsThread() []bool {
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -4207,7 +4207,7 @@ func (ev *Event) GetProcessAncestorsPid() []uint32 {
 // GetProcessAncestorsPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -4225,7 +4225,7 @@ func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 // GetProcessAncestorsTid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsTid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -4261,7 +4261,7 @@ func (ev *Event) GetProcessAncestorsTtyName() []string {
 // GetProcessAncestorsUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsUid() []uint32 {
 	if ev.GetEventType().String() != "*" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -5573,7 +5573,7 @@ func (ev *Event) GetPtraceTraceeAncestorsArgv0() []string {
 // GetPtraceTraceeAncestorsCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsCapEffective() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -5591,7 +5591,7 @@ func (ev *Event) GetPtraceTraceeAncestorsCapEffective() []uint64 {
 // GetPtraceTraceeAncestorsCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsCapPermitted() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -5663,7 +5663,7 @@ func (ev *Event) GetPtraceTraceeAncestorsCreatedAt() []int {
 // GetPtraceTraceeAncestorsEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsEgid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -5753,7 +5753,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEnvsTruncated() []bool {
 // GetPtraceTraceeAncestorsEuid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsEuid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -5789,7 +5789,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEuser() []string {
 // GetPtraceTraceeAncestorsFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFileChangeTime() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -5825,7 +5825,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileFilesystem() []string {
 // GetPtraceTraceeAncestorsFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFileGid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -5897,7 +5897,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileInUpperLayer() []bool {
 // GetPtraceTraceeAncestorsFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFileInode() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -5915,7 +5915,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileInode() []uint64 {
 // GetPtraceTraceeAncestorsFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFileMode() []uint16 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint16{}
 	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
@@ -5933,7 +5933,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileMode() []uint16 {
 // GetPtraceTraceeAncestorsFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFileModificationTime() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -5951,7 +5951,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileModificationTime() []uint64 {
 // GetPtraceTraceeAncestorsFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFileMountId() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6113,7 +6113,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileRights() []int {
 // GetPtraceTraceeAncestorsFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFileUid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6149,7 +6149,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileUser() []string {
 // GetPtraceTraceeAncestorsFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFsgid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6185,7 +6185,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFsgroup() []string {
 // GetPtraceTraceeAncestorsFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsFsuid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6221,7 +6221,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFsuser() []string {
 // GetPtraceTraceeAncestorsGid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsGid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6257,7 +6257,7 @@ func (ev *Event) GetPtraceTraceeAncestorsGroup() []string {
 // GetPtraceTraceeAncestorsInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileChangeTime() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -6293,7 +6293,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileFilesystem() []string {
 // GetPtraceTraceeAncestorsInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileGid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6365,7 +6365,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileInUpperLayer() []bool {
 // GetPtraceTraceeAncestorsInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileInode() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -6383,7 +6383,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileInode() []uint64 {
 // GetPtraceTraceeAncestorsInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileMode() []uint16 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint16{}
 	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
@@ -6401,7 +6401,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileMode() []uint16 {
 // GetPtraceTraceeAncestorsInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileModificationTime() []uint64 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -6419,7 +6419,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileModificationTime() []uin
 // GetPtraceTraceeAncestorsInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileMountId() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6581,7 +6581,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileRights() []int {
 // GetPtraceTraceeAncestorsInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileUid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6653,7 +6653,7 @@ func (ev *Event) GetPtraceTraceeAncestorsIsThread() []bool {
 // GetPtraceTraceeAncestorsPid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsPid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6671,7 +6671,7 @@ func (ev *Event) GetPtraceTraceeAncestorsPid() []uint32 {
 // GetPtraceTraceeAncestorsPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsPpid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6689,7 +6689,7 @@ func (ev *Event) GetPtraceTraceeAncestorsPpid() []uint32 {
 // GetPtraceTraceeAncestorsTid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsTid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -6725,7 +6725,7 @@ func (ev *Event) GetPtraceTraceeAncestorsTtyName() []string {
 // GetPtraceTraceeAncestorsUid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsUid() []uint32 {
 	if ev.GetEventType().String() != "ptrace" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9029,7 +9029,7 @@ func (ev *Event) GetSignalTargetAncestorsArgv0() []string {
 // GetSignalTargetAncestorsCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsCapEffective() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9047,7 +9047,7 @@ func (ev *Event) GetSignalTargetAncestorsCapEffective() []uint64 {
 // GetSignalTargetAncestorsCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsCapPermitted() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9119,7 +9119,7 @@ func (ev *Event) GetSignalTargetAncestorsCreatedAt() []int {
 // GetSignalTargetAncestorsEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsEgid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9209,7 +9209,7 @@ func (ev *Event) GetSignalTargetAncestorsEnvsTruncated() []bool {
 // GetSignalTargetAncestorsEuid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsEuid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9245,7 +9245,7 @@ func (ev *Event) GetSignalTargetAncestorsEuser() []string {
 // GetSignalTargetAncestorsFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFileChangeTime() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9281,7 +9281,7 @@ func (ev *Event) GetSignalTargetAncestorsFileFilesystem() []string {
 // GetSignalTargetAncestorsFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFileGid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9353,7 +9353,7 @@ func (ev *Event) GetSignalTargetAncestorsFileInUpperLayer() []bool {
 // GetSignalTargetAncestorsFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFileInode() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9371,7 +9371,7 @@ func (ev *Event) GetSignalTargetAncestorsFileInode() []uint64 {
 // GetSignalTargetAncestorsFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFileMode() []uint16 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint16{}
 	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
@@ -9389,7 +9389,7 @@ func (ev *Event) GetSignalTargetAncestorsFileMode() []uint16 {
 // GetSignalTargetAncestorsFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFileModificationTime() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9407,7 +9407,7 @@ func (ev *Event) GetSignalTargetAncestorsFileModificationTime() []uint64 {
 // GetSignalTargetAncestorsFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFileMountId() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9569,7 +9569,7 @@ func (ev *Event) GetSignalTargetAncestorsFileRights() []int {
 // GetSignalTargetAncestorsFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFileUid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9605,7 +9605,7 @@ func (ev *Event) GetSignalTargetAncestorsFileUser() []string {
 // GetSignalTargetAncestorsFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFsgid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9641,7 +9641,7 @@ func (ev *Event) GetSignalTargetAncestorsFsgroup() []string {
 // GetSignalTargetAncestorsFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsFsuid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9677,7 +9677,7 @@ func (ev *Event) GetSignalTargetAncestorsFsuser() []string {
 // GetSignalTargetAncestorsGid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsGid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9713,7 +9713,7 @@ func (ev *Event) GetSignalTargetAncestorsGroup() []string {
 // GetSignalTargetAncestorsInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsInterpreterFileChangeTime() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9749,7 +9749,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileFilesystem() []string {
 // GetSignalTargetAncestorsInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsInterpreterFileGid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -9821,7 +9821,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileInUpperLayer() []bool {
 // GetSignalTargetAncestorsInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsInterpreterFileInode() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9839,7 +9839,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileInode() []uint64 {
 // GetSignalTargetAncestorsInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsInterpreterFileMode() []uint16 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint16{}
 	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
@@ -9857,7 +9857,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileMode() []uint16 {
 // GetSignalTargetAncestorsInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsInterpreterFileModificationTime() []uint64 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint64{}
 	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
@@ -9875,7 +9875,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileModificationTime() []uin
 // GetSignalTargetAncestorsInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsInterpreterFileMountId() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -10037,7 +10037,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileRights() []int {
 // GetSignalTargetAncestorsInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsInterpreterFileUid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -10109,7 +10109,7 @@ func (ev *Event) GetSignalTargetAncestorsIsThread() []bool {
 // GetSignalTargetAncestorsPid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsPid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -10127,7 +10127,7 @@ func (ev *Event) GetSignalTargetAncestorsPid() []uint32 {
 // GetSignalTargetAncestorsPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsPpid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -10145,7 +10145,7 @@ func (ev *Event) GetSignalTargetAncestorsPpid() []uint32 {
 // GetSignalTargetAncestorsTid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsTid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -10181,7 +10181,7 @@ func (ev *Event) GetSignalTargetAncestorsTtyName() []string {
 // GetSignalTargetAncestorsUid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsUid() []uint32 {
 	if ev.GetEventType().String() != "signal" {
-		return []int{}
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)

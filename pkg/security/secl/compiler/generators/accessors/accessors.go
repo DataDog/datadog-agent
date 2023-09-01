@@ -665,6 +665,57 @@ func pascalCaseFieldName(fieldName string) string {
 	return strings.Join(chunks, "")
 }
 
+func getDefaultValueOfType(returnType string) string {
+	isArray := false
+
+	baseType, found := strings.CutPrefix(returnType, "[]")
+	if found {
+		isArray = true
+	}
+
+	if baseType == "int" {
+		if isArray {
+			return "[]int{}"
+		}
+		return "0"
+	} else if baseType == "int64" {
+		if isArray {
+			return "[]int64{}"
+		}
+		return "0"
+	} else if baseType == "uint16" {
+		if isArray {
+			return "[]uint16{}"
+		}
+		return "0"
+	} else if baseType == "uint32" {
+		if isArray {
+			return "[]uint32{}"
+		}
+		return "0"
+	} else if baseType == "uint64" {
+		if isArray {
+			return "[]uint64{}"
+		}
+		return "0"
+	} else if baseType == "bool" {
+		if isArray {
+			return "[]bool{}"
+		}
+		return "false"
+	} else if baseType == "net.IPNet" {
+		if isArray {
+			return "&eval.CIDRValues{}"
+		}
+		return "net.IPNet{}"
+	} else {
+		if isArray {
+			return "[]string{}"
+		}
+		return `""`
+	}
+}
+
 func getFieldHandler(allFields map[string]*common.StructField, field *common.StructField) string {
 	if field.Handler == "" || field.Iterator != nil || field.Helper {
 		return ""
@@ -769,15 +820,16 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 }
 
 var funcMap = map[string]interface{}{
-	"TrimPrefix":          strings.TrimPrefix,
-	"TrimSuffix":          strings.TrimSuffix,
-	"HasPrefix":           strings.HasPrefix,
-	"NewField":            newField,
-	"GetFieldHandler":     getFieldHandler,
-	"FieldADPrint":        fieldADPrint,
-	"GetChecks":           getChecks,
-	"GetHandlers":         getHandlers,
-	"PascalCaseFieldName": pascalCaseFieldName,
+	"TrimPrefix":            strings.TrimPrefix,
+	"TrimSuffix":            strings.TrimSuffix,
+	"HasPrefix":             strings.HasPrefix,
+	"NewField":              newField,
+	"GetFieldHandler":       getFieldHandler,
+	"FieldADPrint":          fieldADPrint,
+	"GetChecks":             getChecks,
+	"GetHandlers":           getHandlers,
+	"PascalCaseFieldName":   pascalCaseFieldName,
+	"GetDefaultValueOfType": getDefaultValueOfType,
 }
 
 //go:embed accessors.tmpl

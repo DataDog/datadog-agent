@@ -30,7 +30,7 @@ import (
 // Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
 func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
     if ev.GetEventType().String() != "{{$Field.Event}}" {
-        return {{ $Field.GetDefaultReturnValue }}
+		return {{ GetDefaultValueOfType $accessorReturnType}}
     }
 
     {{if $Field.Iterator}}
