@@ -31,17 +31,17 @@ import (
 )
 
 type Server struct {
-	mu            sync.RWMutex
-	server        http.Server
-	ready         chan bool
-	clock         clock.Clock
-	retention     time.Duration
-	shutdown      chan struct{}
-	payloadParser PayloadParser
+	mu        sync.RWMutex
+	server    http.Server
+	ready     chan bool
+	clock     clock.Clock
+	retention time.Duration
+	shutdown  chan struct{}
 
 	url string
 
-	payloadStore map[string][]api.Payload
+	payloadStore       map[string][]api.Payload
+	payloadParsedStore PayloadParsedStore
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -50,11 +50,11 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		mu:            sync.RWMutex{},
-		payloadStore:  map[string][]api.Payload{},
-		clock:         clock.New(),
-		payloadParser: NewPayloadParser(),
-		retention:     15 * time.Minute,
+		mu:                 sync.RWMutex{},
+		payloadStore:       map[string][]api.Payload{},
+		clock:              clock.New(),
+		payloadParsedStore: NewPayloadParsedStore(),
+		retention:          15 * time.Minute,
 	}
 
 	mux := http.NewServeMux()
@@ -170,11 +170,10 @@ func (fi *Server) IsRunning() bool {
 
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
-	defer close(fi.shutdown)
-
 	if !fi.IsRunning() {
 		return fmt.Errorf("server not running")
 	}
+	defer close(fi.shutdown)
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
@@ -251,6 +250,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
+		log.Printf("Error reading body: %v", err.Error())
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return
@@ -264,6 +264,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	err = fi.safeAppendPayload(req.URL.Path, payload, encoding)
 	if err != nil {
+		log.Printf("Error caching payload: %v", err.Error())
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return
@@ -299,7 +300,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Handling GetPayload request for %s payloads.", route)
 	var jsonResp []byte
 	var err error
-	if req.URL.Query().Get("format") == "" {
+	if req.URL.Query().Get("format") != "json" {
 		payloads := fi.safeGetRawPayloads(route)
 
 		// build response
@@ -307,7 +308,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
-	} else if fi.payloadParser.IsRouteHandled(route) {
+	} else if fi.payloadParsedStore.IsRouteHandled(route) {
 		payloads, payloadErr := fi.safeGetJsonPayloads(route)
 		if payloadErr != nil {
 			writeHTTPResponse(w, httpResponse{
@@ -365,7 +366,7 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 		Encoding:  encoding,
 	}
 	fi.payloadStore[route] = append(fi.payloadStore[route], rawPayload)
-	return fi.payloadParser.parse(rawPayload, route)
+	return fi.payloadParsedStore.parseAndAppend(rawPayload, route)
 }
 
 func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
@@ -379,7 +380,7 @@ func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
 func (fi *Server) safeGetJsonPayloads(route string) ([]api.ParsedPayload, error) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-	payload, err := fi.payloadParser.getJsonPayload(route)
+	payload, err := fi.payloadParsedStore.getJSONPayload(route)
 	if err != nil {
 		return nil, err
 	}
@@ -392,6 +393,7 @@ func (fi *Server) safeFlushPayloads() {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
 	fi.payloadStore = map[string][]api.Payload{}
+	fi.payloadParsedStore.Clean()
 }
 
 func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
