@@ -9,6 +9,8 @@
 package serializers
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
 )
@@ -22,4 +24,9 @@ func (v EventSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *EventSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+}
+
+// NewEventSerializer creates a new event serializer based on the event type
+func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
+	return nil
 }

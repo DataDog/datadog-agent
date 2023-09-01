@@ -61,7 +61,7 @@ def run_golangci_lint(
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(sorted(set(tags)))
         result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
+            f'golangci-lint run {verbosity} --timeout 25m0s {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )

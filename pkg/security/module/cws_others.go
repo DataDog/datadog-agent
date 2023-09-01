@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !linux
+
 package module
 
 import (
@@ -11,7 +13,7 @@ import (
 )
 
 func getFamilyAddress(config *config.RuntimeSecurityConfig) (string, string) {
-	return "tcp", "127.0.0.1:22222"
+	return "tcp", config.SocketPath
 }
 
 // UpdateEventMonitorOpts adapt the event monitor options
