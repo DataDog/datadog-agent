@@ -23,12 +23,12 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: "3.8.10"
 
       - name: Install go
         uses: actions/setup-go@v3
         with:
-          go-version-file: '.go-version'
+          go-version-file: ".go-version"
 
       - name: Set up runner
         run: |
@@ -54,7 +54,7 @@ jobs:
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
-          inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
+          inv -e test --junit-tar "$Env:JUNIT_TAR" --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
 
       - name: Upload Codecov results
         uses: codecov/codecov-action@v3
