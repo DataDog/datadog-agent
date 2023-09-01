@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"net"
 	"strconv"
 	"sync"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
