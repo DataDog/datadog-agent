@@ -18,8 +18,17 @@ import (
 
 {{ $pascalCaseName := PascalCaseFieldName $Name }}
 
+{{$accessorReturnType := $Field.OrigType}}
+{{ if $Field.Handler}}
+    {{$accessorReturnType = $Field.ReturnType}}
+{{ end }}
+
+{{ if or ($Field.Iterator) ($Field.IsArray) }}
+    {{$accessorReturnType = $accessorReturnType | printf "[]%s" }}
+{{ end }}
+
 // Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
-func (ev *Event) Get{{$pascalCaseName}}() {{ if or ($Field.Iterator) ($Field.IsArray) }}[]{{- $Field.OrigType}}{{ else }}{{$Field.OrigType}}{{ end }} {
+func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
     if ev.GetEventType().String() != "{{$Field.Event}}" {
         return {{ $Field.GetDefaultReturnValue }}
     }

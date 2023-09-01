@@ -287,7 +287,7 @@ func (ev *Event) GetChmodFilePathLength() int {
 }
 
 // GetChmodFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetChmodFileRights() uint16 {
+func (ev *Event) GetChmodFileRights() int {
 	if ev.GetEventType().String() != "chmod" {
 		return 0
 	}
@@ -487,7 +487,7 @@ func (ev *Event) GetChownFilePathLength() int {
 }
 
 // GetChownFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetChownFileRights() uint16 {
+func (ev *Event) GetChownFileRights() int {
 	if ev.GetEventType().String() != "chown" {
 		return 0
 	}
@@ -519,7 +519,7 @@ func (ev *Event) GetChownRetval() int64 {
 }
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetContainerCreatedAt() uint64 {
+func (ev *Event) GetContainerCreatedAt() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -607,7 +607,7 @@ func (ev *Event) GetEventAsync() bool {
 }
 
 // GetEventTimestamp returns the value of the field, resolving if necessary
-func (ev *Event) GetEventTimestamp() uint64 {
+func (ev *Event) GetEventTimestamp() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -695,7 +695,7 @@ func (ev *Event) GetExecContainerId() string {
 }
 
 // GetExecCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetExecCreatedAt() uint64 {
+func (ev *Event) GetExecCreatedAt() int {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
@@ -895,7 +895,7 @@ func (ev *Event) GetExecFilePathLength() int {
 }
 
 // GetExecFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetExecFileRights() uint16 {
+func (ev *Event) GetExecFileRights() int {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
@@ -1103,7 +1103,7 @@ func (ev *Event) GetExecInterpreterFilePathLength() int {
 }
 
 // GetExecInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetExecInterpreterFileRights() uint16 {
+func (ev *Event) GetExecInterpreterFileRights() int {
 	if ev.GetEventType().String() != "exec" {
 		return 0
 	}
@@ -1287,7 +1287,7 @@ func (ev *Event) GetExitContainerId() string {
 }
 
 // GetExitCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetExitCreatedAt() uint64 {
+func (ev *Event) GetExitCreatedAt() int {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
@@ -1487,7 +1487,7 @@ func (ev *Event) GetExitFilePathLength() int {
 }
 
 // GetExitFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetExitFileRights() uint16 {
+func (ev *Event) GetExitFileRights() int {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
@@ -1695,7 +1695,7 @@ func (ev *Event) GetExitInterpreterFilePathLength() int {
 }
 
 // GetExitInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetExitInterpreterFileRights() uint16 {
+func (ev *Event) GetExitInterpreterFileRights() int {
 	if ev.GetEventType().String() != "exit" {
 		return 0
 	}
@@ -1927,7 +1927,7 @@ func (ev *Event) GetLinkFileDestinationPathLength() int {
 }
 
 // GetLinkFileDestinationRights returns the value of the field, resolving if necessary
-func (ev *Event) GetLinkFileDestinationRights() uint16 {
+func (ev *Event) GetLinkFileDestinationRights() int {
 	if ev.GetEventType().String() != "link" {
 		return 0
 	}
@@ -2079,7 +2079,7 @@ func (ev *Event) GetLinkFilePathLength() int {
 }
 
 // GetLinkFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetLinkFileRights() uint16 {
+func (ev *Event) GetLinkFileRights() int {
 	if ev.GetEventType().String() != "link" {
 		return 0
 	}
@@ -2271,7 +2271,7 @@ func (ev *Event) GetLoadModuleFilePathLength() int {
 }
 
 // GetLoadModuleFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetLoadModuleFileRights() uint16 {
+func (ev *Event) GetLoadModuleFileRights() int {
 	if ev.GetEventType().String() != "load_module" {
 		return 0
 	}
@@ -2471,7 +2471,7 @@ func (ev *Event) GetMkdirFilePathLength() int {
 }
 
 // GetMkdirFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetMkdirFileRights() uint16 {
+func (ev *Event) GetMkdirFileRights() int {
 	if ev.GetEventType().String() != "mkdir" {
 		return 0
 	}
@@ -2639,7 +2639,7 @@ func (ev *Event) GetMmapFilePathLength() int {
 }
 
 // GetMmapFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapFileRights() uint16 {
+func (ev *Event) GetMmapFileRights() int {
 	if ev.GetEventType().String() != "mmap" {
 		return 0
 	}
@@ -2959,7 +2959,7 @@ func (ev *Event) GetOpenFilePathLength() int {
 }
 
 // GetOpenFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetOpenFileRights() uint16 {
+func (ev *Event) GetOpenFileRights() int {
 	if ev.GetEventType().String() != "open" {
 		return 0
 	}
@@ -3179,7 +3179,7 @@ func (ev *Event) GetProcessAncestorsContainerId() []string {
 }
 
 // GetProcessAncestorsCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsCreatedAt() []uint64 {
+func (ev *Event) GetProcessAncestorsCreatedAt() []int {
 	if ev.GetEventType().String() != "*" {
 		return []int{}
 	}
@@ -3629,7 +3629,7 @@ func (ev *Event) GetProcessAncestorsFilePathLength() []int {
 }
 
 // GetProcessAncestorsFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsFileRights() []uint16 {
+func (ev *Event) GetProcessAncestorsFileRights() []int {
 	if ev.GetEventType().String() != "*" {
 		return []int{}
 	}
@@ -4097,7 +4097,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePathLength() []int {
 }
 
 // GetProcessAncestorsInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsInterpreterFileRights() []uint16 {
+func (ev *Event) GetProcessAncestorsInterpreterFileRights() []int {
 	if ev.GetEventType().String() != "*" {
 		return []int{}
 	}
@@ -4375,7 +4375,7 @@ func (ev *Event) GetProcessContainerId() string {
 }
 
 // GetProcessCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessCreatedAt() uint64 {
+func (ev *Event) GetProcessCreatedAt() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -4575,7 +4575,7 @@ func (ev *Event) GetProcessFilePathLength() int {
 }
 
 // GetProcessFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessFileRights() uint16 {
+func (ev *Event) GetProcessFileRights() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -4783,7 +4783,7 @@ func (ev *Event) GetProcessInterpreterFilePathLength() int {
 }
 
 // GetProcessInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessInterpreterFileRights() uint16 {
+func (ev *Event) GetProcessInterpreterFileRights() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -4903,7 +4903,7 @@ func (ev *Event) GetProcessParentContainerId() string {
 }
 
 // GetProcessParentCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentCreatedAt() uint64 {
+func (ev *Event) GetProcessParentCreatedAt() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -5103,7 +5103,7 @@ func (ev *Event) GetProcessParentFilePathLength() int {
 }
 
 // GetProcessParentFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentFileRights() uint16 {
+func (ev *Event) GetProcessParentFileRights() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -5311,7 +5311,7 @@ func (ev *Event) GetProcessParentInterpreterFilePathLength() int {
 }
 
 // GetProcessParentInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentInterpreterFileRights() uint16 {
+func (ev *Event) GetProcessParentInterpreterFileRights() int {
 	if ev.GetEventType().String() != "*" {
 		return 0
 	}
@@ -5643,7 +5643,7 @@ func (ev *Event) GetPtraceTraceeAncestorsContainerId() []string {
 }
 
 // GetPtraceTraceeAncestorsCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeAncestorsCreatedAt() []uint64 {
+func (ev *Event) GetPtraceTraceeAncestorsCreatedAt() []int {
 	if ev.GetEventType().String() != "ptrace" {
 		return []int{}
 	}
@@ -6093,7 +6093,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFilePathLength() []int {
 }
 
 // GetPtraceTraceeAncestorsFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeAncestorsFileRights() []uint16 {
+func (ev *Event) GetPtraceTraceeAncestorsFileRights() []int {
 	if ev.GetEventType().String() != "ptrace" {
 		return []int{}
 	}
@@ -6561,7 +6561,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFilePathLength() []int {
 }
 
 // GetPtraceTraceeAncestorsInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileRights() []uint16 {
+func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileRights() []int {
 	if ev.GetEventType().String() != "ptrace" {
 		return []int{}
 	}
@@ -6839,7 +6839,7 @@ func (ev *Event) GetPtraceTraceeContainerId() string {
 }
 
 // GetPtraceTraceeCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeCreatedAt() uint64 {
+func (ev *Event) GetPtraceTraceeCreatedAt() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
@@ -7039,7 +7039,7 @@ func (ev *Event) GetPtraceTraceeFilePathLength() int {
 }
 
 // GetPtraceTraceeFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeFileRights() uint16 {
+func (ev *Event) GetPtraceTraceeFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
@@ -7247,7 +7247,7 @@ func (ev *Event) GetPtraceTraceeInterpreterFilePathLength() int {
 }
 
 // GetPtraceTraceeInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeInterpreterFileRights() uint16 {
+func (ev *Event) GetPtraceTraceeInterpreterFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
@@ -7367,7 +7367,7 @@ func (ev *Event) GetPtraceTraceeParentContainerId() string {
 }
 
 // GetPtraceTraceeParentCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeParentCreatedAt() uint64 {
+func (ev *Event) GetPtraceTraceeParentCreatedAt() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
@@ -7567,7 +7567,7 @@ func (ev *Event) GetPtraceTraceeParentFilePathLength() int {
 }
 
 // GetPtraceTraceeParentFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeParentFileRights() uint16 {
+func (ev *Event) GetPtraceTraceeParentFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
@@ -7775,7 +7775,7 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFilePathLength() int {
 }
 
 // GetPtraceTraceeParentInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetPtraceTraceeParentInterpreterFileRights() uint16 {
+func (ev *Event) GetPtraceTraceeParentInterpreterFileRights() int {
 	if ev.GetEventType().String() != "ptrace" {
 		return 0
 	}
@@ -8063,7 +8063,7 @@ func (ev *Event) GetRemovexattrFilePathLength() int {
 }
 
 // GetRemovexattrFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetRemovexattrFileRights() uint16 {
+func (ev *Event) GetRemovexattrFileRights() int {
 	if ev.GetEventType().String() != "removexattr" {
 		return 0
 	}
@@ -8239,7 +8239,7 @@ func (ev *Event) GetRenameFileDestinationPathLength() int {
 }
 
 // GetRenameFileDestinationRights returns the value of the field, resolving if necessary
-func (ev *Event) GetRenameFileDestinationRights() uint16 {
+func (ev *Event) GetRenameFileDestinationRights() int {
 	if ev.GetEventType().String() != "rename" {
 		return 0
 	}
@@ -8391,7 +8391,7 @@ func (ev *Event) GetRenameFilePathLength() int {
 }
 
 // GetRenameFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetRenameFileRights() uint16 {
+func (ev *Event) GetRenameFileRights() int {
 	if ev.GetEventType().String() != "rename" {
 		return 0
 	}
@@ -8559,7 +8559,7 @@ func (ev *Event) GetRmdirFilePathLength() int {
 }
 
 // GetRmdirFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetRmdirFileRights() uint16 {
+func (ev *Event) GetRmdirFileRights() int {
 	if ev.GetEventType().String() != "rmdir" {
 		return 0
 	}
@@ -8871,7 +8871,7 @@ func (ev *Event) GetSetxattrFilePathLength() int {
 }
 
 // GetSetxattrFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSetxattrFileRights() uint16 {
+func (ev *Event) GetSetxattrFileRights() int {
 	if ev.GetEventType().String() != "setxattr" {
 		return 0
 	}
@@ -9099,7 +9099,7 @@ func (ev *Event) GetSignalTargetAncestorsContainerId() []string {
 }
 
 // GetSignalTargetAncestorsCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetAncestorsCreatedAt() []uint64 {
+func (ev *Event) GetSignalTargetAncestorsCreatedAt() []int {
 	if ev.GetEventType().String() != "signal" {
 		return []int{}
 	}
@@ -9549,7 +9549,7 @@ func (ev *Event) GetSignalTargetAncestorsFilePathLength() []int {
 }
 
 // GetSignalTargetAncestorsFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetAncestorsFileRights() []uint16 {
+func (ev *Event) GetSignalTargetAncestorsFileRights() []int {
 	if ev.GetEventType().String() != "signal" {
 		return []int{}
 	}
@@ -10017,7 +10017,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFilePathLength() []int {
 }
 
 // GetSignalTargetAncestorsInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetAncestorsInterpreterFileRights() []uint16 {
+func (ev *Event) GetSignalTargetAncestorsInterpreterFileRights() []int {
 	if ev.GetEventType().String() != "signal" {
 		return []int{}
 	}
@@ -10295,7 +10295,7 @@ func (ev *Event) GetSignalTargetContainerId() string {
 }
 
 // GetSignalTargetCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetCreatedAt() uint64 {
+func (ev *Event) GetSignalTargetCreatedAt() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
@@ -10495,7 +10495,7 @@ func (ev *Event) GetSignalTargetFilePathLength() int {
 }
 
 // GetSignalTargetFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetFileRights() uint16 {
+func (ev *Event) GetSignalTargetFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
@@ -10703,7 +10703,7 @@ func (ev *Event) GetSignalTargetInterpreterFilePathLength() int {
 }
 
 // GetSignalTargetInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetInterpreterFileRights() uint16 {
+func (ev *Event) GetSignalTargetInterpreterFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
@@ -10823,7 +10823,7 @@ func (ev *Event) GetSignalTargetParentContainerId() string {
 }
 
 // GetSignalTargetParentCreatedAt returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetParentCreatedAt() uint64 {
+func (ev *Event) GetSignalTargetParentCreatedAt() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
@@ -11023,7 +11023,7 @@ func (ev *Event) GetSignalTargetParentFilePathLength() int {
 }
 
 // GetSignalTargetParentFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetParentFileRights() uint16 {
+func (ev *Event) GetSignalTargetParentFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
@@ -11231,7 +11231,7 @@ func (ev *Event) GetSignalTargetParentInterpreterFilePathLength() int {
 }
 
 // GetSignalTargetParentInterpreterFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSignalTargetParentInterpreterFileRights() uint16 {
+func (ev *Event) GetSignalTargetParentInterpreterFileRights() int {
 	if ev.GetEventType().String() != "signal" {
 		return 0
 	}
@@ -11511,7 +11511,7 @@ func (ev *Event) GetSpliceFilePathLength() int {
 }
 
 // GetSpliceFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetSpliceFileRights() uint16 {
+func (ev *Event) GetSpliceFileRights() int {
 	if ev.GetEventType().String() != "splice" {
 		return 0
 	}
@@ -11695,7 +11695,7 @@ func (ev *Event) GetUnlinkFilePathLength() int {
 }
 
 // GetUnlinkFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetUnlinkFileRights() uint16 {
+func (ev *Event) GetUnlinkFileRights() int {
 	if ev.GetEventType().String() != "unlink" {
 		return 0
 	}
@@ -11887,7 +11887,7 @@ func (ev *Event) GetUtimesFilePathLength() int {
 }
 
 // GetUtimesFileRights returns the value of the field, resolving if necessary
-func (ev *Event) GetUtimesFileRights() uint16 {
+func (ev *Event) GetUtimesFileRights() int {
 	if ev.GetEventType().String() != "utimes" {
 		return 0
 	}
