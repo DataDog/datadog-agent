@@ -520,25 +520,16 @@ func (ev *Event) GetChownRetval() int64 {
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 }
 
 // GetContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerId() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 }
 
 // GetContainerTags returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerTags() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 }
 
@@ -600,17 +591,11 @@ func (ev *Event) GetDnsQuestionType() uint16 {
 
 // GetEventAsync returns the value of the field, resolving if necessary
 func (ev *Event) GetEventAsync() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveAsync(ev)
 }
 
 // GetEventTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetEventTimestamp() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 }
 
@@ -2744,73 +2729,46 @@ func (ev *Event) GetMprotectVmProtection() int {
 
 // GetNetworkDestinationIp returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDestinationIp() net.IPNet {
-	if ev.GetEventType().String() != "*" {
-		return net.IPNet{}
-	}
 	return ev.BaseEvent.NetworkContext.Destination.IPNet
 }
 
 // GetNetworkDestinationPort returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDestinationPort() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.NetworkContext.Destination.Port
 }
 
 // GetNetworkDeviceIfindex returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDeviceIfindex() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.NetworkContext.Device.IfIndex
 }
 
 // GetNetworkDeviceIfname returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDeviceIfname() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device)
 }
 
 // GetNetworkL3Protocol returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkL3Protocol() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.NetworkContext.L3Protocol
 }
 
 // GetNetworkL4Protocol returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkL4Protocol() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.NetworkContext.L4Protocol
 }
 
 // GetNetworkSize returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkSize() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.NetworkContext.Size
 }
 
 // GetNetworkSourceIp returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkSourceIp() net.IPNet {
-	if ev.GetEventType().String() != "*" {
-		return net.IPNet{}
-	}
 	return ev.BaseEvent.NetworkContext.Source.IPNet
 }
 
 // GetNetworkSourcePort returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkSourcePort() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.NetworkContext.Source.Port
 }
 
@@ -3000,9 +2958,6 @@ func (ev *Event) GetOpenRetval() int64 {
 
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgs() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3018,9 +2973,6 @@ func (ev *Event) GetProcessAncestorsArgs() []string {
 
 // GetProcessAncestorsArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgsFlags() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3036,9 +2988,6 @@ func (ev *Event) GetProcessAncestorsArgsFlags() []string {
 
 // GetProcessAncestorsArgsOptions returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgsOptions() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3054,9 +3003,6 @@ func (ev *Event) GetProcessAncestorsArgsOptions() []string {
 
 // GetProcessAncestorsArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgsTruncated() []bool {
-	if ev.GetEventType().String() != "*" {
-		return []bool{}
-	}
 	var values []bool
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3072,9 +3018,6 @@ func (ev *Event) GetProcessAncestorsArgsTruncated() []bool {
 
 // GetProcessAncestorsArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgv() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3090,9 +3033,6 @@ func (ev *Event) GetProcessAncestorsArgv() []string {
 
 // GetProcessAncestorsArgv0 returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgv0() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3108,9 +3048,6 @@ func (ev *Event) GetProcessAncestorsArgv0() []string {
 
 // GetProcessAncestorsCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCapEffective() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3126,9 +3063,6 @@ func (ev *Event) GetProcessAncestorsCapEffective() []uint64 {
 
 // GetProcessAncestorsCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3144,9 +3078,6 @@ func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
 
 // GetProcessAncestorsComm returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsComm() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3162,9 +3093,6 @@ func (ev *Event) GetProcessAncestorsComm() []string {
 
 // GetProcessAncestorsContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsContainerId() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3180,9 +3108,6 @@ func (ev *Event) GetProcessAncestorsContainerId() []string {
 
 // GetProcessAncestorsCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCreatedAt() []int {
-	if ev.GetEventType().String() != "*" {
-		return []int{}
-	}
 	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3198,9 +3123,6 @@ func (ev *Event) GetProcessAncestorsCreatedAt() []int {
 
 // GetProcessAncestorsEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEgid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3216,9 +3138,6 @@ func (ev *Event) GetProcessAncestorsEgid() []uint32 {
 
 // GetProcessAncestorsEgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEgroup() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3234,9 +3153,6 @@ func (ev *Event) GetProcessAncestorsEgroup() []string {
 
 // GetProcessAncestorsEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEnvp() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3252,9 +3168,6 @@ func (ev *Event) GetProcessAncestorsEnvp() []string {
 
 // GetProcessAncestorsEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEnvs() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3270,9 +3183,6 @@ func (ev *Event) GetProcessAncestorsEnvs() []string {
 
 // GetProcessAncestorsEnvsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEnvsTruncated() []bool {
-	if ev.GetEventType().String() != "*" {
-		return []bool{}
-	}
 	var values []bool
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3288,9 +3198,6 @@ func (ev *Event) GetProcessAncestorsEnvsTruncated() []bool {
 
 // GetProcessAncestorsEuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEuid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3306,9 +3213,6 @@ func (ev *Event) GetProcessAncestorsEuid() []uint32 {
 
 // GetProcessAncestorsEuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEuser() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3324,9 +3228,6 @@ func (ev *Event) GetProcessAncestorsEuser() []string {
 
 // GetProcessAncestorsFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileChangeTime() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3342,9 +3243,6 @@ func (ev *Event) GetProcessAncestorsFileChangeTime() []uint64 {
 
 // GetProcessAncestorsFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileFilesystem() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3360,9 +3258,6 @@ func (ev *Event) GetProcessAncestorsFileFilesystem() []string {
 
 // GetProcessAncestorsFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileGid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3378,9 +3273,6 @@ func (ev *Event) GetProcessAncestorsFileGid() []uint32 {
 
 // GetProcessAncestorsFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileGroup() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3396,9 +3288,6 @@ func (ev *Event) GetProcessAncestorsFileGroup() []string {
 
 // GetProcessAncestorsFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileHashes() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3414,9 +3303,6 @@ func (ev *Event) GetProcessAncestorsFileHashes() []string {
 
 // GetProcessAncestorsFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileInUpperLayer() []bool {
-	if ev.GetEventType().String() != "*" {
-		return []bool{}
-	}
 	var values []bool
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3432,9 +3318,6 @@ func (ev *Event) GetProcessAncestorsFileInUpperLayer() []bool {
 
 // GetProcessAncestorsFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileInode() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3450,9 +3333,6 @@ func (ev *Event) GetProcessAncestorsFileInode() []uint64 {
 
 // GetProcessAncestorsFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileMode() []uint16 {
-	if ev.GetEventType().String() != "*" {
-		return []uint16{}
-	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3468,9 +3348,6 @@ func (ev *Event) GetProcessAncestorsFileMode() []uint16 {
 
 // GetProcessAncestorsFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileModificationTime() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3486,9 +3363,6 @@ func (ev *Event) GetProcessAncestorsFileModificationTime() []uint64 {
 
 // GetProcessAncestorsFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileMountId() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3504,9 +3378,6 @@ func (ev *Event) GetProcessAncestorsFileMountId() []uint32 {
 
 // GetProcessAncestorsFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileName() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3522,9 +3393,6 @@ func (ev *Event) GetProcessAncestorsFileName() []string {
 
 // GetProcessAncestorsFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileNameLength() []int {
-	if ev.GetEventType().String() != "*" {
-		return []int{}
-	}
 	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3540,9 +3408,6 @@ func (ev *Event) GetProcessAncestorsFileNameLength() []int {
 
 // GetProcessAncestorsFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFilePackageName() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3558,9 +3423,6 @@ func (ev *Event) GetProcessAncestorsFilePackageName() []string {
 
 // GetProcessAncestorsFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFilePackageSourceVersion() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3576,9 +3438,6 @@ func (ev *Event) GetProcessAncestorsFilePackageSourceVersion() []string {
 
 // GetProcessAncestorsFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFilePackageVersion() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3594,9 +3453,6 @@ func (ev *Event) GetProcessAncestorsFilePackageVersion() []string {
 
 // GetProcessAncestorsFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFilePath() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3612,9 +3468,6 @@ func (ev *Event) GetProcessAncestorsFilePath() []string {
 
 // GetProcessAncestorsFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFilePathLength() []int {
-	if ev.GetEventType().String() != "*" {
-		return []int{}
-	}
 	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3630,9 +3483,6 @@ func (ev *Event) GetProcessAncestorsFilePathLength() []int {
 
 // GetProcessAncestorsFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileRights() []int {
-	if ev.GetEventType().String() != "*" {
-		return []int{}
-	}
 	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3648,9 +3498,6 @@ func (ev *Event) GetProcessAncestorsFileRights() []int {
 
 // GetProcessAncestorsFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileUid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3666,9 +3513,6 @@ func (ev *Event) GetProcessAncestorsFileUid() []uint32 {
 
 // GetProcessAncestorsFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileUser() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3684,9 +3528,6 @@ func (ev *Event) GetProcessAncestorsFileUser() []string {
 
 // GetProcessAncestorsFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFsgid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3702,9 +3543,6 @@ func (ev *Event) GetProcessAncestorsFsgid() []uint32 {
 
 // GetProcessAncestorsFsgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFsgroup() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3720,9 +3558,6 @@ func (ev *Event) GetProcessAncestorsFsgroup() []string {
 
 // GetProcessAncestorsFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFsuid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3738,9 +3573,6 @@ func (ev *Event) GetProcessAncestorsFsuid() []uint32 {
 
 // GetProcessAncestorsFsuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFsuser() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3756,9 +3588,6 @@ func (ev *Event) GetProcessAncestorsFsuser() []string {
 
 // GetProcessAncestorsGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsGid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3774,9 +3603,6 @@ func (ev *Event) GetProcessAncestorsGid() []uint32 {
 
 // GetProcessAncestorsGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsGroup() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3792,9 +3618,6 @@ func (ev *Event) GetProcessAncestorsGroup() []string {
 
 // GetProcessAncestorsInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileChangeTime() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3810,9 +3633,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileChangeTime() []uint64 {
 
 // GetProcessAncestorsInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileFilesystem() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3828,9 +3648,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileFilesystem() []string {
 
 // GetProcessAncestorsInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileGid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3846,9 +3663,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileGid() []uint32 {
 
 // GetProcessAncestorsInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileGroup() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3864,9 +3678,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileGroup() []string {
 
 // GetProcessAncestorsInterpreterFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileHashes() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3882,9 +3693,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileHashes() []string {
 
 // GetProcessAncestorsInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileInUpperLayer() []bool {
-	if ev.GetEventType().String() != "*" {
-		return []bool{}
-	}
 	var values []bool
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3900,9 +3708,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileInUpperLayer() []bool {
 
 // GetProcessAncestorsInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileInode() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3918,9 +3723,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileInode() []uint64 {
 
 // GetProcessAncestorsInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileMode() []uint16 {
-	if ev.GetEventType().String() != "*" {
-		return []uint16{}
-	}
 	var values []uint16
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3936,9 +3738,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileMode() []uint16 {
 
 // GetProcessAncestorsInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileModificationTime() []uint64 {
-	if ev.GetEventType().String() != "*" {
-		return []uint64{}
-	}
 	var values []uint64
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3954,9 +3753,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileModificationTime() []uint64 {
 
 // GetProcessAncestorsInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileMountId() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3972,9 +3768,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileMountId() []uint32 {
 
 // GetProcessAncestorsInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileName() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -3990,9 +3783,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileName() []string {
 
 // GetProcessAncestorsInterpreterFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileNameLength() []int {
-	if ev.GetEventType().String() != "*" {
-		return []int{}
-	}
 	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4008,9 +3798,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileNameLength() []int {
 
 // GetProcessAncestorsInterpreterFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFilePackageName() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4026,9 +3813,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePackageName() []string {
 
 // GetProcessAncestorsInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFilePackageSourceVersion() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4044,9 +3828,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePackageSourceVersion() []stri
 
 // GetProcessAncestorsInterpreterFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFilePackageVersion() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4062,9 +3843,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePackageVersion() []string {
 
 // GetProcessAncestorsInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFilePath() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4080,9 +3858,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePath() []string {
 
 // GetProcessAncestorsInterpreterFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFilePathLength() []int {
-	if ev.GetEventType().String() != "*" {
-		return []int{}
-	}
 	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4098,9 +3873,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFilePathLength() []int {
 
 // GetProcessAncestorsInterpreterFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileRights() []int {
-	if ev.GetEventType().String() != "*" {
-		return []int{}
-	}
 	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4116,9 +3888,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileRights() []int {
 
 // GetProcessAncestorsInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileUid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4134,9 +3903,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileUid() []uint32 {
 
 // GetProcessAncestorsInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsInterpreterFileUser() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4152,9 +3918,6 @@ func (ev *Event) GetProcessAncestorsInterpreterFileUser() []string {
 
 // GetProcessAncestorsIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsIsKworker() []bool {
-	if ev.GetEventType().String() != "*" {
-		return []bool{}
-	}
 	var values []bool
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4170,9 +3933,6 @@ func (ev *Event) GetProcessAncestorsIsKworker() []bool {
 
 // GetProcessAncestorsIsThread returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsIsThread() []bool {
-	if ev.GetEventType().String() != "*" {
-		return []bool{}
-	}
 	var values []bool
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4188,9 +3948,6 @@ func (ev *Event) GetProcessAncestorsIsThread() []bool {
 
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4206,9 +3963,6 @@ func (ev *Event) GetProcessAncestorsPid() []uint32 {
 
 // GetProcessAncestorsPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPpid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4224,9 +3978,6 @@ func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 
 // GetProcessAncestorsTid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsTid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4242,9 +3993,6 @@ func (ev *Event) GetProcessAncestorsTid() []uint32 {
 
 // GetProcessAncestorsTtyName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsTtyName() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4260,9 +4008,6 @@ func (ev *Event) GetProcessAncestorsTtyName() []string {
 
 // GetProcessAncestorsUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsUid() []uint32 {
-	if ev.GetEventType().String() != "*" {
-		return []uint32{}
-	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4278,9 +4023,6 @@ func (ev *Event) GetProcessAncestorsUid() []uint32 {
 
 // GetProcessAncestorsUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsUser() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	var values []string
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
@@ -4296,1153 +4038,721 @@ func (ev *Event) GetProcessAncestorsUser() []string {
 
 // GetProcessArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgs() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsFlags() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessArgsOptions returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsOptions() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsTruncated() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgv() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessArgv0 returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgv0() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCapEffective() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective
 }
 
 // GetProcessCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCapPermitted() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted
 }
 
 // GetProcessComm returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessComm() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.Comm
 }
 
 // GetProcessContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessContainerId() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.ContainerID
 }
 
 // GetProcessCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCreatedAt() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEgid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.EGID
 }
 
 // GetProcessEgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEgroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.EGroup
 }
 
 // GetProcessEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvp() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvs() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessEnvsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvsTruncated() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessEuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEuid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.EUID
 }
 
 // GetProcessEuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEuser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.EUser
 }
 
 // GetProcessFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileChangeTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime
 }
 
 // GetProcessFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileFilesystem() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileGid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.GID
 }
 
 // GetProcessFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileGroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
 // GetProcessFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileHashes() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileInUpperLayer() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
 // GetProcessFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileInode() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileMode() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode
 }
 
 // GetProcessFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileModificationTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.MTime
 }
 
 // GetProcessFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileMountId() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileNameLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
 }
 
 // GetProcessFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePackageName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePackageSourceVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePackageVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePath() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePathLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
 }
 
 // GetProcessFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileRights() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
 // GetProcessFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileUid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.UID
 }
 
 // GetProcessFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileUser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
 }
 
 // GetProcessFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFsgid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.FSGID
 }
 
 // GetProcessFsgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFsgroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.FSGroup
 }
 
 // GetProcessFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFsuid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.FSUID
 }
 
 // GetProcessFsuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFsuser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.FSUser
 }
 
 // GetProcessGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessGid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.GID
 }
 
 // GetProcessGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessGroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.Group
 }
 
 // GetProcessInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileChangeTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetProcessInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileFilesystem() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileGid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetProcessInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileGroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessInterpreterFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileHashes() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileInUpperLayer() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileInode() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileMode() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode
 }
 
 // GetProcessInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileModificationTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
 // GetProcessInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileMountId() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileNameLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent))
 }
 
 // GetProcessInterpreterFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePackageName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePackageSourceVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePackageVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePath() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 }
 
 // GetProcessInterpreterFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent))
 }
 
 // GetProcessInterpreterFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileRights() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileUid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetProcessInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessInterpreterFileUser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessIsKworker() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker
 }
 
 // GetProcessIsThread returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessIsThread() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.BaseEvent.ProcessContext.Process.IsThread
 }
 
 // GetProcessParentArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgs() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgsFlags returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgsFlags() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgsOptions returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgsOptions() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgsTruncated() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgv() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgv0 returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgv0() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCapEffective() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapEffective
 }
 
 // GetProcessParentCapPermitted returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCapPermitted() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted
 }
 
 // GetProcessParentComm returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentComm() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Comm
 }
 
 // GetProcessParentContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentContainerId() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.ContainerID
 }
 
 // GetProcessParentCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCreatedAt() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEgid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EGID
 }
 
 // GetProcessParentEgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEgroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup
 }
 
 // GetProcessParentEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvp() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvs() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEnvsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvsTruncated() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEuid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EUID
 }
 
 // GetProcessParentEuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEuser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.EUser
 }
 
 // GetProcessParentFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileChangeTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime
 }
 
 // GetProcessParentFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileFilesystem() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileGid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.GID
 }
 
 // GetProcessParentFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileGroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileHashes() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileInUpperLayer() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileInode() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessParentFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileMode() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode
 }
 
 // GetProcessParentFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileModificationTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.MTime
 }
 
 // GetProcessParentFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileMountId() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessParentFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileNameLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
 }
 
 // GetProcessParentFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePackageName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePackageSourceVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePackageVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePath() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 }
 
 // GetProcessParentFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePathLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
 }
 
 // GetProcessParentFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileRights() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileUid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.UID
 }
 
 // GetProcessParentFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileUser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
 }
 
 // GetProcessParentFsgid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsgid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSGID
 }
 
 // GetProcessParentFsgroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsgroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSGroup
 }
 
 // GetProcessParentFsuid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsuid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSUID
 }
 
 // GetProcessParentFsuser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFsuser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.FSUser
 }
 
 // GetProcessParentGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentGid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.GID
 }
 
 // GetProcessParentGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentGroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.Group
 }
 
 // GetProcessParentInterpreterFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileChangeTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime
 }
 
 // GetProcessParentInterpreterFileFilesystem returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileFilesystem() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFileGid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileGid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID
 }
 
 // GetProcessParentInterpreterFileGroup returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileGroup() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentInterpreterFileHashes returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileHashes() []string {
-	if ev.GetEventType().String() != "*" {
-		return []string{}
-	}
 	return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFileInUpperLayer returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileInUpperLayer() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentInterpreterFileInode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileInode() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 }
 
 // GetProcessParentInterpreterFileMode returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileMode() uint16 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode
 }
 
 // GetProcessParentInterpreterFileModificationTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileModificationTime() uint64 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime
 }
 
 // GetProcessParentInterpreterFileMountId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileMountId() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 }
 
 // GetProcessParentInterpreterFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileNameLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent))
 }
 
 // GetProcessParentInterpreterFilePackageName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePackageName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFilePackageSourceVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePackageSourceVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFilePackageVersion returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePackageVersion() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePath() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 }
 
 // GetProcessParentInterpreterFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFilePathLength() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent))
 }
 
 // GetProcessParentInterpreterFileRights returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileRights() int {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.FieldHandlers.ResolveRights(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentInterpreterFileUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileUid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID
 }
 
 // GetProcessParentInterpreterFileUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentInterpreterFileUser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
 }
 
 // GetProcessParentIsKworker returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentIsKworker() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker
 }
 
 // GetProcessParentIsThread returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentIsThread() bool {
-	if ev.GetEventType().String() != "*" {
-		return false
-	}
 	return ev.BaseEvent.ProcessContext.Parent.IsThread
 }
 
 // GetProcessParentPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentPid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid
 }
 
 // GetProcessParentPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentPpid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.PPid
 }
 
 // GetProcessParentTid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentTid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid
 }
 
 // GetProcessParentTtyName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentTtyName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.TTYName
 }
 
 // GetProcessParentUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentUid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.UID
 }
 
 // GetProcessParentUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentUser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.User
 }
 
 // GetProcessPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessPid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.PIDContext.Pid
 }
 
 // GetProcessPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessPpid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.PPid
 }
 
 // GetProcessTid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessTid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.PIDContext.Tid
 }
 
 // GetProcessTtyName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessTtyName() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.TTYName
 }
 
 // GetProcessUid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessUid() uint32 {
-	if ev.GetEventType().String() != "*" {
-		return 0
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.UID
 }
 
 // GetProcessUser returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessUser() string {
-	if ev.GetEventType().String() != "*" {
-		return ""
-	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.User
 }
 

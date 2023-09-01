@@ -29,9 +29,11 @@ import (
 
 // Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
 func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
-    if ev.GetEventType().String() != "{{$Field.Event}}" {
-		return {{ GetDefaultValueOfType $accessorReturnType}}
-    }
+    {{if ne $Field.Event "*"}}
+        if ev.GetEventType().String() != "{{$Field.Event}}" {
+            return {{ GetDefaultValueOfType $accessorReturnType}}
+        }
+    {{end}}
 
     {{if $Field.Iterator}}
         var values {{ $accessorReturnType }}
