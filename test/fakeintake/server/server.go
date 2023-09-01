@@ -216,14 +216,14 @@ func (fi *Server) cleanUpPayloads() {
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
 		response := buildErrorResponse(errors.New("invalid request, nil request"))
-		writeHttpResponse(w, response)
+		writeHTTPResponse(w, response)
 		return
 	}
 
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
 
 	if req.Method == http.MethodGet {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			statusCode: http.StatusOK,
 		})
 		return
@@ -231,7 +231,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
 	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			statusCode: http.StatusOK,
 		})
 		return
@@ -240,19 +240,19 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	// from now on accept only POST requests
 	if req.Method != http.MethodPost {
 		response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
-		writeHttpResponse(w, response)
+		writeHTTPResponse(w, response)
 		return
 	}
 
 	if req.Body == nil {
 		response := buildErrorResponse(errors.New("invalid request, nil body"))
-		writeHttpResponse(w, response)
+		writeHTTPResponse(w, response)
 		return
 	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		response := buildErrorResponse(err)
-		writeHttpResponse(w, response)
+		writeHTTPResponse(w, response)
 		return
 	}
 
@@ -265,20 +265,20 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	err = fi.safeAppendPayload(req.URL.Path, payload, encoding)
 	if err != nil {
 		response := buildErrorResponse(err)
-		writeHttpResponse(w, response)
+		writeHTTPResponse(w, response)
 		return
 	}
 
 	responseBody := getResponseBodyFromURLPath(req.URL.Path)
 	response := buildSuccessResponse(responseBody)
-	writeHttpResponse(w, response)
+	writeHTTPResponse(w, response)
 }
 
-func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {
 	fi.safeFlushPayloads()
 
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
 }
@@ -286,7 +286,7 @@ func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) 
 func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusBadRequest,
 			body:        []byte("missing endpoint query parameter"),
@@ -310,7 +310,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	} else if fi.payloadParser.IsRouteHandled(route) {
 		payloads, payloadErr := fi.safeGetJsonPayloads(route)
 		if payloadErr != nil {
-			writeHttpResponse(w, httpResponse{
+			writeHTTPResponse(w, httpResponse{
 				contentType: "text/plain",
 				statusCode:  http.StatusBadRequest,
 				body:        []byte(payloadErr.Error()),
@@ -323,7 +323,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusBadRequest,
 			body:        []byte("invalid route parameter"),
@@ -332,7 +332,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if err != nil {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusInternalServerError,
 			body:        []byte(err.Error()),
@@ -340,15 +340,15 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
 }
 
-func (fi *Server) handleFakeHealth(w http.ResponseWriter, req *http.Request) {
-	writeHttpResponse(w, httpResponse{
+func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
+	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
 }
@@ -406,7 +406,7 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	}
 	jsonResp, err := json.Marshal(resp)
 	if err != nil {
-		writeHttpResponse(w, httpResponse{
+		writeHTTPResponse(w, httpResponse{
 			contentType: "text/plain",
 			statusCode:  http.StatusInternalServerError,
 			body:        []byte(err.Error()),
@@ -415,7 +415,7 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// send response
-	writeHttpResponse(w, httpResponse{
+	writeHTTPResponse(w, httpResponse{
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
