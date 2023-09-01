@@ -41,6 +41,7 @@ type GRPCServer struct {
 }
 
 const connectionTimeout = 10 * time.Minute
+const keepaliveInterval = 10 * time.Second
 
 var (
 	invalidVersionError = telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version.")
@@ -54,7 +55,7 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 		extractor: extractor,
 		server: grpc.NewServer(
 			grpc.KeepaliveParams(keepalive.ServerParameters{
-				Time: 10 * time.Second,
+				Time: keepaliveInterval,
 			}),
 			grpc.ConnectionTimeout(connectionTimeout),
 		),
