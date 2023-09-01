@@ -162,8 +162,7 @@ namespace WixSetup.Datadog
                             Arguments = "\"--launch-gui\"",
                             WorkingDirectory = "AGENT",
                         }
-                    ),
-                    new Dir("logs")
+                    )
                 );
 
             project.SetNetFxPrerequisite(Condition.Net45_Installed,
