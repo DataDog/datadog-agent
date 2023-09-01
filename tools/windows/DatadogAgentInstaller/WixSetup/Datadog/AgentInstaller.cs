@@ -218,6 +218,32 @@ namespace WixSetup.Datadog
                         value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
                                  value.StartsWith("EXAMPLECONFSLOCATION")))
                     .Remove();
+                // TODO: Wix# adds these automatically
+                document
+                    .FindAll("RemoveFolder")
+                    .Where(x => x.HasAttribute("Id",
+                        value => value.StartsWith("TARGETDIR") ||
+                                 value.Equals("ProgramFiles64Folder")))
+                    .Remove();
+                // Windows Installer (MSI.dll) calls the obsolete SetFileSecurityW function during CreateFolder rollback,
+                // this causes directories in the CreateFolder table to have their SE_DACL_AUTO_INHERITED flag removed.
+                // Wix# is auto-adding components for the following directories for some reason, which causes them to be placed
+                // in the CreateFolder table.
+                document
+                    .FindAll("Component")
+                    .Where(x => x.HasAttribute("Id",
+                        value => value.Equals("TARGETDIR") ||
+                                 value.Equals("ProgramFiles64Folder") ||
+                                 value.Equals("Datadog")))
+                    .Remove();
+                document
+                    .FindAll("ComponentRef")
+                    .Where(x => x.HasAttribute("Id",
+                        value => value.Equals("TARGETDIR") ||
+                                 value.Equals("ProgramFiles64Folder") ||
+                                 value.Equals("Datadog")))
+                    .Remove();
+                // END TODO: Wix# adds these automatically
                 document
                     .FindAll("Component")
                     .Where(x => x.Parent.HasAttribute("Id",
