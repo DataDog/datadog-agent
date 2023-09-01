@@ -3,50 +3,68 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package traps
+package listener
 
 import (
 	"fmt"
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-
 	"github.com/gosnmp/gosnmp"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/netflow/sender"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 )
 
 // TrapListener opens an UDP socket and put all received traps in a channel
 type TrapListener struct {
-	config        Config
-	aggregator    sender.Sender
-	packets       PacketsChannel
+	config        *config.TrapsConfig
+	status        status.Component
+	aggregator    sender.Component
+	packets       packet.PacketsChannel
 	listener      *gosnmp.TrapListener
 	errorsChannel chan error
 	logger        log.Component
 }
 
+type dependencies struct {
+	fx.In
+	Config config.Component
+	Sender sender.Component
+	Logger log.Component
+	Status status.Component
+}
+
 // NewTrapListener creates a simple TrapListener instance but does not start it
-func NewTrapListener(config Config, aggregator sender.Sender, packets PacketsChannel, logger log.Component) (*TrapListener, error) {
+func NewTrapListener(dep dependencies) (Component, error) {
 	var err error
+	config := dep.Config.Get()
 	gosnmpListener := gosnmp.NewTrapListener()
-	gosnmpListener.Params, err = config.BuildSNMPParams(logger)
+	gosnmpListener.Params, err = config.BuildSNMPParams(dep.Logger)
 	if err != nil {
 		return nil, err
 	}
 	errorsChan := make(chan error, 1)
 	trapListener := &TrapListener{
 		config:        config,
-		aggregator:    aggregator,
-		packets:       packets,
+		status:        dep.Status,
+		aggregator:    dep.Sender,
+		packets:       make(packet.PacketsChannel, config.GetPacketChannelSize()),
 		listener:      gosnmpListener,
 		errorsChannel: errorsChan,
-		logger:        logger,
+		logger:        dep.Logger,
 	}
 
 	gosnmpListener.OnNewTrap = trapListener.receiveTrap
 	return trapListener, nil
+}
+
+func (t *TrapListener) Packets() packet.PacketsChannel {
+	return t.packets
 }
 
 // Start the TrapListener instance. Need to be manually Stopped
@@ -83,18 +101,18 @@ func (t *TrapListener) Stop() {
 }
 
 func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	packet := &SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
-	tags := packet.getTags()
+	packet := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
+	tags := packet.GetTags()
 
 	t.aggregator.Count("datadog.snmp_traps.received", 1, "", tags)
 
-	if err := validatePacket(p, t.config); err != nil {
+	if err := config.ValidatePacket(p, t.config); err != nil {
 		t.logger.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
-		trapsPacketsAuthErrors.Add(1)
+		t.status.AddTrapsPacketsAuthErrors(1)
 		t.aggregator.Count("datadog.snmp_traps.invalid_packet", 1, "", append(tags, "reason:unknown_community_string"))
 		return
 	}
 	t.logger.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
-	trapsPackets.Add(1)
+	t.status.AddTrapsPackets(1)
 	t.packets <- packet
 }

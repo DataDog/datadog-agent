@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package traps
+package status
 
 import (
 	"encoding/json"
@@ -21,6 +21,24 @@ var (
 func init() {
 	trapsExpvars.Set("Packets", &trapsPackets)
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
+}
+
+type service struct{}
+
+func (s *service) AddTrapsPackets(i int64) {
+	trapsPackets.Add(i)
+}
+
+func (s *service) AddTrapsPacketsAuthErrors(i int64) {
+	trapsPacketsAuthErrors.Add(i)
+}
+
+func (s *service) GetTrapsPackets() int64 {
+	return trapsPackets.Value()
+}
+
+func (s *service) GetTrapsPacketsAuthErrors() int64 {
+	return trapsPacketsAuthErrors.Value()
 }
 
 func getDroppedPackets() int64 {
@@ -54,8 +72,5 @@ func GetStatus() map[string]interface{} {
 	}
 	status["metrics"] = metrics
 
-	if startError != nil {
-		status["error"] = startError.Error()
-	}
 	return status
 }

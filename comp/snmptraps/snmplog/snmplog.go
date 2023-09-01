@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package traps
+// Package snmplog provides a GoSNMP logger that wraps our logger.
+package snmplog
 
 import (
 	"github.com/gosnmp/gosnmp"
@@ -11,16 +12,24 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
-// trapLogger is a GoSNMP logger interface implementation.
-type trapLogger struct {
-	gosnmp.Logger
+// SNMPLogger is a GoSNMP logger interface implementation.
+type SNMPLogger struct {
+	gosnmp.LoggerInterface
 	logger log.Component
 }
 
+var _ gosnmp.LoggerInterface = (*SNMPLogger)(nil)
+
+func New(logger log.Component) *SNMPLogger {
+	return &SNMPLogger{
+		logger: logger,
+	}
+}
+
 // NOTE: GoSNMP logs show the full content of decoded trap packets. Logging as DEBUG would be too noisy.
-func (logger *trapLogger) Print(v ...interface{}) {
+func (logger *SNMPLogger) Print(v ...interface{}) {
 	logger.logger.Trace(v...)
 }
-func (logger *trapLogger) Printf(format string, v ...interface{}) {
+func (logger *SNMPLogger) Printf(format string, v ...interface{}) {
 	logger.logger.Tracef(format, v...)
 }

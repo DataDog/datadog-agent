@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package traps
+package config
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func validatePacket(p *gosnmp.SnmpPacket, c Config) error {
+func ValidatePacket(p *gosnmp.SnmpPacket, c *TrapsConfig) error {
 	if p.Version == gosnmp.Version3 {
 		// v3 Packets are already decrypted and validated by gosnmp
 		return nil
