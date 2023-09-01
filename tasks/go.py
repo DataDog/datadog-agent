@@ -30,15 +30,15 @@ GOARCH_MAPPING = {
 
 
 def run_golangci_lint(
-        ctx,
-        targets,
-        rtloader_root = None,
-        build_tags = None,
-        build = "test",
-        arch = "x64",
-        concurrency = None,
-        verbose = False,
-        golangci_lint_kwargs = "",
+    ctx,
+    targets,
+    rtloader_root=None,
+    build_tags=None,
+    build="test",
+    arch="x64",
+    concurrency=None,
+    verbose=False,
+    golangci_lint_kwargs="",
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed

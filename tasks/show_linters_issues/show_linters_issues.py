@@ -29,8 +29,8 @@ def show_linters_issues(
     filter_team: str = None,
     from_commit_hash: str = FIRST_COMMIT_HASH,
     filter_linters: str = "revive",
-    show_output = False,
-    platforms = None
+    show_output=False,
+    platforms=None,
 ):
     """
     This function displays the list of files that need fixing for a specific team and for specific linters.
