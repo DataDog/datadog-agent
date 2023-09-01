@@ -3117,7 +3117,7 @@ func (ev *Event) GetProcessAncestorsCapEffective() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.CapEffective)
+		result := element.ProcessContext.Process.Credentials.CapEffective
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3135,7 +3135,7 @@ func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+		result := element.ProcessContext.Process.Credentials.CapPermitted
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3183,7 +3183,7 @@ func (ev *Event) GetProcessAncestorsCreatedAt() []int {
 	if ev.GetEventType().String() != "*" {
 		return []int{}
 	}
-	var values []uint64
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -3207,7 +3207,7 @@ func (ev *Event) GetProcessAncestorsEgid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.EGID)
+		result := element.ProcessContext.Process.Credentials.EGID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3297,7 +3297,7 @@ func (ev *Event) GetProcessAncestorsEuid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.EUID)
+		result := element.ProcessContext.Process.Credentials.EUID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3333,7 +3333,7 @@ func (ev *Event) GetProcessAncestorsFileChangeTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+		result := element.ProcessContext.Process.FileEvent.FileFields.CTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3369,7 +3369,7 @@ func (ev *Event) GetProcessAncestorsFileGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3441,7 +3441,7 @@ func (ev *Event) GetProcessAncestorsFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode)
+		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3459,7 +3459,7 @@ func (ev *Event) GetProcessAncestorsFileMode() []uint16 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+		result := element.ProcessContext.Process.FileEvent.FileFields.Mode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3477,7 +3477,7 @@ func (ev *Event) GetProcessAncestorsFileModificationTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+		result := element.ProcessContext.Process.FileEvent.FileFields.MTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3495,7 +3495,7 @@ func (ev *Event) GetProcessAncestorsFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3633,7 +3633,7 @@ func (ev *Event) GetProcessAncestorsFileRights() []int {
 	if ev.GetEventType().String() != "*" {
 		return []int{}
 	}
-	var values []uint16
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -3657,7 +3657,7 @@ func (ev *Event) GetProcessAncestorsFileUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3693,7 +3693,7 @@ func (ev *Event) GetProcessAncestorsFsgid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.FSGID)
+		result := element.ProcessContext.Process.Credentials.FSGID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3729,7 +3729,7 @@ func (ev *Event) GetProcessAncestorsFsuid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.FSUID)
+		result := element.ProcessContext.Process.Credentials.FSUID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3765,7 +3765,7 @@ func (ev *Event) GetProcessAncestorsGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.GID)
+		result := element.ProcessContext.Process.Credentials.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3801,7 +3801,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileChangeTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3837,7 +3837,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3909,7 +3909,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3927,7 +3927,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileMode() []uint16 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3945,7 +3945,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileModificationTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -3963,7 +3963,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -4101,7 +4101,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileRights() []int {
 	if ev.GetEventType().String() != "*" {
 		return []int{}
 	}
-	var values []uint16
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -4125,7 +4125,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -4197,7 +4197,7 @@ func (ev *Event) GetProcessAncestorsPid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PIDContext.Pid)
+		result := element.ProcessContext.Process.PIDContext.Pid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -4215,7 +4215,7 @@ func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PPid)
+		result := element.ProcessContext.Process.PPid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -4233,7 +4233,7 @@ func (ev *Event) GetProcessAncestorsTid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PIDContext.Tid)
+		result := element.ProcessContext.Process.PIDContext.Tid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -4269,7 +4269,7 @@ func (ev *Event) GetProcessAncestorsUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.UID)
+		result := element.ProcessContext.Process.Credentials.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5581,7 +5581,7 @@ func (ev *Event) GetPtraceTraceeAncestorsCapEffective() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.CapEffective)
+		result := element.ProcessContext.Process.Credentials.CapEffective
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5599,7 +5599,7 @@ func (ev *Event) GetPtraceTraceeAncestorsCapPermitted() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+		result := element.ProcessContext.Process.Credentials.CapPermitted
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5647,7 +5647,7 @@ func (ev *Event) GetPtraceTraceeAncestorsCreatedAt() []int {
 	if ev.GetEventType().String() != "ptrace" {
 		return []int{}
 	}
-	var values []uint64
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -5671,7 +5671,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEgid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.EGID)
+		result := element.ProcessContext.Process.Credentials.EGID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5761,7 +5761,7 @@ func (ev *Event) GetPtraceTraceeAncestorsEuid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.EUID)
+		result := element.ProcessContext.Process.Credentials.EUID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5797,7 +5797,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileChangeTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+		result := element.ProcessContext.Process.FileEvent.FileFields.CTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5833,7 +5833,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5905,7 +5905,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode)
+		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5923,7 +5923,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileMode() []uint16 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+		result := element.ProcessContext.Process.FileEvent.FileFields.Mode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5941,7 +5941,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileModificationTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+		result := element.ProcessContext.Process.FileEvent.FileFields.MTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5959,7 +5959,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6097,7 +6097,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileRights() []int {
 	if ev.GetEventType().String() != "ptrace" {
 		return []int{}
 	}
-	var values []uint16
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -6121,7 +6121,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6157,7 +6157,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFsgid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.FSGID)
+		result := element.ProcessContext.Process.Credentials.FSGID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6193,7 +6193,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFsuid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.FSUID)
+		result := element.ProcessContext.Process.Credentials.FSUID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6229,7 +6229,7 @@ func (ev *Event) GetPtraceTraceeAncestorsGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.GID)
+		result := element.ProcessContext.Process.Credentials.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6265,7 +6265,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileChangeTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6301,7 +6301,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6373,7 +6373,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6391,7 +6391,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileMode() []uint16 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6409,7 +6409,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileModificationTime() []uin
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6427,7 +6427,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6565,7 +6565,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileRights() []int {
 	if ev.GetEventType().String() != "ptrace" {
 		return []int{}
 	}
-	var values []uint16
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -6589,7 +6589,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6661,7 +6661,7 @@ func (ev *Event) GetPtraceTraceeAncestorsPid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PIDContext.Pid)
+		result := element.ProcessContext.Process.PIDContext.Pid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6679,7 +6679,7 @@ func (ev *Event) GetPtraceTraceeAncestorsPpid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PPid)
+		result := element.ProcessContext.Process.PPid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6697,7 +6697,7 @@ func (ev *Event) GetPtraceTraceeAncestorsTid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PIDContext.Tid)
+		result := element.ProcessContext.Process.PIDContext.Tid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6733,7 +6733,7 @@ func (ev *Event) GetPtraceTraceeAncestorsUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.UID)
+		result := element.ProcessContext.Process.Credentials.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9037,7 +9037,7 @@ func (ev *Event) GetSignalTargetAncestorsCapEffective() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.CapEffective)
+		result := element.ProcessContext.Process.Credentials.CapEffective
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9055,7 +9055,7 @@ func (ev *Event) GetSignalTargetAncestorsCapPermitted() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+		result := element.ProcessContext.Process.Credentials.CapPermitted
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9103,7 +9103,7 @@ func (ev *Event) GetSignalTargetAncestorsCreatedAt() []int {
 	if ev.GetEventType().String() != "signal" {
 		return []int{}
 	}
-	var values []uint64
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -9127,7 +9127,7 @@ func (ev *Event) GetSignalTargetAncestorsEgid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.EGID)
+		result := element.ProcessContext.Process.Credentials.EGID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9217,7 +9217,7 @@ func (ev *Event) GetSignalTargetAncestorsEuid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.EUID)
+		result := element.ProcessContext.Process.Credentials.EUID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9253,7 +9253,7 @@ func (ev *Event) GetSignalTargetAncestorsFileChangeTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+		result := element.ProcessContext.Process.FileEvent.FileFields.CTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9289,7 +9289,7 @@ func (ev *Event) GetSignalTargetAncestorsFileGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9361,7 +9361,7 @@ func (ev *Event) GetSignalTargetAncestorsFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode)
+		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9379,7 +9379,7 @@ func (ev *Event) GetSignalTargetAncestorsFileMode() []uint16 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+		result := element.ProcessContext.Process.FileEvent.FileFields.Mode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9397,7 +9397,7 @@ func (ev *Event) GetSignalTargetAncestorsFileModificationTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+		result := element.ProcessContext.Process.FileEvent.FileFields.MTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9415,7 +9415,7 @@ func (ev *Event) GetSignalTargetAncestorsFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9553,7 +9553,7 @@ func (ev *Event) GetSignalTargetAncestorsFileRights() []int {
 	if ev.GetEventType().String() != "signal" {
 		return []int{}
 	}
-	var values []uint16
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -9577,7 +9577,7 @@ func (ev *Event) GetSignalTargetAncestorsFileUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+		result := element.ProcessContext.Process.FileEvent.FileFields.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9613,7 +9613,7 @@ func (ev *Event) GetSignalTargetAncestorsFsgid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.FSGID)
+		result := element.ProcessContext.Process.Credentials.FSGID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9649,7 +9649,7 @@ func (ev *Event) GetSignalTargetAncestorsFsuid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.FSUID)
+		result := element.ProcessContext.Process.Credentials.FSUID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9685,7 +9685,7 @@ func (ev *Event) GetSignalTargetAncestorsGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.GID)
+		result := element.ProcessContext.Process.Credentials.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9721,7 +9721,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileChangeTime() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9757,7 +9757,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileGid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9829,7 +9829,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9847,7 +9847,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileMode() []uint16 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9865,7 +9865,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileModificationTime() []uin
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9883,7 +9883,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10021,7 +10021,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileRights() []int {
 	if ev.GetEventType().String() != "signal" {
 		return []int{}
 	}
-	var values []uint16
+	var values []int
 	ctx := eval.NewContext(ev)
 	iterator := &ProcessAncestorsIterator{}
 	ptr := iterator.Front(ctx)
@@ -10045,7 +10045,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10117,7 +10117,7 @@ func (ev *Event) GetSignalTargetAncestorsPid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PIDContext.Pid)
+		result := element.ProcessContext.Process.PIDContext.Pid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10135,7 +10135,7 @@ func (ev *Event) GetSignalTargetAncestorsPpid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PPid)
+		result := element.ProcessContext.Process.PPid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10153,7 +10153,7 @@ func (ev *Event) GetSignalTargetAncestorsTid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.PIDContext.Tid)
+		result := element.ProcessContext.Process.PIDContext.Tid
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10189,7 +10189,7 @@ func (ev *Event) GetSignalTargetAncestorsUid() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := int(element.ProcessContext.Process.Credentials.UID)
+		result := element.ProcessContext.Process.Credentials.UID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}

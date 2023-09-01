@@ -34,7 +34,7 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
     }
 
     {{if $Field.Iterator}}
-        var values []{{$Field.OrigType}}
+        var values {{ $accessorReturnType }}
 
         ctx := eval.NewContext(ev)
 
@@ -62,8 +62,8 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{$Return = ".length" | TrimSuffix $Return}}
             {{end}}
 
-            {{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
-                result := int({{$Return}})
+            {{if and $Field.Handler (and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")) }}
+			    result := int({{$Return}})
             {{else}}
                 {{if $Field.IsLength}}
                     result := len({{$Return}})
