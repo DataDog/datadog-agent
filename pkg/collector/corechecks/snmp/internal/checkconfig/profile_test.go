@@ -64,7 +64,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 						OID:     "1.3.6.1.2.1.1.5.0",
 						Name:    "sysName",
 						Match:   "(\\w)(\\w+)",
-						pattern: regexp.MustCompile("(\\w)(\\w+)"),
+						pattern: regexp.MustCompile(`(\w)(\w+)`),
 						Tags: map[string]string{
 							"some_tag": "some_tag_value",
 							"prefix":   "\\1",
@@ -125,7 +125,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
 									Name:                 "ifName",
 									ExtractValue:         "(Row\\d)",
-									ExtractValueCompiled: regexp.MustCompile("(Row\\d)"),
+									ExtractValueCompiled: regexp.MustCompile(`(Row\d)`),
 								},
 							},
 							"mac_address": {
@@ -171,8 +171,9 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 		},
 		"another_profile": profileConfig{
 			Definition: profileDefinition{
+				SysObjectIds: StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, MetricType: ""},
+					{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
 				},
 				MetricTags: []MetricTagConfig{
 					{Tag: "snmp_host2", Column: SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},

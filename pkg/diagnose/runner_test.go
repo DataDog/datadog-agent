@@ -6,8 +6,6 @@
 package diagnose
 
 import (
-	"bytes"
-	"errors"
 	"regexp"
 	"testing"
 
@@ -15,19 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestConnectivityAutodiscovery(t *testing.T) {
-
-	diagnosis.RegisterMetadataAvail("failing", func() error { return errors.New("fail") })
-	diagnosis.RegisterMetadataAvail("succeeding", func() error { return nil })
-
-	w := &bytes.Buffer{}
-	RunMetadataAvail(w)
-
-	result := w.String()
-	assert.Contains(t, result, "=== Running failing diagnosis ===\n===> FAIL")
-	assert.Contains(t, result, "=== Running succeeding diagnosis ===\n===> PASS")
-}
 
 func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
@@ -37,9 +22,11 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
 	re, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunNoDiagnoses")
 	diagCfg := diagnosis.Config{
-		Include: []*regexp.Regexp{re},
+		Include:  []*regexp.Regexp{re},
+		RunLocal: true,
 	}
-	diagnoses := RunAll(diagCfg)
+	diagnoses, err := Run(diagCfg)
+	assert.NoError(t, err)
 	assert.Len(t, diagnoses, 0)
 }
 
@@ -52,7 +39,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 			Category:    "Category_foo",
 			Description: "Description_foo",
 			Remediation: "Remediation_foo",
-			RawError:    errors.New("Error_foo"),
+			RawError:    "Error_foo",
 		},
 		{
 			Result:      diagnosis.DiagnosisFail,
@@ -60,7 +47,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 			Category:    "Category_bar",
 			Description: "Description_bar",
 			Remediation: "Remediation_bar",
-			RawError:    errors.New("Error_bar"),
+			RawError:    "Error_bar",
 		},
 	}
 
@@ -75,9 +62,11 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 	// Include and run
 	reInclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis")
 	diagCfgInclude := diagnosis.Config{
-		Include: []*regexp.Regexp{reInclude},
+		Include:  []*regexp.Regexp{reInclude},
+		RunLocal: true,
 	}
-	outSuitesDiagnosesInclude := RunAll(diagCfgInclude)
+	outSuitesDiagnosesInclude, err := Run(diagCfgInclude)
+	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)
 	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesInclude[1].SuiteDiagnoses, inDiagnoses)
@@ -85,10 +74,12 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 	// Include and Exclude and run
 	reExclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a")
 	diagCfgIncludeExclude := diagnosis.Config{
-		Include: []*regexp.Regexp{reInclude},
-		Exclude: []*regexp.Regexp{reExclude},
+		Include:  []*regexp.Regexp{reInclude},
+		Exclude:  []*regexp.Regexp{reExclude},
+		RunLocal: true,
 	}
-	outSuitesDiagnosesIncludeExclude := RunAll(diagCfgIncludeExclude)
+	outSuitesDiagnosesIncludeExclude, err := Run(diagCfgIncludeExclude)
+	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteName, "TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b")

@@ -9,11 +9,11 @@ package host
 
 import (
 	"runtime"
-	"strings"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +38,7 @@ func getSystemStats() *systemStats {
 			Platform:  runtime.GOOS,
 			Processor: cpuInfo.ModelName,
 			CPUCores:  cpuInfo.Cores,
-			Pythonv:   strings.Split(GetPythonVersion(), " ")[0],
+			Pythonv:   python.GetPythonVersion(),
 		}
 
 		// fill the platform dependent bits of info

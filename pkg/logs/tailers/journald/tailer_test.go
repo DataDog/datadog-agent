@@ -16,7 +16,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -461,5 +461,6 @@ func TestTailerCanTailJournal(t *testing.T) {
 	json.Unmarshal(resultMessage.Content, &parsedContent)
 
 	assert.Equal(t, parsedContent["message"], "foobar")
+
 	tailer.Stop()
 }

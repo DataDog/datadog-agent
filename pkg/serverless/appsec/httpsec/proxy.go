@@ -18,11 +18,26 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-// ProxyLifecycleProcessor is a LifecycleProcessor implementation allowing to support
-// NodeJS and Python by monitoring the runtime api calls until they support the
-// universal instrumentation api.
+// ProxyLifecycleProcessor is an implementation of the invocationlifecycle.InvocationProcessor
+// interface called by the Runtime API proxy on every function invocation calls and responses.
+// This allows AppSec to run by monitoring the function invocations, and run the security
+// rules upon reception of the HTTP request span in the SpanModifier function created by
+// the WrapSpanModifier() method.
+// A value of this type can be used by a single function invocation at a time.
 type ProxyLifecycleProcessor struct {
-	SubProcessor *ProxyProcessor
+	// AppSec instance
+	appsec Monitorer
+
+	// Parsed invocation event value
+	invocationEvent interface{}
+}
+
+// NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
+// given Monitorer.
+func NewProxyLifecycleProcessor(appsec Monitorer) *ProxyLifecycleProcessor {
+	return &ProxyLifecycleProcessor{
+		appsec: appsec,
+	}
 }
 
 func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
@@ -31,25 +46,25 @@ func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.Execu
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
-	log.Debugf("appsec-proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
+	log.Debugf("appsec: proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
 
 	payloadBytes := invocationlifecycle.ParseLambdaPayload(startDetails.InvokeEventRawPayload)
 	log.Debugf("Parsed payload string: %s", bytesStringer(payloadBytes))
 
 	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {
-		log.Debugf("appsec-proxy-lifecycle: Failed to parse event payload: %v", err)
+		log.Debugf("appsec: proxy-lifecycle: Failed to parse event payload: %v", err)
 	}
 
 	eventType := trigger.GetEventType(lowercaseEventPayload)
 	if eventType == trigger.Unknown {
-		log.Debugf("appsec-proxy-lifecycle: Failed to extract event type")
+		log.Debugf("appsec: proxy-lifecycle: Failed to extract event type")
 	}
 
 	var event interface{}
 	switch eventType {
 	default:
-		log.Debug("appsec-proxy-lifecycle: ignoring unsupported lambda event type %s", eventType)
+		log.Debug("appsec: proxy-lifecycle: ignoring unsupported lambda event type %s", eventType)
 		return
 	case trigger.APIGatewayEvent:
 		event = &events.APIGatewayProxyRequest{}
@@ -64,11 +79,12 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
-		log.Errorf("appsec-proxy-lifecycle: unexpected lambda event parsing error: %v", err)
+		log.Errorf("appsec: proxy-lifecycle: unexpected lambda event parsing error: %v", err)
 		return
 	}
 
-	lp.SubProcessor.OnInvokeStart(event)
+	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
+	lp.invocationEvent = event
 }
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
@@ -78,35 +94,19 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 	// So the final appsec monitoring logic moved to the SpanModifier instead and we use it as "invocation end" event.
 }
 
-func (lp *ProxyLifecycleProcessor) SpanModifier(chunk *pb.TraceChunk, span *pb.Span) {
-	lp.SubProcessor.SpanModifier(chunk, span)
-}
-
-// ProxyProcessor type allows to monitor lamdba invocations receiving HTTP-based
-// events and response via the runtime api proxy.
-type ProxyProcessor struct {
-	// AppSec instance
-	appsec Monitorer
-
-	// Parsed invocation event value
-	invocationEvent interface{}
-}
-
-// NewProxyProcessor returns a new httpsec proxy processor monitored with the
-// given Monitorer.
-func NewProxyProcessor(appsec Monitorer) *ProxyProcessor {
-	return &ProxyProcessor{
-		appsec: appsec,
+func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
+	// Add appsec tags to the aws lambda function service entry span
+	if s.Name != "aws.lambda" || s.Type != "serverless" {
+		return
 	}
-}
+	currentReqId := s.Meta["request_id"]
+	if spanReqId := lastReqId; currentReqId != spanReqId {
+		log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
+		return
+	}
+	log.Debugf("appsec: found service entry span of the currently monitored request id `%s`", currentReqId)
 
-func (p *ProxyProcessor) OnInvokeStart(invocationEvent interface{}) {
-	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
-	p.invocationEvent = invocationEvent
-}
-
-func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
-	if p.invocationEvent == nil {
+	if lp.invocationEvent == nil {
 		log.Debug("appsec: ignoring unsupported lamdba event")
 		return // skip: unsupported event
 	}
@@ -114,7 +114,7 @@ func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 	span := (*spanWrapper)(s)
 
 	var ctx context
-	switch event := p.invocationEvent.(type) {
+	switch event := lp.invocationEvent.(type) {
 	default:
 		log.Debugf("appsec: ignoring unsupported lamdba event type %T", event)
 		return
@@ -191,7 +191,7 @@ func (p *ProxyProcessor) SpanModifier(chunk *pb.TraceChunk, s *pb.Span) {
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 
-	if events := p.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
+	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
 	}
@@ -201,21 +201,18 @@ type ExecutionContext interface {
 	LastRequestID() string
 }
 
+// WrapSpanModifier wraps the given SpanModifier function with AppSec monitoring
+// and returns it. When non nil, the given modifySpan function is called first,
+// before the AppSec monitoring.
+// The resulting function will run AppSec when the span's request_id span tag
+// matches the one observed at function invocation with OnInvokeStat() through
+// the Runtime API proxy.
 func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modifySpan func(*pb.TraceChunk, *pb.Span)) func(*pb.TraceChunk, *pb.Span) {
 	return func(chunk *pb.TraceChunk, span *pb.Span) {
 		if modifySpan != nil {
 			modifySpan(chunk, span)
 		}
-		// Add appsec tags to the aws lambda function root span
-		if span.Name != "aws.lambda" || span.Type != "serverless" {
-			return
-		}
-		if currentReqId, spanReqId := ctx.LastRequestID(), span.Meta["request_id"]; currentReqId != spanReqId {
-			log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
-			return
-		}
-		log.Debug("appsec: found service entry span to add appsec tags")
-		lp.SpanModifier(chunk, span)
+		lp.spanModifier(ctx.LastRequestID(), chunk, span)
 	}
 }
 

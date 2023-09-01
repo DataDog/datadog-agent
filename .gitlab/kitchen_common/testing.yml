@@ -65,7 +65,7 @@
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
     CHEF_VERSION: 14.15.6
   extends:
-    - .kitchen_ec2_spot_instances
+    - .kitchen_ec2
 
 # Kitchen: agents
 # ---------------
@@ -170,8 +170,8 @@
 .kitchen_ec2_location_us_east_1:
   variables:
     KITCHEN_EC2_REGION: us-east-1
-    KITCHEN_EC2_SUBNET: subnet-c18341ed
-    KITCHEN_EC2_SG_IDS: sg-0f5617ceb3e5a6c39
+    KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
+    KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
 
 # Kitchen: Test types (test suite * agent flavor + location in each cloud provider)
 # -------------------------------

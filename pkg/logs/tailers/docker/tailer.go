@@ -19,7 +19,7 @@ import (
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
@@ -302,7 +302,8 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 // forwardMessages forwards decoded messages to the next pipeline,
 // adding a bit of meta information
 // Note: For docker container logs, we ask for the timestamp
-// to store the time of the last processed line.
+// to store the time of the last processed line, it's part of the ParsingExtra
+// struct of the message.Message.
 // As a result, we need to remove this timestamp from the log
 // message before forwarding it
 func (t *Tailer) forwardMessages() {
@@ -313,8 +314,8 @@ func (t *Tailer) forwardMessages() {
 	for output := range t.decoder.OutputChan {
 		if len(output.Content) > 0 {
 			origin := message.NewOrigin(t.Source)
-			origin.Offset = output.Timestamp
-			t.setLastSince(output.Timestamp)
+			origin.Offset = output.ParsingExtra.Timestamp
+			t.setLastSince(output.ParsingExtra.Timestamp)
 			origin.Identifier = t.Identifier()
 			origin.SetTags(t.tagProvider.GetTags())
 			t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp)

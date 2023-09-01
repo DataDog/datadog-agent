@@ -26,7 +26,7 @@ const (
 
 // HandleUnary performs a gRPC unary call to SayHello RPC of the greeter service.
 func (c *Client) HandleUnary(ctx context.Context, name string) error {
-	_, err := c.greeterClient.SayHello(ctx, &pb.HelloRequest{Name: name})
+	_, err := c.greeterClient.SayHello(ctx, &pb.HelloRequest{Name: name}, grpc.MaxCallRecvMsgSize(100*1024*1024), grpc.MaxCallSendMsgSize(100*1024*1024))
 	return err
 }
 

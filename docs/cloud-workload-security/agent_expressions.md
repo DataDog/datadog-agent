@@ -32,7 +32,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
-| `bind` | Network | [Experimental] A bind was executed | 7.37 |
+| `bind` | Network | A bind was executed | 7.37 |
 | `bpf` | Kernel | A BPF command was executed | 7.33 |
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
@@ -135,7 +135,7 @@ Such rules can be written as follows:
 
 
 {{< code-block lang="javascript" >}}
-dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25", "10.0.0.0/24"]
+dns.question.name == "example.com" && network.destination.ip in [192.168.1.25, 10.0.0.0/24]
 
 {{< /code-block >}}
 
@@ -156,7 +156,7 @@ Examples:
 
 Examples:
 * `T=8` and `width=8` both are in *args_options* for the command `ls -T 8 --width=8`
-* `exec.args_options ~= [ “s=.*\’” ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
+* `exec.args_options in [ r"s=.*\\" ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
 
 ### File rights
 
@@ -400,8 +400,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.user`](#common-credentials-user-doc) | User of the process |
 
 ### Event `bind`
-
-_This event type is experimental and may change in the future._
 
 A bind was executed
 

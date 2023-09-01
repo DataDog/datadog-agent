@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote"
 	"google.golang.org/grpc"
 )
+
+const dummySubscriber = "dummy-subscriber"
 
 type mockServer struct {
 	pbgo.UnimplementedProcessEntityStreamServer
@@ -230,12 +233,11 @@ func TestCollection(t *testing.T) {
 			errorResponse: true,
 		},
 	}
-	mockConfig := config.Mock(t)
-	mockConfig.Set("workloadmeta.remote_process_collector.enabled", true)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
+			mockConfig := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			mockConfig.Set("language_detection.enabled", true)
 			// remote process collector server (process agent)
 			server := &mockServer{
 				responses:       test.serverResponses,
@@ -261,7 +263,8 @@ func TestCollection(t *testing.T) {
 			// gRPC client (core agent)
 			collector := &remote.GenericCollector{
 				StreamHandler: &streamHandler{
-					port: port,
+					Config: mockConfig,
+					port:   port,
 				},
 				Insecure: true,
 			}
@@ -274,10 +277,33 @@ func TestCollection(t *testing.T) {
 			err = collector.Start(ctx, mockStore)
 			require.NoError(t, err)
 
-			// Wait for gRPC calls to be sent
-			time.Sleep(1 * time.Second)
+			ch := mockStore.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
+			doneCh := make(chan struct{})
+
+			numberOfReponse := len(test.serverResponses)
+			if test.errorResponse {
+				numberOfReponse++
+			}
+			go func() {
+				j := 0
+				for i := 0; i < numberOfReponse; i++ {
+					bundle := <-ch
+					close(bundle.Ch)
+					j++
+				}
+				close(doneCh)
+			}()
+
+			<-doneCh
+			mockStore.Unsubscribe(ch)
+
+			// wait that the store gets populated
+			time.Sleep(time.Second)
 
 			cancel()
+
+			// wait that the stream goroutine terminates
+			time.Sleep(time.Second)
 
 			// Verify final state
 			for i := range test.expectedProcesses {

@@ -149,7 +149,7 @@ deploy_packages_dmg-x64-a7:
     !reference [.on_deploy_a7]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["agent_dmg-x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -162,7 +162,7 @@ deploy_staging_dsd:
     !reference [.on_deploy_a7]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["build_dogstatsd-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
@@ -175,7 +175,7 @@ deploy_staging_iot_agent:
     !reference [.on_deploy_a7]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["build_iot_agent-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent

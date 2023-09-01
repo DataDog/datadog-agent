@@ -61,6 +61,7 @@ thp_collapse_alloc 0`
 	sampleCgroupV2MemoryLow         = "0"
 	sampleCgroupV2MemoryHigh        = "max"
 	sampleCgroupV2MemoryMax         = "max"
+	sampleCgroupV2MemoryPeak        = "7000000"
 	sampleCgroupV2MemorySwapCurrent = "0"
 	sampleCgroupV2MemorySwapHigh    = "max"
 	sampleCgroupV2MemorySwapMax     = "max"
@@ -80,6 +81,7 @@ func createCgroupV2FakeMemoryFiles(cfs *cgroupMemoryFS, cg *cgroupV2) {
 	cfs.setCgroupV2File(cg, "memory.low", sampleCgroupV2MemoryLow)
 	cfs.setCgroupV2File(cg, "memory.high", sampleCgroupV2MemoryHigh)
 	cfs.setCgroupV2File(cg, "memory.max", sampleCgroupV2MemoryMax)
+	cfs.setCgroupV2File(cg, "memory.peak", sampleCgroupV2MemoryPeak)
 	cfs.setCgroupV2File(cg, "memory.swap.current", sampleCgroupV2MemorySwapCurrent)
 	cfs.setCgroupV2File(cg, "memory.swap.high", sampleCgroupV2MemorySwapHigh)
 	cfs.setCgroupV2File(cg, "memory.swap.max", sampleCgroupV2MemorySwapMax)
@@ -104,7 +106,7 @@ func TestCgroupV2MemoryStats(t *testing.T) {
 	cfs.enableControllers("memory")
 	err = cgFoo1.GetMemoryStats(stats)
 	assert.NoError(t, err)
-	assert.Equal(t, len(tr.errors), 11)
+	assert.Equal(t, len(tr.errors), 12)
 	assert.Empty(t, cmp.Diff(MemoryStats{}, *stats))
 
 	// Test reading files in memory controllers, all files present
@@ -130,6 +132,7 @@ func TestCgroupV2MemoryStats(t *testing.T) {
 		KernelMemory:  pointer.Ptr(uint64(49152)),
 		OOMEvents:     pointer.Ptr(uint64(3)),
 		OOMKiilEvents: pointer.Ptr(uint64(0)),
+		Peak:          pointer.Ptr(uint64(7000000)),
 		PSISome: PSIStats{
 			Avg10:  pointer.Ptr(0.0),
 			Avg60:  pointer.Ptr(0.0),

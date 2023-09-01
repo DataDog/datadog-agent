@@ -31,15 +31,12 @@ func getModuleProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "kprobe_parse_args",
 			},
 		},
-	}
-
-	if !fentry {
-		moduleProbes = append(moduleProbes, &manager.Probe{
+		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_security_kernel_module_from_file",
 			},
-		})
+		},
 	}
 
 	moduleProbes = append(moduleProbes, ExpandSyscallProbes(&manager.Probe{

@@ -19,8 +19,8 @@ import (
 	"github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"

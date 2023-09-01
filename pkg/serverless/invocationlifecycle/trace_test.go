@@ -224,7 +224,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		IsError:            false,
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
-		Coldstart:          true,
+		ColdStart:          true,
 		ProactiveInit:      false,
 		Runtime:            "dotnet6",
 	}
@@ -272,7 +272,7 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 		IsError:            false,
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
-		Coldstart:          false,
+		ColdStart:          false,
 		ProactiveInit:      true,
 	}
 
@@ -435,7 +435,7 @@ func TestLanguageTag(t *testing.T) {
 			IsError:            false,
 			RequestID:          "test-request-id",
 			ResponseRawPayload: []byte(`{"response":"test response payload"}`),
-			Coldstart:          true,
+			ColdStart:          true,
 			ProactiveInit:      false,
 			Runtime:            tc.runtime, // add runtime
 		}

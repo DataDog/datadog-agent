@@ -6,7 +6,6 @@
   * Must update the test suite for the relevant functionality.
   * Should pass all status checks before being reviewed or merged.
 * Commit titles should be prefixed with general area of pull request's change.
-* Draft PRs should be prefixed with `[WIP]` in their title.
 
 -->
 ### What does this PR do?
@@ -62,5 +61,5 @@ Note: Adding GitHub labels is only possible for contributors with write access.
 - [ ] At least one `team/..` label has been applied, indicating the team(s) that should QA this change.
 - [ ] If applicable, docs team has been notified or [an issue has been opened on the documentation repo](https://github.com/DataDog/documentation/issues/new).
 - [ ] If applicable, the `need-change/operator` and `need-change/helm` labels have been applied.
-- [ ] If applicable, the `k8s/<min-version>` label, indicating the lowest Kubernetes version compatible with this feature. 
+- [ ] If applicable, the `k8s/<min-version>` label, indicating the lowest Kubernetes version compatible with this feature.
 - [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.

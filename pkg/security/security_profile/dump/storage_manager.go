@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -39,12 +38,12 @@ type ActivityDumpStorageManager struct {
 }
 
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
+func NewSecurityAgentStorageManager(senderManager sender.SenderManager) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
 
-	sender, err := aggregator.GetDefaultSender()
+	sender, err := senderManager.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}

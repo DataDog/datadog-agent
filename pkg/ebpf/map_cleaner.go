@@ -141,7 +141,7 @@ func (mc *MapCleaner) clean(nowTS int64, shouldClean func(nowTS int64, k, v inte
 	}
 
 	iterationErr := entries.Err()
-	elapsed := time.Now().Sub(now)
+	elapsed := time.Since(now)
 	log.Debugf(
 		"finished cleaning map=%s entries_checked=%d entries_deleted=%d iteration_error=%v elapsed=%s",
 		mc.emap,

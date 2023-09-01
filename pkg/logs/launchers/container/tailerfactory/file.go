@@ -17,8 +17,8 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"

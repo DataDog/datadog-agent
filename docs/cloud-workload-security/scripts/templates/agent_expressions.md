@@ -118,7 +118,7 @@ Such rules can be written as follows:
 
 {% raw %}
 {{< code-block lang="javascript" >}}
-dns.question.name == "example.com" && network.destination.ip in ["192.168.1.25", "10.0.0.0/24"]
+dns.question.name == "example.com" && network.destination.ip in [192.168.1.25, 10.0.0.0/24]
 
 {{< /code-block >}}
 {% endraw %}
@@ -140,7 +140,7 @@ Examples:
 
 Examples:
 * `T=8` and `width=8` both are in *args_options* for the command `ls -T 8 --width=8`
-* `exec.args_options ~= [ “s=.*\’” ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
+* `exec.args_options in [ r"s=.*\\" ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
 
 ### File rights
 

@@ -53,12 +53,14 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			},
 			args: args{
 				event: &model.Event{
-					FieldHandlers: &model.DefaultFieldHandlers{},
-					Type:          uint32(model.ExecEventType),
-					ProcessContext: &model.ProcessContext{
-						Process: model.Process{
-							PIDContext: model.PIDContext{
-								Pid: pid,
+					BaseEvent: model.BaseEvent{
+						FieldHandlers: &model.DefaultFieldHandlers{},
+						Type:          uint32(model.ExecEventType),
+						ProcessContext: &model.ProcessContext{
+							Process: model.Process{
+								PIDContext: model.PIDContext{
+									Pid: pid,
+								},
 							},
 						},
 					},
@@ -87,12 +89,14 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			},
 			args: args{
 				event: &model.Event{
-					FieldHandlers: &model.DefaultFieldHandlers{},
-					Type:          uint32(model.ExecEventType),
-					ProcessContext: &model.ProcessContext{
-						Process: model.Process{
-							PIDContext: model.PIDContext{
-								Pid: pid,
+					BaseEvent: model.BaseEvent{
+						FieldHandlers: &model.DefaultFieldHandlers{},
+						Type:          uint32(model.ExecEventType),
+						ProcessContext: &model.ProcessContext{
+							Process: model.Process{
+								PIDContext: model.PIDContext{
+									Pid: pid,
+								},
 							},
 						},
 					},
@@ -117,12 +121,14 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			},
 			args: args{
 				event: &model.Event{
-					FieldHandlers: &model.DefaultFieldHandlers{},
-					Type:          uint32(model.ExecEventType),
-					ProcessContext: &model.ProcessContext{
-						Process: model.Process{
-							PIDContext: model.PIDContext{
-								Pid: pid,
+					BaseEvent: model.BaseEvent{
+						FieldHandlers: &model.DefaultFieldHandlers{},
+						Type:          uint32(model.ExecEventType),
+						ProcessContext: &model.ProcessContext{
+							Process: model.Process{
+								PIDContext: model.PIDContext{
+									Pid: pid,
+								},
 							},
 						},
 					},
@@ -151,12 +157,14 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			},
 			args: args{
 				event: &model.Event{
-					FieldHandlers: &model.DefaultFieldHandlers{},
-					Type:          uint32(model.ExecEventType),
-					ProcessContext: &model.ProcessContext{
-						Process: model.Process{
-							PIDContext: model.PIDContext{
-								Pid: pid,
+					BaseEvent: model.BaseEvent{
+						FieldHandlers: &model.DefaultFieldHandlers{},
+						Type:          uint32(model.ExecEventType),
+						ProcessContext: &model.ProcessContext{
+							Process: model.Process{
+								PIDContext: model.PIDContext{
+									Pid: pid,
+								},
 							},
 						},
 					},
@@ -181,12 +189,14 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			},
 			args: args{
 				event: &model.Event{
-					FieldHandlers: &model.DefaultFieldHandlers{},
-					Type:          uint32(model.ExecEventType),
-					ProcessContext: &model.ProcessContext{
-						Process: model.Process{
-							PIDContext: model.PIDContext{
-								Pid: pid,
+					BaseEvent: model.BaseEvent{
+						FieldHandlers: &model.DefaultFieldHandlers{},
+						Type:          uint32(model.ExecEventType),
+						ProcessContext: &model.ProcessContext{
+							Process: model.Process{
+								PIDContext: model.PIDContext{
+									Pid: pid,
+								},
 							},
 						},
 					},
@@ -479,12 +489,14 @@ func BenchmarkHashFunctions(b *testing.B) {
 
 				for i := 0; i < caseB.N; i++ {
 					got := resolver.ComputeHashesFromEvent(&model.Event{
-						FieldHandlers: &model.DefaultFieldHandlers{},
-						Type:          uint32(model.ExecEventType),
-						ProcessContext: &model.ProcessContext{
-							Process: model.Process{
-								PIDContext: model.PIDContext{
-									Pid: pid,
+						BaseEvent: model.BaseEvent{
+							FieldHandlers: &model.DefaultFieldHandlers{},
+							Type:          uint32(model.ExecEventType),
+							ProcessContext: &model.ProcessContext{
+								Process: model.Process{
+									PIDContext: model.PIDContext{
+										Pid: pid,
+									},
 								},
 							},
 						},

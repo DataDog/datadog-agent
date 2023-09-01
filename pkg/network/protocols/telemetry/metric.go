@@ -38,6 +38,10 @@ func (c *Counter) Add(v int64) {
 	c.value.Add(v)
 }
 
+func (c *Counter) base() *metricBase {
+	return c.metricBase
+}
+
 // Gauge is a metric that represents a numerical value that can arbitrarily go up and down
 type Gauge struct {
 	*metricBase
@@ -60,6 +64,10 @@ func (g *Gauge) Set(v int64) {
 // Add value atomically
 func (g *Gauge) Add(v int64) {
 	g.value.Add(v)
+}
+
+func (g *Gauge) base() *metricBase {
+	return g.metricBase
 }
 
 type metricBase struct {
@@ -90,16 +98,9 @@ func (m *metricBase) Get() int64 {
 	return m.value.Load()
 }
 
-// this method is used to essentially convert the `metric`
-// interface to the underlying `metricBase` in the code
-// that has to deal with both `Counter` and `Gauge` types
-func (m *metricBase) base() *metricBase {
-	return m
-}
-
 // metric is the private interface shared by `Counter` and `Gauge`
 // the base() method simply returns the embedded `*metricBase` struct
-// which is all we need in the internal code
+// which is all we need in the internal code that has to deal with both types
 type metric interface {
 	base() *metricBase
 }

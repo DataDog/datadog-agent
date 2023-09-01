@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var (
@@ -24,7 +24,7 @@ var (
 
 func initEphemeralRange() {
 	initEphemeralIntPair.Do(func() {
-		ephemeralIntPair = sysctl.NewIntPair(util.GetProcRoot(), "net/ipv4/ip_local_port_range", time.Hour)
+		ephemeralIntPair = sysctl.NewIntPair(kernel.ProcFSRoot(), "net/ipv4/ip_local_port_range", time.Hour)
 		low, hi, err := ephemeralIntPair.Get()
 		if err == nil {
 			if low > 0 && low <= math.MaxUint16 {

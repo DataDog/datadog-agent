@@ -8,8 +8,8 @@ package decoder
 import (
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"

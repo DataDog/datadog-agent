@@ -13,7 +13,8 @@
         "ec2": {
             "x86_64": {
                 "centos-79": "ami-00e87074e52e6c9f9",
-                "rhel-86": "ami-06640050dc3f556bb"
+                "rhel-86": "ami-06640050dc3f556bb",
+                "rocky-92": "ami-07d75f492ac3a326f"
             },
             "arm64": {
                 "centos-79": "ami-0144a5a84f5699847",
@@ -35,17 +36,18 @@
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
                 "debian-10": "urn,Debian:debian-10:10:0.20230222.1299",
                 "debian-10-daily": "urn,Debian:debian-10-daily:10:0.20230727.1454",
-                "debian-11": "urn,Debian:debian-11:11:0.20230501.1367"
+                "debian-11": "urn,Debian:debian-11:11:0.20230501.1367",
+                "debian-12": "urn,Debian:debian-12:12:0.20230802.1460"
             }
         },
         "ec2": {
             "x86_64": {
-                "debian-10": "ami-09c5dc3046df4741f",
+                "debian-10": "ami-041540a5c191757a0",
                 "debian-11": "ami-09e24b0cfe072ecef",
                 "debian-12": "ami-0076a5c1d029e906a"
             },
             "arm64": {
-                "debian-10": "ami-0d35a4c5725fd0da7",
+                "debian-10": "ami-0108ade0d057c8eba",
                 "debian-11": "ami-03ea090ddd75eb738",
                 "debian-12": "ami-02aab8d5301cb8d68"
             }

@@ -7,23 +7,16 @@
 package processes
 
 import (
-	"flag"
 	"strings"
 	"time"
 )
 
-var options struct {
-	limit int
-}
+const limit = 20
 
 // Processes is the Collector type of the processes package.
 type Processes struct{}
 
 const name = "processes"
-
-func init() {
-	flag.IntVar(&options.limit, name+"-limit", 20, "Number of process groups to return")
-}
 
 // Name returns the name of the package
 func (processes *Processes) Name() string {
@@ -50,7 +43,7 @@ type ProcessGroup struct {
 
 // Get returns a list of process groups information or an error
 func Get() ([]ProcessGroup, error) {
-	return getProcessGroups(options.limit)
+	return getProcessGroups(limit)
 }
 
 // ProcessField is an untyped representation of a process group,

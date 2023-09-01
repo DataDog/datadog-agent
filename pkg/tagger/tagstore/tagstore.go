@@ -269,7 +269,7 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
 
-	if present == false {
+	if !present {
 		return tagset.HashedTags{}
 	}
 	return storedTags.getHashedTags(cardinality)
@@ -298,7 +298,7 @@ func (s *TagStore) GetEntityTags(entityID string) (*EntityTags, error) {
 	defer s.RUnlock()
 
 	storedTags, present := s.store[entityID]
-	if present == false {
+	if !present {
 		return nil, ErrNotFound
 	}
 

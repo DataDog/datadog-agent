@@ -9,6 +9,7 @@ package winutil
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"time"
@@ -125,6 +126,56 @@ func StopService(serviceName string) error {
 		}
 	}
 	return doStopService(serviceName)
+}
+
+// WaitForState waits for the service to become the desired state. A timeout can be specified
+// with a context. Returns nil if/when the service becomes the desired state.
+func WaitForState(serviceName string, desiredState svc.State, ctx context.Context) error {
+	// open handle to service
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return fmt.Errorf("could not open SCM: %v", err)
+	}
+	defer manager.Disconnect()
+
+	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return fmt.Errorf("could not open service %s: %v", serviceName, err)
+	}
+	defer service.Close()
+
+	// check if state matches desiredState
+	status, err := service.Query()
+	if err != nil {
+		return fmt.Errorf("could not retrieve service status: %v", err)
+	}
+	if status.State == desiredState {
+		return nil
+	}
+
+	// Wait for timeout or state to match desiredState
+	for {
+		select {
+		case <-time.After(300 * time.Millisecond):
+			status, err := service.Query()
+			if err != nil {
+				return fmt.Errorf("could not retrieve service status: %v", err)
+			}
+			if status.State == desiredState {
+				return nil
+			}
+		case <-ctx.Done():
+			status, err := service.Query()
+			if err != nil {
+				return fmt.Errorf("could not retrieve service status: %v", err)
+			}
+			if status.State == desiredState {
+				return nil
+			} else {
+				return ctx.Err()
+			}
+		}
+	}
 }
 
 func RestartService(serviceName string) error {

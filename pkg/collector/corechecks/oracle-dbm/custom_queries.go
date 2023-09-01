@@ -50,7 +50,6 @@ func (c *Check) CustomQueries() error {
 			return fmt.Errorf("empty connection")
 		}
 		c.dbCustomQueries = db
-		c.dbCustomQueries.SetMaxOpenConns(1)
 	}
 
 	var metricRows []metricRow
@@ -83,7 +82,8 @@ func (c *Check) CustomQueries() error {
 			}
 			_, err := c.dbCustomQueries.Exec(fmt.Sprintf("alter session set container = %s", pdb))
 			if err != nil {
-				log.Errorf("Can't set container to %s", pdb)
+				log.Errorf("failed to set container %s %s", pdb, err)
+				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
 				continue
 			}
 		}
