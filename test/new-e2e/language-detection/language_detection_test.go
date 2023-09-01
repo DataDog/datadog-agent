@@ -67,6 +67,8 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 		fmt.Sprintf("language match not found, pid = %s, expected = %s, actual = %s, err = %v",
 			pid, language, actualLanguage, err),
 	)
+
+	s.Env().VM.Execute(fmt.Sprintf("kill -SIGTERM %s", pid))
 }
 
 func (s *languageDetectionSuite) getPidForCommand(command string) string {
