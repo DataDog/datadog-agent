@@ -6,11 +6,11 @@
 package encoding
 
 import (
-	"github.com/gogo/protobuf/jsonpb"
 	"io"
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
