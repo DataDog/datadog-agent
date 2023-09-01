@@ -96,9 +96,12 @@ func TestV2TrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	sender, ok := forwarder.sender.(*mocksender.MockSender)
 	require.True(t, ok)
-	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
+	packet := makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
+	rawEvent, err := forwarder.formatter.FormatPacket(packet)
+	require.NoError(t, err)
+	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, []byte("0dee7422f503d972db97b711e39a5003d1995c0d2f718542813acc4c46053ef0"), epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, rawEvent, epforwarder.EventTypeSnmpTraps)
 }
 
 func TestForwarderTelemetry(t *testing.T) {
