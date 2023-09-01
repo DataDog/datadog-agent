@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Improve recovering from lost connection in custom query.
+    Improve recovering from lost connections in custom queries.
