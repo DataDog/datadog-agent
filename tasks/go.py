@@ -29,7 +29,9 @@ GOARCH_MAPPING = {
 }
 
 
-def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None):
+def run_golangci_lint(
+    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None, timeout=None
+):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
@@ -49,8 +51,9 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(sorted(set(tags)))
+        timeout_arg_value = "20m0s" if not timeout else f"{timeout}m0s"
         result = ctx.run(
-            f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
+            f'golangci-lint run --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
             env=env,
             warn=True,
         )
