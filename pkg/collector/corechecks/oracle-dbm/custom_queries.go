@@ -24,11 +24,15 @@ type metricRow struct {
 	tags   []string
 }
 
-func logTypeError(prefix string, expectedType string, column string, value interface{}, query string) {
+func logTypeError(prefix string, expectedType string, column string, value interface{}, query string, err error) {
 	log.Errorf(
-		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s"`,
-		prefix, expectedType, column, value, reflect.TypeOf(value), query,
+		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s". Error: %s`,
+		prefix, expectedType, column, value, reflect.TypeOf(value), query, err,
 	)
+}
+
+func concatenateError(input error, new string) error {
+	return fmt.Errorf("%w\n%s", input, new)
 }
 
 func (c *Check) CustomQueries() error {
@@ -65,12 +69,13 @@ func (c *Check) CustomQueries() error {
 		"histogram":       sender.Histogram,
 		"historate":       sender.Historate,
 	}
+	var allErrors error
 	for _, q := range c.config.CustomQueries {
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
 
 		if metricPrefix == "" {
-			log.Error("Undefined metric_prefix for a custom query")
+			allErrors = concatenateError(allErrors, "Undefined metric_prefix for a custom query")
 			continue
 		}
 		log.Tracef("custom query configuration %v", q)
@@ -82,7 +87,7 @@ func (c *Check) CustomQueries() error {
 			}
 			_, err := c.dbCustomQueries.Exec(fmt.Sprintf("alter session set container = %s", pdb))
 			if err != nil {
-				log.Errorf("failed to set container %s %s", pdb, err)
+				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
 				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
 				continue
 			}
@@ -92,7 +97,7 @@ func (c *Check) CustomQueries() error {
 			defer rows.Close()
 		}
 		if err != nil {
-			log.Errorf("failed to fetch rows for the custom query %s %s", metricPrefix, err)
+			allErrors = concatenateError(allErrors, fmt.Sprintf("failed to fetch rows for the custom query %s %s", metricPrefix, err))
 			continue
 		}
 		for rows.Next() {
@@ -105,7 +110,7 @@ func (c *Check) CustomQueries() error {
 				break
 			}
 			if len(cols) > len(q.Columns) {
-				log.Errorf("Not enough column mappings for the custom query %s %s", metricPrefix, err)
+				allErrors = concatenateError(allErrors, fmt.Sprintf("Not enough column mappings for the custom query %s %s", metricPrefix, err))
 				errInQuery = true
 				break
 			}
@@ -120,19 +125,26 @@ func (c *Check) CustomQueries() error {
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
 						if err != nil {
-							logTypeError(metricPrefix, "number", metricRow.name, v, q.Query)
+							logTypeError(metricPrefix, "number", metricRow.name, v, q.Query, err)
 							errInQuery = true
 							break
 						}
 					} else if v_gn, ok := v.(godror.Number); ok {
 						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
 						if err != nil {
-							logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query)
+							logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query, err)
+							errInQuery = true
+							break
+						}
+					} else if v_int64, ok := v.(int64); ok {
+						metricRow.value = float64(v_int64)
+						if err != nil {
+							logTypeError(metricPrefix, "int64", metricRow.name, v, q.Query, err)
 							errInQuery = true
 							break
 						}
 					} else {
-						logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query)
+						logTypeError(metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
 						errInQuery = true
 						break
 					}
@@ -140,7 +152,7 @@ func (c *Check) CustomQueries() error {
 					metricRow.method = methodFunc
 					metricsFromSingleRow = append(metricsFromSingleRow, metricRow)
 				} else {
-					log.Errorf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name)
+					allErrors = concatenateError(allErrors, fmt.Sprintf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name))
 					errInQuery = true
 					break
 				}
@@ -162,12 +174,11 @@ func (c *Check) CustomQueries() error {
 		if errInQuery {
 			continue
 		}
-
 		for _, m := range metricRows {
-			log.Tracef("send metric %+v", m)
+			log.Debugf("send metric %+v", m)
 			m.method(m.name, m.value, "", m.tags)
 		}
 		sender.Commit()
 	}
-	return nil
+	return allErrors
 }
