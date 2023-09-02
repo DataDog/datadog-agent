@@ -120,16 +120,16 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	count := nt.runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
 	connections := &connectionserver.Connection{}
+	buffer := bytes.NewBuffer(make([]byte, 0))
 
 	// As long as there are connections, we divide them into batches and subsequently send all the batches
 	// via a gRPC stream to the process agent. The size of each batch is determined by the value of maxConnsPerMessage.
 	for len(cs.Conns) > 0 {
-		var buffer bytes.Buffer
 		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
 		rest := cs.Conns[finalBatchSize:]
 		cs.Conns = cs.Conns[:finalBatchSize]
 
-		err := marshaler.Marshal(cs, &buffer, connectionsModeler)
+		err := marshaler.Marshal(cs, buffer, connectionsModeler)
 
 		if err != nil {
 			return fmt.Errorf("unable to marshal payload due to: %s", err)
@@ -142,6 +142,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 		}
 
 		cs.Conns = rest
+		buffer.Reset()
 	}
 
 	return nil
