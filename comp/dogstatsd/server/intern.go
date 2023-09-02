@@ -44,7 +44,7 @@ type stringInterner struct {
 
 func newStringInterner(maxSize int) *stringInterner {
 	i := &stringInterner{
-		strings:    make(map[string]string),
+		strings:    make(map[string]string, maxSize),
 		maxSize:    maxSize,
 		tlmEnabled: utils.IsTelemetryEnabled(),
 	}
@@ -78,7 +78,11 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 			i.curBytes = 0
 		}
 
-		i.strings = make(map[string]string)
+		// Clear strings of keys, leave the underlying allocation
+		// intact.
+		for k := range i.strings {
+			delete(i.strings, k)
+		}
 		log.Debug("clearing the string interner cache")
 
 	}
