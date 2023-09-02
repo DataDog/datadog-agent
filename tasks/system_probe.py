@@ -936,7 +936,7 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
         targets = get_ebpf_targets()
 
     # remove externally maintained files
-    ignored_files = ["pkg/ebpf/c/bpf_helpers.h", "pkg/ebpf/c/bpf_endian.h", "pkg/ebpf/compiler/clang-stdarg.h"]
+    ignored_files = ["pkg/ebpf/c/bpf_helpers.h", "pkg/ebpf/c/bpf_endian.h", "pkg/ebpf/compiler/clang-stdarg.h", "pkg/ebpf/c/vmlinux_5_15_0.h", "pkg/ebpf/c/vmlinux_5_15_0_arm.h"]
     for f in ignored_files:
         if f in targets:
             targets.remove(f)
