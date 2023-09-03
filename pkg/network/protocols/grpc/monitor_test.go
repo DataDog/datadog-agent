@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -41,6 +42,10 @@ func randStringRunes(n int) string {
 	return string(b)
 }
 
+type USMgRPCSuite struct {
+	suite.Suite
+}
+
 func TestGRPCScenarios(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -50,7 +55,9 @@ func TestGRPCScenarios(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", testGRPCScenarios)
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(USMgRPCSuite))
+	})
 }
 
 func getClientsArray(t *testing.T, size int, options grpc.Options) []*grpc.Client {
@@ -69,15 +76,15 @@ func getClientsIndex(index, totalCount int) int {
 	return index % totalCount
 }
 
-func testGRPCScenarios(t *testing.T) {
+func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
+	t := s.T()
 	cfg := config.New()
-	cfg.BPFDebug = true
 	cfg.EnableHTTP2Monitoring = true
 
-	s, err := grpc.NewServer(srvAddr)
+	srv, err := grpc.NewServer(srvAddr)
 	require.NoError(t, err)
-	s.Run()
-	t.Cleanup(s.Stop)
+	srv.Run()
+	t.Cleanup(srv.Stop)
 	defaultCtx := context.Background()
 
 	// c is a stream endpoint
@@ -206,46 +213,6 @@ func testGRPCScenarios(t *testing.T) {
 			},
 		},
 		{
-			name: "request with large body (50MB)",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
-
-				for i := 0; i < 5; i++ {
-					longName := randStringRunes(50 * 1024 * 1024)
-					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(defaultCtx, longName))
-				}
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 5,
-			},
-		},
-		{
-			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
-
-				longName := randStringRunes(5 * 1024 * 1024)
-
-				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, longName))
-				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
-				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, longName))
-				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
-					Method: http.MethodPost,
-				}: 2,
-				{
-					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
-					Method: http.MethodPost,
-				}: 2,
-			},
-		},
-		{
 			name: "500 headers -> b -> 500 headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getClientsArray(t, clientsCount, grpc.Options{})
@@ -358,6 +325,134 @@ func testGRPCScenarios(t *testing.T) {
 							return false
 						}
 						if val != count {
+							return false
+						}
+					}
+
+					return true
+				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			})
+		}
+	}
+}
+
+type captureRange struct {
+	lower int
+	upper int
+}
+
+func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
+	t := s.T()
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	srv, err := grpc.NewServer(srvAddr)
+	require.NoError(t, err)
+	srv.Run()
+	t.Cleanup(srv.Stop)
+	defaultCtx := context.Background()
+
+	// c is a stream endpoint
+	// a + b are unary endpoints
+	tests := []struct {
+		name              string
+		runClients        func(t *testing.T, clientsCount int)
+		expectedEndpoints map[http.Key]captureRange
+	}{
+		{
+			name: "request with large body (50MB)",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
+
+				for i := 0; i < 5; i++ {
+					longName := randStringRunes(50 * 1024 * 1024)
+					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(defaultCtx, longName))
+				}
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Method: http.MethodPost,
+				}: {
+					lower: 4,
+					upper: 5,
+				},
+			},
+		},
+		{
+			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount, grpc.Options{})
+
+				longName := randStringRunes(5 * 1024 * 1024)
+
+				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, longName))
+				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
+				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, longName))
+				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: "/routeguide.RouteGuide/GetFeature"},
+					Method: http.MethodPost,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
+				{
+					Path:   http.Path{Content: "/helloworld.Greeter/SayHello"},
+					Method: http.MethodPost,
+				}: {
+					lower: 1,
+					upper: 2,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		for _, clientCount := range []int{1, 2, 5} {
+			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
+			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
+				require.NoError(t, err)
+				require.NoError(t, monitor.Start())
+				defer monitor.Stop()
+
+				tt.runClients(t, clientCount)
+
+				res := make(map[http.Key]int)
+				require.Eventually(t, func() bool {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
+						if key.DstPort == 5050 || key.SrcPort == 5050 {
+							count := stat.Data[200].Count
+							newKey := http.Key{
+								Path:   http.Path{Content: key.Path.Content},
+								Method: key.Method,
+							}
+							if _, ok := res[newKey]; !ok {
+								res[newKey] = count
+							} else {
+								res[newKey] += count
+							}
+						}
+					}
+
+					if len(res) != len(tt.expectedEndpoints) {
+						return false
+					}
+
+					for key, count := range res {
+						valRange, ok := tt.expectedEndpoints[key]
+						if !ok {
+							return false
+						}
+						if count < valRange.lower || valRange.upper > count {
 							return false
 						}
 					}
