@@ -10,12 +10,12 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/suite"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
