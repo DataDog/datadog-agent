@@ -11,10 +11,12 @@ from invoke.exceptions import Exit
 
 WINDOWS_SKIP_IF_TESTSIGNING = ['.*cn']
 
+
 def disable_ec2_driver_imsdv2(driver_content):
     driver_content = driver_content.replace("http_tokens: required", "http_tokens: optional")
-    driver_content = driver_content.replace("instance_metadata_tags: enabled","instance_metadata_tags: disabled")
+    driver_content = driver_content.replace("instance_metadata_tags: enabled", "instance_metadata_tags: disabled")
     return driver_content
+
 
 @task(iterable=['platlist'])
 def genconfig(
@@ -29,7 +31,7 @@ def genconfig(
     fips=False,
     arch="x86_64",
     imagesize=None,
-    force_imdsv1=False
+    force_imdsv1=False,
 ):
     """
     Create a kitchen config
