@@ -74,11 +74,11 @@ func verifyAssertionsOnFilesList(t *testing.T, flare flare.Flare, filenames []st
 
 // filterFilenameByPrefix returns all filenames starting with `suffix`.
 // This is used to get all files from a folder since all files in the 'foo' folder have a name starting with "foo/"
-func filterFilenameByPrefix(filenames []string, suffix string) []string {
+func filterFilenameByPrefix(filenames []string, prefix string) []string {
 	var filteredFilenames []string
 
 	for _, filename := range filenames {
-		if strings.HasPrefix(filename, suffix) {
+		if strings.HasPrefix(filename, prefix) {
 			filteredFilenames = append(filteredFilenames, filename)
 		}
 	}
