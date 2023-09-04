@@ -24,8 +24,10 @@ func assertFilesExist(t *testing.T, flare flare.Flare, filenames []string) {
 func fileExists(t *testing.T, flare flare.Flare, filename string) {
 	t.Helper()
 
-	_, err := flare.GetFile(filename)
-	assert.NoError(t, err, "Got error when searching for '%v' file in flare archive: %v", filename, err)
+	fileInfo, err := flare.GetFileInfo(filename)
+	if assert.NoError(t, err, "Got error when searching for '%v' file in flare archive: %v", filename, err) {
+		assert.True(t, fileInfo.Mode().IsRegular(), "Expected '%v' to be a regular file but is not. (FileMode: %v)", filename, fileInfo.Mode())
+	}
 }
 
 // assertFoldersExist verifies that all files in filenames exist in the flare archive and are folders
