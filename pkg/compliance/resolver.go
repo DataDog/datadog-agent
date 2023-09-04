@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
-	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -74,7 +73,7 @@ type ResolverOptions struct {
 	HostRoot string
 
 	// ContainerID sets the resolving context relative to a specific container (optional)
-	ContainerID secutils.ContainerID
+	ContainerID string
 
 	StatsdClient *statsd.Client
 
@@ -153,7 +152,7 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		RuleID            string                `json:"ruleID"`
 		Hostname          string                `json:"hostname"`
 		KubernetesCluster string                `json:"kubernetes_cluster"`
-		ContainerID       secutils.ContainerID  `json:"container_id"`
+		ContainerID       string                `json:"container_id"`
 		ImageID           string                `json:"image_id"`
 		ImageName         string                `json:"image_name"`
 		ImageTag          string                `json:"image_tag"`
@@ -515,7 +514,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
-func (r *defaultResolver) resolveContainerRootPath(ctx context.Context, containerID secutils.ContainerID) (string, bool) {
+func (r *defaultResolver) resolveContainerRootPath(ctx context.Context, containerID string) (string, bool) {
 	if containerID == "" {
 		return "", false
 	}
@@ -524,10 +523,8 @@ func (r *defaultResolver) resolveContainerRootPath(ctx context.Context, containe
 		return "", false
 	}
 	for _, proc := range procs {
-		pid := uint32(proc.Pid)
-		cID, _ := secutils.GetProcContainerID(pid, pid)
-		if cID == containerID {
-			return secutils.ProcRootPath(pid), true
+		if cID, ok := getProcessContainerID(proc.Pid); ok && cID == containerID {
+			return getProcessRootPath(proc.Pid)
 		}
 	}
 	return "", false
