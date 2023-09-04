@@ -20,7 +20,7 @@ func ParseJSON(data []byte) ([]*LogsConfig, error) {
 	var configs []*LogsConfig
 	err := json.Unmarshal(data, &configs)
 	if err != nil {
-		log.Printf("JSON logs config received (as bytes): %x", data)
+		log.Debugf("JSON logs config received (as bytes): %x", data)
 		return nil, fmt.Errorf("could not parse JSON logs config: %v", err)
 	}
 	return configs, nil
