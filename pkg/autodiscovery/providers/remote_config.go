@@ -43,6 +43,9 @@ func NewRemoteConfigProvider() *RemoteConfigProvider {
 func (rc *RemoteConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
+
+	rc.upToDate = true
+
 	// TODO: use the `Stream` interface instead of the `Collect`+`isUpToDate` interface
 	// for the next implementation iteration
 	integrationList := []integration.Config{}

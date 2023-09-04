@@ -502,7 +502,8 @@ func startAgent(
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
 
-			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
+			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+				// Spin up the config provider to schedule integrations through remote-config
 				rcProvider := providers.NewRemoteConfigProvider()
 				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 				// LoadAndRun is called later on
