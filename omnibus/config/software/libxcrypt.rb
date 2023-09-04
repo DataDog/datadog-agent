@@ -3,6 +3,8 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2022-present Datadog, Inc.
 
+require './lib/autotools.rb'
+
 name "libxcrypt"
 default_version "4.4.28"
 
@@ -21,22 +23,20 @@ build do
     license "LGPL-2.1"
     license_file "./COPYING.lib"
 
-    env = with_standard_compiler_flags
+    # This builds libcrypt.so.2
+    # To build libcrypt.so.1, the --disable-obsolete-api option
+    # needs to be removed.
+    autotools_params = {
+      :configure_opts => ["--disable-obsolete-api"]
+    }
 
     if redhat? && !arm? && ohai['platform_version'].to_i == 6
         # On the CentOS 6 builder, use gcc 4.9.2 in the devtoolset-3 env,
         # and ignore sign conversion warnings.
-        env["CC"] = "/opt/rh/devtoolset-3/root/usr/bin/gcc"
-        env["CPP"] = "/opt/rh/devtoolset-3/root/usr/bin/cpp"
-        env["CFLAGS"] += " -Wno-sign-conversion"
+        autotools_params[:CC] = "/opt/rh/devtoolset-3/root/usr/bin/gcc"
+        autotools_params[:CPP] = "/opt/rh/devtoolset-3/root/usr/bin/cpp"
+        autotools_params[:CFLAGS] = " -Wno-sign-conversion"
     end
 
-    # This builds libcrypt.so.2
-    # To build libcrypt.so.1, the --disable-obsolete-api option
-    # needs to be removed.
-    command ["./configure",
-        "--prefix=#{install_dir}/embedded",
-        "--disable-obsolete-api"].join(" "), env: env
-    command "make -j #{workers}", env: env
-    command "make -j #{workers} install"
+    build_with_autotools(autotools_params)
 end
