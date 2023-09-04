@@ -96,7 +96,6 @@ func (rc rcClient) SubscribeAgentTask() {
 }
 
 func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
-	pkglog.Warnf("[RC] New subscription to %s", product)
 	rc.client.Subscribe(string(product), fn)
 }
 

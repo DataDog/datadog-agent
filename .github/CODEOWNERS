@@ -239,7 +239,7 @@
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
-/pkg/autodiscovery/providers/remote_config*.go  @DataDog/platform-integrations
+/pkg/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
@@ -269,7 +269,6 @@
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
-/pkg/collector/remoteconfig/            @DataDog/remote-config
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm

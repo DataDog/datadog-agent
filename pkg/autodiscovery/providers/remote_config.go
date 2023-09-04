@@ -32,7 +32,6 @@ type rcAgentIntegration struct {
 
 // NewRemoteConfigProvider creates a new RemoteConfigProvider.
 func NewRemoteConfigProvider() *RemoteConfigProvider {
-	pkglog.Warnf("[RC] New RC provider")
 	return &RemoteConfigProvider{
 		configErrors: make(map[string]ErrorMsgSet),
 		configCache:  make(map[string]integration.Config),
@@ -87,8 +86,6 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 	defer rc.mu.Unlock()
 	var err error
 
-	pkglog.Warnf("[RC] Start scheduling integrations with callback")
-
 	newCache := make(map[string]integration.Config, 0)
 	// Now schedule everything
 	for cfgPath, intg := range updates {
@@ -112,17 +109,16 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 			InitConfig: integration.Data(d.InitConfig),
 		}
 		for _, inst := range d.Instances {
-			newConfig.Instances = append(newCache[cfgPath].Instances, integration.Data(inst))
+			newConfig.Instances = append(newConfig.Instances, integration.Data(inst))
 		}
 		newCache[cfgPath] = newConfig
 
 		// TODO: report errors in a sync way to get integration run errors
 		applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
-	if err != nil {
+	if err == nil {
 		// Unschedule every integrations, even if they haven't changed
 		rc.configCache = newCache
 		rc.upToDate = false
 	}
-	pkglog.Warnf("[RC] Scheduling integrations %v", rc.configCache)
 }
