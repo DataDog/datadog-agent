@@ -296,9 +296,9 @@ func (p *Probe) Setup() error {
 	return nil
 }
 
-// Start processing events
+// Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
-	// Apply rules to the snapshotted data before starting the event stream
+	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
 	p.PlaySnapshot()
 	return p.eventStream.Start(&p.wg)
 }
