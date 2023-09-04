@@ -308,9 +308,11 @@ func (ad *ActivityDump) SetTimeout(timeout time.Duration) {
 func (ad *ActivityDump) updateTracedPid(pid uint32) {
 	// start by looking up any existing entry
 	var cookie uint32
-	_ = ad.adm.tracedPIDsMap.Lookup(pid, &cookie)
-	if cookie != ad.LoadConfigCookie {
-		_ = ad.adm.tracedPIDsMap.Put(pid, ad.LoadConfigCookie)
+	if ad.adm != nil { // it could be nil when running unit tests
+		_ = ad.adm.tracedPIDsMap.Lookup(pid, &cookie)
+		if cookie != ad.LoadConfigCookie {
+			_ = ad.adm.tracedPIDsMap.Put(pid, ad.LoadConfigCookie)
+		}
 	}
 }
 
@@ -678,8 +680,8 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 // Encode encodes an activity dump in the provided format
 func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
 	switch format {
-	case config.Json:
-		return ad.EncodeJSON()
+	case config.JSON:
+		return ad.EncodeJSON("")
 	case config.Protobuf:
 		return ad.EncodeProtobuf()
 	case config.Dot:
@@ -720,7 +722,7 @@ func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
 }
 
 // EncodeJSON encodes an activity dump in the ProtoJSON format
-func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
+func (ad *ActivityDump) EncodeJSON(indent string) (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
@@ -730,11 +732,12 @@ func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 	opts := protojson.MarshalOptions{
 		EmitUnpopulated: true,
 		UseProtoNames:   true,
+		Indent:          indent,
 	}
 
 	raw, err := opts.Marshal(pad)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", config.Json, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", config.JSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -807,7 +810,7 @@ func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.Storage
 		return ad.DecodeProtobuf(reader)
 	case config.Profile:
 		return ad.DecodeProfileProtobuf(reader)
-	case config.Json:
+	case config.JSON:
 		return ad.DecodeJSON(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)

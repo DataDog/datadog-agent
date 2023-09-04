@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -131,6 +133,7 @@ type server struct {
 	// ServerlessMode is set to true if we're running in a serverless environment.
 	ServerlessMode     bool
 	udsListenerRunning bool
+	udpLocalAddr       string
 
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
@@ -325,12 +328,14 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 			udsListenerRunning = true
 		}
 	}
-	if s.config.GetInt("dogstatsd_port") > 0 {
+
+	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
 		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, udpListener)
+			s.udpLocalAddr = udpListener.LocalAddr()
 		}
 	}
 
@@ -458,6 +463,10 @@ func (s *server) handleMessages() {
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
+}
+
+func (s *server) UDPLocalAddr() string {
+	return s.udpLocalAddr
 }
 
 func (s *server) forwarder(fcon net.Conn) {
@@ -715,7 +724,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*metrics.Event, error) {
+func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*event.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
@@ -729,7 +738,7 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*metrics.ServiceCheck, error) {
+func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*servicecheck.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)

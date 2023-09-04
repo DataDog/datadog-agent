@@ -37,4 +37,24 @@ func TestRealConfig(t *testing.T) {
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 }
 
+func TestMockConfig(t *testing.T) {
+	t.Setenv("XXXX_APP_KEY", "abc1234")
+	t.Setenv("DD_URL", "https://example.com")
+
+	config := fxutil.Test[Component](t, fx.Options(
+		fx.Supply(Params{}),
+		MockModule,
+	))
+	// values are set from env..
+	require.Equal(t, "abc1234", config.GetString("app_key"))
+	require.Equal(t, "https://example.com", config.GetString("dd_url"))
+
+	// but defaults are set
+	require.Equal(t, "localhost", config.GetString("ipc_address"))
+
+	// values can also be set by the mock (ConfigWriter)
+	config.(Mock).Set("app_key", "newvalue")
+	require.Equal(t, "newvalue", config.GetString("app_key"))
+}
+
 // TODO: test various bundle params

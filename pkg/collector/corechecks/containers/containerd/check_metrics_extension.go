@@ -10,7 +10,7 @@ package containerd
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -20,10 +20,10 @@ import (
 
 type containerdCustomMetricsExtension struct {
 	sender    generic.SenderFunc
-	aggSender aggregator.Sender
+	aggSender sender.Sender
 }
 
-func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	cext.sender = sender
 	cext.aggSender = aggSender
 }

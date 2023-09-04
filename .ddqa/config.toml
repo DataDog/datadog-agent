@@ -9,7 +9,7 @@ ignored_labels = [
 ]
 
 [teams."Agent Metrics Logs"]
-jira_project = "AML"
+jira_project = "AMLII"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -21,7 +21,7 @@ github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
 [teams."Agent Shared Components"]
-jira_project = "ASC"
+jira_project = "ASCII"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
@@ -67,7 +67,7 @@ github_team = "network-device-monitoring"
 github_labels = ["team/network-device-monitoring"]
 
 [teams."Network Performance Monitoring"]
-jira_project = "NET"
+jira_project = "NPM"
 jira_issue_type = "Task"
 jira_statuses = [
   "Backlog",
@@ -109,9 +109,12 @@ jira_statuses = [
 ]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
+exclude_members = [
+  "hithwen",
+]
 
 [teams."Platform Integrations"]
-jira_project = "PINT"
+jira_project = "PLINT"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -120,6 +123,9 @@ jira_statuses = [
 ]
 github_team = "platform-integrations"
 github_labels = ["team/platform-integrations"]
+exclude_members = [
+  "hithwen",
+]
 
 [teams."APM"]
 jira_project = "AIT"
@@ -154,6 +160,7 @@ jira_statuses = [
 ]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
+exclude_members = ["vboulineau"]
 
 [teams."Container Ecosystems"]
 jira_project = "CONTECO"
@@ -165,7 +172,6 @@ jira_statuses = [
 ]
 github_team = "container-ecosystems"
 github_labels = ["team/container-ecosystems"]
-exclude_members = ["davidor"]
 
 [teams."Security And Compliance Agent"]
 jira_project = "SEC"
@@ -236,7 +242,7 @@ github_team = "database-monitoring"
 github_labels = ["team/database-monitoring"]
 
 [teams."Container App"]
-jira_project = "CAP"
+jira_project = "CAP2"
 jira_issue_type = "Task"
 jira_statuses = [
   "💼 To Do",
@@ -245,3 +251,14 @@ jira_statuses = [
 ]
 github_team = "container-app"
 github_labels = ["team/container-app"]
+
+[teams."APM Onboarding"]
+jira_project = "APMON"
+jira_issue_type = "Task"
+jira_statuses = [
+  "Selected For Development",
+  "In Progress",
+  "Done",
+]
+github_team = "apm-onboarding"
+github_labels = ["team/apm-onboarding"]

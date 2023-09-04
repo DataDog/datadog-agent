@@ -23,13 +23,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -42,6 +42,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
+	a := NewAgent(ctx, conf, telemetryCollector)
+	a.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
+	a.Concentrator.In = make(chan stats.Input, 1000)
+	return a
+}
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
@@ -84,7 +91,7 @@ func TestProcess(t *testing.T) {
 			Repl: "...",
 		}}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -112,7 +119,7 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -160,7 +167,7 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
@@ -210,7 +217,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -261,7 +268,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
@@ -293,7 +300,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
@@ -313,11 +320,49 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
+	t.Run("aas", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.InAzureAppServices = true
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		go agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		timeout := time.After(2 * time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			tp = ss.TracerPayload
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+
+		for _, chunk := range tp.Chunks {
+			for i, span := range chunk.Spans {
+				if i == 0 {
+					// root span should contain all aas tags
+					for tag := range traceutil.GetAppServicesTags() {
+						assert.Contains(t, span.Meta, tag)
+					}
+				} else {
+					// other spans should only contain site name and type
+					assert.Contains(t, span.Meta, "aas.site.name")
+					assert.Contains(t, span.Meta, "aas.site.type")
+				}
+			}
+		}
+	})
+
 	t.Run("DiscardSpans", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		testDiscardFunction := func(span *pb.Span) bool {
@@ -360,7 +405,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		chunk1 := testutil.TraceChunkWithSpan(testutil.RandomSpan())
@@ -601,7 +646,7 @@ func TestConcentratorInput(t *testing.T) {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
 			cfg.RareSamplerEnabled = true
-			agent := NewAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
 
@@ -625,7 +670,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	t.Run("onNotTop", func(t *testing.T) {
@@ -775,7 +820,7 @@ func TestClientComputedStats(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 	tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
 		Service:  "something &&<@# that should be a metric!",
@@ -947,19 +992,12 @@ func TestSampling(t *testing.T) {
 }
 
 func TestSample(t *testing.T) {
+	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
-	a := &Agent{
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-		RareSampler:       sampler.NewRareSampler(config.New()),
-		EventProcessor:    newEventProcessor(cfg),
-		conf:              cfg,
-	}
 	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
 		root := &pb.Span{
 			Service:  "serv1",
-			Start:    time.Now().UnixNano(),
+			Start:    now.UnixNano(),
 			Duration: (100 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{"_top_level": 1},
 			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
@@ -1022,16 +1060,23 @@ func TestSample(t *testing.T) {
 		},
 	}
 	for name, tt := range tests {
+		a := &Agent{
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+			RareSampler:       sampler.NewRareSampler(config.New()),
+			EventProcessor:    newEventProcessor(cfg),
+			conf:              cfg,
+		}
 		t.Run(name, func(t *testing.T) {
-			// before := traceutil.CopyTraceChunk(tt.trace.TraceChunk)
 			before := tt.trace.TraceChunk.ShallowCopy()
-			_, keep, sampled := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			_, keep, sampled := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			_, keep, sampled = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			_, keep, sampled = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, before, tt.trace.TraceChunk) // make sure tt.trace.TraceChunk didn't change
 			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
@@ -1041,7 +1086,7 @@ func TestSample(t *testing.T) {
 
 func TestPartialSamplingFree(t *testing.T) {
 	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
-	statsChan := make(chan pb.StatsPayload, 100)
+	statsChan := make(chan *pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
@@ -1303,7 +1348,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	defer wg.Wait()
 	defer cancelFunc()
 
-	ta := NewAgent(ctx, c, telemetry.NewNoopCollector())
+	ta := NewTestAgent(ctx, c, telemetry.NewNoopCollector())
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1361,7 +1406,7 @@ func benchThroughput(file string) func(*testing.B) {
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		http.DefaultServeMux = &http.ServeMux{}
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancelFunc()
 
 		// start the agent without the trace and stats writers; we will be draining
@@ -1479,21 +1524,21 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 
 func TestConvertStats(t *testing.T) {
 	testCases := []struct {
-		in            pb.ClientStatsPayload
+		in            *pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
-		out           pb.ClientStatsPayload
+		out           *pb.ClientStatsPayload
 	}{
 		{
-			in: pb.ClientStatsPayload{
+			in: &pb.ClientStatsPayload{
 				Hostname: "tracer_hots",
 				Env:      "tracer_env",
 				Version:  "code_version",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name------",
@@ -1521,17 +1566,17 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
-			out: pb.ClientStatsPayload{
+			out: &pb.ClientStatsPayload{
 				Hostname:      "tracer_hots",
 				Env:           "tracer_env",
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name",
@@ -1565,8 +1610,8 @@ func TestConvertStats(t *testing.T) {
 }
 
 func TestMergeDuplicates(t *testing.T) {
-	in := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+	in := &pb.ClientStatsBucket{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",
@@ -1605,8 +1650,8 @@ func TestMergeDuplicates(t *testing.T) {
 			},
 		},
 	}
-	expected := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+	expected := &pb.ClientStatsBucket{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",
@@ -1653,7 +1698,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	span := testutil.RandomSpan()
@@ -1955,7 +2000,7 @@ func TestSpanSampling(t *testing.T) {
 			cfg.RareSamplerEnabled = false
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			traceAgent := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+			traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 			traceAgent.Process(&api.Payload{
 				// The payload might get modified in-place, so first deep copy it so
 				// that we have the original for comparison later.

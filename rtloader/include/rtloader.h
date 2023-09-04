@@ -122,6 +122,13 @@ public:
     */
     virtual char **getCheckWarnings(RtLoaderPyObject *check) = 0;
 
+    //! Pure virtual getCheckDiagnoses member.
+    /*!
+      \param check The python object pointer to the check we wish to collect diagnoses for.
+      \return serialized diagnoses for the check as a C-string or NULL if none exists or an error occurred.
+    */
+    virtual char *getCheckDiagnoses(RtLoaderPyObject *check) = 0;
+
     //! clearError member.
     /*!
       Clears any errors set on the RtLoader instance.
@@ -461,6 +468,15 @@ public:
     virtual void getPymemStats(pymem_stats_t &stats)
     {
     }
+
+protected:
+    //! _allocateInternalErrorDiagnoses member.
+    /*!
+      \param A C-string representation of the error message
+
+      This creates diagnoses indicating problem with get_diagnoses call in the same format as its regular output.
+    */
+    static char *_createInternalErrorDiagnoses(const char *errorMsg);
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

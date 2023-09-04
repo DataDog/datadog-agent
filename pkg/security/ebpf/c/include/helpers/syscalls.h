@@ -101,7 +101,13 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
 
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
-    return pop_task_syscall(key, type);
+    struct syscall_cache_t *syscall = pop_task_syscall(key, type);
+#ifdef DEBUG
+    if (!syscall) {
+        bpf_printk("Failed to pop syscall with type %d", type);
+    }
+#endif
+    return syscall;
 }
 
 int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {

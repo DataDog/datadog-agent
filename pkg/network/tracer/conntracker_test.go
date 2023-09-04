@@ -115,7 +115,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		family = network.AFINET6
 	}
 
-	curNs, err := util.GetCurrentIno()
+	curNs, err := kernel.GetCurrentIno()
 	require.NoError(t, err)
 	t.Logf("ns: %d", curNs)
 
@@ -193,7 +193,7 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 	testNs, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 	defer testNs.Close()
-	testIno, err := util.GetInoForNs(testNs)
+	testIno, err := kernel.GetInoForNs(testNs)
 	require.NoError(t, err)
 	t.Logf("test ns: %d", testIno)
 
@@ -239,7 +239,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		testNS, err := netns.GetFromName(ns)
 		require.NoError(t, err)
 
-		testIno, err = util.GetInoForNs(testNS)
+		testIno, err = kernel.GetInoForNs(testNS)
 		require.NoError(t, err)
 
 		defer netns.Set(originalNS)

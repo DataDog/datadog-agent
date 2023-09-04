@@ -27,7 +27,7 @@ func assertNotContainsCheck(t *testing.T, checks []string, name string) {
 }
 
 func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ConfigReaderWriter) []string {
-	sysprobeConfigStruct, err := sysconfig.NewCustom("", false)
+	sysprobeConfigStruct, err := sysconfig.New("")
 	require.NoError(t, err)
 
 	var enabledChecks []string

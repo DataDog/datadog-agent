@@ -10,6 +10,8 @@ package netlink
 import (
 	"context"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
@@ -37,3 +39,9 @@ func (*noOpConntracker) Close() {}
 func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
 	return nil, nil
 }
+
+// Describe returns all descriptions of the collector
+func (*noOpConntracker) Describe(ch chan<- *prometheus.Desc) {}
+
+// Collect returns the current state of all metrics of the collector
+func (*noOpConntracker) Collect(ch chan<- prometheus.Metric) {}

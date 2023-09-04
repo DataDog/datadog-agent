@@ -33,6 +33,7 @@ struct dentry_resolver_input_t {
     struct path_key_t key;
     struct dentry *dentry;
     u64 discarder_type;
+    s64 sysretval;
     int callback;
     int ret;
     int iteration;

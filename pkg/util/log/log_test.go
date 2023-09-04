@@ -461,3 +461,42 @@ func TestFuncVersions(t *testing.T) {
 	}
 
 }
+
+func TestStackDepthfLogging(t *testing.T) {
+	const stackDepth = 1
+
+	cases := []struct {
+		seelogLevel        seelog.LogLevel
+		strLogLevel        string
+		expectedToBeCalled int
+	}{
+		{seelog.CriticalLvl, "critical", 1},
+		{seelog.ErrorLvl, "error", 2},
+		{seelog.WarnLvl, "warn", 3},
+		{seelog.InfoLvl, "info", 4},
+		{seelog.DebugLvl, "debug", 5},
+		{seelog.TraceLvl, "trace", 6},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.strLogLevel, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg\n")
+			assert.Nil(t, err)
+
+			SetupLogger(l, tc.strLogLevel)
+
+			TracefStackDepth(stackDepth, "%s", "foo")
+			DebugfStackDepth(stackDepth, "%s", "foo")
+			InfofStackDepth(stackDepth, "%s", "foo")
+			WarnfStackDepth(stackDepth, "%s", "foo")
+			ErrorfStackDepth(stackDepth, "%s", "foo")
+			CriticalfStackDepth(stackDepth, "%s", "foo")
+			w.Flush()
+
+			assert.Equal(t, tc.expectedToBeCalled, strings.Count(b.String(), "TestStackDepthfLogging"), tc)
+		})
+	}
+}

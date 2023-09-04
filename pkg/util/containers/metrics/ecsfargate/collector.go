@@ -44,7 +44,7 @@ func init() {
 }
 
 type ecsFargateCollector struct {
-	client *v2.Client
+	client v2.Client
 
 	taskSpec *v2.Task
 	taskLock sync.Mutex

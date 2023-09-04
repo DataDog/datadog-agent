@@ -35,7 +35,6 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 	*ppan = adproto.ProcessActivityNode{
 		Process:        processNodeToProto(&pan.Process),
 		GenerationType: adproto.GenerationType(pan.GenerationType),
-		IsExecChild:    pan.IsExecChild,
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
@@ -83,6 +82,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		Ppid:        p.PPid,
 		Cookie:      p.Cookie,
 		IsThread:    p.IsThread,
+		IsExecChild: p.IsExecChild,
 		File:        fileEventToProto(&p.FileEvent),
 		ContainerId: p.ContainerID,
 		SpanId:      p.SpanID,

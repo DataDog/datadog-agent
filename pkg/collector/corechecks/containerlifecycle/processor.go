@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,13 +22,13 @@ import (
 )
 
 type processor struct {
-	sender          aggregator.Sender
+	sender          sender.Sender
 	podsQueue       *queue
 	containersQueue *queue
 	store           workloadmeta.Store
 }
 
-func newProcessor(sender aggregator.Sender, chunkSize int, store workloadmeta.Store) *processor {
+func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Store) *processor {
 	return &processor{
 		sender:          sender,
 		podsQueue:       newQueue(chunkSize),

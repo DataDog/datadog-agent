@@ -34,6 +34,8 @@ const (
 	ProcessModule                ModuleName = "process"
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
+	EBPFModule                   ModuleName = "ebpf"
+	LanguageDetectionModule      ModuleName = "language_detection"
 )
 
 // Config represents the configuration options for the system-probe
@@ -55,19 +57,16 @@ type Config struct {
 
 	StatsdHost string
 	StatsdPort int
+
+	GRPCServerEnabled bool
 }
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
 func New(configPath string) (*Config, error) {
-	return newSysprobeConfig(configPath, true)
+	return newSysprobeConfig(configPath)
 }
 
-// NewCustom creates a config object for system-probe. It assumes no configuration has been loaded as this point.
-func NewCustom(configPath string, loadSecrets bool) (*Config, error) {
-	return newSysprobeConfig(configPath, loadSecrets)
-}
-
-func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
+func newSysprobeConfig(configPath string) (*Config, error) {
 	// System probe is not supported on darwin, so we should fail gracefully in this case.
 	if runtime.GOOS == "darwin" {
 		return &Config{}, nil
@@ -88,7 +87,7 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", false, aconfig.Datadog.GetEnvVars())
 	if err != nil {
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
@@ -117,6 +116,7 @@ func load() (*Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
+		GRPCServerEnabled:  cfg.GetBool(spNS("grpc_enabled")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),
@@ -154,6 +154,12 @@ func load() (*Config, error) {
 	if cfg.GetBool(diNS("enabled")) {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
+	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
+		c.EnabledModules[EBPFModule] = struct{}{}
+	}
+	if cfg.GetBool("system_probe_config.language_detection.enabled") {
+		c.EnabledModules[LanguageDetectionModule] = struct{}{}
+	}
 
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
@@ -175,7 +181,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", false, aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

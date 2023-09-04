@@ -399,6 +399,38 @@ func (s *store) Notify(events []CollectorEvent) {
 	}
 }
 
+// ResetProcesses implements Store#ResetProcesses
+func (s *store) ResetProcesses(newProcesses []Entity, source Source) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	var events []CollectorEvent
+	newProcessEntities := classifyByKindAndID(newProcesses)[KindProcess]
+
+	processStore := s.store[KindProcess]
+	// Remove outdated stored processes
+	for ID, storedProcess := range processStore {
+		if newP, found := newProcessEntities[ID]; !found || storedProcess.cached != newP {
+			events = append(events, CollectorEvent{
+				Type:   EventTypeUnset,
+				Source: source,
+				Entity: storedProcess.cached,
+			})
+		}
+	}
+
+	// Add new processes
+	for _, newP := range newProcesses {
+		events = append(events, CollectorEvent{
+			Type:   EventTypeSet,
+			Source: source,
+			Entity: newP,
+		})
+	}
+
+	s.Notify(events)
+}
+
 // Reset implements Store#Reset
 func (s *store) Reset(newEntities []Entity, source Source) {
 	s.storeMut.RLock()
@@ -500,7 +532,7 @@ func (s *store) pull(ctx context.Context) {
 		ongoingPullStartTime := s.ongoingPulls[id]
 		alreadyRunning := !ongoingPullStartTime.IsZero()
 		if alreadyRunning {
-			timeRunning := time.Now().Sub(ongoingPullStartTime)
+			timeRunning := time.Since(ongoingPullStartTime)
 			if timeRunning > maxCollectorPullTime {
 				log.Errorf("collector %q has been running for too long (%d seconds)", id, timeRunning/time.Second)
 			} else {
@@ -526,7 +558,7 @@ func (s *store) pull(ctx context.Context) {
 			}
 
 			s.ongoingPullsMut.Lock()
-			pullDuration := time.Now().Sub(s.ongoingPulls[id])
+			pullDuration := time.Since(s.ongoingPulls[id])
 			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
 			s.ongoingPulls[id] = time.Time{}
 			s.ongoingPullsMut.Unlock()
@@ -770,4 +802,10 @@ func CreateGlobalStore(catalog CollectorCatalog) Store {
 // nil in that case.
 func GetGlobalStore() Store {
 	return globalStore
+}
+
+// ResetGlobalStore resets the global store back to nil. This is useful in lifecycle
+// tests that start and stop parts of the agent multiple times.
+func ResetGlobalStore() {
+	globalStore = nil
 }

@@ -16,7 +16,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
@@ -45,7 +45,7 @@ func HeadlessSocketFilter(cfg *config.Config, filter *manager.Probe) (closeFn fu
 	}
 	defer ns.Close()
 
-	err = util.WithNS(ns, func() error {
+	err = kernel.WithNS(ns, func() error {
 		hsf.fd, err = unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_ALL)))
 		if err != nil {
 			return err

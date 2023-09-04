@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -112,6 +112,11 @@ func (a *Agent) Stop() {
 			}
 		}
 	}
+}
+
+// GetPipelineProvider gets the pipeline provider
+func (a *Agent) GetPipelineProvider() pipeline.Provider {
+	return a.pipelineProvider
 }
 
 // AddScheduler adds the given scheduler to the agent.

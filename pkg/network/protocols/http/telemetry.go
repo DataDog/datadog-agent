@@ -8,50 +8,75 @@
 package http
 
 import (
-	"time"
+	"fmt"
 
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
-type Telemetry struct {
-	LastCheck                                   *atomic.Int64
-	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
+type telemetryJoiner struct {
+	// requests          orphan requests
+	// responses         orphan responses
+	// responsesDropped  responses dropped as older than request
+	// requestJoined     joined request and response
+	// agedRequest       aged requests dropped
 
-	totalHits    *libtelemetry.Metric
-	dropped      *libtelemetry.Metric // this happens when statKeeper reaches capacity
-	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
-	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
-	aggregations *libtelemetry.Metric
+	requests         *libtelemetry.Counter
+	responses        *libtelemetry.Counter
+	responsesDropped *libtelemetry.Counter
+	requestJoined    *libtelemetry.Counter
+	agedRequest      *libtelemetry.Counter
 }
 
-func NewTelemetry() *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup(
-		"usm.http",
-		libtelemetry.OptExpvar,
-		libtelemetry.OptMonotonic,
-	)
+type Telemetry struct {
+	protocol string
 
-	t := &Telemetry{
-		LastCheck:    atomic.NewInt64(time.Now().Unix()),
-		hits1XX:      metricGroup.NewMetric("hits1xx"),
-		hits2XX:      metricGroup.NewMetric("hits2xx"),
-		hits3XX:      metricGroup.NewMetric("hits3xx"),
-		hits4XX:      metricGroup.NewMetric("hits4xx"),
-		hits5XX:      metricGroup.NewMetric("hits5xx"),
-		aggregations: metricGroup.NewMetric("aggregations"),
+	// metricGroup is used here mostly for building the log message below
+	metricGroup *libtelemetry.MetricGroup
+
+	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
+
+	totalHits                                                        *libtelemetry.Counter
+	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
+	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
+	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
+	aggregations                                                     *libtelemetry.Counter
+
+	joiner telemetryJoiner
+}
+
+func NewTelemetry(protocol string) *Telemetry {
+	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
+	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
+
+	return &Telemetry{
+		protocol:    protocol,
+		metricGroup: metricGroup,
+
+		hits1XX:      metricGroup.NewCounter("hits", "status:1xx", libtelemetry.OptPrometheus),
+		hits2XX:      metricGroup.NewCounter("hits", "status:2xx", libtelemetry.OptPrometheus),
+		hits3XX:      metricGroup.NewCounter("hits", "status:3xx", libtelemetry.OptPrometheus),
+		hits4XX:      metricGroup.NewCounter("hits", "status:4xx", libtelemetry.OptPrometheus),
+		hits5XX:      metricGroup.NewCounter("hits", "status:5xx", libtelemetry.OptPrometheus),
+		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
-		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
-		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
+		totalHits:              metricGroup.NewCounter("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		dropped:                metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
+		rejected:               metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
+		emptyPath:              metricGroup.NewCounter("malformed", "type:empty-path", libtelemetry.OptStatsd),
+		unknownMethod:          metricGroup.NewCounter("malformed", "type:unknown-method", libtelemetry.OptStatsd),
+		invalidLatency:         metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
+		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
+
+		joiner: telemetryJoiner{
+			requests:         metricGroupJoiner.NewCounter("requests", libtelemetry.OptPrometheus),
+			responses:        metricGroupJoiner.NewCounter("responses", libtelemetry.OptPrometheus),
+			responsesDropped: metricGroupJoiner.NewCounter("responses_dropped", libtelemetry.OptPrometheus),
+			requestJoined:    metricGroupJoiner.NewCounter("joined", libtelemetry.OptPrometheus),
+			agedRequest:      metricGroupJoiner.NewCounter("aged", libtelemetry.OptPrometheus),
+		},
 	}
-
-	t.LastCheck.Store(time.Now().Unix())
-
-	return t
 }
 
 func (t *Telemetry) Count(tx Transaction) {
@@ -72,30 +97,5 @@ func (t *Telemetry) Count(tx Transaction) {
 }
 
 func (t *Telemetry) Log() {
-	now := time.Now().Unix()
-
-	if t.LastCheck.Load() == 0 {
-		t.LastCheck.Store(now)
-		return
-	}
-	totalRequests := t.totalHits.Delta()
-	dropped := t.dropped.Delta()
-	rejected := t.rejected.Delta()
-	malformed := t.malformed.Delta()
-	aggregations := t.aggregations.Delta()
-	elapsed := now - t.LastCheck.Load()
-	t.LastCheck.Store(now)
-
-	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
-		totalRequests,
-		float64(totalRequests)/float64(elapsed),
-		dropped,
-		float64(dropped)/float64(elapsed),
-		rejected,
-		float64(rejected)/float64(elapsed),
-		malformed,
-		float64(malformed)/float64(elapsed),
-		aggregations,
-	)
+	log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
 }

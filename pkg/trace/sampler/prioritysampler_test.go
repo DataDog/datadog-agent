@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 )
@@ -43,7 +43,7 @@ func getTestTraceWithService(service string, s *PrioritySampler) (*pb.TraceChunk
 
 	serviceRate, ok := rates[key.String()]
 	if !ok {
-		serviceRate, _ = rates[ServiceSignature{}.String()]
+		serviceRate = rates[ServiceSignature{}.String()]
 	}
 	rate := float64(1)
 	if serviceRate != nil {

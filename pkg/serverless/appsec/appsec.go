@@ -8,8 +8,6 @@
 package appsec
 
 import (
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/appsec-internal-go/appsec"
@@ -18,49 +16,26 @@ import (
 	"github.com/DataDog/go-libddwaf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/pkg/errors"
 )
 
-func New() (*httpsec.InvocationSubProcessor, *httpsec.ProxyLifecycleProcessor, error) {
+func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if appsecInstance == nil {
-		return nil, nil, nil // appsec disabled
+		return nil, nil // appsec disabled
 	}
 
-	var rtProxyMode bool
-	if rtProxyModeEnv := os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY"); rtProxyModeEnv != "" {
-		rtProxyMode, err = strconv.ParseBool(rtProxyModeEnv)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "parsing error of the environment variable DD_EXPERIMENTAL_ENABLE_PROXY")
-		}
-	}
-
-	switch {
-	case rtProxyMode:
-		// NodeJS and Python are currently supported by monitoring the invocations
-		// through the runtime API.
-		lp := &httpsec.ProxyLifecycleProcessor{
-			SubProcessor: httpsec.NewProxyProcessor(appsecInstance),
-		}
-		// start the experimental proxy if enabled
-		proxy.Start(
-			"127.0.0.1:9000",
-			"127.0.0.1:9001",
-			lp,
-		)
-		log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")
-		return nil, lp, nil
-
-	default:
-		// Other runtimes are supported with the extension's universal instrumentation lifecycle subprocessor
-		lp := httpsec.NewInvocationSubProcessor(appsecInstance)
-		log.Info("appsec: started successfully")
-		return lp, nil, nil
-	}
+	// AppSec monitors the invocations by acting as a proxy of the AWS Lambda Runtime API.
+	lp := httpsec.NewProxyLifecycleProcessor(appsecInstance)
+	proxy.Start(
+		"127.0.0.1:9000",
+		"127.0.0.1:9001",
+		lp,
+	)
+	log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")
+	return lp, nil
 }
 
 type AppSec struct {

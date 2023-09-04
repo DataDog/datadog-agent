@@ -11,19 +11,19 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
 
 type commandFlareSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
 func TestFlareSuite(t *testing.T) {
-	e2e.Run(t, &commandFlareSuite{}, e2e.AgentStackDef(nil), params.WithDevMode())
+	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef(nil), params.WithDevMode())
 }
 
 func waitForAgentAndGetFlare(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
@@ -36,16 +36,17 @@ func waitForAgentAndGetFlare(v *commandFlareSuite, flareArgs ...client.AgentArgs
 }
 
 func (v *commandFlareSuite) TestFlareDefaultFiles() {
-	flare := waitForAgentAndGetFlare(v, client.WithArgs("--email e2e@test.com --send"))
+	v.UpdateEnv(e2e.FakeIntakeStackDef(nil))
+	flare := waitForAgentAndGetFlare(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
 	assertFilesExist(v.T(), flare, defaultConfigFiles)
 	assertFoldersExist(v.T(), flare, defaultFlareFolders)
 
-	assertFileNotContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is enabled")
-	assertFileContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is enabled")
-	assertFileContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is enabled")
+	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
+	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
+	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
@@ -80,18 +81,18 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	extraCustomConfigFiles := []string{"etc/confd/dist/test.yaml", "etc/confd/dist/test.yml", "etc/confd/dist/test.yml.test", "etc/confd/checksd/test.yaml"}
 
-	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig(string(agentConfiguration))))
+	v.UpdateEnv(e2e.FakeIntakeStackDef(nil, agentparams.WithAgentConfig(string(agentConfiguration))))
 
-	flare := waitForAgentAndGetFlare(v, client.WithArgs("--email e2e@test.com --send"))
+	flare := waitForAgentAndGetFlare(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
 	assertFilesExist(v.T(), flare, allConfigFiles)
 	assertFilesExist(v.T(), flare, extraCustomConfigFiles)
 
-	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is enabled")
-	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is enabled")
-	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is enabled")
+	assertFileNotContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
+	assertFileContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
+	assertFileContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 
 	filesRegistredInPermissionsLog := []string{"/etc/datadog-agent/auth_token", "/tmp/dummy_system_probe_config_bpf_dir/", "/tmp/dummy_dir"}
 	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)

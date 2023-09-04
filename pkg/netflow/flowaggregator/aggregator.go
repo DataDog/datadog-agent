@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -37,7 +37,7 @@ type FlowAggregator struct {
 	flushFlowsToSendInterval     time.Duration // interval for checking flows to flush and send them to EP Forwarder
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
-	sender                       aggregator.Sender
+	sender                       sender.Sender
 	epForwarder                  epforwarder.EventPlatformForwarder
 	stopChan                     chan struct{}
 	flushLoopDone                chan struct{}
@@ -73,7 +73,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder, config *config.NetflowConfig, hostname string) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -232,6 +232,7 @@ func (agg *FlowAggregator) flushLoop() {
 			flushStartTime := time.Now()
 			agg.flush()
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
+			agg.sender.Commit()
 		// refresh rollup trackers
 		case <-rollupTrackersRefresh:
 			agg.rollupTrackersRefresh()

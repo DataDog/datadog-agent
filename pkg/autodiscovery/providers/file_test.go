@@ -73,7 +73,7 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 0, len(get("ignored")))
 
 	// total number of configurations found
-	assert.Equal(t, 15, len(configs))
+	assert.Equal(t, 16, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml)
 	assert.Equal(t, 3, len(provider.Errors))

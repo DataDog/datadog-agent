@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"os"
@@ -81,6 +80,8 @@ func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 	}
 
 	// flare_file is the only part that needs a special parsing as it's the flare zip content.
+	// TODO: os.PathSeparator is the separator of the machine where the client is running which is different from the machine where the flare was created
+	// so we might have issue if the client is on Unix and the Agent on Windows. We need to test this scenario to verify that it's correctly working.
 	prefixToTrim := string(parsedFlareData["hostname"]) + string(os.PathSeparator)
 	zipFiles, err := parseRawZIP(parsedFlareData["flare_file"], prefixToTrim)
 	if err != nil {
@@ -109,10 +110,10 @@ func parseBoundaryFromContentTypeHeader(contentTypeHeader string) (string, error
 	if err != nil {
 		return "", err
 	} else if !strings.HasPrefix(mediaType, "multipart/") {
-		return "", errors.New("Content-Type header does not contain 'multipart/...'. Flare request might have been malformed.")
-	} else {
-		encoding = params["boundary"]
+		return "", errors.New("content-Type header does not contain 'multipart/...'. Flare request might have been malformed")
 	}
+
+	encoding = params["boundary"]
 
 	return encoding, nil
 }
@@ -142,7 +143,7 @@ func parseFlareMultipartData(data string, boundary string) (map[string][]byte, e
 			return multipartNameToContent, err
 		}
 
-		body, err := ioutil.ReadAll(part)
+		body, err := io.ReadAll(part)
 		if err != nil {
 			return multipartNameToContent, err
 		}

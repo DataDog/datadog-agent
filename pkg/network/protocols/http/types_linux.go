@@ -35,16 +35,8 @@ type EbpfTx struct {
 	Tags                 uint64
 }
 
-type LibPath struct {
-	Pid uint32
-	Len uint32
-	Buf [120]byte
-}
-
 const (
 	BufferSize = 0xa0
-
-	libPathMaxSize = 0x78
 )
 
 type ConnTag = uint64

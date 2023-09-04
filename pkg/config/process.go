@@ -202,7 +202,6 @@ func setupProcesses(config Config) {
 
 	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
 
-	procBindEnvAndSetDefault(config, "process_config.language_detection.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
 	processesAddOverrideOnce.Do(func() {

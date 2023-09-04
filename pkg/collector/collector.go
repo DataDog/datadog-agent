@@ -12,7 +12,9 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -30,6 +32,7 @@ const cancelCheckTimeout time.Duration = 500 * time.Millisecond
 
 // Collector abstract common operations about running a Check
 type Collector struct {
+	senderManager  sender.SenderManager
 	checkInstances int64
 
 	// state is 'started' or 'stopped'
@@ -37,15 +40,16 @@ type Collector struct {
 
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
-	checks    map[check.ID]*middleware.CheckWrapper
+	checks    map[checkid.ID]*middleware.CheckWrapper
 
 	m sync.RWMutex
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
-func NewCollector(paths ...string) *Collector {
+func NewCollector(senderManager sender.SenderManager, paths ...string) *Collector {
 	c := &Collector{
-		checks:         make(map[check.ID]*middleware.CheckWrapper),
+		senderManager:  senderManager,
+		checks:         make(map[checkid.ID]*middleware.CheckWrapper),
 		state:          atomic.NewUint32(stopped),
 		checkInstances: int64(0),
 	}
@@ -77,7 +81,7 @@ func (c *Collector) Start() {
 		return
 	}
 
-	run := runner.NewRunner()
+	run := runner.NewRunner(c.senderManager)
 	sched := scheduler.NewScheduler(run.GetChan())
 
 	// let the runner some visibility into the scheduler
@@ -110,13 +114,13 @@ func (c *Collector) Stop() {
 }
 
 // RunCheck sends a Check in the execution queue
-func (c *Collector) RunCheck(inner check.Check) (check.ID, error) {
+func (c *Collector) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner)
+	ch := middleware.NewCheckWrapper(inner, c.senderManager)
 
-	var emptyID check.ID
+	var emptyID checkid.ID
 
 	if c.state.Load() != started {
 		return emptyID, fmt.Errorf("the collector is not running")
@@ -149,7 +153,7 @@ func (c *Collector) RunCheck(inner check.Check) (check.ID, error) {
 }
 
 // StopCheck halts a check and remove the instance
-func (c *Collector) StopCheck(id check.ID) error {
+func (c *Collector) StopCheck(id checkid.ID) error {
 	if !c.started() {
 		return fmt.Errorf("the collector is not running")
 	}
@@ -204,7 +208,7 @@ func (c *Collector) cancelCheck(ch check.Check, timeout time.Duration) error {
 	}
 }
 
-func (c *Collector) get(id check.ID) (check.Check, bool) {
+func (c *Collector) get(id checkid.ID) (check.Check, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -213,7 +217,7 @@ func (c *Collector) get(id check.ID) (check.Check, bool) {
 }
 
 // remove the check from the list
-func (c *Collector) delete(id check.ID) {
+func (c *Collector) delete(id checkid.ID) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -237,12 +241,25 @@ func (c *Collector) MapOverChecks(cb func([]check.Info)) {
 	cb(cInfo)
 }
 
-// GetAllInstanceIDs returns the ID's of all instances of a check
-func (c *Collector) GetAllInstanceIDs(checkName string) []check.ID {
+// GetChecks copies checks
+func (c *Collector) GetChecks() []check.Check {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	instances := []check.ID{}
+	chks := make([]check.Check, 0, len(c.checks))
+	for _, chck := range c.checks {
+		chks = append(chks, chck)
+	}
+
+	return chks
+}
+
+// GetAllInstanceIDs returns the ID's of all instances of a check
+func (c *Collector) GetAllInstanceIDs(checkName string) []checkid.ID {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	instances := []checkid.ID{}
 	for id, check := range c.checks {
 		if check.String() == checkName {
 			instances = append(instances, id)
@@ -253,7 +270,7 @@ func (c *Collector) GetAllInstanceIDs(checkName string) []check.ID {
 }
 
 // ReloadAllCheckInstances completely restarts a check with a new configuration
-func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]check.ID, error) {
+func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
 	if !c.started() {
 		return nil, fmt.Errorf("The collector is not running")
 	}

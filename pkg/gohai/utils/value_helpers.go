@@ -6,21 +6,6 @@ package utils
 
 import "strconv"
 
-// ValueErrorGetter returns a function to get the error from the Value
-func ValueErrorGetter[T any](value *Value[T]) func() error {
-	return func() error {
-		_, err := value.Value()
-		return err
-	}
-}
-
-// ValueErrorSetter returns a function to set the error in the Value
-func ValueErrorSetter[T any](value *Value[T]) func(error) {
-	return func(err error) {
-		(*value) = NewErrorValue[T](err)
-	}
-}
-
 // ValueParseSetter returns a function which parses its input and stores the result in the given Value
 func ValueParseSetter[T any](value *Value[T], parse func(string) (T, error)) func(string, error) {
 	return func(val string, err error) {

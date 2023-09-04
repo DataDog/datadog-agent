@@ -1231,6 +1231,31 @@ func TestNetworkConfigEnabled(t *testing.T) {
 	}
 }
 
+func TestIstioMonitoring(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.False(t, cfg.EnableIstioMonitoring)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_istio_monitoring: true
+`)
+		assert.True(t, cfg.EnableIstioMonitoring)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_ISTIO_MONITORING", "true")
+
+		cfg := New()
+		assert.True(t, cfg.EnableIstioMonitoring)
+	})
+}
+
 func configurationFromYAML(t *testing.T, yaml string) *Config {
 	f, err := os.CreateTemp("", "system-probe.*.yaml")
 	require.NoError(t, err)

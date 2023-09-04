@@ -20,9 +20,9 @@ func getResponseBodyFromURLPath(urlPath string) interface{} {
 	var body interface{}
 
 	if urlPath == "/support/flare" {
-		body = flareResponseBody{}
+		body = flareResponseBody{CaseID: 0, Error: ""}
 	} else {
-		body = errorResponseBody{}
+		body = errorResponseBody{Errors: []string{}}
 	}
 
 	return body

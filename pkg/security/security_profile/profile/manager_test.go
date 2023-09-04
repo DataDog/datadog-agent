@@ -38,7 +38,7 @@ type testIteration struct {
 }
 
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
-	event := model.NewDefaultEvent().(*model.Event)
+	event := model.NewDefaultEvent()
 	event.Type = uint32(ti.eventType)
 	event.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 	event.TimestampRaw = uint64(t0.Add(ti.eventTimestampRaw).UnixNano())
@@ -177,6 +177,17 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventType:           model.ExecEventType,
 			eventProcessPath:    "/bin/foo4",
 		},
+		{
+			name:                "stable-exec/meanwhile-dns-still-learning",
+			result:              AutoLearning,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.DNSEventType,
+			eventProcessPath:    "/bin/foo",
+			eventDnsReq:         "foo0.bar",
+		},
 		// and for dns:
 		{
 			name:                "stable-dns/add-first-event",
@@ -233,6 +244,16 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventProcessPath:    "/bin/foo",
 			eventDnsReq:         "foo4.bar",
 		},
+		{
+			name:                "stable-dns/meanwhile-exec-still-learning",
+			result:              AutoLearning,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo1",
+		},
 
 		// checking unstable period for exec:
 		{
@@ -266,6 +287,17 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventTimestampRaw:   AnomalyDetectionUnstableProfileTimeThreshold + AnomalyDetectionMinimumStablePeriod + time.Second,
 			eventType:           model.ExecEventType,
 			eventProcessPath:    "/bin/foo2",
+		},
+		{
+			name:                "unstable-exec/meanwhile-dns-still-learning",
+			result:              AutoLearning,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.DNSEventType,
+			eventProcessPath:    "/bin/foo",
+			eventDnsReq:         "foo0.bar",
 		},
 		// and for dns:
 		{
@@ -302,6 +334,16 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventType:           model.DNSEventType,
 			eventProcessPath:    "/bin/foo",
 			eventDnsReq:         "foo2.bar",
+		},
+		{
+			name:                "unstable-dns/meanwhile-exec-still-learning",
+			result:              AutoLearning,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo1",
 		},
 
 		// checking max size threshold different cases for exec:
@@ -475,6 +517,17 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventType:           model.ExecEventType,
 			eventProcessPath:    "/bin/foo1",
 		},
+		{
+			name:                "profile-at-max-size-to-stable-exec/meanwhile-dns-still-at-max-size",
+			result:              ProfileAtMaxSize,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.DNSEventType,
+			eventProcessPath:    "/bin/foo",
+			eventDnsReq:         "foo0.bar",
+		},
 		// and for dns:
 		{
 			name:                "profile-at-max-size-to-stable-dns/max-size",
@@ -497,6 +550,16 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventType:           model.DNSEventType,
 			eventProcessPath:    "/bin/foo",
 			eventDnsReq:         "foo1.bar",
+		},
+		{
+			name:                "profile-at-max-size-to-stable-dns/meanwhile-exec-still-at-max-size",
+			result:              ProfileAtMaxSize,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo1",
 		},
 
 		// from checking max-size to unstable for exec:
@@ -531,6 +594,17 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventTimestampRaw:   AnomalyDetectionUnstableProfileTimeThreshold + time.Second,
 			eventType:           model.ExecEventType,
 			eventProcessPath:    "/bin/foo1",
+		},
+		{
+			name:                "profile-at-max-size-to-unstable-exec/meanwhile-dns-still-at-max-size",
+			result:              ProfileAtMaxSize,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.DNSEventType,
+			eventProcessPath:    "/bin/foo",
+			eventDnsReq:         "foo0.bar",
 		},
 		// and for dns:
 		{
@@ -568,6 +642,16 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventProcessPath:    "/bin/foo",
 			eventDnsReq:         "foo1.bar",
 		},
+		{
+			name:                "profile-at-max-size-to-unstable-dns/meanwhile-exec-still-at-max-size",
+			result:              ProfileAtMaxSize,
+			newProfile:          false,
+			containerCreatedAt:  time.Minute * -5,
+			addFakeProcessNodes: 0,
+			eventTimestampRaw:   time.Second,
+			eventType:           model.ExecEventType,
+			eventProcessPath:    "/bin/foo1",
+		},
 	}
 
 	// Initial time reference
@@ -578,7 +662,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		eventFiltering: make(map[eventFilteringEntry]*atomic.Uint64),
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				AnomalyDetectionMinimumStablePeriod:          AnomalyDetectionMinimumStablePeriod,
+				AnomalyDetectionDefaultMinimumStablePeriod:   AnomalyDetectionMinimumStablePeriod,
 				AnomalyDetectionWorkloadWarmupPeriod:         AnomalyDetectionWorkloadWarmupPeriod,
 				AnomalyDetectionUnstableProfileTimeThreshold: AnomalyDetectionUnstableProfileTimeThreshold,
 				AnomalyDetectionUnstableProfileSizeThreshold: AnomalyDetectionUnstableProfileSizeThreshold,

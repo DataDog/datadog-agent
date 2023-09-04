@@ -39,6 +39,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
+			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
 			enableProbe(enabled, probes.NetDevQueue)
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
@@ -54,10 +55,10 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPClose)
 		enableProbe(enabled, probes.TCPCloseFlushReturn)
 		enableProbe(enabled, probes.TCPConnect)
+		enableProbe(enabled, probes.TCPConnectReturn)
 		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
-		enableProbe(enabled, probes.TCPSetState)
 		// special case for tcp_retransmit_skb probe: on CO-RE,
 		// we want to load the version that makes use of
 		// the tcp_sock field, which is the same as the

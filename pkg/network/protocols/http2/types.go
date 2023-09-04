@@ -13,18 +13,14 @@ package http2
 */
 import "C"
 
+const (
+	maxHTTP2Path = C.HTTP2_MAX_PATH_LEN
+)
+
 type connTuple = C.conn_tuple_t
 type EbpfTx C.http2_stream_t
 
-type StaticTableEnumKey = C.static_table_key_t
-
-const (
-	MethodKey StaticTableEnumKey = C.kMethod
-	PathKey   StaticTableEnumKey = C.kPath
-	StatusKey StaticTableEnumKey = C.kStatus
-)
-
-type StaticTableEnumValue = C.static_table_key_t
+type StaticTableEnumValue = C.static_table_value_t
 
 const (
 	GetValue       StaticTableEnumValue = C.kGET
@@ -39,5 +35,3 @@ const (
 	K404Value      StaticTableEnumValue = C.k404
 	K500Value      StaticTableEnumValue = C.k500
 )
-
-type StaticTableValue = C.static_table_entry_t

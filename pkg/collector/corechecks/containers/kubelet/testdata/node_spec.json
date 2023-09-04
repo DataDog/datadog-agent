@@ -1,0 +1,13 @@
+{
+  "cloud_provider": "GCE",
+  "instance_type": "n1-standard-1",
+  "num_cores": 1,
+  "system_uuid": "5556DC4F-C198-07C8-BE37-ACB98B1BA490",
+  "network_devices": [{"mt": 1460, "speed": 0, "name": "eth0", "mac_address": "42:01:0a:84:00:04"}],
+  "hugepages": [{"num_pages": 0, "page_size": 2048}],
+  "memory_capacity": 3885424640,
+  "instance_id": "8153046835786593062",
+  "boot_id": "789bf9ff-77be-4f43-8352-62f84d5e4356",
+  "cpu_frequency_khz": 2600000,
+  "machine_id": "5556dc4fc19807c8be37acb98b1ba490"
+}

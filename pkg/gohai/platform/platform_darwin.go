@@ -6,6 +6,7 @@
 package platform
 
 import (
+	"errors"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
@@ -47,26 +48,48 @@ func processIsTranslated() (bool, error) {
 
 	if err == nil {
 		return ret == 1, nil
-	} else if err.(unix.Errno) == unix.ENOENT {
+	}
+
+	if errors.Is(err, unix.ENOENT) {
 		return false, nil
 	}
 	return false, err
 }
 
-func updateArchInfo(archInfo map[string]string, uname *unix.Utsname) {
-	archInfo["kernel_name"] = utils.StringFromBytes(uname.Sysname[:])
-	archInfo["hostname"] = utils.StringFromBytes(uname.Nodename[:])
-	archInfo["kernel_release"] = utils.StringFromBytes(uname.Release[:])
-	archInfo["machine"] = utils.StringFromBytes(uname.Machine[:])
-	archInfo["processor"] = getUnameProcessor()
+func updateUnameInfo(platformInfo *Info, uname *unix.Utsname) {
+	platformInfo.KernelName = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
+	platformInfo.Hostname = utils.NewValue(utils.StringFromBytes(uname.Nodename[:]))
+	platformInfo.KernelRelease = utils.NewValue(utils.StringFromBytes(uname.Release[:]))
+	platformInfo.Machine = utils.NewValue(utils.StringFromBytes(uname.Machine[:]))
 	// for backward-compatibility reasons we just use the Sysname field
-	archInfo["os"] = utils.StringFromBytes(uname.Sysname[:])
-	archInfo["kernel_version"] = utils.StringFromBytes(uname.Version[:])
+	platformInfo.OS = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
+	platformInfo.KernelVersion = utils.NewValue(utils.StringFromBytes(uname.Version[:]))
+}
+
+func (platformInfo *Info) fillPlatformInfo() {
+	platformInfo.HardwarePlatform = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	platformInfo.Family = utils.NewErrorValue[string](utils.ErrNotCollectable)
+
+	platformInfo.Processor = utils.NewValue(getUnameProcessor())
+
+	var uname unix.Utsname
+	unameErr := unix.Uname(&uname)
+	if unameErr == nil {
+		updateUnameInfo(platformInfo, &uname)
+	} else {
+		failedFields := []*utils.Value[string]{
+			&platformInfo.KernelName, &platformInfo.Hostname, &platformInfo.KernelRelease,
+			&platformInfo.Machine, &platformInfo.OS, &platformInfo.KernelVersion,
+		}
+		for _, field := range failedFields {
+			(*field) = utils.NewErrorValue[string](unameErr)
+		}
+	}
 
 	if isTranslated, err := processIsTranslated(); err == nil && isTranslated {
 		log.Debug("Running under Rosetta translator; overriding architecture values")
-		archInfo["processor"] = "arm"
-		archInfo["machine"] = "arm64"
+		platformInfo.Processor = utils.NewValue("arm")
+		platformInfo.Machine = utils.NewValue("arm64")
 	} else if err != nil {
 		log.Debugf("Error when detecting Rosetta translator: %s", err)
 	}

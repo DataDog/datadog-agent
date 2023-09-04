@@ -245,6 +245,14 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	close(f.highPrio)
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
+
+	for t := range f.requeuedTransaction {
+		f.requeueTransaction(t)
+	}
+	if err := f.retryQueue.FlushToDisk(); err != nil {
+		f.log.Errorf("Error when flushing the retry queue to disk: %v", err)
+	}
+
 	f.log.Info("domainForwarder stopped")
 	f.internalState = Stopped
 }

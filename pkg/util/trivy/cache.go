@@ -122,6 +122,10 @@ func NewTrivyCacheCleaner(target *TrivyCache) *TrivyCacheCleaner {
 
 // Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
 func (c *TrivyCacheCleaner) Clean() error {
+	if workloadmeta.GetGlobalStore() == nil {
+		return nil
+	}
+
 	images := workloadmeta.GetGlobalStore().ListImages()
 
 	toKeep := make(map[string]struct{}, len(images))

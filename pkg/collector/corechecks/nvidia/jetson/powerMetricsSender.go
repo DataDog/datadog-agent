@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 type voltageMetricsSender struct {
@@ -30,7 +30,7 @@ func (voltageMetricsSender *voltageMetricsSender) Init() error {
 	return nil
 }
 
-func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender sender.Sender, field string) error {
 	r := voltageMetricsSender.regex
 	voltageFields := r.FindAllStringSubmatch(field, -1)
 	if len(voltageFields) <= 0 {

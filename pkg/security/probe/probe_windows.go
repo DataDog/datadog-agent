@@ -45,6 +45,9 @@ func (p *Probe) Setup() error {
 	return nil
 }
 
+// Stop the probe
+func (p *Probe) Stop() {}
+
 // Start processing events
 func (p *Probe) Start() error {
 	log.Infof("Windows probe started")

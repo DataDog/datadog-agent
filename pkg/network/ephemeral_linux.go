@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var (
@@ -22,10 +22,9 @@ var (
 	ephemeralIntPair     *sysctl.IntPair
 )
 
-// IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
-func IsPortInEphemeralRange(p uint16) EphemeralPortType {
+func initEphemeralRange() {
 	initEphemeralIntPair.Do(func() {
-		ephemeralIntPair = sysctl.NewIntPair(util.GetProcRoot(), "net/ipv4/ip_local_port_range", time.Hour)
+		ephemeralIntPair = sysctl.NewIntPair(kernel.ProcFSRoot(), "net/ipv4/ip_local_port_range", time.Hour)
 		low, hi, err := ephemeralIntPair.Get()
 		if err == nil {
 			if low > 0 && low <= math.MaxUint16 {
@@ -36,6 +35,13 @@ func IsPortInEphemeralRange(p uint16) EphemeralPortType {
 			}
 		}
 	})
+}
+
+// IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
+//
+// The ConnectionFamily and ConnectionType arguments are only relevant for Windows
+func IsPortInEphemeralRange(_ ConnectionFamily, _ ConnectionType, p uint16) EphemeralPortType {
+	initEphemeralRange()
 	if ephemeralLow == 0 || ephemeralHigh == 0 {
 		return EphemeralUnknown
 	}
@@ -43,4 +49,10 @@ func IsPortInEphemeralRange(p uint16) EphemeralPortType {
 		return EphemeralTrue
 	}
 	return EphemeralFalse
+}
+
+// EphemeralRange returns the ephemeral port range for this machine
+func EphemeralRange() (begin, end uint16) {
+	initEphemeralRange()
+	return ephemeralLow, ephemeralHigh
 }

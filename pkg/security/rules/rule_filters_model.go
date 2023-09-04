@@ -11,16 +11,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// Init inits the rule filter event
 func (e *RuleFilterEvent) Init() {}
 
+// GetFieldEventType returns the event type for the given field
 func (e *RuleFilterEvent) GetFieldEventType(field eval.Field) (string, error) {
 	return "*", nil
 }
 
+// SetFieldValue sets the value for the given field
 func (e *RuleFilterEvent) SetFieldValue(field eval.Field, value interface{}) error {
 	return &eval.ErrFieldNotFound{Field: field}
 }
 
+// GetFieldType get the type of the field
 func (e *RuleFilterEvent) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch", "kernel.version.abi":
@@ -36,18 +40,22 @@ func (e *RuleFilterEvent) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 
+// GetType returns the type for this event
 func (e *RuleFilterEvent) GetType() string {
 	return "*"
 }
 
+// GetTags returns the tags for this event
 func (e *RuleFilterEvent) GetTags() []string {
 	return []string{}
 }
 
+// ValidateField returns whether the value use against the field is valid
 func (m *RuleFilterModel) ValidateField(key string, value eval.FieldValue) error {
 	return nil
 }
 
+// GetIterator returns an iterator for the given field
 func (m *RuleFilterModel) GetIterator(field eval.Field) (eval.Iterator, error) {
 	return nil, &eval.ErrIteratorNotSupported{Field: field}
 }

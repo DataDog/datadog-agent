@@ -15,12 +15,14 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -72,7 +74,7 @@ type Client struct {
 
 	state *state.Repository
 
-	listeners map[string][]func(update map[string]state.RawConfig)
+	listeners map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -158,7 +160,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	//
 	// The following values mean each range will always be [pollInterval*2^<NumErrors-1>, min(maxBackoffTime, pollInterval*2^<NumErrors>)].
 	// Every success will cause numErrors to shrink by 2.
-	backoffPolicy := backoff.NewPolicy(minBackoffFactor, pollInterval.Seconds(),
+	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, pollInterval.Seconds(),
 		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
 
 	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
@@ -195,7 +197,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		state:         repository,
 		pollInterval:  pollInterval,
 		backoffPolicy: backoffPolicy,
-		listeners:     make(map[string][]func(update map[string]state.RawConfig)),
+		listeners:     make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
 		updater:       updater,
 	}, nil
 }
@@ -220,12 +222,35 @@ func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
 }
 
-// Subscribe subscribes to config updates of a product.
-func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig)) {
+// SetAgentName updates the agent name of the RC client
+// should only be used by the fx component
+func (c *Client) SetAgentName(agentName string) {
 	c.m.Lock()
 	defer c.m.Unlock()
+	if c.agentName == "unknown" {
+		c.agentName = agentName
+	}
+}
+
+// Subscribe subscribes to config updates of a product.
+func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	// Make sure the product belongs to the list of requested product
+	knownProduct := false
+	for _, p := range c.products {
+		if p == product {
+			knownProduct = true
+			break
+		}
+	}
+	if !knownProduct {
+		c.products = append(c.products, product)
+	}
+
 	c.listeners[product] = append(c.listeners[product], fn)
-	fn(c.state.GetConfigs(product))
+	fn(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 }
 
 // GetConfigs returns the current configs applied of a product.
@@ -251,7 +276,7 @@ func (c *Client) startFn() {
 // pollLoop should never be called manually and only be called via the client's `sync.Once`
 // structure in startFn.
 func (c *Client) pollLoop() {
-	firstRun := true
+	successfulFirstRun := false
 	for {
 		interval := c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		select {
@@ -260,10 +285,20 @@ func (c *Client) pollLoop() {
 		case <-time.After(c.pollInterval + interval):
 			err := c.update()
 			if err != nil {
-				if firstRun {
+				if status.Code(err) == codes.Unimplemented {
+					// Remote Configuration is disabled as the server isn't initialized
+					//
+					// As this is not a transient error (that would be codes.Unavailable),
+					// stop the client: it shouldn't keep contacting a server that doesn't
+					// exist.
+					log.Debugf("remote configuration isn't enabled, disabling client")
+					return
+				}
+
+				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as a debug log as the race is expected. If the error persists, we log with error logs
-					log.Debugf("retrying update of remote-config state after cold start (%v)", err)
+					log.Infof("retrying the first update of remote-config state (%v)", err)
 				} else {
 					c.lastUpdateError = err
 					c.backoffPolicy.IncError(c.backoffErrorCount)
@@ -271,10 +306,10 @@ func (c *Client) pollLoop() {
 				}
 			} else {
 				c.lastUpdateError = nil
+				successfulFirstRun = true
 				c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}
-		firstRun = false
 	}
 }
 
@@ -307,7 +342,7 @@ func (c *Client) update() error {
 	for product, productListeners := range c.listeners {
 		if containsProduct(changedProducts, product) {
 			for _, listener := range productListeners {
-				listener(c.state.GetConfigs(product))
+				listener(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 			}
 		}
 	}
@@ -380,6 +415,9 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 		})
 	}
 
+	// Lock for the product list
+	c.m.Lock()
+	defer c.m.Unlock()
 	req := &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{
 			State: &pbgo.ClientState{

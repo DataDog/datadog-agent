@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -157,7 +158,7 @@ func (r *Resolver) prepareContextTags() {
 	r.contextTags = append(r.contextTags, fmt.Sprintf("host:%s", r.hostname))
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -236,6 +237,15 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		return nil
 	}
 
+	// bail out if the workload has been analyzed while queued up
+	sbomKey := sbom.getWorkloadKey()
+	r.sbomsCacheLock.RLock()
+	if r.sbomsCache.Contains(sbomKey) {
+		r.sbomsCacheLock.RUnlock()
+		return nil
+	}
+	r.sbomsCacheLock.RUnlock()
+
 	var lastErr error
 	var scanned bool
 	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
@@ -252,7 +262,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			continue
 		}
 
-		lastErr = r.generateSBOM(utils.ProcRootPath(int32(rootCandidatePID)), sbom)
+		lastErr = r.generateSBOM(utils.ProcRootPath(rootCandidatePID), sbom)
 		if lastErr == nil {
 			scanned = true
 			break
@@ -290,6 +300,11 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 
 	// mark the SBOM ass successful
 	sbom.scanSuccessful.Store(true)
+
+	// add to cache
+	r.sbomsCacheLock.Lock()
+	r.sbomsCache.Add(sbomKey, sbom)
+	r.sbomsCacheLock.Unlock()
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, len(sbom.files))
 	return nil

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 func TestAddEventForNewRelease(t *testing.T) {
@@ -43,16 +43,16 @@ func TestAddEventForNewRelease(t *testing.T) {
 	storedEvent.Ts = 0 // Can't control it, so don't check.
 	assert.Equal(
 		t,
-		coreMetrics.Event{
+		event.Event{
 			Title:          "Event on Helm release",
 			Text:           "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".",
 			Ts:             0,
-			Priority:       coreMetrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
+			AlertType:      event.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -64,16 +64,16 @@ func TestAddEventForNewRelease(t *testing.T) {
 	storedEvent.Ts = 0 // Can't control it, so don't check.
 	assert.Equal(
 		t,
-		coreMetrics.Event{
+		event.Event{
 			Title:          "Event on Helm release",
 			Text:           "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".",
 			Ts:             0,
-			Priority:       coreMetrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
+			AlertType:      event.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -104,16 +104,16 @@ func TestAddEventForDeletedRelease(t *testing.T) {
 	storedEvent.Ts = 0 // Can't control it, so don't check.
 	assert.Equal(
 		t,
-		coreMetrics.Event{
+		event.Event{
 			Title:          "Event on Helm release",
 			Text:           "Helm release \"my_datadog\" in \"default\" namespace has been deleted.",
 			Ts:             0,
-			Priority:       coreMetrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
+			AlertType:      event.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -186,38 +186,38 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 		name           string
 		oldRelease     *release
 		updatedRelease *release
-		expectedEvent  *coreMetrics.Event
+		expectedEvent  *event.Event
 	}{
 		{
 			name:           "The status changed to \"failed\"",
 			oldRelease:     &exampleRelease,
 			updatedRelease: &exampleReleaseWithFailedStatus,
-			expectedEvent: &coreMetrics.Event{
+			expectedEvent: &event.Event{
 				Title:          "Event on Helm release",
 				Text:           "Helm release \"my_datadog\" (revision 1) in \"default\" namespace changed its status from \"deployed\" to \"failed\".",
 				Ts:             0,
-				Priority:       coreMetrics.EventPriorityNormal,
+				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "helm",
 				EventType:      "helm",
 				AggregationKey: "helm_release:default/my_datadog",
 				Tags:           testTags(),
-				AlertType:      coreMetrics.EventAlertTypeError, // Because the new status is "failed"
+				AlertType:      event.EventAlertTypeError, // Because the new status is "failed"
 			},
 		},
 		{
 			name:           "The status changed and it is not \"failed\"",
 			oldRelease:     &exampleRelease,
 			updatedRelease: &exampleReleaseWithNonFailedStatus,
-			expectedEvent: &coreMetrics.Event{
+			expectedEvent: &event.Event{
 				Title:          "Event on Helm release",
 				Text:           "Helm release \"my_datadog\" (revision 1) in \"default\" namespace changed its status from \"deployed\" to \"uninstalling\".",
 				Ts:             0,
-				Priority:       coreMetrics.EventPriorityNormal,
+				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "helm",
 				EventType:      "helm",
 				AggregationKey: "helm_release:default/my_datadog",
 				Tags:           testTags(),
-				AlertType:      coreMetrics.EventAlertTypeInfo, // Because the new status is not "failed"
+				AlertType:      event.EventAlertTypeInfo, // Because the new status is not "failed"
 			},
 		},
 		{
@@ -284,16 +284,16 @@ func TestSendEvents(t *testing.T) {
 
 	sender.AssertEvent(
 		t,
-		coreMetrics.Event{
+		event.Event{
 			Title:          "Event on Helm release",
 			Text:           "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".",
 			Ts:             time.Now().Unix(),
-			Priority:       coreMetrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: "helm",
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
+			AlertType:      event.EventAlertTypeInfo,
 		},
 		10*time.Second,
 	)

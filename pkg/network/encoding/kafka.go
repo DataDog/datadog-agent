@@ -31,8 +31,8 @@ type kafkaEncoder struct {
 	aggregations *model.DataStreamsAggregations
 }
 
-func newKafkaEncoder(payload *network.Connections) *kafkaEncoder {
-	if len(payload.Kafka) == 0 {
+func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
+	if len(kafkaPayloads) == 0 {
 		return nil
 	}
 
@@ -44,7 +44,7 @@ func newKafkaEncoder(payload *network.Connections) *kafkaEncoder {
 			// `GetKafkaAggregations`
 			KafkaAggregations: make([]*model.KafkaAggregation, 0, 10),
 		},
-		byConnection: GroupByConnection("kafka", payload.Kafka, func(key kafka.Key) types.ConnectionKey {
+		byConnection: GroupByConnection("kafka", kafkaPayloads, func(key kafka.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 	}

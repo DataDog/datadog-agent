@@ -24,8 +24,10 @@ func TestMessage(t *testing.T) {
 
 func TestGetHostnameLambda(t *testing.T) {
 	message := Message{
-		Lambda: &Lambda{
-			ARN: "testHostName",
+		ServerlessExtra: ServerlessExtra{
+			Lambda: &Lambda{
+				ARN: "testHostName",
+			},
 		},
 	}
 	assert.Equal(t, "testHostName", message.GetHostname())

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
@@ -22,13 +23,13 @@ import (
 )
 
 func TestGetComponents(t *testing.T) {
-	_, err := getComponents(&serializer.MockSerializer{})
+	_, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
 	// No duplicate component
 	require.NoError(t, err)
 }
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{})
+	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -53,7 +54,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{})
+	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -64,13 +65,7 @@ func TestStartPipeline(t *testing.T) {
 	config.Datadog.Set("hostname", "otlp-testhostname")
 	defer config.Datadog.Set("hostname", "")
 
-	pcfg := PipelineConfig{
-		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
-		TracePort:          5003,
-		MetricsEnabled:     true,
-		TracesEnabled:      true,
-		Metrics:            map[string]interface{}{},
-	}
+	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
@@ -117,4 +112,15 @@ func TestStartPipelineFromConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRecoverPanic(t *testing.T) {
+	panicTest := func(v any) {
+		defer recoverAndStoreError()
+		panic(v)
+	}
+	require.NotPanics(t, func() {
+		panicTest("this is a test")
+	})
+	assert.EqualError(t, pipelineError.Load(), "OTLP pipeline had a panic: this is a test")
 }

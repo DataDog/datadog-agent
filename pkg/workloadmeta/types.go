@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -110,6 +111,10 @@ type Store interface {
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
 
+	// ResetProcesses resets the state of the store so that newProcesses are the
+	// only entites stored.
+	ResetProcesses(newProcesses []Entity, source Source)
+
 	// Reset resets the state of the store so that newEntities are the only
 	// entities stored. This function sends events to the subscribers in the
 	// following cases:
@@ -160,6 +165,10 @@ const (
 	// SourceRemoteWorkloadmeta represents entities detected by the remote
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
+
+	// SourceRemoteProcessCollector reprents processes entities detected
+	// by the RemoteProcessCollector.
+	SourceRemoteProcessCollector Source = "remote_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -873,10 +882,10 @@ type Process struct {
 	EntityID // EntityID is the PID for now
 	EntityMeta
 
-	NsPid        int
+	NsPid        int32
 	ContainerId  string
 	CreationTime time.Time
-	Language     *string
+	Language     *languagemodels.Language
 }
 
 var _ Entity = &Process{}
@@ -911,7 +920,7 @@ func (p Process) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerId)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
-	_, _ = fmt.Fprintln(&sb, "Language:", p.Language)
+	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 
 	return sb.String()
 }

@@ -18,6 +18,7 @@ const (
 	AMQP
 	Redis
 	MySQL
+	GRPC
 )
 
 func (p ProtocolType) String() string {
@@ -42,6 +43,8 @@ func (p ProtocolType) String() string {
 		return "Redis"
 	case MySQL:
 		return "MySQL"
+	case GRPC:
+		return "gRPC"
 	default:
 		// shouldn't happen
 		return "Invalid"

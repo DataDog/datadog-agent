@@ -104,10 +104,10 @@ int hook_path_get(ctx_t *ctx) {
     bpf_map_update_elem(&flow_pid, &route, &pid, BPF_ANY);
 
 #ifdef DEBUG
-    bpf_printk("path_get netns: %u\n", route.netns);
-    bpf_printk("         skc_num:%d\n", htons(route.port));
-    bpf_printk("         skc_rcv_saddr:%x\n", route.addr[0]);
-    bpf_printk("         pid:%d\n", pid);
+    bpf_printk("path_get netns: %u", route.netns);
+    bpf_printk("         skc_num:%d", htons(route.port));
+    bpf_printk("         skc_rcv_saddr:%x", route.addr[0]);
+    bpf_printk("         pid:%d", pid);
 #endif
     return 0;
 }
@@ -140,7 +140,7 @@ int hook_proc_fd_link(ctx_t *ctx) {
     bpf_map_update_elem(&fd_link_pid, &key, &pid, BPF_ANY);
 
 #ifdef DEBUG
-    bpf_printk("proc_fd_link pid:%d\n", pid);
+    bpf_printk("proc_fd_link pid:%d", pid);
 #endif
     return 0;
 }

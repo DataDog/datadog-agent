@@ -13,7 +13,9 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
@@ -36,6 +38,7 @@ var (
 
 // Runner is the object in charge of running all the checks
 type Runner struct {
+	senderManager       sender.SenderManager
 	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
@@ -48,10 +51,11 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner() *Runner {
+func NewRunner(senderManager sender.SenderManager) *Runner {
 	numWorkers := config.Datadog.GetInt("check_runners")
 
 	r := &Runner{
+		senderManager:       senderManager,
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
@@ -111,6 +115,7 @@ func (r *Runner) AddWorker() {
 // addWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
 	worker, err := worker.NewWorker(
+		r.senderManager,
 		r.id,
 		int(workerIDGenerator.Inc()),
 		r.pendingChecksChan,
@@ -178,7 +183,7 @@ func (r *Runner) Stop() {
 	wg := sync.WaitGroup{}
 
 	// Stop running checks
-	r.checksTracker.WithRunningChecks(func(runningChecks map[check.ID]check.Check) {
+	r.checksTracker.WithRunningChecks(func(runningChecks map[checkid.ID]check.Check) {
 		// Stop all python subprocesses
 		terminateChecksRunningProcesses()
 
@@ -237,7 +242,7 @@ func (r *Runner) getScheduler() *scheduler.Scheduler {
 }
 
 // ShouldAddCheckStats returns true if check stats should be preserved or not
-func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
+func (r *Runner) ShouldAddCheckStats(id checkid.ID) bool {
 	r.schedulerLock.RLock()
 	defer r.schedulerLock.RUnlock()
 
@@ -251,7 +256,7 @@ func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
 
 // StopCheck invokes the `Stop` method on a check if it's running. If the check
 // is not running, this is a noop
-func (r *Runner) StopCheck(id check.ID) error {
+func (r *Runner) StopCheck(id checkid.ID) error {
 	done := make(chan bool)
 
 	stopFunc := func(c check.Check) {

@@ -11,16 +11,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMonotonicDeltas(t *testing.T) {
+func TestDeltas(t *testing.T) {
 	assert := assert.New(t)
 	Clear()
 
 	var deltas deltaCalculator
-	t.Run("non-monotonic metric", func(t *testing.T) {
+	t.Run("gauge metric", func(t *testing.T) {
+		// Delta calculator always returns the current value of a `Gauge` metric
 		state := deltas.GetState("")
-		m := NewMetric("cache_size")
+		m := NewGauge("cache_size")
 
-		// if metric is not flagged as monotonic we always return the current value
 		m.Set(10)
 		assert.Equal(int64(10), state.ValueFor(m))
 		assert.Equal(int64(10), state.ValueFor(m))
@@ -28,26 +28,26 @@ func TestMonotonicDeltas(t *testing.T) {
 		assert.Equal(int64(5), state.ValueFor(m))
 	})
 
-	t.Run("monotonic metric", func(t *testing.T) {
+	t.Run("counter metric", func(t *testing.T) {
 		state := deltas.GetState("")
-		m := NewMetric("requests_processed", OptMonotonic)
+		m := NewCounter("requests_processed")
 
-		m.Set(10)
+		m.Add(10)
 		assert.Equal(int64(10), state.ValueFor(m))
 		assert.Equal(int64(0), state.ValueFor(m))
-		m.Set(15)
+		m.Add(5)
 		assert.Equal(int64(5), state.ValueFor(m))
 	})
 
 	t.Run("one metric, multiple clients", func(t *testing.T) {
 		stateA := deltas.GetState("clientA")
 		stateB := deltas.GetState("clientB")
-		m := NewMetric("connections_closed", OptMonotonic)
+		m := NewCounter("connections_closed")
 
-		m.Set(10)
+		m.Add(10)
 		assert.Equal(int64(10), stateA.ValueFor(m))
 		assert.Equal(int64(0), stateA.ValueFor(m))
-		m.Set(15)
+		m.Add(5)
 		assert.Equal(int64(5), stateA.ValueFor(m))
 		assert.Equal(int64(15), stateB.ValueFor(m))
 	})

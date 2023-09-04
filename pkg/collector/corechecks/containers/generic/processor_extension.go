@@ -8,7 +8,7 @@ package generic
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -19,7 +19,7 @@ type SenderFunc func(func(string, float64, string, []string), string, *float64, 
 // ProcessorExtension allows to replace or add optional parts of the core check
 type ProcessorExtension interface {
 	// PreProcess is called once during check run, before any call to `Process`
-	PreProcess(sender SenderFunc, aggSender aggregator.Sender)
+	PreProcess(sender SenderFunc, aggSender sender.Sender)
 
 	// Process is called after core process (regardless of encountered error)
 	// Tags are given after `AdaptTags()` has been called

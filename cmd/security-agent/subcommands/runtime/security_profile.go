@@ -130,7 +130,7 @@ func listSecurityProfiles(log log.Component, config config.Component, args *secu
 
 	output, err := client.ListSecurityProfiles(args.includeCache)
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.Error) > 0 {
 		return fmt.Errorf("security profile list request failed: %s", output.Error)
@@ -237,7 +237,7 @@ func saveSecurityProfile(log log.Component, config config.Component, args *secur
 
 	output, err := client.SaveSecurityProfile(args.imageName, args.imageTag)
 	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}
 	if len(output.GetError()) > 0 {
 		return fmt.Errorf("security profile save request failed: %s", output.Error)

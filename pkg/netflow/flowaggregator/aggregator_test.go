@@ -138,7 +138,7 @@ func TestAggregator(t *testing.T) {
 	assert.NoError(t, err)
 
 	// language=json
-	metadataEvent := []byte(fmt.Sprintf(`
+	metadataEvent := []byte(`
 {
   "namespace":"my-ns",
   "netflow_exporters":[
@@ -150,7 +150,7 @@ func TestAggregator(t *testing.T) {
   ],
   "collect_timestamp": 1550505606
 }
-`))
+`)
 	compactMetadataEvent := new(bytes.Buffer)
 	err = json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
@@ -238,7 +238,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	testutil.ExpectNetflow5Payloads(t, epForwarder)
 
 	// language=json
-	metadataEvent := []byte(fmt.Sprintf(`
+	metadataEvent := []byte(`
 {
   "namespace":"default",
   "netflow_exporters":[
@@ -250,7 +250,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
   ],
   "collect_timestamp": 1550505606
 }
-`))
+`)
 	compactMetadataEvent := new(bytes.Buffer)
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	require.NoError(t, err)
@@ -644,7 +644,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 	}
 
 	// language=json
-	metadataEvent := []byte(fmt.Sprintf(`
+	metadataEvent := []byte(`
 {
   "namespace":"my-ns",
   "netflow_exporters":[
@@ -656,7 +656,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
   ],
   "collect_timestamp": 1681295467
 }
-`))
+`)
 	compactMetadataEvent := new(bytes.Buffer)
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
@@ -727,7 +727,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 	}
 
 	// language=json
-	metadataEvent := []byte(fmt.Sprintf(`
+	metadataEvent := []byte(`
 {
   "namespace":"my-ns1",
   "netflow_exporters":[
@@ -739,14 +739,14 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
   ],
   "collect_timestamp": 1681295467
 }
-`))
+`)
 	compactMetadataEvent := new(bytes.Buffer)
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(&message.Message{Content: compactMetadataEvent.Bytes()}, "network-devices-metadata").Return(nil).Times(1)
 
 	// language=json
-	metadataEvent2 := []byte(fmt.Sprintf(`
+	metadataEvent2 := []byte(`
 {
   "namespace":"my-ns2",
   "netflow_exporters":[
@@ -758,7 +758,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
   ],
   "collect_timestamp": 1681295467
 }
-`))
+`)
 	compactMetadataEvent2 := new(bytes.Buffer)
 	err = json.Compact(compactMetadataEvent2, metadataEvent2)
 	assert.NoError(t, err)
@@ -829,7 +829,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 	}
 
 	// language=json
-	metadataEvent := []byte(fmt.Sprintf(`
+	metadataEvent := []byte(`
 {
   "namespace":"my-ns1",
   "netflow_exporters":[
@@ -846,7 +846,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
   ],
   "collect_timestamp": 1681295467
 }
-`))
+`)
 	compactMetadataEvent := new(bytes.Buffer)
 	err := json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)

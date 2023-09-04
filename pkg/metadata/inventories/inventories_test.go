@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -82,6 +83,10 @@ func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
+func (m mockCollector) GetChecks() []check.Check {
+	return nil
+}
+
 func TestGetPayloadForExpvar(t *testing.T) {
 	ctx := context.Background()
 	defer func() { clearMetadata() }()
@@ -93,7 +98,7 @@ func TestGetPayloadForExpvar(t *testing.T) {
 	coll := mockCollector{[]check.Info{
 		check.MockInfo{
 			Name:         "check1",
-			CheckID:      check.ID("check1_instance1"),
+			CheckID:      checkid.ID("check1_instance1"),
 			Source:       "provider1",
 			InitConf:     "",
 			InstanceConf: "{\"test\":21}",
@@ -134,21 +139,21 @@ func TestGetPayload(t *testing.T) {
 	coll := mockCollector{[]check.Info{
 		check.MockInfo{
 			Name:         "check1",
-			CheckID:      check.ID("check1_instance1"),
+			CheckID:      checkid.ID("check1_instance1"),
 			Source:       "provider1",
 			InitConf:     "",
 			InstanceConf: "{}",
 		},
 		check.MockInfo{
 			Name:         "check1",
-			CheckID:      check.ID("check1_instance2"),
+			CheckID:      checkid.ID("check1_instance2"),
 			Source:       "provider1",
 			InitConf:     "",
 			InstanceConf: "{\"test\":21}",
 		},
 		check.MockInfo{
 			Name:         "check2",
-			CheckID:      check.ID("check2_instance1"),
+			CheckID:      checkid.ID("check2_instance1"),
 			Source:       "provider2",
 			InitConf:     "",
 			InstanceConf: "{}",
@@ -166,7 +171,14 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
 	agentMetadata := *p.AgentMetadata
-	assert.Len(t, agentMetadata, 3) // keys are: "test", "full_configuration", "provided_configuration"
+	// keys are:
+	//  - test
+	//  - full_configuration
+	//  - provided_configuration
+	//  - install_method_installer_version
+	//  - install_method_tool": "undefined
+	//  - install_method_tool_version
+	assert.Len(t, agentMetadata, 6)
 	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta := *p.CheckMetadata
@@ -205,7 +217,15 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
 	agentMetadata = *p.AgentMetadata
-	assert.Len(t, agentMetadata, 4) // keys are: "test", "cloud_provider", "full_configuration" and "provided_configuration"
+	// keys are:
+	//  - test
+	//  - cloud_provider
+	//  - full_configuration
+	//  - provided_configuration
+	//  - install_method_installer_version
+	//  - install_method_tool": "undefined
+	//  - install_method_tool_version
+	assert.Len(t, agentMetadata, 7)
 	assert.Equal(t, true, agentMetadata["test"])
 
 	// no point in asserting every field from the agent configuration. We just check they are present and then set
@@ -269,6 +289,9 @@ func TestGetPayload(t *testing.T) {
 		"agent_metadata":
 		{
 			"cloud_provider": "some_cloud_provider",
+			"install_method_installer_version": "",
+			"install_method_tool": "undefined",
+			"install_method_tool_version": "",
 			"test": true
 		},
 		"host_metadata":
@@ -375,86 +398,81 @@ func TestCreateCheckInstanceMetadataReturnsNewMetadata(t *testing.T) {
 	assert.NotEqual(t, checkMetadata[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
 }
 
+func testGeneric[T any](cfgName, invName string, input, output T) func(*testing.T) {
+	cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	return func(t *testing.T) {
+		cfg.Set(cfgName, input)
+		initializeConfig(cfg)
+		require.Equal(t, output, agentMetadata[AgentMetadataName(invName)].(T))
+	}
+}
+
 // Test the `initializeConfig` function and especially its scrubbing of secret values.
 func TestInitializeConfig(t *testing.T) {
+	t.Run("language detection enabled", testGeneric[bool](
+		"language_detection.enabled",
+		"feature_process_language_detection_enabled",
+		true,
+		true,
+	))
 
-	testString := func(cfgName, invName, input, output string) func(*testing.T) {
-		cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-		return func(t *testing.T) {
-			cfg.Set(cfgName, input)
-			initializeConfig(cfg)
-			require.Equal(t, output, agentMetadata[invName].(string))
-		}
-	}
-
-	testStringSlice := func(cfgName, invName string, input, output []string) func(*testing.T) {
-		cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-		return func(t *testing.T) {
-			if input != nil {
-				cfg.Set(cfgName, input)
-			}
-			initializeConfig(cfg)
-			require.Equal(t, output, agentMetadata[invName].([]string))
-		}
-	}
-
-	t.Run("config_apm_dd_url", testString(
+	t.Run("config_apm_dd_url", testGeneric[string](
 		"apm_config.apm_dd_url",
 		"config_apm_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_dd_url", testString(
+	t.Run("config_dd_url", testGeneric[string](
 		"dd_url",
 		"config_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_logs_dd_url", testString(
+	t.Run("config_logs_dd_url", testGeneric[string](
 		"logs_config.logs_dd_url",
 		"config_logs_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_logs_socks5_proxy_address", testString(
+	t.Run("config_logs_socks5_proxy_address", testGeneric[string](
 		"logs_config.socks5_proxy_address",
 		"config_logs_socks5_proxy_address",
 		"http://name:sekrit@proxy.example.com/",
 		"http://name:********@proxy.example.com/",
 	))
 
-	t.Run("config_no_proxy", testStringSlice(
+	t.Run("config_no_proxy", testGeneric[[]string](
 		"proxy.no_proxy",
 		"config_no_proxy",
 		[]string{"http://noprox.example.com", "http://name:sekrit@proxy.example.com/"},
 		[]string{"http://noprox.example.com", "http://name:********@proxy.example.com/"},
 	))
 
-	t.Run("config_no_proxy-nil", testStringSlice(
+	t.Run("config_no_proxy-nil", testGeneric[[]string](
 		"proxy.no_proxy",
 		"config_no_proxy",
 		nil,
 		[]string{},
 	))
 
-	t.Run("config_process_dd_url", testString(
+	t.Run("config_process_dd_url", testGeneric[string](
 		"process_config.process_dd_url",
 		"config_process_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_proxy_http", testString(
+	t.Run("config_proxy_http", testGeneric[string](
 		"proxy.http",
 		"config_proxy_http",
 		"http://name:sekrit@proxy.example.com/",
 		"http://name:********@proxy.example.com/",
 	))
 
-	t.Run("config_proxy_https", testString(
+	t.Run("config_proxy_https", testGeneric[string](
 		"proxy.https",
 		"config_proxy_https",
 		"https://name:sekrit@proxy.example.com/",

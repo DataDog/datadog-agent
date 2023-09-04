@@ -87,11 +87,11 @@ func newApiServer(deps dependencies) Component {
 func initRuntimeSettings(logger log.Component) {
 	// NOTE: Any settings you want to register should simply be added here
 	processRuntimeSettings := []settings.RuntimeSetting{
-		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction{},
-		settings.RuntimeBlockProfileRate{},
-		settings.ProfilingGoroutines{},
-		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
+		settings.NewLogLevelRuntimeSetting(),
+		settings.NewRuntimeMutexProfileFraction(),
+		settings.NewRuntimeBlockProfileRate(),
+		settings.NewProfilingGoroutines(),
+		settings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
 	}
 
 	// Before we begin listening, register runtime settings

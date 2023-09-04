@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -33,7 +34,7 @@ type Server struct {
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder) (*Server, error) {
+func NewNetflowServer(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder) (*Server, error) {
 	var listeners []*netflowListener
 
 	mainConfig, err := config.ReadConfig()

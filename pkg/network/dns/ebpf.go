@@ -13,6 +13,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -66,7 +67,7 @@ func (e *ebpfProgram) Init() error {
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
-	return e.InitWithOptions(e.bytecode, manager.Options{
+	err := e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
 			Max: math.MaxUint64,
@@ -82,4 +83,8 @@ func (e *ebpfProgram) Init() error {
 		ConstantEditors:           constantEditors,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	})
+	if err == nil {
+		ebpfcheck.AddNameMappings(e.Manager, "npm_dns")
+	}
+	return err
 }

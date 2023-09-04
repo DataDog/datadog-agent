@@ -7,13 +7,9 @@
 
 package status
 
-import (
-	"fmt"
-)
-
 // GetSystemProbeStats returns a notice that it is not supported on systems that do not at least build the process agent
 func GetSystemProbeStats(socketPath string) map[string]interface{} {
 	return map[string]interface{}{
-		"Errors": fmt.Sprintf("System Probe is not supported on this system"),
+		"Errors": "System Probe is not supported on this system",
 	}
 }

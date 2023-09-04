@@ -6,10 +6,9 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 )
 
 var (
@@ -47,7 +46,7 @@ func newStringInterner(maxSize int) *stringInterner {
 	i := &stringInterner{
 		strings:    make(map[string]string),
 		maxSize:    maxSize,
-		tlmEnabled: telemetry_utils.IsEnabled(),
+		tlmEnabled: utils.IsTelemetryEnabled(),
 	}
 	if i.tlmEnabled {
 		tlmSIRNew.Inc()

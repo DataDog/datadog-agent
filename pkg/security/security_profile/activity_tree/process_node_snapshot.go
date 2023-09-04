@@ -24,10 +24,10 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // snapshot uses procfs to retrieve information about the current process
@@ -92,7 +92,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		}
 
 		// fetch the file user, group and mode
-		fullPath := filepath.Join(utils.RootPath(int32(pn.Process.Pid)), f)
+		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
 		fileinfo, err = os.Stat(fullPath)
 		if err != nil {
 			continue
@@ -185,7 +185,7 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
+	proc, _ := procfs.NewFS(filepath.Join(kernel.HostProc(fmt.Sprintf("%d", p.Pid))))
 	if err != nil {
 		seclog.Warnf("error while opening procfs (pid: %v): %s", p.Pid, err)
 	}

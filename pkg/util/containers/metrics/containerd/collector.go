@@ -15,6 +15,7 @@ import (
 
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
+	prototypes "github.com/gogo/protobuf/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -183,7 +184,10 @@ func (c *containerdCollector) getContainerdMetrics(containerNS string, container
 		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, err)
 	}
 
-	metrics, err := typeurl.UnmarshalAny(metricTask.Data)
+	metrics, err := typeurl.UnmarshalAny(&prototypes.Any{
+		TypeUrl: metricTask.Data.TypeUrl,
+		Value:   metricTask.Data.Value,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not convert the metrics data from container with ID %s: %s", containerID, err)
 	}

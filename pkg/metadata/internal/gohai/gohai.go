@@ -34,14 +34,18 @@ func GetPayload() *Payload {
 func getGohaiInfo() *gohai {
 	res := new(gohai)
 
-	cpuPayload, err := new(cpu.Cpu).Collect()
+	cpuPayload, _, err := cpu.CollectInfo().AsJSON()
 	if err == nil {
 		res.CPU = cpuPayload
 	} else {
 		log.Errorf("Failed to retrieve cpu metadata: %s", err)
 	}
 
-	fileSystemPayload, err := new(filesystem.FileSystem).Collect()
+	var fileSystemPayload interface{}
+	fileSystemInfo, err := filesystem.CollectInfo()
+	if err == nil {
+		fileSystemPayload, _, err = fileSystemInfo.AsJSON()
+	}
 	if err == nil {
 		res.FileSystem = fileSystemPayload
 	} else {
@@ -56,7 +60,11 @@ func getGohaiInfo() *gohai {
 	}
 
 	if !config.IsContainerized() || detectDocker0() {
-		networkPayload, err := new(network.Network).Collect()
+		var networkPayload interface{}
+		networkInfo, err := network.CollectInfo()
+		if err == nil {
+			networkPayload, _, err = networkInfo.AsJSON()
+		}
 		if err == nil {
 			res.Network = networkPayload
 		} else {
@@ -64,7 +72,7 @@ func getGohaiInfo() *gohai {
 		}
 	}
 
-	platformPayload, err := new(platform.Platform).Collect()
+	platformPayload, _, err := platform.CollectInfo().AsJSON()
 	if err == nil {
 		res.Platform = platformPayload
 	} else {

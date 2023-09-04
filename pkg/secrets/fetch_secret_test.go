@@ -82,62 +82,73 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
-	t.Cleanup(resetPackageVars)
-
 	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
-	// empty secretBackendCommand
-	secretBackendCommand = ""
-	_, err := execCommand(inputPayload)
-	require.NotNil(t, err)
+	t.Run("Empty secretBackendCommand", func(t *testing.T) {
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = ""
+		_, err := execCommand(inputPayload)
+		require.NotNil(t, err)
+	})
 
-	// test timeout
-	secretBackendCommand = "./test/timeout/timeout" + binExtension
-	setCorrectRight(secretBackendCommand)
-	secretBackendTimeout = 2
-	_, err = execCommand(inputPayload)
-	secretBackendTimeout = 5
-	require.NotNil(t, err)
-	require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
+	t.Run("timeout", func(t *testing.T) {
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/timeout/timeout" + binExtension
+		setCorrectRight(secretBackendCommand)
+		secretBackendTimeout = 1
+		_, err := execCommand(inputPayload)
+		require.NotNil(t, err)
+		require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
+	})
 
-	// test simple (no error)
-	secretBackendCommand = "./test/simple/simple" + binExtension
-	setCorrectRight(secretBackendCommand)
-	resp, err := execCommand(inputPayload)
-	require.NoError(t, err)
-	require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
+	t.Run("No Error", func(t *testing.T) {
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/simple/simple" + binExtension
+		setCorrectRight(secretBackendCommand)
+		resp, err := execCommand(inputPayload)
+		require.NoError(t, err)
+		require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
+	})
 
-	// test error
-	secretBackendCommand = "./test/error/error" + binExtension
-	setCorrectRight(secretBackendCommand)
-	_, err = execCommand(inputPayload)
-	require.NotNil(t, err)
+	t.Run("Error returned", func(t *testing.T) {
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/error/error" + binExtension
+		setCorrectRight(secretBackendCommand)
+		_, err := execCommand(inputPayload)
+		require.NotNil(t, err)
+	})
 
-	// test arguments
-	secretBackendCommand = "./test/argument/argument" + binExtension
-	setCorrectRight(secretBackendCommand)
-	secretBackendArguments = []string{"arg1"}
-	_, err = execCommand(inputPayload)
-	require.NotNil(t, err)
-	secretBackendArguments = []string{"arg1", "arg2"}
-	resp, err = execCommand(inputPayload)
-	require.NoError(t, err)
-	require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
+	t.Run("argument", func(t *testing.T) {
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/argument/argument" + binExtension
+		setCorrectRight(secretBackendCommand)
+		secretBackendArguments = []string{"arg1"}
+		_, err := execCommand(inputPayload)
+		require.NotNil(t, err)
+		secretBackendArguments = []string{"arg1", "arg2"}
+		resp, err := execCommand(inputPayload)
+		require.NoError(t, err)
+		require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
+	})
 
-	// test input
-	secretBackendCommand = "./test/input/input" + binExtension
-	setCorrectRight(secretBackendCommand)
-	resp, err = execCommand(inputPayload)
-	require.NoError(t, err)
-	require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
+	t.Run("input", func(t *testing.T) {
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/input/input" + binExtension
+		setCorrectRight(secretBackendCommand)
+		resp, err := execCommand(inputPayload)
+		require.NoError(t, err)
+		require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
+	})
 
-	// test buffer limit
-	secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
-	setCorrectRight(secretBackendCommand)
-	SecretBackendOutputMaxSize = 20
-	_, err = execCommand(inputPayload)
-	require.NotNil(t, err)
-	assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
+	t.Run("buffer limit", func(t *testing.T) {
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
+		setCorrectRight(secretBackendCommand)
+		SecretBackendOutputMaxSize = 20
+		_, err := execCommand(inputPayload)
+		require.NotNil(t, err)
+		assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
+	})
 }
 
 func TestFetchSecretExecError(t *testing.T) {

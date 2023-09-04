@@ -107,7 +107,7 @@ var (
 			// ifOperStatus
 			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
 			// myFakeVarType
-			// Bits 0, 1, 2, 3, 12, 13, 14, 15, 88, and 130 are set
+			// No bits are set
 			{Name: "1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
 		},
 	}
@@ -607,7 +607,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.1.1.3",
 						"type":  "string",
-						"value": base64.StdEncoding.EncodeToString([]byte{0xc0, 0x00}),
+						"value": "0xC000",
 					},
 				},
 			},
@@ -658,7 +658,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
-						"value": base64.StdEncoding.EncodeToString([]byte{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0x20}),
+						"value": "0xF00F000000000000000000800000000020",
 					},
 				},
 			},
@@ -765,7 +765,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
-						"value": base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}),
+						"value": "0x0000000000000000000000000000000000",
 					},
 				},
 			},
@@ -933,10 +933,11 @@ func TestIsBitEnabled(t *testing.T) {
 
 func TestEnrichBits(t *testing.T) {
 	data := []struct {
-		description string
-		variable    trapVariable
-		varMetadata VariableMetadata
-		expected    interface{}
+		description     string
+		variable        trapVariable
+		varMetadata     VariableMetadata
+		expectedMapping interface{}
+		expectedHex     string
 	}{
 		{
 			description: "all bits are enrichable and are enriched",
@@ -952,13 +953,14 @@ func TestEnrichBits(t *testing.T) {
 					15: "test15",
 				},
 			},
-			expected: []interface{}{
+			expectedMapping: []interface{}{
 				"test0",
 				"test1",
 				"test5",
 				"test8",
 				"test15",
 			},
+			expectedHex: "0xC481",
 		},
 		{
 			description: "no bits are enrichable are returned unenriched",
@@ -972,13 +974,14 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: []interface{}{
+			expectedMapping: []interface{}{
 				0,
 				1,
 				5,
 				8,
 				15,
 			},
+			expectedHex: "0xC481",
 		},
 		{
 			description: "mix of enrichable and unenrichable bits are returned semi-enriched",
@@ -992,13 +995,14 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: []interface{}{
+			expectedMapping: []interface{}{
 				"test2",
 				3,
 				"test4",
 				9,
 				"test14",
 			},
+			expectedHex: "0x3842",
 		},
 		{
 			description: "non-byte array value returns original value unchanged",
@@ -1012,7 +1016,8 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: 42,
+			expectedMapping: 42,
+			expectedHex:     "",
 		},
 		{
 			description: "completely zeroed out bits returns zeroed out bits",
@@ -1026,16 +1031,18 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: []interface{}{},
+			expectedMapping: []interface{}{},
+			expectedHex:     "0x000000000000",
 		},
 	}
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			actual := enrichBits(d.variable, d.varMetadata)
-			if diff := cmp.Diff(d.expected, actual); diff != "" {
+			actualMapping, actualHex := enrichBits(d.variable, d.varMetadata)
+			if diff := cmp.Diff(d.expectedMapping, actualMapping); diff != "" {
 				t.Error(diff)
 			}
+			require.Equal(t, d.expectedHex, actualHex)
 		})
 	}
 }

@@ -5,12 +5,15 @@ require 'rbconfig'
 require 'yaml'
 require 'find'
 require 'tempfile'
+require 'fileutils'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
 # logged.
 RSpec.configure do |c|
-  c.default_formatter = "documentation"
+  c.add_formatter "documentation"
+  FileUtils.mkdir_p '/tmp'
+  c.add_formatter("RspecJunitFormatter", "/tmp/kitchen/rspec.xml")
 end
 
 os_cache = nil

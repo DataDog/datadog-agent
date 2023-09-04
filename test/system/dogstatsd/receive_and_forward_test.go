@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
@@ -58,7 +58,7 @@ func TestReceiveAndForward(t *testing.T) {
 	requests := d.getRequests()
 	require.Len(t, requests, 1)
 
-	sc := []metrics.ServiceCheck{}
+	sc := []servicecheck.ServiceCheck{}
 	decompressedBody, err := compression.Decompress([]byte(requests[0]))
 	require.NoError(t, err, "Could not decompress request body")
 	err = json.Unmarshal(decompressedBody, &sc)
@@ -66,8 +66,8 @@ func TestReceiveAndForward(t *testing.T) {
 
 	require.Len(t, sc, 2)
 	assert.Equal(t, sc[0].CheckName, "test.ServiceCheck")
-	assert.Equal(t, sc[0].Status, metrics.ServiceCheckOK)
+	assert.Equal(t, sc[0].Status, servicecheck.ServiceCheckOK)
 
 	assert.Equal(t, sc[1].CheckName, "datadog.agent.up")
-	assert.Equal(t, sc[1].Status, metrics.ServiceCheckOK)
+	assert.Equal(t, sc[1].Status, servicecheck.ServiceCheckOK)
 }

@@ -54,9 +54,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			path: "receiver/noprotocols.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -73,9 +75,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 						"http": nil,
 					},
 				},
+
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -92,9 +96,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 						"http": nil,
 					},
 				},
+
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -130,6 +136,39 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			path: "logs_enabled.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    true,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			path: "logs_disabled.yaml",
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -173,8 +212,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
+
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -200,8 +241,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
+
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -230,8 +273,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
+
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
@@ -259,8 +304,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
+
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -285,8 +332,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
+
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -312,8 +361,48 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
+
 				MetricsEnabled: true,
 				TracesEnabled:  true,
+				LogsEnabled:    false,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			name: "logs enabled",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_LOGS_ENABLED": "true",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			name: "logs disabled",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_LOGS_ENABLED": "false",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
 				TracePort:      5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -350,9 +439,11 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 			path: "metrics/allconfig.yaml",
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
 				Metrics: map[string]interface{}{
 					"enabled":                     true,
 					"delta_ttl":                   2400,
@@ -399,11 +490,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			shouldSet: true,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				Debug:          map[string]interface{}{},
+				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 		{
@@ -411,11 +504,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			shouldSet: true,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{"loglevel": "debug"},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				Debug:          map[string]interface{}{"loglevel": "debug"},
+				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 		{
@@ -423,11 +518,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			shouldSet: false,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{"loglevel": "disabled"},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				Debug:          map[string]interface{}{"loglevel": "disabled"},
+				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 		{
@@ -435,11 +532,13 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			shouldSet: true,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{"verbosity": "normal"},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				LogsEnabled:    false,
+				Debug:          map[string]interface{}{"verbosity": "normal"},
+				Metrics:        map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 	}

@@ -53,20 +53,24 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addNode,
 		DeleteFunc: m.deleteNode,
-	})
+	}); err != nil {
+		log.Errorf("error adding event handler to node informer: %f", err)
+	}
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
 
 	m.namespaceListerSynced = namespaceInformer.Informer().HasSynced
 
-	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
 		UpdateFunc: m.updateEndpoints,
 		DeleteFunc: m.deleteEndpoints,
-	})
+	}); err != nil {
+		log.Errorf("error adding event handler to node informer: %f", err)
+	}
 	m.endpointsLister = endpointsInformer.Lister()
 	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
 

@@ -10,9 +10,11 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -105,10 +107,10 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 }
 
 // Configure configures the orchestrator check
-func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := o.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := o.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -128,7 +130,7 @@ func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, in
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		_ = log.Error("could not parse check instance config")
+		_ = log.Errorc("could not parse check instance config", orchestrator.ExtraLogContext...)
 		return err
 	}
 
@@ -171,7 +173,7 @@ func (o *OrchestratorCheck) Run() error {
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
+			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 
 		leader, errLeader := cluster.RunLeaderElection()
@@ -196,7 +198,7 @@ func (o *OrchestratorCheck) Run() error {
 
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	log.Infof("Shutting down informers used by the check '%s'", o.ID())
+	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
 }
 

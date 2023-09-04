@@ -11,25 +11,36 @@ import (
 	"net/http"
 
 	gorilla "github.com/gorilla/mux"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *config.Config) error {
+const maxGRPCServerMessage = 100 * 1024 * 1024
+
+// StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
+func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
 	}
 
+	var grpcServer *grpc.Server
+	var srv *http.Server
+
 	mux := gorilla.NewRouter()
-	err = module.Register(cfg, mux, modules.All)
+	if cfg.GRPCServerEnabled {
+		grpcServer = grpc.NewServer(grpc.MaxRecvMsgSize(maxGRPCServerMessage), grpc.MaxSendMsgSize(maxGRPCServerMessage))
+	}
+
+	err = module.Register(cfg, mux, grpcServer, modules.All)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
@@ -48,8 +59,21 @@ func StartServer(cfg *config.Config) error {
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
+	if cfg.GRPCServerEnabled {
+		srv = grpcutil.NewMuxedGRPCServer(
+			cfg.SocketAddress,
+			nil,
+			grpcServer,
+			mux,
+		)
+	} else {
+		srv = &http.Server{
+			Handler: mux,
+		}
+	}
+
 	go func() {
-		err = http.Serve(conn.GetListener(), mux)
+		err = srv.Serve(conn.GetListener())
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("error creating HTTP server: %s", err)
 		}

@@ -6,8 +6,9 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // StatGaugeWrapper is a convenience type that allows for migrating telemetry to
