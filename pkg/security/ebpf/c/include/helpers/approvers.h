@@ -30,7 +30,7 @@ int __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u6
     get_dentry_name(dentry, &basename, sizeof(basename));
 
     struct basename_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &basename);
-    if (filter && filter->event_mask & (1 << (event_type-1))) {
+    if (filter && filter->event_mask & (1 << (event_type - 1))) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return 1;
     }

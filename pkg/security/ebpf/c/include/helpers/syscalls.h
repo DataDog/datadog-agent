@@ -140,8 +140,7 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
         if (config != NULL) {
             // is this event type traced ?
-            if (mask_has_event(config->event_mask, syscall->type)
-                && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
+            if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
                 if (!pass_to_userspace) {
                     syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
                 }

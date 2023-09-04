@@ -113,30 +113,30 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
     void *data = req + sizeof(op);
 
     switch (op) {
-        case DISCARD_INODE_OP:
-            return handle_discard_inode(data);
-        case DISCARD_PID_OP:
-            return handle_discard_pid(data);
+    case DISCARD_INODE_OP:
+        return handle_discard_inode(data);
+    case DISCARD_PID_OP:
+        return handle_discard_pid(data);
     }
 
     switch (op) {
-        case RESOLVE_SEGMENT_OP:
-            return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY); // func (dr *DentryResolver) ResolveFromERPC in the userspace code side triggers handle_dr_request
-        case RESOLVE_PATH_OP:
-            return handle_dr_request(ctx, data, DR_ERPC_KEY);
-        case RESOLVE_PARENT_OP:
-            return handle_dr_request(ctx, data, DR_ERPC_PARENT_KEY);
-        case REGISTER_SPAN_TLS_OP:
-            return handle_register_span_memory(data);
-        case EXPIRE_INODE_DISCARDER_OP:
-            return handle_expire_inode_discarder(data);
-        case EXPIRE_PID_DISCARDER_OP:
-            return handle_expire_pid_discarder(data);
-        case BUMP_DISCARDERS_REVISION:
-            return handle_bump_discarders_revision(data);
+    case RESOLVE_SEGMENT_OP:
+        return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY); // func (dr *DentryResolver) ResolveFromERPC in the userspace code side triggers handle_dr_request
+    case RESOLVE_PATH_OP:
+        return handle_dr_request(ctx, data, DR_ERPC_KEY);
+    case RESOLVE_PARENT_OP:
+        return handle_dr_request(ctx, data, DR_ERPC_PARENT_KEY);
+    case REGISTER_SPAN_TLS_OP:
+        return handle_register_span_memory(data);
+    case EXPIRE_INODE_DISCARDER_OP:
+        return handle_expire_inode_discarder(data);
+    case EXPIRE_PID_DISCARDER_OP:
+        return handle_expire_pid_discarder(data);
+    case BUMP_DISCARDERS_REVISION:
+        return handle_bump_discarders_revision(data);
 #if USE_RING_BUFFER == 1
-        case GET_RINGBUF_USAGE:
-            return handle_get_ringbuf_usage(data);
+    case GET_RINGBUF_USAGE:
+        return handle_get_ringbuf_usage(data);
 #endif
     }
 

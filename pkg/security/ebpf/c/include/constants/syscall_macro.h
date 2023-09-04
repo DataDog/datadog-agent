@@ -1,6 +1,8 @@
 #ifndef _CONSTANTS_SYSCALL_MACRO_H_
 #define _CONSTANTS_SYSCALL_MACRO_H_
 
+// clang-format off
+
 #if defined(__x86_64__)
   #if USE_SYSCALL_WRAPPER == 1
     #define SYSCALL64_PREFIX "__x64_"
@@ -203,5 +205,7 @@
 #define SYSCALL_TIME_FEXIT(name) SYSCALL_TIME_HOOKx(0,fexit,FEXIT,_##name,__VA_ARGS__)
 
 #define SYSCALL_COMPAT_TIME_KRETPROBE(name, ...) SYSCALL_COMPAT_TIME_HOOKx(0,kretprobe,KRETPROBE,_##name)
+
+// clang-format on
 
 #endif

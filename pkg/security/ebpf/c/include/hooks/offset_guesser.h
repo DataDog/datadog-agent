@@ -6,7 +6,7 @@
 
 HOOK_ENTRY("get_pid_task")
 int hook_get_pid_task_numbers(ctx_t *ctx) {
-    struct pid *pid = (struct pid *) CTX_PARM1(ctx);
+    struct pid *pid = (struct pid *)CTX_PARM1(ctx);
     if (!pid) {
         return 0;
     }

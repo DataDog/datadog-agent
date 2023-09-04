@@ -8,8 +8,8 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     struct namespaced_flow_t tmp_ns_flow = pkt->ns_flow; // for compatibility with older kernels
     pkt->translated_ns_flow = pkt->ns_flow;
 
-    // lookup flow in conntrack table
-    #pragma unroll
+// lookup flow in conntrack table
+#pragma unroll
     for (int i = 0; i < 10; i++) {
         struct namespaced_flow_t *translated_ns_flow = bpf_map_lookup_elem(&conntrack, &tmp_ns_flow);
         if (translated_ns_flow == NULL) {
@@ -24,19 +24,19 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
 
     // resolve pid
     switch (network_direction) {
-        case EGRESS: {
-            pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
-            pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
-            pid_route.port = pkt->translated_ns_flow.flow.sport;
-            pid_route.netns = pkt->translated_ns_flow.netns;
-            break;
-        }
-        case INGRESS: {
-            pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
-            pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
-            pid_route.port = pkt->translated_ns_flow.flow.dport;
-            pid_route.netns = pkt->translated_ns_flow.netns;
-        }
+    case EGRESS: {
+        pid_route.addr[0] = pkt->translated_ns_flow.flow.saddr[0];
+        pid_route.addr[1] = pkt->translated_ns_flow.flow.saddr[1];
+        pid_route.port = pkt->translated_ns_flow.flow.sport;
+        pid_route.netns = pkt->translated_ns_flow.netns;
+        break;
+    }
+    case INGRESS: {
+        pid_route.addr[0] = pkt->translated_ns_flow.flow.daddr[0];
+        pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
+        pid_route.port = pkt->translated_ns_flow.flow.dport;
+        pid_route.netns = pkt->translated_ns_flow.netns;
+    }
     }
     pkt->pid = get_flow_pid(&pid_route);
 

@@ -113,7 +113,7 @@ int hook_mnt_want_write_file_path(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
-HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char*, source, const char*, target, const char*, fstype) {
+HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, const char *, fstype) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MOUNT,
     };
@@ -246,14 +246,14 @@ int tail_call_target_dr_unshare_mntns_stage_two_callback(ctx_t *ctx) {
         .mountfields.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt),
         .mountfields.device = get_mount_dev(syscall->unshare_mntns.mnt),
         .mountfields.parent_key.mount_id = syscall->unshare_mntns.path_key.mount_id,
-        .mountfields.parent_key.ino= syscall->unshare_mntns.path_key.ino,
+        .mountfields.parent_key.ino = syscall->unshare_mntns.path_key.ino,
         .mountfields.parent_key.path_id = syscall->unshare_mntns.path_key.path_id,
         .mountfields.root_key.mount_id = syscall->unshare_mntns.root_key.mount_id,
         .mountfields.root_key.ino = syscall->unshare_mntns.root_key.ino,
         .mountfields.root_key.path_id = syscall->unshare_mntns.root_key.path_id,
         .mountfields.bind_src_mount_id = 0, // do not consider mnt ns copies as bind mounts
     };
-    bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->unshare_mntns.fstype);
+    bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void *)syscall->unshare_mntns.fstype);
 
     if (event.mountfields.mount_id == 0 && event.mountfields.device == 0) {
         return 0;
@@ -435,7 +435,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx) {
         .mountfields.root_key.path_id = syscall->mount.root_key.path_id,
         .mountfields.bind_src_mount_id = syscall->mount.bind_src_key.mount_id,
     };
-    bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->mount.fstype);
+    bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void *)syscall->mount.fstype);
 
     if (event.mountfields.mount_id == 0 && event.mountfields.device == 0) {
         return 0;

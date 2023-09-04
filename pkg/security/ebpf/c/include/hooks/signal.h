@@ -47,7 +47,7 @@ int hook_check_kill_permission(ctx_t *ctx) {
 
 /* hook here to grab the EPERM retval */
 HOOK_EXIT("check_kill_permission")
-int rethook_check_kill_permission(ctx_t* ctx) {
+int rethook_check_kill_permission(ctx_t *ctx) {
     int retval = (int)CTX_PARMRET(ctx, 3);
 
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SIGNAL);

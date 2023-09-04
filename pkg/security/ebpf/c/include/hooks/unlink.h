@@ -27,7 +27,7 @@ HOOK_SYSCALL_ENTRY0(unlink) {
     return trace__sys_unlink(SYNC_SYSCALL, 0);
 }
 
-HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char*, filename, int, flags) {
+HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char *, filename, int, flags) {
     return trace__sys_unlink(SYNC_SYSCALL, flags);
 }
 
@@ -51,12 +51,12 @@ int hook_vfs_unlink(ctx_t *ctx) {
         return 0;
     }
 
-    struct dentry *dentry = (struct dentry *) CTX_PARM2(ctx);
+    struct dentry *dentry = (struct dentry *)CTX_PARM2(ctx);
     // change the register based on the value of vfs_unlink_dentry_position
     if (get_vfs_unlink_dentry_position() == VFS_ARG_POSITION3) {
         // prevent the verifier from whining
         bpf_probe_read(&dentry, sizeof(dentry), &dentry);
-        dentry = (struct dentry *) CTX_PARM3(ctx);
+        dentry = (struct dentry *)CTX_PARM3(ctx);
     }
 
     // we resolve all the information before the file is actually removed
@@ -115,7 +115,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     u64 enabled_events = get_enabled_events();
     int pass_to_userspace = !syscall->discarded &&
                             (mask_has_event(enabled_events, EVENT_UNLINK) ||
-                             mask_has_event(enabled_events, EVENT_RMDIR));
+                                mask_has_event(enabled_events, EVENT_RMDIR));
     if (pass_to_userspace) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             struct rmdir_event_t event = {

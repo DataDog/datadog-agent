@@ -10,9 +10,9 @@ struct path_key_t {
 };
 
 struct path_leaf_t {
-  struct path_key_t parent;
-  char name[DR_MAX_SEGMENT_LENGTH + 1];
-  u16 len;
+    struct path_key_t parent;
+    char name[DR_MAX_SEGMENT_LENGTH + 1];
+    u16 len;
 };
 
 struct dr_erpc_state_t {

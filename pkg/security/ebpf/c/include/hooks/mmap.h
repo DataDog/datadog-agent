@@ -79,7 +79,7 @@ int rethook_fget(ctx_t *ctx) {
         return 0;
     }
 
-    struct file *f = (struct file*) CTX_PARMRET(ctx, 1);
+    struct file *f = (struct file *)CTX_PARMRET(ctx, 1);
     syscall->mmap.dentry = get_file_dentry(f);
     set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);
     syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);

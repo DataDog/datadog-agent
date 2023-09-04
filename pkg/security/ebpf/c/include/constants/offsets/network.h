@@ -8,7 +8,7 @@ __attribute__((always_inline)) u16 get_family_from_sock_common(struct sock_commo
     LOAD_CONSTANT("sock_common_skc_family_offset", sock_common_skc_family_offset);
 
     u16 family;
-    bpf_probe_read(&family, sizeof(family), (void*)sk + sock_common_skc_family_offset);
+    bpf_probe_read(&family, sizeof(family), (void *)sk + sock_common_skc_family_offset);
     return family;
 }
 

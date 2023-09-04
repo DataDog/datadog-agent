@@ -42,8 +42,8 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     }
 
     // compute the offset of the current syscall
-    u16 index = ((unsigned long) args->id) / 8;
-    u8 bit = 1 << (((unsigned long) args->id) % 8);
+    u16 index = ((unsigned long)args->id) / 8;
+    u8 bit = 1 << (((unsigned long)args->id) % 8);
 
     // check if this is a new syscall
     if ((entry->syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) == 0) {
@@ -78,7 +78,6 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
 shoud_send_event:
     if (should_send) {
-
         // send an event now
         event.syscall_data.syscalls = *entry;
         event.event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE; // syscall events are used only by activity dumps

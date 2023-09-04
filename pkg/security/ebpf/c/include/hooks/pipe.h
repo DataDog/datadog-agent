@@ -10,19 +10,19 @@ DECLARE_EQUAL_TO(pipefs);
 /* hook here to grab and cache the pipefs mount id */
 HOOK_ENTRY("mntget")
 int hook_mntget(ctx_t *ctx) {
-    struct vfsmount* vfsm = (struct vfsmount*)CTX_PARM1(ctx);
+    struct vfsmount *vfsm = (struct vfsmount *)CTX_PARM1(ctx);
 
     // check if we already have the pipefs mount id
     if (get_pipefs_mount_id()) {
         return 0;
     }
 
-    struct super_block* sb;
+    struct super_block *sb;
     bpf_probe_read(&sb, sizeof(sb), &vfsm->mnt_sb);
 
-    struct file_system_type* fst = get_super_block_fs(sb);
+    struct file_system_type *fst = get_super_block_fs(sb);
 
-    char* name;
+    char *name;
     bpf_probe_read(&name, sizeof(name), &fst->name);
 
     if (IS_EQUAL_TO(name, pipefs)) {

@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
+HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, addr_len) {
     if (!addr) {
         return 0;
     }
@@ -100,7 +100,7 @@ int hook_security_socket_bind(ctx_t *ctx) {
     // Register service PID
     if (key.port != 0) {
         u64 id = bpf_get_current_pid_tgid();
-        u32 tid = (u32) id;
+        u32 tid = (u32)id;
 
         // add netns information
         key.netns = get_netns_from_socket(sk);

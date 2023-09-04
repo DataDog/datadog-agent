@@ -16,7 +16,7 @@ void __attribute__((always_inline)) cache_ioctx_pid_tgid(void *ioctx) {
 
 u64 __attribute__((always_inline)) get_pid_tgid_from_iouring(void *req) {
     void *ioctx;
-    int ret = bpf_probe_read(&ioctx, sizeof(void*), req + get_iokiocb_ctx_offset());
+    int ret = bpf_probe_read(&ioctx, sizeof(void *), req + get_iokiocb_ctx_offset());
     if (ret < 0) {
         return 0;
     }

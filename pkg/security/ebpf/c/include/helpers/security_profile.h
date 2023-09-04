@@ -22,8 +22,8 @@ __attribute__((always_inline)) void evaluate_security_profile_syscalls(void *arg
     }
 
     // compute the offset of the current syscall
-    u16 index = ((unsigned long) syscall_id) / 8;
-    u8 bit = 1 << (((unsigned long) syscall_id) % 8);
+    u16 index = ((unsigned long)syscall_id) / 8;
+    u8 bit = 1 << (((unsigned long)syscall_id) % 8);
     if ((syscalls->syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) == bit) {
         // all good
         return;

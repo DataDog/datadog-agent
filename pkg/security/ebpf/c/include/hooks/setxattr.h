@@ -84,7 +84,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
         (event_type == EVENT_REMOVEXATTR && get_vfs_removexattr_dentry_position() == VFS_ARG_POSITION2)) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->xattr.dentry, sizeof(syscall->xattr.dentry), &syscall->xattr.dentry);
-        syscall->xattr.dentry = (struct dentry *) CTX_PARM2(ctx);
+        syscall->xattr.dentry = (struct dentry *)CTX_PARM2(ctx);
     }
 
     set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
@@ -146,7 +146,7 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
     };
 
     // copy xattr name
-    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void*) syscall->xattr.name);
+    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void *)syscall->xattr.name);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);

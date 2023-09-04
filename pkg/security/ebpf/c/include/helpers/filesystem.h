@@ -123,18 +123,22 @@ void __attribute__((always_inline)) fill_resolver_mnt(void *ctx, struct syscall_
 
 int __attribute__((always_inline)) get_pipefs_mount_id(void) {
     u32 key = 0;
-    u32* val = bpf_map_lookup_elem(&pipefs_mountid, &key);
-    if (val) { return *val; }
+    u32 *val = bpf_map_lookup_elem(&pipefs_mountid, &key);
+    if (val) {
+        return *val;
+    }
     return 0;
 }
 
 int __attribute__((always_inline)) is_pipefs_mount_id(u32 id) {
     u32 pipefs_id = get_pipefs_mount_id();
-    if (!pipefs_id) { return 0; }
+    if (!pipefs_id) {
+        return 0;
+    }
     return (pipefs_id == id);
 }
 
-void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {
+void __attribute__((always_inline)) fill_file_metadata(struct dentry *dentry, struct file_metadata_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     bpf_probe_read(&file->nlink, sizeof(file->nlink), (void *)&d_inode->i_nlink);
@@ -146,8 +150,14 @@ void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, st
     bpf_probe_read(&file->mtime, sizeof(file->mtime), &d_inode->i_mtime);
 }
 
-#define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
-#define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
+#define get_dentry_key_path(dentry, path)                                  \
+    (struct path_key_t) {                                                  \
+        .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) \
+    }
+#define get_inode_key_path(inode, path)                                  \
+    (struct path_key_t) {                                                \
+        .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) \
+    }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
     file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
