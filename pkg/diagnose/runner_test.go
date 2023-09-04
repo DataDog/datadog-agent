@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 
@@ -27,7 +27,7 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 		Include:  []*regexp.Regexp{re},
 		RunLocal: true,
 	}
-	senderManager := aggregator.GetSenderManager()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
 	diagnoses, err := Run(diagCfg, senderManager)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, 0)
@@ -68,7 +68,7 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		Include:  []*regexp.Regexp{reInclude},
 		RunLocal: true,
 	}
-	senderManager := aggregator.GetSenderManager()
+	senderManager := mocksender.CreateDefaultDemultiplexer()
 	outSuitesDiagnosesInclude, err := Run(diagCfgInclude, senderManager)
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)

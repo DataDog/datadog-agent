@@ -61,8 +61,9 @@ func TestNTPOK(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(21), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -90,9 +91,10 @@ func TestNTPCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(100), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -119,9 +121,10 @@ func TestNTPError(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
 		servicecheck.ServiceCheckUnknown,
@@ -147,9 +150,10 @@ func TestNTPInvalid(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
 		servicecheck.ServiceCheckUnknown,
@@ -176,9 +180,10 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(-100), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -217,9 +222,10 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(2), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
@@ -258,9 +264,10 @@ hosts:
 	defer func() { ntpQuery = ntp.QueryWithOptions }()
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
-	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
 
 	mockSender.On("Gauge", "ntp.offset", float64(400), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",

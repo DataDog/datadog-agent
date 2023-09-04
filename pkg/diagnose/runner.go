@@ -280,6 +280,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	return diagnoses, nil
 }
 
+// Run runs diagnoses.
 func Run(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
 
 	// Make remote call to get diagnoses
