@@ -55,6 +55,7 @@ var retrySchedule = []time.Duration{
 	1 * time.Second,
 	3 * time.Second,
 	9 * time.Second,
+	0 * time.Second,
 }
 
 type Client struct {
