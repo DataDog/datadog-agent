@@ -2,6 +2,8 @@
 # https://github.com/Homebrew/homebrew-core/blob/35f8763a90eab4203deb3a6ee2503cf0ddfd8c84/Formula/librdkafka.rb#L32
 # https://github.com/confluentinc/confluent-kafka-python/blob/master/tools/windows-install-librdkafka.bat
 
+require './lib/autotools.rb'
+
 name "librdkafka"
 default_version "2.2.0"
 
@@ -18,15 +20,15 @@ build do
   license "BSD-style"
   license_file "https://raw.githubusercontent.com/confluentinc/librdkafka/master/LICENSE"
 
-  env = {
-    "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
-
-  command "./configure --enable-sasl --prefix=#{install_dir}/embedded", :env => env
-  command "make -j #{workers}", :env => env
-  command "make install", :env => env
+  build_with_autotools({
+    :discard_default_opts => true,
+    :prefix => "#{install_dir}/embedded",
+    :configure_opts => [
+      "--enable-shared",
+      "--enable-sasl",
+      "--disable-dependency-tracking",
+    ],
+  })
 
   delete "#{install_dir}/embedded/lib/librdkafka.a"
   delete "#{install_dir}/embedded/lib/librdkafka-static.a"
