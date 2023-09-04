@@ -55,9 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
-	rccollector "github.com/DataDog/datadog-agent/pkg/collector/remoteconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -565,11 +563,11 @@ func startAgent(
 	scheduler := collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
 	common.AC.AddScheduler("check", scheduler, true)
 	// Subscribe to `AGENT_INTEGRATION` product
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) &&
-		pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
-		rcScheduler := rccollector.NewScheduler(scheduler)
-		rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)
-	}
+	// if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) &&
+	// 	pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
+	// 	rcScheduler := rccollector.NewScheduler(scheduler)
+	// 	rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)
+	// }
 	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)

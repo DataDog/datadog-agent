@@ -12,8 +12,12 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -21,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,6 +51,27 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 		config.Datadog.GetBool("autoconf_config_files_poll"),
 		time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
+
+	if config.IsRemoteConfigEnabled(config.Datadog) && config.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
+		rcProvider := providers.NewRemoteConfigProvider()
+		logLevel, err := log.GetLogLevel()
+		if err != nil {
+
+		}
+		if err := fxutil.OneShot(func(rcclient rcclient.Component) {
+			log.Warnf("[RC] One shot function")
+			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+		},
+			rcclient.Module,
+			fx.Supply(core.BundleParams{
+				LogParams: logcomp.LogForOneShot("CORE", logLevel.String(), true),
+			}),
+			core.Bundle,
+		); err != nil {
+			log.Errorf("Couldn't start remote-config integration provider: %v", err)
+		}
+		ad.AddConfigProvider(rcProvider, true, 10*time.Second)
+	}
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
