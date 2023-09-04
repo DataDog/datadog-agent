@@ -8,7 +8,7 @@ package flare
 
 import (
 	_ "embed"
-	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
@@ -70,20 +70,20 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 		"expvar/system-probe", // if system probe is enabled
 	}
 
-	// XXX: use FileManager here instead
-	// XXX: this test is expected to fail because 'etc/security-agent.yaml' is not found. See #18463
-	// TODO: use dedicated functions when https://github.com/DataDog/test-infra-definitions/pull/309 is merged
-	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | sudo tee /etc/datadog-agent/system-probe.yaml`, systemProbeConfiguration))
-	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | sudo tee /etc/datadog-agent/security-agent.yaml`, securityAgentConfiguration))
-	v.Env().VM.Execute("sudo mkdir -p /tmp/dummy_dir /tmp/dummy_system_probe_config_bpf_dir")
+	systemProbeDummyFiles := []string{"/tmp/dummy_dir", "/tmp/dummy_system_probe_config_bpf_dir"}
+	v.Env().VM.Execute("sudo mkdir -p " + strings.Join(systemProbeDummyFiles, " "))
 
 	confdPath := "/opt/datadog-agent/bin/agent/dist/conf.d/"
+	useSudo := true
 
 	withFiles := []agentparams.Option{
-		agentparams.WithFile(confdPath+"test.yaml", "dummy content", true),
-		agentparams.WithFile(confdPath+"test.yml", "dummy content", true),
-		agentparams.WithFile(confdPath+"test.yml.test", "dummy content", true),
-		agentparams.WithFile("/opt/datadog-agent/checks.d/test.yml", "dummy content", true),
+		// TODO: use dedicated functions when https://github.com/DataDog/test-infra-definitions/pull/309 is merged
+		agentparams.WithFile("/etc/datadog-agent/system-probe.yaml", string(systemProbeConfiguration), useSudo),
+		agentparams.WithFile("/etc/datadog-agent/security-agent.yaml", string(securityAgentConfiguration), useSudo),
+		agentparams.WithFile(confdPath+"test.yaml", "dummy content", useSudo),
+		agentparams.WithFile(confdPath+"test.yml", "dummy content", useSudo),
+		agentparams.WithFile(confdPath+"test.yml.test", "dummy content", useSudo),
+		agentparams.WithFile("/opt/datadog-agent/checks.d/test.yml", "dummy content", useSudo),
 	}
 
 	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(agentConfiguration)))
@@ -94,6 +94,7 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
+	// XXX: this test is expected to fail because 'etc/security-agent.yaml' is not found. See #18463
 	assertFilesExist(v.T(), flare, allConfigFiles)
 
 	extraCustomConfigFiles := []string{"etc/confd/dist/test.yaml", "etc/confd/dist/test.yml", "etc/confd/dist/test.yml.test", "etc/confd/checksd/test.yml"}
@@ -103,6 +104,6 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 	assertFileContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
 	assertFileContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 
-	filesRegistredInPermissionsLog := []string{"/etc/datadog-agent/auth_token", "/tmp/dummy_system_probe_config_bpf_dir/", "/tmp/dummy_dir"}
+	filesRegistredInPermissionsLog := append(systemProbeDummyFiles, "/etc/datadog-agent/auth_token")
 	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)
 }
