@@ -8,16 +8,18 @@ end
 # Helper class to locate `dumpbin.exe` on Windows
 class Dumpbin
   include Singleton
+  include Omnibus::Logging
 
   def path
     if !@dumpbin
       vsroot = ENV["VCINSTALLDIR"]
       if !vsroot
-        print("VC not detected in environment; checking other locations")
+        log.warn(self.class.name) { "VC not detected in environment; checking other locations" }
         # VSTUDIO_ROOT is a Datadog env var, it should be present
         vsroot = ENV["VSTUDIO_ROOT"]
         if !vsroot
-          raise RuntimeError.new("Could not find a Visual Studio installation")
+          log.error(self.class.name) { "Could not find a Visual Studio installation" }
+          raise
         end
         # VSTUDIO_ROOT is not defined with "VC" in its path, so append it
         vsroot += "\\VC\\"
@@ -31,7 +33,8 @@ class Dumpbin
         end
       end
       if !@dumpbin
-        raise RuntimeError.new("Could not find dumpbin.exe")
+        log.error(self.class.name) { "Could not find dumpbin.exe" }
+        raise
       end
     end
     @dumpbin
@@ -46,12 +49,15 @@ end
 # the symbols in Win32 binaries using `dumpbin.exe`
 # included in Visual Studio
 class VisualStudioSymbolsInspector
+  include Omnibus::Logging
+
   def initialize(binary, &block)
     @binary = binary
     @block = block
   end
 
   def inspect()
+    log.info(self.class.name) { "Inspecting binary #{@binary}" }
     @block.call(Dumpbin.instance.call(@binary))
   end
 end
@@ -59,12 +65,15 @@ end
 # The GoSymbolChecker class can be used to inspect
 # the symbols in Go binaries using the go tool `nm`
 class GoSymbolsInspector
+  include Omnibus::Logging
+
   def initialize(binary, &block)
     @binary = binary
     @block = block
   end
 
   def inspect()
+    log.info(self.class.name) { "Inspecting binary #{@binary}" }
     @block.call(`go tool nm #{@binary}`)
   end
 end
