@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+require './lib/autotools.rb'
+
 name "pcre2"
 default_version "10.42"
 
@@ -28,15 +30,5 @@ source url: "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-#{ver
 relative_path "pcre2-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  configure_command = [
-    "./configure",
-    "--prefix=#{install_dir}/embedded",
-  ]
-
-  command configure_command.join(" "), env: env
-
-  make "-j #{workers}", env: env
-  make "-j #{workers} install", env: env
+  build_with_autotools()
 end
