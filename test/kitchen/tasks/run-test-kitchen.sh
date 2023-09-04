@@ -129,9 +129,15 @@ if [ -z ${AGENT_VERSION+x} ]; then
   popd
 fi
 
-KITCHEN_IMAGE_SIZE="${KITCHEN_IMAGE_SIZE:-}"
+EC2_FORCE_IMDSV1="$3"
 
-invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --imagesize="${KITCHEN_IMAGE_SIZE}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
+KITCHEN_IMAGE_SIZE="${KITCHEN_IMAGE_SIZE:-}"
+# If we are using IMDSV2 in ec2
+if [ -z "${EC2_FORCE_IMDSV1}" ]; then
+  invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --imagesize="${KITCHEN_IMAGE_SIZE}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json
+else
+  invoke -e kitchen.genconfig --platform="$KITCHEN_PLATFORM" --osversions="$KITCHEN_OSVERS" --provider="$KITCHEN_PROVIDER" --arch="${KITCHEN_ARCH:-x86_64}" --imagesize="${KITCHEN_IMAGE_SIZE}" --testfiles="$1" ${KITCHEN_FIPS:+--fips} --platformfile=platforms.json --force-imdsv1
+fi
 
 bundle exec kitchen diagnose --no-instances --loader
 
