@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+require './lib/autotools.rb'
+
 name "m4"
 default_version "1.4.19"
 
@@ -30,10 +32,5 @@ source url: "https://ftp.gnu.org/gnu/m4/m4-#{version}.tar.gz"
 relative_path "m4-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  command "./configure --prefix=#{install_dir}/embedded", env: env
-
-  make "-j #{workers}", env: env
-  make "-j #{workers} install", env: env
+  build_with_autotools()
 end
