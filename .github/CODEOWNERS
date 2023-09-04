@@ -278,7 +278,7 @@
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go             @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
+/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
