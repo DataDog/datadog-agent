@@ -53,7 +53,9 @@ typedef enum
     k400 = 12,
     k404 = 13,
     k500 = 14,
-} static_table_value_t;
+
+    __MAX_STATIC_TABLE_INDEX = 255,
+} __attribute__((packed)) static_table_value_t;
 
 typedef struct {
     char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
@@ -76,7 +78,7 @@ typedef struct {
     __u64 request_started;
 
     __u16 response_status_code;
-    __u32 request_method;
+    __u8 request_method;
     __u8 path_size;
     bool request_end_of_stream;
 

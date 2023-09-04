@@ -467,14 +467,37 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
 	err := c.db.Select(s, sql, binds...)
-	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "ORA-06413") || strings.Contains(err.Error(), "database is closed")) {
-		db, err := c.Connect()
-		if err != nil {
-			c.Teardown()
-			return err
-		}
-		c.db = db
-	}
-
+	reconnectOnConnectionError(c, &c.db, err)
 	return err
+}
+
+func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
+	if err == nil {
+		return
+	}
+	errors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "database is closed"}
+	var isError bool
+	for _, e := range errors {
+		if strings.Contains(err.Error(), e) {
+			isError = true
+			break
+		}
+	}
+	if !isError {
+		return
+	}
+	log.Tracef("Reconnecting")
+	*db, err = c.Connect()
+	if err != nil {
+		log.Errorf("failed to reconnect %s", err)
+		closeDatabase(c, *db)
+	}
+}
+
+func closeDatabase(c *Check, db *sqlx.DB) {
+	if db != nil {
+		if err := db.Close(); err != nil {
+			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
+		}
+	}
 }
