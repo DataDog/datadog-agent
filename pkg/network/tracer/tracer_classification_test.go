@@ -1543,6 +1543,37 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
 		},
 		{
+			name: "http2 traffic using gRPC - irrelevant literal headers",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: http2ServerAddress,
+				targetAddress: http2TargetAddress,
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := &nethttp.Client{
+					Transport: &http2.Transport{
+						AllowHTTP: true,
+						DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+							return net.Dial(network, addr)
+						},
+					},
+				}
+
+				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
+				require.NoError(t, err)
+
+				req.Header.Add("someheader", "somevalue")
+				req.Header.Add("Content-type", "application/grpc")
+				req.Header.Add("someotherheader", "someothervalue")
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+
+				resp.Body.Close()
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+		},
+		{
 			name:    "http2 traffic using gRPC - stream call",
 			context: grpcContext,
 			postTracerSetup: func(t *testing.T, ctx testContext) {
