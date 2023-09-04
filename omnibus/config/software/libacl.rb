@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+require './lib/autotools.rb'
+
 name "libacl"
 default_version "2.3.1"
 
@@ -31,16 +33,5 @@ version("2.3.1") { source sha512: "7d02f05d17305f8587ab485395b00c7fdb8e44c1906d0
 relative_path "acl-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  configure_command = [
-    "./configure",
-    "--prefix=#{install_dir}/embedded",
-    "--disable-static",
-  ]
-
-  command configure_command.join(" "), env: env
-
-  make "-j #{workers}", env: env
-  make "-j #{workers} install", env: env
+  build_with_autotools()
 end
