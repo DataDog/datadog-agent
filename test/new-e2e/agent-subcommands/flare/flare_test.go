@@ -53,13 +53,13 @@ func (v *commandFlareSuite) TestFlareDefaultFiles() {
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
 }
 
-//go:embed fixtures/all-configuration-scenario/etc/datadog-agent/datadog-agent.yaml
+//go:embed fixtures/datadog-agent.yaml
 var agentConfiguration []byte
 
-//go:embed fixtures/all-configuration-scenario/etc/datadog-agent/system-probe.yaml
+//go:embed fixtures/system-probe.yaml
 var systemProbeConfiguration []byte
 
-//go:embed fixtures/all-configuration-scenario/etc/datadog-agent/security-agent.yaml
+//go:embed fixtures/security-agent.yaml
 var securityAgentConfiguration []byte
 
 func (v *commandFlareSuite) TestFlareWithAllConfiguration() {

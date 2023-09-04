@@ -66,6 +66,7 @@ var defaultFlareFolders = []string{
 }
 
 // untestedFiles contains some untested files that needs specific scenario which should be added later.
+// nolint:unused
 var untestedFiles = []string{
 	"docker_inspect.log",      // only within a docker container
 	"local",                   // when creating flare locally
