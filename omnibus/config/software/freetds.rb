@@ -1,3 +1,5 @@
+require './lib/autotools.rb'
+
 name "freetds"
 default_version "1.1.36"
 
@@ -16,17 +18,10 @@ build do
   license_file "./COPYING"
   license_file "./COPYING.lib"
 
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  configure_args = [
-    "--disable-readline",
-    "--disable-static",
-  ]
-
-  configure_command = configure_args.unshift("./configure").join(" ")
-
-  command configure_command, env: env, in_msys_bash: true
-  command "make -j #{workers}", env: env
+  build_with_autotools({
+    :configure_opts => ["--disable-readline"],
+    :skip_install => true,
+  })
 
   # Only `libtdsodbc.so/libtdsodbc.so.0.0.0` are needed for SQLServer integration.
   # Hence we only need to copy those.
