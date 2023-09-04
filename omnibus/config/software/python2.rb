@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+require './lib/autotools.rb'
+
 name "python2"
 
 if ohai["platform"] != "windows"
@@ -34,28 +36,16 @@ if ohai["platform"] != "windows"
 
   relative_path "Python-#{version}"
 
-  env = {
-    "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe -fPIC",
-    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-    "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
-    "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
-  }
-
-  python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded",
-                      "--with-ensurepip=no"] # pip is installed separately by its own software def
+  configure_options = ["--with-ensurepip=no"]
 
   if mac_os_x?
-    python_configure.push("--enable-ipv6",
-                          "--with-universal-archs=intel",
-                          "--enable-shared",
-                          "--disable-static",
-                          "--without-gcc",
-                          "CC=clang")
+    configure_options += [
+      "--enable-ipv6",
+      "--with-universal-archs=intel",
+      "--without-gcc",
+    ]
   elsif linux?
-    python_configure.push("--enable-unicode=ucs4",
-                          "--enable-shared",
-                          "--disable-static")
+    configure_options += ["--enable-unicode=ucs4"]
   end
 
   build do
@@ -70,9 +60,13 @@ if ohai["platform"] != "windows"
     patch :source => "python2.7_2.7.18-cve-2020-8492.diff" unless windows?
     patch :source => "python2.7_2.7.18-cve-2021-3177.diff" unless windows?
 
-    command python_configure.join(" "), :env => env
-    command "make -j #{workers}", :env => env
-    command "make install", :env => env
+    build_with_autotools({
+      :configure_opts => configure_options,
+      :CFLAGS => "-g -pipe -fPIC",
+      :PKG_CONFIG => "#{install_dir}/embedded/bin/pkg-config",
+      :PKG_CONFIG_PATH => "#{install_dir}/embedded/lib/pkgconfig",
+    })
+
     delete "#{install_dir}/embedded/lib/python2.7/test"
 
     move "#{install_dir}/embedded/bin/2to3", "#{install_dir}/embedded/bin/2to3-2.7"
