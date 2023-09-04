@@ -65,6 +65,7 @@ func (agent *AgentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 func (agent *AgentCommandRunner) Flare(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("flare", commandArgs...)
 }
