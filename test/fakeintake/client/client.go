@@ -107,11 +107,13 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 		if err != nil {
 			return nil, err
 		}
-
+		resp = tmp_resp
 		if resp.StatusCode != http.StatusOK {
 			time.Sleep(sleepTime)
+		} else {
+			break
 		}
-		resp = tmp_resp
+
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error querying fake payloads, status code %s", resp.Status)
