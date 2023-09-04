@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -18,25 +20,23 @@ import (
 func TestSnapshotReplay(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_snapshot_replay",
-		Expression: fmt.Sprintf(`exec.comm in ["testsuite"] `),
+		Expression: fmt.Sprintf(`exec.comm in ["testsuite"]`),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	var gotEvent bool
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{
+		snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
+			assertTriggeredRule(t, r, "test_rule_snapshot_replay")
+			testMod.validateExecSchema(t, e)
+			gotEvent = true
+		},
+	})
 
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	t.Run("snapshot-replay", func(t *testing.T) {
-		// Check that the process is present in the process resolver's entrycache
-		test.WaitSignal(t, func() error {
-			go test.probe.PlaySnapshot()
-			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_snapshot_replay")
-			test.validateExecSchema(t, event)
-		})
-	})
-
+	assert.True(t, gotEvent, "didn't get the event from snapshot")
 }
