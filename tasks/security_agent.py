@@ -118,6 +118,10 @@ def build(
 
     ctx.run(cmd.format(**args), env=env)
 
+    render_config(ctx, env=env, skip_assets=skip_assets)
+
+
+def render_config(ctx, env, skip_assets=False):
     if not skip_assets:
         dist_folder = os.path.join(BIN_DIR, "agent", "dist")
         generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)

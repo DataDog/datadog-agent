@@ -189,6 +189,19 @@ def build(
     }
     ctx.run(cmd.format(**args), env=env)
 
+    render_config(
+        ctx,
+        env=env,
+        flavor=flavor,
+        python_runtimes=python_runtimes,
+        skip_assets=skip_assets,
+        build_tags=build_tags,
+        development=development,
+        windows_sysprobe=windows_sysprobe,
+    )
+
+
+def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, development, windows_sysprobe):
     # Remove cross-compiling bits to render config
     env.update({"GOOS": "", "GOARCH": ""})
 
