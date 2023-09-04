@@ -78,7 +78,7 @@ func (c *Check) CustomQueries() error {
 			allErrors = concatenateError(allErrors, "Undefined metric_prefix for a custom query")
 			continue
 		}
-		log.Tracef("custom query configuration %v", q)
+		log.Debugf("custom query configuration %v", q)
 		var pdb string
 		if !c.connectedToPdb {
 			pdb = q.Pdb
@@ -102,7 +102,10 @@ func (c *Check) CustomQueries() error {
 		}
 		for rows.Next() {
 			var metricsFromSingleRow []metricRow
-			tags := []string{fmt.Sprintf("pdb:%s", pdb)}
+			var tags []string
+			if pdb != "" {
+				tags = []string{fmt.Sprintf("pdb:%s", pdb)}
+			}
 			cols, err := rows.SliceScan()
 			if err != nil {
 				log.Errorf("failed to get values for the custom query %s %s", metricPrefix, err)
@@ -164,11 +167,12 @@ func (c *Check) CustomQueries() error {
 			if len(q.Tags) > 0 {
 				tags = append(tags, q.Tags...)
 			}
+			log.Debugf("Appended queried tags to check tags %v", tags)
 			for i := range metricsFromSingleRow {
-				metricsFromSingleRow[i].tags = tags
+				metricsFromSingleRow[i].tags = make([]string, len(tags))
+				copy(metricsFromSingleRow[i].tags, tags)
 			}
 			metricRows = append(metricRows, metricsFromSingleRow...)
-
 		}
 		rows.Close()
 		if errInQuery {

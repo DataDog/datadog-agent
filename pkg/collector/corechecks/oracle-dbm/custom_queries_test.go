@@ -43,7 +43,6 @@ password: %s
 service_name: %s
 tns_alias: %s
 tns_admin: %s
-instant_client: false
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
 
 	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
@@ -66,7 +65,6 @@ func TestCustomQueries(t *testing.T) {
 	defer db.Close()
 	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
 
-	//"alter session set container = cdb$root"
 	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	rows := sqlmock.NewRows([]string{"c1", "c2"}).
@@ -82,18 +80,16 @@ func TestCustomQueries(t *testing.T) {
 		Columns:      columns,
 	}
 
+	initAndStartAgentDemultiplexer(t)
+	chk.Run()
+
 	sender := mocksender.NewMockSender(chk.ID())
 	sender.SetupAcceptAll()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	chk.config.CustomQueries = []config.CustomQuery{q}
 
-	//initAndStartAgentDemultiplexer(t)
 	err = chk.CustomQueries()
-	//err = chk.Run()
 	assert.NoError(t, err, "failed to execute custom query")
-
-	tags := []string{"snmp_device:1.2.3.4", "interface:if10"}
-	sender.AssertMetric(t, "Gauge", "snmp.ifHighSpeed", float64(100), "", tags)
-
+	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
 }
