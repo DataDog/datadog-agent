@@ -570,15 +570,7 @@ func startAgent(
 	installinfo.LogVersionHistory()
 
 	// Set up check collector
-	scheduler := collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
-	common.AC.AddScheduler("check", scheduler, true)
-	// Subscribe to `AGENT_INTEGRATION` product
-	// if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) &&
-	// 	pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations_enabled") {
-	// 	rcScheduler := rccollector.NewScheduler(scheduler)
-	// 	rcclient.Subscribe(data.ProductAgentIntegrations, rcScheduler.IntegrationScheduleCallback)
-	// }
-	common.Coll.Start()
+	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 

@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RemoteConfigProvider receives configuration from remote-config
@@ -92,7 +92,10 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 		var d rcAgentIntegration
 		err = json.Unmarshal(intg.Config, &d)
 		if err != nil {
-			pkglog.Errorf("Can't decode agent configuration provided by remote-config: %v", err)
+			log.Errorf("Can't decode agent configuration provided by remote-config: %v", err)
+			rc.configErrors[cfgPath] = ErrorMsgSet{
+				err.Error(): struct{}{},
+			}
 			applyStateCallback(cfgPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
