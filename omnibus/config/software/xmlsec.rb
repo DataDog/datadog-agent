@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+require './lib/autotools.rb'
+
 name "xmlsec"
 default_version "1.2.37"
 
@@ -35,18 +37,10 @@ source url: "https://github.com/lsh123/xmlsec/releases/download/xmlsec-1_2_37/xm
 relative_path "xmlsec1-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  env["CFLAGS"] << " -fPIC"
-  env["CFLAGS"] << " -std=c99"
-
   update_config_guess
 
-  command "./configure" \
-          " --prefix=#{install_dir}/embedded" \
-          " --enable-docs" \
-          " --disable-static", env: env
-
-  make "-j #{workers}", env: env
-  make "install", env: env
+  build_with_autotools({
+    :configure_opts => ["--enable-docs"],
+    :CFLAGS => "-fPIC -std=c99",
+  })
 end
