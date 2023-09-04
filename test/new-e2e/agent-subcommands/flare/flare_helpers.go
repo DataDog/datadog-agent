@@ -15,22 +15,30 @@ import (
 
 // assertFilesExist verifies that all files in filenames exist in the flare archive
 func assertFilesExist(t *testing.T, flare flare.Flare, filenames []string) {
+	t.Helper()
+
 	verifyAssertionsOnFilesList(t, flare, filenames, fileExists)
 }
 
 // fileExists verifies if a file exists in the flare archive
 func fileExists(t *testing.T, flare flare.Flare, filename string) {
+	t.Helper()
+
 	_, err := flare.GetFile(filename)
 	assert.NoError(t, err, "Got error when searching for '%v' file in flare archive: %v", filename, err)
 }
 
 // assertFoldersExist verifies that all files in filenames exist in the flare archive and are folders
 func assertFoldersExist(t *testing.T, flare flare.Flare, filenames []string) {
+	t.Helper()
+
 	verifyAssertionsOnFilesList(t, flare, filenames, folderExists)
 }
 
 // folderExists verifies if a file exists in the flare archive and is a folder
 func folderExists(t *testing.T, flare flare.Flare, filename string) {
+	t.Helper()
+
 	fileInfo, err := flare.GetFileInfo(filename)
 	if assert.NoError(t, err, "Got error when searching for '%v' file in flare archive: %v", filename, err) {
 		assert.True(t, fileInfo.IsDir(), "Expected '%v' to be a folder but is not. (FileMode: %v)", filename, fileInfo.Mode())
@@ -39,6 +47,8 @@ func folderExists(t *testing.T, flare flare.Flare, filename string) {
 
 // assertLogsFolderOnlyContainsLogFile verifies that all files in "logs" folder are logs file (filename containing ".log") or folders
 func assertLogsFolderOnlyContainsLogFile(t *testing.T, flare flare.Flare) {
+	t.Helper()
+
 	// Get all files in "logs/" folder
 	logFiles := filterFilenameByPrefix(flare.GetFilenames(), "logs/")
 	verifyAssertionsOnFilesList(t, flare, logFiles, assertIsLogFileOrFolder)
@@ -46,12 +56,16 @@ func assertLogsFolderOnlyContainsLogFile(t *testing.T, flare flare.Flare) {
 
 // assertIsLogFileOrFolder verifies if a file is a log file (contains ".log" in its name) or if it's a folder
 func assertIsLogFileOrFolder(t *testing.T, flare flare.Flare, filename string) {
+	t.Helper()
+
 	isLogFileOrFolder := strings.Contains(filename, ".log") || isDir(flare, filename)
 	assert.True(t, isLogFileOrFolder, "'%v' is in logs/ folder but is not a log file (does not contains .log, and is not a folder)", filename)
 }
 
 // assertLogsFolderOnlyContainsLogFile verifies that all files in "etc" folder are configuration file (filename containing ".yaml" / ".yml") or folders
 func assertEtcFolderOnlyContainsConfigFile(t *testing.T, flare flare.Flare) {
+	t.Helper()
+
 	// Get all files in "etc/" folder
 	configFiles := filterFilenameByPrefix(flare.GetFilenames(), "etc/")
 	verifyAssertionsOnFilesList(t, flare, configFiles, assertIsConfigFileOrFolder)
@@ -59,6 +73,8 @@ func assertEtcFolderOnlyContainsConfigFile(t *testing.T, flare flare.Flare) {
 
 // assertIsConfigFileOrFolder verifies if a file is a configuration file (contains ".yaml"/".yml" in its name) or if it's a folder
 func assertIsConfigFileOrFolder(t *testing.T, flare flare.Flare, filename string) {
+	t.Helper()
+
 	assert.False(t, strings.HasSuffix(filename, ".example"), "Found '%v' configuration file but example configurations should not be included in flare")
 
 	isConfigFileOrFolder := strings.Contains(filename, ".yml") || strings.Contains(filename, ".yaml") || isDir(flare, filename)
@@ -67,6 +83,8 @@ func assertIsConfigFileOrFolder(t *testing.T, flare flare.Flare, filename string
 
 // verifyAssetionsOnFilesList runs an assertion function on all files in filenames
 func verifyAssertionsOnFilesList(t *testing.T, flare flare.Flare, filenames []string, assertFn func(*testing.T, flare.Flare, string)) {
+	t.Helper()
+
 	for _, filename := range filenames {
 		assertFn(t, flare, filename)
 	}
@@ -96,6 +114,8 @@ func isDir(flare flare.Flare, filename string) bool {
 
 // assertFileContains verifies that `filename` contains every string in `expectedContents`
 func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
+	t.Helper()
+
 	fileContent, err := flare.GetFileContent(filename)
 	if assert.NoError(t, err) {
 		for _, content := range expectedContents {
@@ -106,6 +126,8 @@ func assertFileContains(t *testing.T, flare flare.Flare, filename string, expect
 
 // assertFileNotContains verifies that `filename` does not contain any string in `expectedContents`
 func assertFileNotContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
+	t.Helper()
+
 	fileContent, err := flare.GetFileContent(filename)
 	if assert.NoError(t, err) {
 		for _, content := range expectedContents {
