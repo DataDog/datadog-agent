@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+require './lib/autotools.rb'
+
 name "attr"
 default_version "2.5.1"
 
@@ -29,15 +31,5 @@ source url: "http://download.savannah.nongnu.org/releases/attr/attr-#{version}.t
 relative_path "#{name}-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  configure_command = [
-    "./configure",
-    "--prefix=#{install_dir}/embedded",
-  ]
-
-  command configure_command.join(" "), env: env
-
-  make "-j #{workers}", env: env
-  make "-j #{workers} install", env: env
+  build_with_autotools()
 end
