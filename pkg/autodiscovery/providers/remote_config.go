@@ -8,6 +8,8 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -29,6 +31,8 @@ type rcAgentIntegration struct {
 	Instances  []json.RawMessage `json:"instances"`
 	InitConfig json.RawMessage   `json:"init_config"`
 }
+
+var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_INTEGRATIONS/([^/]+)/([^/]+)$`)
 
 // NewRemoteConfigProvider creates a new RemoteConfigProvider.
 func NewRemoteConfigProvider() *RemoteConfigProvider {
@@ -108,11 +112,18 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 
 		applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateUnacknowledged})
 
+		source := cfgPath
+		matched := datadogConfigIDRegexp.FindStringSubmatch(cfgPath)
+		if len(matched) == 3 {
+			// Source is configID/configName
+			source = fmt.Sprintf("%s/%s", matched[1], matched[2])
+		}
 		// The ENC[] configuration resolution is done by configmgr
 		newConfig := integration.Config{
 			Name:       d.Name,
 			Instances:  []integration.Data{},
 			InitConfig: integration.Data(d.InitConfig),
+			Source:     source,
 		}
 		for _, inst := range d.Instances {
 			newConfig.Instances = append(newConfig.Instances, integration.Data(inst))
