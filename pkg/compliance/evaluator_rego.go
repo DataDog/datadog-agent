@@ -153,9 +153,9 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 		imageTag, _ := m["image_tag"].(string)
 		event.Container = &CheckContainerMeta{
 			ContainerID: containerID,
-			ImageID: imageID,
-			ImageName: imageName,
-			ImageTag: imageTag,
+			ImageID:     imageID,
+			ImageName:   imageName,
+			ImageTag:    imageTag,
 		}
 	}
 
