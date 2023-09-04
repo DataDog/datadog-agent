@@ -4,6 +4,7 @@ benchmark:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
   timeout: 1h
   rules: !reference [.manual] # TODO: run this benchmark automatically when the trace-agent changes
+  needs: ["setup_agent_version"]
   interruptible: true
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   script:
