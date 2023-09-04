@@ -31,15 +31,16 @@ import (
 )
 
 type Server struct {
-	mu        sync.RWMutex
 	server    http.Server
 	ready     chan bool
 	clock     clock.Clock
 	retention time.Duration
 	shutdown  chan struct{}
 
-	url string
+	urlMutex sync.RWMutex
+	url      string
 
+	storeMutex         sync.RWMutex
 	payloadStore       map[string][]api.Payload
 	payloadParsedStore PayloadParsedStore
 }
@@ -50,7 +51,8 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		mu:                 sync.RWMutex{},
+		storeMutex:         sync.RWMutex{},
+		urlMutex:           sync.RWMutex{},
 		payloadStore:       map[string][]api.Payload{},
 		clock:              clock.New(),
 		payloadParsedStore: NewPayloadParsedStore(),
@@ -144,7 +146,7 @@ func (fi *Server) Start() {
 
 			return
 		}
-		fi.url = "http://" + listener.Addr().String()
+		fi.setURL("http://" + listener.Addr().String())
 		// notify server is ready, if anybody is listening
 		if fi.ready != nil {
 			fi.ready <- true
@@ -161,7 +163,15 @@ func (fi *Server) Start() {
 }
 
 func (fi *Server) URL() string {
+	fi.urlMutex.RLock()
+	defer fi.urlMutex.RUnlock()
 	return fi.url
+}
+
+func (fi *Server) setURL(url string) {
+	fi.urlMutex.Lock()
+	defer fi.urlMutex.Unlock()
+	fi.url = url
 }
 
 func (fi *Server) IsRunning() bool {
@@ -179,7 +189,7 @@ func (fi *Server) Stop() error {
 		return err
 	}
 
-	fi.url = ""
+	fi.setURL("")
 	return nil
 }
 
@@ -198,8 +208,8 @@ func (fi *Server) cleanUpPayloadsRoutine() {
 
 func (fi *Server) cleanUpPayloads() {
 	now := fi.clock.Now()
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	for route, payloads := range fi.payloadStore {
 		n := 0
 		for _, payload := range payloads {
@@ -355,8 +365,8 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) error {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	if _, found := fi.payloadStore[route]; !found {
 		fi.payloadStore[route] = []api.Payload{}
 	}
@@ -370,16 +380,16 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 }
 
 func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	payloads := make([]api.Payload, 0, len(fi.payloadStore[route]))
 	payloads = append(payloads, fi.payloadStore[route]...)
 	return payloads
 }
 
 func (fi *Server) safeGetJsonPayloads(route string) ([]api.ParsedPayload, error) {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	payload, err := fi.payloadParsedStore.getJSONPayload(route)
 	if err != nil {
 		return nil, err
@@ -390,8 +400,8 @@ func (fi *Server) safeGetJsonPayloads(route string) ([]api.ParsedPayload, error)
 }
 
 func (fi *Server) safeFlushPayloads() {
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	fi.payloadStore = map[string][]api.Payload{}
 	fi.payloadParsedStore.Clean()
 }
@@ -426,8 +436,8 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 
 func (fi *Server) safeGetRouteStats() map[string]int {
 	routes := map[string]int{}
-	fi.mu.Lock()
-	defer fi.mu.Unlock()
+	fi.storeMutex.Lock()
+	defer fi.storeMutex.Unlock()
 	for route, payloads := range fi.payloadStore {
 		routes[route] = len(payloads)
 	}
