@@ -123,7 +123,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 		applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 	if err == nil {
-		// Unschedule every integrations, even if they haven't changed
+		// Schedule new integrations set only if there was no error
 		rc.configCache = newCache
 		rc.upToDate = false
 	}

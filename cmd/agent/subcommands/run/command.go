@@ -572,6 +572,7 @@ func startAgent(
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager()), true)
+	common.Coll.Start()
 
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
