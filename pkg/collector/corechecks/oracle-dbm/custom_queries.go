@@ -139,8 +139,8 @@ func (c *Check) CustomQueries() error {
 							errInQuery = true
 							break
 						}
-					} else if v_int64, ok := v.(int64); ok {
-						metricRow.value = float64(v_int64)
+					} else if vInt64, ok := v.(int64); ok {
+						metricRow.value = float64(vInt64)
 						if err != nil {
 							logTypeError(metricPrefix, "int64", metricRow.name, v, q.Query, err)
 							errInQuery = true
