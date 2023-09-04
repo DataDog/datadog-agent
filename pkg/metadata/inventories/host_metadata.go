@@ -116,11 +116,11 @@ func getHostMetadata() *HostMetadata {
 	} else {
 		logWarnings(warnings)
 
-		metadata.KernelName, _ = platformInfo.KernelName.Value()
-		metadata.KernelRelease, _ = platformInfo.KernelRelease.Value()
-		metadata.KernelVersion, _ = platformInfo.KernelVersion.Value()
-		metadata.OS, _ = platformInfo.OS.Value()
-		metadata.CPUArchitecture, _ = platformInfo.HardwarePlatform.Value()
+		metadata.KernelName = platformInfo.KernelName.ValueOrDefault()
+		metadata.KernelRelease = platformInfo.KernelRelease.ValueOrDefault()
+		metadata.KernelVersion = platformInfo.KernelVersion.ValueOrDefault()
+		metadata.OS = platformInfo.OS.ValueOrDefault()
+		metadata.CPUArchitecture = platformInfo.HardwarePlatform.ValueOrDefault()
 	}
 
 	memoryInfo := memoryGet()
