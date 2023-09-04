@@ -21,9 +21,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
+	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	dockertypes "github.com/docker/docker/api/types"
@@ -68,8 +70,12 @@ func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
 }
 
 type ResolverOptions struct {
-	Hostname     string
-	HostRoot     string
+	Hostname string
+	HostRoot string
+
+	// ContainerID sets the resolving context relative to a specific container (optional)
+	ContainerID secutils.ContainerID
+
 	StatsdClient *statsd.Client
 
 	DockerProvider
@@ -146,7 +152,11 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 	resolvingContext := struct {
 		RuleID            string                `json:"ruleID"`
 		Hostname          string                `json:"hostname"`
-		KubernetesCluster string                `json:"kubernetes_cluster,omitempty"`
+		KubernetesCluster string                `json:"kubernetes_cluster"`
+		ContainerID       secutils.ContainerID  `json:"container_id"`
+		ImageID           string                `json:"image_id"`
+		ImageName         string                `json:"image_name"`
+		ImageTag          string                `json:"image_tag"`
 		InputSpecs        map[string]*InputSpec `json:"input"`
 	}{
 		RuleID:     rule.ID,
@@ -170,6 +180,26 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 	ctx, cancel := context.WithTimeout(ctx_, inputsResolveTimeout)
 	defer cancel()
 
+	// If a container ID is associated with this resolver instance, we try to
+	// resolve the image metadata associated with the container to be part of
+	// the resolved inputs.
+	rootPath := r.opts.HostRoot
+	if containerID := r.opts.ContainerID; containerID != "" {
+		rp, ok := r.resolveContainerRootPath(ctx, containerID)
+		if !ok {
+			return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", containerID)
+		}
+		rootPath = rp
+		resolvingContext.ContainerID = containerID
+		if store := workloadmeta.GetGlobalStore(); store != nil {
+			if ctnr, _ := store.GetContainer(string(containerID)); ctnr != nil {
+				resolvingContext.ImageID = ctnr.Image.ID
+				resolvingContext.ImageName = ctnr.Image.Name
+				resolvingContext.ImageTag = ctnr.Image.Tag
+			}
+		}
+	}
+
 	resolved := make(map[string]interface{})
 	for _, spec := range rule.InputSpecs {
 		start := time.Now()
@@ -182,7 +212,7 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		switch {
 		case spec.File != nil:
 			resultType = "file"
-			result, err = r.resolveFile(ctx, *spec.File)
+			result, err = r.resolveFile(ctx, rootPath, *spec.File)
 		case spec.Process != nil:
 			resultType = "process"
 			result, err = r.resolveProcess(ctx, *spec.Process)
@@ -277,22 +307,26 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 	return outcome, nil
 }
 
-func (r *defaultResolver) pathNormalizeToHostRoot(path string) string {
-	if r.opts.HostRoot != "" {
-		return filepath.Join(r.opts.HostRoot, path)
+func (r *defaultResolver) pathNormalize(rootPath, path string) string {
+	if rootPath != "" {
+		return filepath.Join(rootPath, path)
 	}
 	return path
 }
 
-func (r *defaultResolver) pathRelativeToHostRoot(path string) string {
-	if r.opts.HostRoot != "" {
-		p, err := filepath.Rel(r.opts.HostRoot, path)
+func (r *defaultResolver) pathRelative(rootPath, path string) string {
+	if rootPath != "" {
+		p, err := filepath.Rel(rootPath, path)
 		if err != nil {
 			return path
 		}
 		return string(os.PathSeparator) + p
 	}
 	return path
+}
+
+func (r *defaultResolver) pathNormalizeToHostRoot(path string) string {
+	return r.pathNormalize(r.opts.HostRoot, path)
 }
 
 func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
@@ -330,17 +364,17 @@ func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
 
 var processFlagBuiltinReg = regexp.MustCompile(`process\.flag\("(\S+)",\s*"(\S+)"\)`)
 
-func (r *defaultResolver) resolveFile(ctx context.Context, spec InputSpecFile) (result interface{}, err error) {
+func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec InputSpecFile) (result interface{}, err error) {
 	path := strings.TrimSpace(spec.Path)
 	if matches := processFlagBuiltinReg.FindStringSubmatch(path); len(matches) == 3 {
 		processName, processFlag := matches[1], matches[2]
-		result, err = r.resolveFileFromProcessFlag(ctx, processName, processFlag, spec.Parser)
+		result, err = r.resolveFileFromProcessFlag(ctx, rootPath, processName, processFlag, spec.Parser)
 	} else if spec.Glob != "" && path == "" {
-		result, err = r.resolveFileGlob(ctx, spec.Glob, spec.Parser)
+		result, err = r.resolveFileGlob(ctx, rootPath, spec.Glob, spec.Parser)
 	} else if strings.Contains(path, "*") {
-		result, err = r.resolveFileGlob(ctx, path, spec.Parser)
+		result, err = r.resolveFileGlob(ctx, rootPath, path, spec.Parser)
 	} else {
-		result, err = r.resolveFilePath(ctx, path, spec.Parser)
+		result, err = r.resolveFilePath(ctx, rootPath, path, spec.Parser)
 	}
 	if errors.Is(err, os.ErrPermission) ||
 		errors.Is(err, os.ErrNotExist) ||
@@ -350,8 +384,8 @@ func (r *defaultResolver) resolveFile(ctx context.Context, spec InputSpecFile) (
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, path, parser string) (interface{}, error) {
-	path = r.pathNormalizeToHostRoot(path)
+func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) {
+	path = r.pathNormalize(rootPath, path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
 		return nil, err
@@ -379,7 +413,7 @@ func (r *defaultResolver) resolveFilePath(ctx context.Context, path, parser stri
 		}
 	}
 	return map[string]interface{}{
-		"path":        r.pathRelativeToHostRoot(path),
+		"path":        r.pathRelative(rootPath, path),
 		"glob":        "",
 		"permissions": file.perms,
 		"user":        file.user,
@@ -388,7 +422,7 @@ func (r *defaultResolver) resolveFilePath(ctx context.Context, path, parser stri
 	}, nil
 }
 
-func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, name, flag, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, rootPath, name, flag, parser string) (interface{}, error) {
 	procs, err := r.getProcs(ctx)
 	if err != nil {
 		return nil, err
@@ -415,15 +449,15 @@ func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, name, 
 	if !ok {
 		return nil, nil
 	}
-	return r.resolveFilePath(ctx, path, parser)
+	return r.resolveFilePath(ctx, rootPath, path, parser)
 }
 
-func (r *defaultResolver) resolveFileGlob(ctx context.Context, glob, parser string) (interface{}, error) {
-	paths, _ := filepath.Glob(r.pathNormalizeToHostRoot(glob)) // We ignore errors from Glob which are never I/O errors
+func (r *defaultResolver) resolveFileGlob(ctx context.Context, rootPath, glob, parser string) (interface{}, error) {
+	paths, _ := filepath.Glob(r.pathNormalize(rootPath, glob)) // We ignore errors from Glob which are never I/O errors
 	var resolved []interface{}
 	for _, path := range paths {
-		path = r.pathRelativeToHostRoot(path)
-		file, err := r.resolveFilePath(ctx, path, parser)
+		path = r.pathRelative(rootPath, path)
+		file, err := r.resolveFilePath(ctx, rootPath, path, parser)
 		if err != nil {
 			continue
 		}
@@ -479,6 +513,24 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 		r.procsCache = procs
 	}
 	return r.procsCache, nil
+}
+
+func (r *defaultResolver) resolveContainerRootPath(ctx context.Context, containerID secutils.ContainerID) (string, bool) {
+	if containerID == "" {
+		return "", false
+	}
+	procs, err := r.getProcs(ctx)
+	if err != nil {
+		return "", false
+	}
+	for _, proc := range procs {
+		pid := uint32(proc.Pid)
+		cID, _ := secutils.GetProcContainerID(pid, pid)
+		if cID == containerID {
+			return secutils.ProcRootPath(pid), true
+		}
+	}
+	return "", false
 }
 
 func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
