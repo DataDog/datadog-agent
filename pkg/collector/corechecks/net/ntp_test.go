@@ -289,7 +289,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -305,7 +305,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -317,7 +317,7 @@ host: time.dogo
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -331,7 +331,7 @@ hosts:
 `)
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -346,7 +346,7 @@ func TestDefaultHostConfig(t *testing.T) {
 	config.Datadog.Set("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
-	ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
+	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")
 
 	assert.Equal(t, expectedHosts, ntpCheck.cfg.instance.Hosts)
 }
@@ -366,7 +366,7 @@ func TestNTPPortConfig(t *testing.T) {
 offset_threshold: 60
 port: %d
 `, expectedPort))
-	err := ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	err := ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
 	assert.Nil(t, err)
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
@@ -385,7 +385,7 @@ func TestNTPPortNotInt(t *testing.T) {
 offset_threshold: 60
 port: ntp`)
 
-	err := ntpCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	err := ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, ntpCfg, []byte(""), "test")
 	assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 3: cannot unmarshal !!str `ntp` into int")
 }
 

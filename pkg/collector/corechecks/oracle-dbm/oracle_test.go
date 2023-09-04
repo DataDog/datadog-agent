@@ -11,6 +11,10 @@ import (
 	"database/sql"
 	"fmt"
 
+	"math"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -21,9 +25,6 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"math"
-	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	_ "github.com/godror/godror"
@@ -53,7 +54,7 @@ tns_alias: %s
 tns_admin: %s
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
 
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	err := chk.Configure(aggregator.NoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
 	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
