@@ -1,3 +1,5 @@
+require './lib/autotools.rb'
+
 name "cyrus-sasl"
 default_version "2.1.28"
 
@@ -17,23 +19,12 @@ build do
   license "Carnegie Mellon University license"
   license_file "https://raw.githubusercontent.com/cyrusimap/cyrus-sasl/master/COPYING"
 
-  env = {
-    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
-
-  configure_command = ["./configure",
-                        "--prefix=#{install_dir}/embedded",
-                        "--with-dblib=lmdb"]
-
+  configure_opts = ["--with-dblib=lmdb"]
   if osx?
     # https://github.com/Homebrew/homebrew-core/blob/e2071268473bcddaf72f8e3f7aa4153a18d1ccfa/Formula/cyrus-sasl.rb
-    configure_command = configure_command.append("--disable-macos-framework")
+    configure_opts += ["--disable-macos-framework"]
   end
-
-  command configure_command.join(" "), env: env
-  command "make", :env => env
-  command "make install", :env => env
-
+  build_with_autotools({
+    configure_opts: configure_opts
+  })
 end
