@@ -394,9 +394,9 @@ if windows?
   }
 
   # Check the exported symbols from the binary
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\trace-agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\process-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
+  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
   inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
 
   #
