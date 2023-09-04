@@ -45,6 +45,10 @@ type MockSender struct {
 	senderManager sender.SenderManager
 }
 
+// GetSenderManager returns the instance of sender.SenderManager
+func (m *MockSender) GetSenderManager() sender.SenderManager {
+	return m.senderManager
+}
 func (m *MockSender) SetSenderManager(senderManager sender.SenderManager) {
 	m.senderManager = senderManager
 }
