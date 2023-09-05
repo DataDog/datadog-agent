@@ -36,6 +36,8 @@ static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *bu
     if (!stack || is_protocol_layer_known(stack, LAYER_APPLICATION)) {
         return;
     }
+    // we're in the context of TLS hookpoints, thus the protocol is TLS.
+    set_protocol(stack, PROTOCOL_TLS);
 
     protocol_t proto = PROTOCOL_UNKNOWN;
     classify_protocol_for_dispatcher(&proto, t, buffer, len);
@@ -43,7 +45,6 @@ static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *bu
         return;
     }
 
-    set_protocol(stack, PROTOCOL_TLS);
     set_protocol(stack, proto);
 }
 
