@@ -119,6 +119,12 @@ if arm? || !_64_bit? || (windows? && windows_arch_i386?)
   blacklist_packages.push(/^orjson==/)
 end
 
+if linux?
+  # We need to use cython<3.0.0 to build oracledb
+  dependency 'oracledb-py3'
+  blacklist_packages.push(/^oracledb==/)
+end
+
 final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
@@ -535,6 +541,15 @@ build do
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
       command "#{python} -m pip check"
+    end
+
+    block do
+      # Removing tests that don't need to be shipped in the embedded folder
+      if windows?
+        delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
+      else
+        delete "#{install_dir}/embedded/lib/python3.9/site-packages/Cryptodome/SelfTest/"
+      end
     end
   end
 

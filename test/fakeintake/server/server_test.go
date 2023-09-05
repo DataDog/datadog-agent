@@ -6,11 +6,13 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -116,6 +118,43 @@ func TestServer(t *testing.T) {
 		json.Unmarshal(body, &actualGETResponse)
 
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
+	})
+
+	t.Run("should store multiple payloads on any route and return them in json", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock))
+
+		postSomePayloads(t, fi)
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
+		assert.NoError(t, err, "Error creating GET request")
+		getResponse := httptest.NewRecorder()
+
+		fi.handleGetPayloads(getResponse, request)
+
+		assert.Equal(t, http.StatusOK, getResponse.Code)
+		expectedGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{
+			Payloads: []api.ParsedPayload{
+				{
+					Timestamp: clock.Now(),
+					Data: []interface{}{map[string]interface{}{
+						"hostname":  "totoro",
+						"message":   "Hello, can you hear me",
+						"service":   "callme",
+						"source":    "Adele",
+						"status":    "Info",
+						"tags":      []interface{}{"singer:adele"},
+						"timestamp": float64(0)}},
+					Encoding: "gzip",
+				},
+			},
+		}
+		actualGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{}
+		body, err := io.ReadAll(getResponse.Body)
+		assert.NoError(t, err, "Error reading GET response")
+		json.Unmarshal(body, &actualGETResponse)
+		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
+
 	})
 
 	t.Run("should accept GET requests on /fakeintake/health route", func(t *testing.T) {
@@ -323,7 +362,10 @@ func postSomePayloads(t *testing.T, fi *Server) {
 	postResponse = httptest.NewRecorder()
 	fi.handleDatadogRequest(postResponse, request)
 
-	request, err = http.NewRequest(http.MethodPost, "/api/v2/logs", strings.NewReader("I am just a poor log"))
+	fileBytes, err := os.ReadFile("fixture_test/log_bytes")
+	require.NoError(t, err, "Error reading logs fixture")
+	request, err = http.NewRequest(http.MethodPost, "/api/v2/logs", bytes.NewBuffer(fileBytes))
+	request.Header.Set("Content-Encoding", "gzip")
 	require.NoError(t, err, "Error creating POST request")
 	postResponse = httptest.NewRecorder()
 	fi.handleDatadogRequest(postResponse, request)

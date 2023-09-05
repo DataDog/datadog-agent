@@ -54,6 +54,14 @@ type CheckStatus struct {
 	LastEvent   *CheckEvent
 }
 
+// CheckContainerMeta holds metadata related to the container that has been checked.
+type CheckContainerMeta struct {
+	ContainerID string `json:"container_id"`
+	ImageID     string `json:"image_id"`
+	ImageName   string `json:"image_name"`
+	ImageTag    string `json:"image_tag"`
+}
+
 // CheckEvent is the data structure sent to the backend as a result of a rule
 // evaluation.
 type CheckEvent struct {
@@ -66,6 +74,7 @@ type CheckEvent struct {
 	Result       CheckResult            `json:"result,omitempty"`
 	ResourceType string                 `json:"resource_type,omitempty"`
 	ResourceID   string                 `json:"resource_id,omitempty"`
+	Container    *CheckContainerMeta    `json:"container,omitempty"`
 	Tags         []string               `json:"tags"`
 	Data         map[string]interface{} `json:"data"`
 
