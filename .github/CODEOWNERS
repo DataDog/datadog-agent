@@ -240,6 +240,7 @@
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
+/pkg/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
