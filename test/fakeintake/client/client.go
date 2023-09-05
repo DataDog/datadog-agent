@@ -40,6 +40,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,6 +49,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
 type Client struct {
@@ -91,6 +93,21 @@ func (c *Client) getLogs() error {
 		return err
 	}
 	return c.logAggregator.UnmarshallPayloads(payloads)
+}
+
+// GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
+// TODO: handle multiple flares / flush when returning latest flare
+func (c *Client) GetLatestFlare() (flare.Flare, error) {
+	payloads, err := c.getFakePayloads("/support/flare")
+	if err != nil {
+		return flare.Flare{}, err
+	}
+
+	if len(payloads) == 0 {
+		return flare.Flare{}, errors.New("no flare available")
+	}
+
+	return flare.ParseRawFlare(payloads[len(payloads)-1])
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {

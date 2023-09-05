@@ -30,7 +30,16 @@ GOARCH_MAPPING = {
 
 
 def run_golangci_lint(
-    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None, timeout=None
+    ctx,
+    targets,
+    rtloader_root=None,
+    build_tags=None,
+    build="test",
+    arch="x64",
+    concurrency=None,
+    timeout=None,
+    verbose=False,
+    golangci_lint_kwargs="",
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -45,15 +54,16 @@ def run_golangci_lint(
     tags.extend(UNIT_TEST_TAGS)
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
     for target in targets:
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(sorted(set(tags)))
-        timeout_arg_value = "20m0s" if not timeout else f"{timeout}m0s"
+        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
         result = ctx.run(
-            f'golangci-lint run --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
+            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )

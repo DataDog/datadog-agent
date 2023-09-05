@@ -26,8 +26,8 @@ def trigger_macos_build(
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
-    run_id = trigger_macos_workflow(
-        workflow="macos.yaml",
+    run = trigger_macos_workflow(
+        workflow_name="macos.yaml",
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         release_version=release_version,
@@ -40,11 +40,11 @@ def trigger_macos_build(
         version_cache_file_content=version_cache,
     )
 
-    workflow_conclusion = follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run)
 
     print_workflow_conclusion(workflow_conclusion)
 
-    download_artifacts_with_retry(run_id, destination, retry_download, retry_interval)
+    download_artifacts_with_retry(run, destination, retry_download, retry_interval)
 
     if workflow_conclusion != "success":
         raise Exit(code=1)
@@ -64,19 +64,19 @@ def trigger_macos_test(
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
-    run_id = trigger_macos_workflow(
-        workflow="test.yaml",
+    run = trigger_macos_workflow(
+        workflow_name="test.yaml",
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
         version_cache_file_content=version_cache,
     )
 
-    workflow_conclusion = follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run)
 
     print_workflow_conclusion(workflow_conclusion)
 
-    download_artifacts_with_retry(run_id, destination, retry_download, retry_interval)
+    download_artifacts_with_retry(run, destination, retry_download, retry_interval)
 
     if workflow_conclusion != "success":
         raise Exit(code=1)
@@ -92,10 +92,10 @@ def lint_codeowner(_):
     root_folder = os.path.join(base, "..")
     os.chdir(root_folder)
 
-    owners = get_code_owners(root_folder)
+    owners = _get_code_owners(root_folder)
 
     # make sure each root package has an owner
-    pkgs_without_owner = find_packages_without_owner(owners, "pkg")
+    pkgs_without_owner = _find_packages_without_owner(owners, "pkg")
     if len(pkgs_without_owner) > 0:
         raise Exit(
             f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
@@ -103,7 +103,7 @@ def lint_codeowner(_):
         )
 
 
-def find_packages_without_owner(owners, folder):
+def _find_packages_without_owner(owners, folder):
     pkg_without_owners = []
     for x in os.listdir(folder):
         path = os.path.join("/" + folder, x)
@@ -112,7 +112,7 @@ def find_packages_without_owner(owners, folder):
     return pkg_without_owners
 
 
-def get_code_owners(root_folder):
+def _get_code_owners(root_folder):
     code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
     owners = {}
     with open(code_owner_path) as f:

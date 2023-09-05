@@ -23,6 +23,7 @@ import (
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -349,10 +350,18 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 }
 
 func (a *Agent) reportEvents(ctx context.Context, benchmark *Benchmark, events []*CheckEvent) {
+	store := workloadmeta.GetGlobalStore()
 	for _, event := range events {
 		a.updateEvent(event)
 		if event.Result == CheckSkipped {
 			continue
+		}
+		if store != nil && event.Container != nil {
+			if ctnr, _ := store.GetContainer(event.Container.ContainerID); ctnr != nil {
+				event.Container.ImageID = ctnr.Image.ID
+				event.Container.ImageName = ctnr.Image.Name
+				event.Container.ImageTag = ctnr.Image.Tag
+			}
 		}
 		a.opts.Reporter.ReportEvent(event)
 	}

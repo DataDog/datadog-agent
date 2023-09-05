@@ -5,7 +5,10 @@
 
 package server
 
-import "net/http"
+import (
+	"encoding/json"
+	"net/http"
+)
 
 type httpResponse struct {
 	contentType string
@@ -13,7 +16,7 @@ type httpResponse struct {
 	body        []byte
 }
 
-func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
+func writeHTTPResponse(w http.ResponseWriter, response httpResponse) {
 	if response.contentType != "" {
 		w.Header().Set("Content-Type", response.contentType)
 	}
@@ -21,4 +24,30 @@ func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
 	if len(response.body) > 0 {
 		w.Write(response.body)
 	}
+}
+
+func buildErrorResponse(responseError error) httpResponse {
+	resp := errorResponseBody{Errors: []string{responseError.Error()}}
+	return buildResponse(resp, http.StatusBadRequest, "application/json")
+}
+
+func buildSuccessResponse(body interface{}) httpResponse {
+	return buildResponse(body, http.StatusOK, "application/json")
+}
+
+func buildResponse(body interface{}, statusCode int, contentType string) httpResponse {
+	resp := httpResponse{contentType: contentType, statusCode: statusCode}
+
+	bodyJSON, err := json.Marshal(body)
+
+	if err != nil {
+		return httpResponse{
+			statusCode:  http.StatusInternalServerError,
+			contentType: "text/plain",
+			body:        []byte(err.Error()),
+		}
+	}
+
+	resp.body = bodyJSON
+	return resp
 }

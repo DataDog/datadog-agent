@@ -240,6 +240,7 @@
 /pkg/autodiscovery/providers/file*.go   @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
+/pkg/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
@@ -278,7 +279,7 @@
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go             @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
-/pkg/config/remote/service/meta/        @DataDog/remote-config @DataDog/software-integrity-and-trust
+/pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-integrations
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
@@ -431,6 +432,7 @@
 /test/fakeintake/                       @DataDog/agent-e2e-testing
 /test/new-e2e/                          @DataDog/agent-e2e-testing
 /test/new-e2e/agent-subcommands         @DataDog/agent-shared-components
+/test/new-e2e/language-detection        @DataDog/processes
 /test/new-e2e/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/scenarios/ndm             @DataDog/network-device-monitoring
 /test/new-e2e/system-probe              @DataDog/ebpf-platform

@@ -139,10 +139,27 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 	eventData, _ := m["data"].(map[string]interface{})
 	resourceID, _ := m["resource_id"].(string)
 	resourceType, _ := m["resource_type"].(string)
+
+	var event *CheckEvent
 	if errReason != nil {
-		return NewCheckError(RegoEvaluator, errReason, resourceID, resourceType, rule, benchmark)
+		event = NewCheckError(RegoEvaluator, errReason, resourceID, resourceType, rule, benchmark)
+	} else {
+		event = NewCheckEvent(RegoEvaluator, result, eventData, resourceID, resourceType, rule, benchmark)
 	}
-	return NewCheckEvent(RegoEvaluator, result, eventData, resourceID, resourceType, rule, benchmark)
+
+	if containerID, _ := m["container_id"].(string); containerID != "" {
+		imageID, _ := m["image_id"].(string)
+		imageName, _ := m["image_name"].(string)
+		imageTag, _ := m["image_tag"].(string)
+		event.Container = &CheckContainerMeta{
+			ContainerID: containerID,
+			ImageID:     imageID,
+			ImageName:   imageName,
+			ImageTag:    imageTag,
+		}
+	}
+
+	return event
 }
 
 func buildRegoModules(rootDir string, rule *Rule) (map[string]string, error) {
@@ -177,6 +194,10 @@ raw_finding(status, resource_type, resource_id, event_data) = f {
 		"status": status,
 		"resource_type": resource_type,
 		"resource_id": resource_id,
+		"image_id": input.context.image_id,
+		"image_name": input.context.image_name,
+		"image_tag": input.context.image_tag,
+		"container_id": input.context.container_id,
 		"data": event_data,
 	}
 }

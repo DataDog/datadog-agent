@@ -296,6 +296,7 @@ def lint_flavor(
     rtloader_root: bool,
     concurrency: int,
     timeout=None,
+    golangci_lint_kwargs: str = "",
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -311,6 +312,7 @@ def lint_flavor(
                 arch=arch,
                 concurrency=concurrency,
                 timeout=timeout,
+                golangci_lint_kwargs=golangci_lint_kwargs,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -741,6 +743,7 @@ def run_lint_go(
     arch="x64",
     cpus=None,
     timeout=None,
+    golangci_lint_kwargs="",
 ):
     modules, flavors = process_input_args(module, targets, flavors)
 
@@ -766,6 +769,7 @@ def run_lint_go(
             rtloader_root=rtloader_root,
             concurrency=cpus,
             timeout=timeout,
+            golangci_lint_kwargs=golangci_lint_kwargs,
         )
 
     return modules_lint_results_per_flavor
@@ -785,6 +789,7 @@ def lint_go(
     arch="x64",
     cpus=None,
     timeout: int = None,
+    golangci_lint_kwargs="",
 ):
     """
     Run go linters on the given module and targets.
@@ -825,6 +830,7 @@ def lint_go(
         arch=arch,
         cpus=cpus,
         timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
     )
 
     success = process_module_results(modules_results_per_phase)
