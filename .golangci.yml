@@ -81,6 +81,7 @@ linters-settings:
     packages-with-error-message:
       - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
       - io/ioutil: "Deprecated since Go 1.16. Use package io or os instead."
+      - github.com/golang/glog: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
     # Disable warnings for select Windows functions
