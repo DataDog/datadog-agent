@@ -1813,6 +1813,14 @@ api_key:
     #
     # enabled: false
 
+  ## @param health_port - integer - optional - default: 0
+  ## @env DD_SYSTEM_PROBE_HEALTH_PORT - integer - optional - default: 0
+  ## The Agent can expose its health check on a dedicated http port.
+  ## This is useful for orchestrators that support http probes.
+  ## Default is 0 (disabled), set a valid port number (eg. 5556) to enable.
+  #
+  # health_port: 0
+
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

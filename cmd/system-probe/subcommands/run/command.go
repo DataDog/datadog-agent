@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -289,6 +290,16 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 				log.Errorf("error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 			}
 		}()
+	}
+
+	// Setup healthcheck port
+	healthPort := sysprobeconfig.GetInt("system_probe_config.health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(ctx, healthPort)
+		if err != nil {
+			return log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	if err = api.StartServer(cfg, telemetry); err != nil {

@@ -30,5 +30,4 @@ type Module interface {
 	Register(*Router) error
 	RegisterGRPC(grpc.ServiceRegistrar) error
 	Close()
-	IsAlive() bool
 }
