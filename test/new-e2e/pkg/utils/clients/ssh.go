@@ -81,7 +81,7 @@ func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 	return string(stdout), err
 }
 
-// CopyFile create a sftp session a single file to the remote host through SSH
+// CopyFile create a sftp session and copy a single file to the remote host through SSH
 func CopyFile(client *ssh.Client, src string, dst string) error {
 	sftpClient, err := sftp.NewClient(client)
 
@@ -95,7 +95,7 @@ func CopyFile(client *ssh.Client, src string, dst string) error {
 	return nil
 }
 
-// CopyFolder create a sftp session and copy folders to remote host through SSH
+// CopyFolder create a sftp session and copy a folder to remote host through SSH
 func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
 
 	sftpClient, err := sftp.NewClient(client)
