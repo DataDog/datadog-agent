@@ -61,6 +61,7 @@ func PodFactory() check.Check {
 // Configure the CPU check
 // nil check to allow for overrides
 func (c *Check) Configure(
+	senderManager sender.SenderManager,
 	integrationConfigDigest uint64,
 	data integration.Data,
 	initConfig integration.Data,
@@ -68,7 +69,7 @@ func (c *Check) Configure(
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
