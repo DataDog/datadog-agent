@@ -346,13 +346,6 @@ type ExecEvent struct {
 	*Process
 }
 
-// ExitEvent represents a process exit event
-type ExitEvent struct {
-	*Process
-	Cause uint32 `field:"cause"` // SECLDoc[cause] Definition:`Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)`
-	Code  uint32 `field:"code"`  // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
-}
-
 // FileFields holds the information required to identify a file
 type FileFields struct {
 	UID   uint32 `field:"uid"`                                           // SECLDoc[uid] Definition:`UID of the file's owner`
@@ -750,16 +743,6 @@ type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-" json:"-"`
 	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`interface ifindex`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`interface ifname`
-}
-
-// DNSEvent represents a DNS event
-type DNSEvent struct {
-	ID    uint16 `field:"id" json:"-"`                                             // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
 // BindEvent represents a bind event

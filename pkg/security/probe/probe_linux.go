@@ -89,7 +89,6 @@ type PlatformProbe struct {
 	// internals
 	monitor         *Monitor
 	profileManagers *SecurityProfileManagers
-	scrubber        *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -1234,34 +1233,6 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 	return debug
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
-	var ruleSetsToInclude []*rules.RuleSet
-	for _, ruleSetTagValue := range ruleSetTagValues {
-		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
-
-		ruleOpts.WithLogger(seclog.DefaultLogger)
-		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
-		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
-			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
-		}
-
-		eventCtor := func() eval.Event {
-			return NewEvent(p.fieldHandlers)
-		}
-
-		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
-		ruleSetsToInclude = append(ruleSetsToInclude, rs)
-	}
-
-	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return evaluationSet, nil
-}
-
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
 // resolved.
 type QueuedNetworkDeviceError struct {
@@ -1360,7 +1331,7 @@ func (p *Probe) applyDefaultFilterPolicies() {
 	}
 }
 
-// ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
+// ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
@@ -1414,8 +1385,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
-
-	p.event = NewEvent(p.fieldHandlers)
 
 	if err := p.detectKernelVersion(); err != nil {
 		// we need the kernel version to start, fail if we can't get it
@@ -1639,6 +1608,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.fieldHandlers = &FieldHandlers{resolvers: p.resolvers}
 
+	p.event = NewEvent(p.fieldHandlers)
+
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()
 
@@ -1855,20 +1826,4 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
-}
-
-func (p *Probe) IsNetworkEnabled() bool {
-	return p.Config.Probe.NetworkEnabled
-}
-
-func (p *Probe) IsActivityDumpEnabled() bool {
-	return p.Config.RuntimeSecurity.ActivityDumpEnabled
-}
-
-func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
-	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
-}
-
-func (p *Probe) IsSecurityProfileEnabled() bool {
-	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }
