@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package selftests
 
 import (
@@ -13,7 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -23,14 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	policySource       = "self-test"
-	policyVersion      = "1.0.0"
-	policyName         = "datadog-agent-cws-self-test-policy"
-	ruleIDPrefix       = "datadog_agent_cws_self_test_rule"
-	PolicyProviderType = "selfTesterPolicyProvider"
+	"github.com/hashicorp/go-multierror"
 )
 
 // EventPredicate defines a self test event validation predicate
@@ -87,25 +77,6 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 		Success:       t.success,
 		Fails:         t.fails,
 	}
-}
-
-// LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
-	p := &rules.Policy{
-		Name:    policyName,
-		Source:  policySource,
-		Version: policyVersion,
-	}
-
-	for _, selftest := range FileSelfTests {
-		p.AddRule(selftest.GetRuleDefinition(t.targetFilePath))
-	}
-
-	return []*rules.Policy{p}, nil
-}
-
-// SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(cb func()) {
 }
 
 func (t *SelfTester) createTargetFile() error {
@@ -179,6 +150,21 @@ func (t *SelfTester) Close() error {
 	return nil
 }
 
+// LoadPolicies implements the PolicyProvider interface
+func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+	p := &rules.Policy{
+		Name:    policyName,
+		Source:  policySource,
+		Version: policyVersion,
+	}
+
+	for _, selftest := range FileSelfTests {
+		p.AddRule(selftest.GetRuleDefinition(t.targetFilePath))
+	}
+
+	return []*rules.Policy{p}, nil
+}
+
 // BeginWaitingForEvent passes the tester in the waiting for event state
 func (t *SelfTester) BeginWaitingForEvent() error {
 	if t.waitingForEvent.Swap(true) {
@@ -234,16 +220,4 @@ func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*serialize
 			return nil, errors.New("failed to receive expected event")
 		}
 	}
-}
-
-func (t *SelfTester) Type() string {
-	return PolicyProviderType
-}
-
-func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
-	// send if not selftest related events
-	return !t.IsExpectedEvent(rule, event, t.probe)
-}
-
-func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 }

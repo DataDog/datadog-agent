@@ -71,7 +71,7 @@ func (m *OrderedPerfMap) Start(wg *sync.WaitGroup) error {
 	wg.Add(2)
 	go m.reordererMonitor.Start(wg)
 	go m.reOrderer.Start(wg)
-	return nil
+	return m.perfMap.Start()
 }
 
 // Pause the event stream.

@@ -89,7 +89,6 @@ type PlatformProbe struct {
 	// internals
 	monitor         *Monitor
 	profileManagers *SecurityProfileManagers
-	scrubber        *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -287,18 +286,20 @@ func (p *Probe) Setup() error {
 
 	p.applyDefaultFilterPolicies()
 
+	if err := p.updateProbes(defaultEventTypes, true); err != nil {
+		return err
+	}
+
 	p.profileManagers.Start(p.ctx, &p.wg)
 
 	return nil
 }
 
-// Start processing events
+// Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
-	if err := p.eventStream.Start(&p.wg); err != nil {
-		return err
-	}
-
-	return p.updateProbes(nil)
+	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
+	p.PlaySnapshot()
+	return p.eventStream.Start(&p.wg)
 }
 
 func (p *Probe) PlaySnapshot() {
@@ -1040,7 +1041,7 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes bool) error {
 	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	eventTypes = append(eventTypes, ruleEventTypes...)
@@ -1057,6 +1058,10 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	}
 
 	var activatedProbes []manager.ProbesSelector
+
+	if useSnapshotProbes {
+		activatedProbes = append(activatedProbes, probes.SnapshotSelectors(p.useFentry)...)
+	}
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
@@ -1109,17 +1114,6 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 			enabledEvents |= 1 << (eventType - 1)
 		}
 	}
-
-	// We might end up missing events during the snapshot. Ultimately we might want to stop the rules evaluation but
-	// not the perf map entirely. For now this will do though :)
-	if err := p.eventStream.Pause(); err != nil {
-		return err
-	}
-	defer func() {
-		if err := p.eventStream.Resume(); err != nil {
-			seclog.Errorf("failed to resume event stream: %s", err)
-		}
-	}()
 
 	if err := enabledEventsMap.Put(ebpf.ZeroUint32MapItem, enabledEvents); err != nil {
 		return fmt.Errorf("failed to set enabled events: %w", err)
@@ -1234,34 +1228,6 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 	return debug
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
-	var ruleSetsToInclude []*rules.RuleSet
-	for _, ruleSetTagValue := range ruleSetTagValues {
-		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
-
-		ruleOpts.WithLogger(seclog.DefaultLogger)
-		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
-		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
-			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
-		}
-
-		eventCtor := func() eval.Event {
-			return NewEvent(p.fieldHandlers)
-		}
-
-		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
-		ruleSetsToInclude = append(ruleSetsToInclude, rs)
-	}
-
-	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return evaluationSet, nil
-}
-
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
 // resolved.
 type QueuedNetworkDeviceError struct {
@@ -1360,7 +1326,7 @@ func (p *Probe) applyDefaultFilterPolicies() {
 	}
 }
 
-// ApplyRuleSet setup the filters for the provided set of rules and returns the policy report.
+// ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
@@ -1380,7 +1346,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		return nil, fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes()); err != nil {
+	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1414,8 +1380,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
-
-	p.event = NewEvent(p.fieldHandlers)
 
 	if err := p.detectKernelVersion(); err != nil {
 		// we need the kernel version to start, fail if we can't get it
@@ -1639,15 +1603,23 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.fieldHandlers = &FieldHandlers{resolvers: p.resolvers}
 
+	p.event = NewEvent(p.fieldHandlers)
+
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
+		p.managerOptions.SkipRingbufferReaderStartup = map[string]bool{
+			eventstream.EventStreamMap: true,
+		}
 	} else {
 		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, p.StatsdClient)
 		if err != nil {
 			return nil, err
+		}
+		p.managerOptions.SkipPerfMapReaderStartup = map[string]bool{
+			eventstream.EventStreamMap: true,
 		}
 	}
 
@@ -1855,20 +1827,4 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
-}
-
-func (p *Probe) IsNetworkEnabled() bool {
-	return p.Config.Probe.NetworkEnabled
-}
-
-func (p *Probe) IsActivityDumpEnabled() bool {
-	return p.Config.RuntimeSecurity.ActivityDumpEnabled
-}
-
-func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
-	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
-}
-
-func (p *Probe) IsSecurityProfileEnabled() bool {
-	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }
