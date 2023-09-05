@@ -452,7 +452,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 						if !ok {
 							return false
 						}
-						if count < valRange.lower || valRange.upper > count {
+						if count < valRange.lower || count > valRange.upper {
 							return false
 						}
 					}
