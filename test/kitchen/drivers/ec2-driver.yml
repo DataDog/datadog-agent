@@ -37,6 +37,8 @@ driver:
   <% else %>
   security_group_ids: [ "sg-7fedd80a","sg-46506837" ]
   <% end %>
+  # Fix an edge case where IMDSv2 doesn't work for this specific ubuntu AMI
+  # Using this AMI with any other (e.g : KITCHEN_OSVERS: ubuntu-16-04-4.4,ubuntu-18-04) will use IMDSv2 and fail.
   <% if ENV['KITCHEN_OSVERS'] != "ubuntu-16-04-4.4" %>
   metadata_options:
     http_tokens: required
