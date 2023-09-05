@@ -392,7 +392,10 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_kernel_read_file", fentry),
 					kprobeOrFentry("security_kernel_module_from_file", fentry),
 				}},
-				kprobeOrFentry("mod_sysfs_setup", fentry),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					kprobeOrFentry("mod_sysfs_setup", fentry),
+					kprobeOrFentry("module_param_sysfs_setup", fentry),
+				}},
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "init_module", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "finit_module", fentry, EntryAndExit|SupportFentry|SupportFexit)},

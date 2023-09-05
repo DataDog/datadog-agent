@@ -60,16 +60,30 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
-HOOK_ENTRY("mod_sysfs_setup")
-int hook_mod_sysfs_setup(ctx_t *ctx) {
+int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
 	struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
 
-    struct module *m = (struct module*)CTX_PARM1(ctx);
+    if (syscall->init_module.name[0] != 0) {
+        return 0;
+    }
+
     bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &m->name);
     return 0;
+}
+
+HOOK_ENTRY("mod_sysfs_setup")
+int hook_mod_sysfs_setup(ctx_t *ctx) {
+    struct module *m = (struct module*)CTX_PARM1(ctx);
+	return fetch_mod_name_common(m);
+}
+
+HOOK_ENTRY("module_param_sysfs_setup")
+int hook_module_param_sysfs_setup(ctx_t *ctx) {
+    struct module *m = (struct module*)CTX_PARM1(ctx);
+	return fetch_mod_name_common(m);
 }
 
 HOOK_ENTRY("security_kernel_module_from_file")

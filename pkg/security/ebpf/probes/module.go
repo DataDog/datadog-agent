@@ -34,6 +34,12 @@ func getModuleProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_module_param_sysfs_setup",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_security_kernel_module_from_file",
 			},
 		},
