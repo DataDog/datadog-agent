@@ -55,6 +55,21 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
+HOOK_ENTRY("load_module")
+int hook_load_module(ctx_t *ctx) {
+	struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+    if (!syscall) {
+        return 0;
+    }
+
+    char *args = (char *)CTX_PARM2(ctx);
+    int len = bpf_probe_read_user_str(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
+    if (len == sizeof(syscall->init_module.args)) {
+        syscall->init_module.args_truncated = 1;
+    }
+    return 0;
+}
+
 HOOK_ENTRY("mod_sysfs_setup")
 int hook_mod_sysfs_setup(ctx_t *ctx) {
 	struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
@@ -63,15 +78,7 @@ int hook_mod_sysfs_setup(ctx_t *ctx) {
     }
 
 	struct module *m = (struct module*)CTX_PARM1(ctx);
-    char *args;
-	bpf_probe_read(&args, sizeof(args), &m->args);
-
     bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &m->name);
-
-    int len = bpf_probe_read(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
-    if (len == sizeof(syscall->init_module.args)) {
-        syscall->init_module.args_truncated = 1;
-    }
     return 0;
 }
 
