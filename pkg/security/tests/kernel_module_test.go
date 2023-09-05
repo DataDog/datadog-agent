@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -48,7 +47,11 @@ func uncompressModule(xzModulePath string) error {
 
 func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 	var wasCompressed bool
-	release, err := kernel.Release()
+	var buf unix.Utsname
+	if err := unix.Uname(&buf); err != nil {
+		t.Skipf("uname failed: %v", err)
+	}
+	release, err := model.UnmarshalString(buf.Release[:], 65)
 	if err != nil {
 		t.Skipf("couldn't parse uname release: %v", err)
 	}

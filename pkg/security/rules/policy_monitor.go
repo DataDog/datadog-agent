@@ -15,9 +15,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -25,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -104,7 +103,7 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 						tags := []string{
 							"rule_id:" + id,
 							fmt.Sprintf("status:%v", status),
-							constants.CardinalityTagPrefix + collectors.LowCardinalityString,
+							dogstatsdServer.CardinalityTagPrefix + collectors.LowCardinalityString,
 						}
 
 						if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {

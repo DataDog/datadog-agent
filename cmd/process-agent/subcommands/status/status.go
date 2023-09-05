@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/status"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -106,18 +106,18 @@ func writeError(log log.Component, w io.Writer, e error) {
 func fetchStatus(statusURL string) ([]byte, error) {
 	body, err := apiutil.DoGet(httpClient, statusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
-		return nil, status.NewConnectionError(err)
+		return nil, util.NewConnectionError(err)
 	}
 
 	return body, nil
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options ...status.StatusOption) {
+func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options ...util.StatusOption) {
 	body, err := fetchStatus(statusURL)
 	if err != nil {
 		switch err.(type) {
-		case status.ConnectionError:
+		case util.ConnectionError:
 			writeNotRunning(log, w)
 		default:
 			writeError(log, w, err)
@@ -127,7 +127,7 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options
 
 	// If options to override the status are provided, we need to deserialize and serialize it again
 	if len(options) > 0 {
-		var s status.Status
+		var s util.Status
 		err = json.Unmarshal(body, &s)
 		if err != nil {
 			writeError(log, w, err)

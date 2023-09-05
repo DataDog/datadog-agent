@@ -7,12 +7,13 @@ package ebpftest
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // LogTracePipe logs all messages read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.
@@ -37,7 +38,7 @@ func LogTracePipeSelf(t *testing.T) {
 		if _, ok := subtask[ev.PID]; ok {
 			return true
 		}
-		_, err := os.Stat(kernel.HostProc(pidstr, "task", strconv.Itoa(int(ev.PID))))
+		_, err := os.Stat(util.HostProc(pidstr, "task", strconv.Itoa(int(ev.PID))))
 		if err == nil {
 			// cache result for faster lookup
 			subtask[ev.PID] = struct{}{}
@@ -62,7 +63,7 @@ func LogTracePipeFilter(t *testing.T, filterFn func(ev *TraceEvent) bool) {
 }
 
 func getpid() uint32 {
-	p, err := os.Readlink(kernel.HostProc("/self"))
+	p, err := os.Readlink(filepath.Join(util.HostProc(), "/self"))
 	if err == nil {
 		if pid, err := strconv.ParseInt(p, 10, 32); err == nil {
 			return uint32(pid)

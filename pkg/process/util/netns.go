@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package kernel
+package util
 
 import (
 	"errors"

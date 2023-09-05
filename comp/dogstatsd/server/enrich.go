@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -18,10 +17,11 @@ import (
 )
 
 var (
-	hostTagPrefix        = "host:"
-	entityIDTagPrefix    = "dd.internal.entity_id:"
-	entityIDIgnoreValue  = "none"
-	CardinalityTagPrefix = constants.CardinalityTagPrefix
+	hostTagPrefix       = "host:"
+	entityIDTagPrefix   = "dd.internal.entity_id:"
+	entityIDIgnoreValue = "none"
+	// CardinalityTagPrefix is used to set the dynamic cardinality
+	CardinalityTagPrefix = "dd.internal.card:"
 	jmxTagPrefix         = "jmx_domain:"
 )
 

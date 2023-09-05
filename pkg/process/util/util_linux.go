@@ -5,17 +5,21 @@
 
 //go:build linux
 
-package kernel
+package util
 
 import (
 	"os"
 	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"strconv"
 )
 
-// IsIPv6Enabled returns whether or not IPv6 has been enabled on the host
-func IsIPv6Enabled() bool {
-	_, err := os.ReadFile(filepath.Join(util.GetProcRoot(), "net/if_inet6"))
-	return err == nil
+// GetRootNSPID returns the current PID from the root namespace
+func GetRootNSPID() (int, error) {
+	pidPath := filepath.Join(GetProcRoot(), "self")
+	pidStr, err := os.Readlink(pidPath)
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.Atoi(pidStr)
 }

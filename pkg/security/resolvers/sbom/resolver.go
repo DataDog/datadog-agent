@@ -262,7 +262,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			continue
 		}
 
-		lastErr = r.generateSBOM(utils.ProcRootPath(rootCandidatePID), sbom)
+		lastErr = r.generateSBOM(utils.ProcRootPath(int32(rootCandidatePID)), sbom)
 		if lastErr == nil {
 			scanned = true
 			break

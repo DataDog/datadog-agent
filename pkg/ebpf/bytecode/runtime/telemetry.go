@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -82,11 +82,7 @@ func (tm *CompilationTelemetry) SubmitTelemetry(filename string, statsdClient st
 		platform = strings.ToLower(target.Distro.Display)
 	} else {
 		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
-		platform, err = kernel.Platform()
-		if err != nil {
-			log.Warnf("failed to retrieve host platform information: %s", err)
-			return
-		}
+		platform = hostMetadataUtils.GetPlatformName()
 	}
 
 	tags := []string{

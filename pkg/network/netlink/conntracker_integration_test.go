@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -54,7 +53,7 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	defer testNs.Close()
 
-	testIno, err := kernel.GetInoForNs(testNs)
+	testIno, err := util.GetInoForNs(testNs)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second)

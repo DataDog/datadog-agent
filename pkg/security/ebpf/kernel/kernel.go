@@ -17,9 +17,10 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -146,7 +147,7 @@ func newKernelVersion() (*Version, error) {
 
 	// Then look if `/host` is mounted in the container
 	// since this can be done without the env variable being set
-	if config.IsContainerized() && filesystem.FileExists("/host") {
+	if config.IsContainerized() && util.PathExists("/host") {
 		osReleasePaths = append(
 			osReleasePaths,
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
@@ -169,10 +170,11 @@ func newKernelVersion() (*Version, error) {
 		return nil, fmt.Errorf("failed to detect kernel version: %w", err)
 	}
 
-	unameRelease, err := kernel.Release()
-	if err != nil {
-		return nil, err
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
+		return nil, fmt.Errorf("error calling uname: %w", err)
 	}
+	unameRelease := unix.ByteSliceToString(uname.Release[:])
 
 	var release map[string]string
 	for _, osReleasePath := range osReleasePaths {

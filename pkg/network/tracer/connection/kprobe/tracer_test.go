@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	manager "github.com/DataDog/ebpf-manager"
-
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 func TestTracerFallback(t *testing.T) {
@@ -258,8 +258,7 @@ func TestCORETracerSupported(t *testing.T) {
 	kv, err := kernel.HostVersion()
 	require.NoError(t, err)
 
-	platform, err := kernel.Platform()
-	require.NoError(t, err)
+	platform := hostMetadataUtils.GetPlatformName()
 
 	cfg := config.New()
 	cfg.EnableCORE = true

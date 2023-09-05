@@ -322,7 +322,7 @@ func TestMountSnapshot(t *testing.T) {
 	defer bindMountB.unmount(0)
 
 	mountResolver := test.probe.GetResolvers().MountResolver
-	pid := utils.Getpid()
+	pid := uint32(utils.Getpid())
 
 	mounts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {

@@ -8,13 +8,14 @@
 package probes
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,12 +23,12 @@ import (
 var RuntimeArch string
 
 func resolveRuntimeArch() {
-	machine, err := utilkernel.Machine()
-	if err != nil {
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
 		panic(err)
 	}
 
-	switch machine {
+	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
 	case "x86_64":
 		RuntimeArch = "x64"
 	case "aarch64":

@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package constants
+package util
 
-const (
-	// CardinalityTagPrefix is used to set the dynamic cardinality
-	CardinalityTagPrefix = "dd.internal.card:"
-)
+import "fmt"
+
+// GetNetNsInoFromPid gets the network namespace inode number for the given
+// `pid`
+func GetNetNsInoFromPid(procRoot string, pid int) (uint32, error) {
+	return 0, fmt.Errorf("not supported")
+}

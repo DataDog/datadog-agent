@@ -21,12 +21,12 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/process/util/status"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
+func fakeStatusServer(t *testing.T, stats util.Status) *httptest.Server {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		b, err := json.Marshal(stats)
@@ -41,14 +41,14 @@ func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
 
 func TestStatus(t *testing.T) {
 	testTime := time.Now()
-	expectedStatus := status.Status{
+	expectedStatus := util.Status{
 		Date: float64(testTime.UnixNano()),
-		Core: status.CoreStatus{
+		Core: util.CoreStatus{
 			Metadata: host.Payload{
 				Meta: &hostMetadataUtils.Meta{},
 			},
 		},
-		Expvars: status.ProcessExpvars{},
+		Expvars: util.ProcessExpvars{},
 	}
 
 	server := fakeStatusServer(t, expectedStatus)
@@ -62,7 +62,7 @@ func TestStatus(t *testing.T) {
 
 	// Build the actual status
 	var statusBuilder strings.Builder
-	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder, status.OverrideTime(testTime))
+	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder, util.OverrideTime(testTime))
 
 	assert.Equal(t, expectedOutput, statusBuilder.String())
 }

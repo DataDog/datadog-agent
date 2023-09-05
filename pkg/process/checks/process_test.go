@@ -20,7 +20,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -57,7 +57,7 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 }
 
 // TODO: create a centralized, easy way to mock this
-func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
+func mockContainerProvider(t *testing.T) util.ContainerProvider {
 	t.Helper()
 
 	// Metrics provider
@@ -75,7 +75,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	// Finally, container provider
 	filter, err := containers.GetPauseContainerFilter()
 	assert.NoError(t, err)
-	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter)
+	return util.NewContainerProvider(metricsProvider, metadataProvider, filter)
 }
 
 func TestProcessCheckFirstRun(t *testing.T) {

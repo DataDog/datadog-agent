@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -201,14 +200,14 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 	}
 	defer rootNs.Close()
 
-	rootNsIno, err := kernel.GetInoForNs(rootNs)
+	rootNsIno, err := util.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
 	var fd int
 	var nlHandle *netlink.Handle
-	err = kernel.WithNS(rootNs, func() (sockErr error) {
+	err = util.WithNS(rootNs, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}

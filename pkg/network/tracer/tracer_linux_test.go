@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -791,7 +792,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	// run tcp server in test1 net namespace
 	var server *TCPServer
-	err = kernel.WithNS(test1Ns, func() error {
+	err = util.WithNS(test1Ns, func() error {
 		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
 		return server.Run()
 	})
@@ -824,7 +825,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		defer test2Ns.Close()
 
 		var c net.Conn
-		err = kernel.WithNS(test2Ns, func() error {
+		err = util.WithNS(test2Ns, func() error {
 			var err error
 			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
 			return err
@@ -848,7 +849,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 		// try connecting to something outside
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
-		kernel.WithNS(test2Ns, func() error {
+		util.WithNS(test2Ns, func() error {
 			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
 			return nil
 		})
