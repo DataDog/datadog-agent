@@ -55,15 +55,15 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
-SEC("kprobe/parse_args")
-int kprobe_parse_args(struct pt_regs *ctx) {
+HOOK_ENTRY("parse_args")
+int hook_parse_args(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
 
-    char *name = (char *)PT_REGS_PARM1(ctx);
-    char *args = (char *)PT_REGS_PARM2(ctx);
+    char *name = (char *)CTX_PARM1(ctx);
+    char *args = (char *)CTX_PARM2(ctx);
 
     bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), name);
 

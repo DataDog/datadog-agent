@@ -28,7 +28,7 @@ func getModuleProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_parse_args",
+				EBPFFuncName: "hook_parse_args",
 			},
 		},
 		{
