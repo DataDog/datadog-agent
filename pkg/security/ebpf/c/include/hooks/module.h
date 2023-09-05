@@ -55,7 +55,6 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
-// fentry blocked by: parse args special bug
 SEC("kprobe/parse_args")
 int kprobe_parse_args(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
