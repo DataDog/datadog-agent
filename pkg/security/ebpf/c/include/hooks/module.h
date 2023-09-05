@@ -67,7 +67,7 @@ int hook_mod_sysfs_setup(ctx_t *ctx) {
         return 0;
     }
 
-	struct module *m = (struct module*)CTX_PARM1(ctx);
+    struct module *m = (struct module*)CTX_PARM1(ctx);
     bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &m->name);
     return 0;
 }
