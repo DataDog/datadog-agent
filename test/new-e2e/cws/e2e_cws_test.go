@@ -7,10 +7,10 @@ package cws
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +30,7 @@ type agentSuite struct {
 	apiClient     cws.MyApiClient
 	signalRuleId  string
 	agentRuleID   string
+	dirname       string
 	filename      string
 	testId        string
 	desc          string
@@ -38,7 +39,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	agentConfig := "hostname: host-custom-e2e\nlog_level: trace"
+	agentConfig := "hostname: host-custom-e2e\nlog_level: trace\ntags:\n  - 'tag1'\n  - 'tag2'"
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(
 		[]ec2params.Option{
 			ec2params.WithName("cws-e2e-tests"),
@@ -52,14 +53,12 @@ func TestAgentSuite(t *testing.T) {
 
 func (a *agentSuite) SetupSuite() {
 	// Create temporary directory
-	tempDir, err := os.MkdirTemp("", "e2e-temp-folder")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	dirName := filepath.Base(tempDir)
-	a.filename = fmt.Sprintf("%s/secret", dirName)
+	tempDir := a.Env().VM.Execute("mktemp -d")
+	a.dirname = strings.TrimSuffix(tempDir, "\n")
+	a.filename = fmt.Sprintf("%s/secret", a.dirname)
+	fmt.Println("filename =", a.filename)
 	a.testId = uuid.NewString()[:4]
+	fmt.Println("testID =", a.testId)
 	a.desc = fmt.Sprintf("e2e test rule %s", a.testId)
 	a.agentRuleName = fmt.Sprintf("e2e_agent_rule_%s", a.testId)
 	a.Suite.SetupSuite()
@@ -73,6 +72,7 @@ func (a *agentSuite) TearDownSuite() {
 	if len(a.agentRuleID) != 0 {
 		a.apiClient.DeleteAgentRule(a.agentRuleID)
 	}
+	a.Env().VM.Execute(fmt.Sprintf("rm -r %s", a.dirname))
 	a.Suite.TearDownSuite()
 }
 
@@ -81,7 +81,8 @@ func (a *agentSuite) TestOpenSignal() {
 	a.apiClient = cws.NewApiClient()
 
 	// Create CWS Agent rule
-	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, "open.file.path == \"/tmp\"")
+	rule := fmt.Sprintf("open.file.path == \"%s\"", a.filename)
+	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, rule)
 	assert.NoError(a.T(), err, "Agent rule creation failed")
 	a.agentRuleID = res.Data.GetId()
 
@@ -96,6 +97,7 @@ func (a *agentSuite) TestOpenSignal() {
 	isReady, err := a.Env().Agent.IsReady()
 	if err != nil {
 		fmt.Println(err)
+		require.NoError(a.T(), err)
 	}
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
@@ -113,10 +115,8 @@ func (a *agentSuite) TestOpenSignal() {
 	// Download policies
 	apiKey, _ := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	appKey, _ := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	policies, err := a.Env().VM.ExecuteWithError(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s DD_SITE=datadoghq.com %s runtime policy download", appKey, apiKey, cws.SEC_AGENT_PATH))
-	if err != nil {
-		fmt.Println("Error", err)
-	}
+	policies := a.Env().VM.Execute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s DD_SITE=datadoghq.com %s runtime policy download", appKey, apiKey, cws.SEC_AGENT_PATH))
+
 	assert.NotEmpty(a.T(), policies, "should not be empty")
 	a.policies = policies
 
@@ -124,17 +124,71 @@ func (a *agentSuite) TestOpenSignal() {
 	assert.Contains(a.T(), a.policies, a.desc, "The policies should contain the created rule")
 
 	// Push policies
-	a.Env().VM.Execute(fmt.Sprintf("echo %s > temp.txt\nsudo cp temp.txt %s", strconv.Quote(a.policies), cws.POLICIES_PATH))
+	a.Env().VM.Execute(fmt.Sprintf("echo -e %s > temp.txt\nsudo cp temp.txt %s", strconv.Quote(a.policies), cws.POLICIES_PATH))
+	a.Env().VM.Execute("rm temp.txt")
+	policiesFile := a.Env().VM.Execute(fmt.Sprintf("cat %s", cws.POLICIES_PATH))
+	assert.Contains(a.T(), policiesFile, a.desc, "The policies file should contain the created rule")
 
 	// Reload policies
 	a.Env().VM.Execute(fmt.Sprintf("sudo %s runtime policy reload", cws.SEC_AGENT_PATH))
-	a.Env().VM.Execute("rm temp.txt")
 
 	// Check `downloaded` ruleset_loaded
-	result, err := cws.WaitAppLogs(a.apiClient, "rule_id:ruleset_loaded  @policies.source:file")
+	result, err := cws.WaitAppLogs(a.apiClient, "rule_id:ruleset_loaded")
+	agentContext := result["agent"].(map[string]interface{})
 	if err != nil {
 		fmt.Println("Error", err)
 	}
-	assert.EqualValues(a.T(), "", result, "Ruleset should be loaded")
+	assert.EqualValues(a.T(), "ruleset_loaded", agentContext["rule_id"], "Ruleset should be loaded")
+
+	/*
+			with Step(msg="check agent event", emoji=":check_mark_button:"):
+			os.system(f"touch {filename}")
+
+			wait_agent_log(
+				"system-probe",
+				self.docker_helper,
+				f"Sending event message for rule `{agent_rule_name}`",
+			)
+
+			wait_agent_log("security-agent", self.docker_helper, "Successfully posted payload to")
+
+		with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
+			event = self.app.wait_app_log(f"rule_id:{agent_rule_name}")
+			attributes = event["data"][0]["attributes"]
+
+			self.assertIn("tag1", attributes["tags"], "unable to find tag")
+			self.assertIn("tag2", attributes["tags"], "unable to find tag")
+
+		with Step(msg="check app signal", emoji=":1st_place_medal:"):
+			tag = f"rule_id:{agent_rule_name}"
+			signal = self.app.wait_app_signal(tag)
+			attributes = signal["data"][0]["attributes"]
+
+			self.assertIn(tag, attributes["tags"], "unable to find rule_id tag")
+			self.assertEqual(
+				agent_rule_name,
+				attributes["attributes"]["agent"]["rule_id"],
+				"unable to find rule_id tag attribute",
+			)
+	*/
+
+	// Wait for host tags
+	time.Sleep(time.Minute * 3)
+
+	// Trigger agent event
+	a.Env().VM.Execute(fmt.Sprintf("touch %s", a.filename))
+
+	// Check agent event
+	err = cws.WaitAgentLogs(a.Env().VM, "security-agent", "Successfully posted payload to")
+	require.NoError(a.T(), err, "could not send payload")
+
+	// Check app event
+	event, err := cws.WaitAppLogs(a.apiClient, fmt.Sprintf("rule_id:%s", a.agentRuleName))
+	assert.NoError(a.T(), err)
+	fmt.Println("event =", event)
+	assert.Contains(a.T(), event["tags"], "tag1", "unable to find tag")
+	assert.Contains(a.T(), event["tags"], "tag2", "unable to find tag")
+
+	// Check app signal
 
 }

@@ -61,7 +61,7 @@ func (c MyApiClient) GetAppLog(query string) (*datadog.LogsListResponse, error) 
 
 	body := datadog.LogsListRequest{
 		Filter: &datadog.LogsQueryFilter{
-			From:  datadog.PtrString("now-15mn"),
+			From:  datadog.PtrString("now-15m"),
 			Query: &query,
 			To:    datadog.PtrString("now"),
 		},

@@ -6,13 +6,13 @@
 package cws
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
-	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 	"github.com/cenkalti/backoff"
 )
 
@@ -30,15 +30,16 @@ func WaitAgentLogs(vm *client.VM, agentName string, pattern string) error {
 	return err
 }
 
-func WaitAppLogs(apiClient MyApiClient, query string) (*datadog.LogsListResponse, error) {
-	var resp *datadog.LogsListResponse
+func WaitAppLogs(apiClient MyApiClient, query string) (map[string]interface{}, error) {
+	var resp map[string]interface{}
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppLog(query)
 		if err != nil {
 			return err
 		}
 		if len(tmpResp.Data) > 0 {
-			resp = tmpResp
+			resp = tmpResp.Data[len(tmpResp.Data)-1].Attributes.Attributes
+			json.Marshal(resp)
 			return nil
 		}
 		return errors.New("no log found")
