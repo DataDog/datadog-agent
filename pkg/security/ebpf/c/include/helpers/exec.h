@@ -8,6 +8,14 @@
 
 int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
     if (syscall->exec.is_parsed) {
+        // handle nlink that needs to be collected in the second pass
+        struct dentry *dentry  = get_file_dentry(file);
+        if (dentry) {
+            u32 nlink = get_dentry_nlink(dentry);
+            if (nlink > syscall->exec.file.metadata.nlink) {
+                syscall->exec.file.metadata.nlink = nlink;
+            }
+        }
         return 0;
     }
     syscall->exec.is_parsed = 1;

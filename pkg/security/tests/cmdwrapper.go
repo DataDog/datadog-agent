@@ -35,7 +35,11 @@ var dockerImageLibrary = map[string][]string{
 	},
 	"alpine": {
 		"alpine",
-		"public.ecr.aws/docker/library/alpine:latest",
+		"public.ecr.aws/docker/library/alpine:3.18.2", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
+	},
+	"busybox": {
+		"busybox",
+		"public.ecr.aws/docker/library/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 }
 
