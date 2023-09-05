@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	dockertypes "github.com/docker/docker/api/types"
@@ -158,9 +157,10 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		ImageTag          string                `json:"image_tag"`
 		InputSpecs        map[string]*InputSpec `json:"input"`
 	}{
-		RuleID:     rule.ID,
-		Hostname:   r.opts.Hostname,
-		InputSpecs: make(map[string]*InputSpec),
+		RuleID:      rule.ID,
+		Hostname:    r.opts.Hostname,
+		ContainerID: r.opts.ContainerID,
+		InputSpecs:  make(map[string]*InputSpec),
 	}
 
 	// We deactivate all docker rules, or kubernetes cluster rules if adequate
@@ -184,18 +184,10 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 	// the resolved inputs.
 	rootPath := r.opts.HostRoot
 	if containerID := r.opts.ContainerID; containerID != "" {
-		rp, ok := r.resolveContainerRootPath(ctx, containerID)
+		var ok bool
+		rootPath, ok = r.resolveContainerRootPath(ctx, containerID)
 		if !ok {
 			return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", containerID)
-		}
-		rootPath = rp
-		resolvingContext.ContainerID = containerID
-		if store := workloadmeta.GetGlobalStore(); store != nil {
-			if ctnr, _ := store.GetContainer(string(containerID)); ctnr != nil {
-				resolvingContext.ImageID = ctnr.Image.ID
-				resolvingContext.ImageName = ctnr.Image.Name
-				resolvingContext.ImageTag = ctnr.Image.Tag
-			}
 		}
 	}
 
