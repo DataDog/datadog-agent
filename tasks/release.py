@@ -1233,6 +1233,11 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
 def get_release_json_value(_, key):
+    release_json = _get_release_json_value(key)
+    print(release_json)
+
+
+def _get_release_json_value(key):
     release_json = _load_release_json()
 
     path = key.split('::')
@@ -1243,7 +1248,7 @@ def get_release_json_value(_, key):
 
         release_json = release_json.get(element)
 
-    print(release_json)
+    return release_json
 
 
 def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):

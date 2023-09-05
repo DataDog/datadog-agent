@@ -83,6 +83,10 @@ func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
+func (m mockCollector) GetChecks() []check.Check {
+	return nil
+}
+
 func TestGetPayloadForExpvar(t *testing.T) {
 	ctx := context.Background()
 	defer func() { clearMetadata() }()
@@ -394,86 +398,81 @@ func TestCreateCheckInstanceMetadataReturnsNewMetadata(t *testing.T) {
 	assert.NotEqual(t, checkMetadata[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
 }
 
+func testGeneric[T any](cfgName, invName string, input, output T) func(*testing.T) {
+	cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	return func(t *testing.T) {
+		cfg.Set(cfgName, input)
+		initializeConfig(cfg)
+		require.Equal(t, output, agentMetadata[AgentMetadataName(invName)].(T))
+	}
+}
+
 // Test the `initializeConfig` function and especially its scrubbing of secret values.
 func TestInitializeConfig(t *testing.T) {
+	t.Run("language detection enabled", testGeneric[bool](
+		"language_detection.enabled",
+		"feature_process_language_detection_enabled",
+		true,
+		true,
+	))
 
-	testString := func(cfgName, invName, input, output string) func(*testing.T) {
-		cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-		return func(t *testing.T) {
-			cfg.Set(cfgName, input)
-			initializeConfig(cfg)
-			require.Equal(t, output, agentMetadata[AgentMetadataName(invName)].(string))
-		}
-	}
-
-	testStringSlice := func(cfgName, invName string, input, output []string) func(*testing.T) {
-		cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-		return func(t *testing.T) {
-			if input != nil {
-				cfg.Set(cfgName, input)
-			}
-			initializeConfig(cfg)
-			require.Equal(t, output, agentMetadata[AgentMetadataName(invName)].([]string))
-		}
-	}
-
-	t.Run("config_apm_dd_url", testString(
+	t.Run("config_apm_dd_url", testGeneric[string](
 		"apm_config.apm_dd_url",
 		"config_apm_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_dd_url", testString(
+	t.Run("config_dd_url", testGeneric[string](
 		"dd_url",
 		"config_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_logs_dd_url", testString(
+	t.Run("config_logs_dd_url", testGeneric[string](
 		"logs_config.logs_dd_url",
 		"config_logs_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_logs_socks5_proxy_address", testString(
+	t.Run("config_logs_socks5_proxy_address", testGeneric[string](
 		"logs_config.socks5_proxy_address",
 		"config_logs_socks5_proxy_address",
 		"http://name:sekrit@proxy.example.com/",
 		"http://name:********@proxy.example.com/",
 	))
 
-	t.Run("config_no_proxy", testStringSlice(
+	t.Run("config_no_proxy", testGeneric[[]string](
 		"proxy.no_proxy",
 		"config_no_proxy",
 		[]string{"http://noprox.example.com", "http://name:sekrit@proxy.example.com/"},
 		[]string{"http://noprox.example.com", "http://name:********@proxy.example.com/"},
 	))
 
-	t.Run("config_no_proxy-nil", testStringSlice(
+	t.Run("config_no_proxy-nil", testGeneric[[]string](
 		"proxy.no_proxy",
 		"config_no_proxy",
 		nil,
 		[]string{},
 	))
 
-	t.Run("config_process_dd_url", testString(
+	t.Run("config_process_dd_url", testGeneric[string](
 		"process_config.process_dd_url",
 		"config_process_dd_url",
 		"http://name:sekrit@someintake.example.com/",
 		"http://name:********@someintake.example.com/",
 	))
 
-	t.Run("config_proxy_http", testString(
+	t.Run("config_proxy_http", testGeneric[string](
 		"proxy.http",
 		"config_proxy_http",
 		"http://name:sekrit@proxy.example.com/",
 		"http://name:********@proxy.example.com/",
 	))
 
-	t.Run("config_proxy_https", testString(
+	t.Run("config_proxy_https", testGeneric[string](
 		"proxy.https",
 		"config_proxy_https",
 		"https://name:sekrit@proxy.example.com/",

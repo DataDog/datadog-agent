@@ -15,9 +15,12 @@ import (
 
 // GetPayload builds a payload of processes metadata collected from gohai.
 func GetPayload(hostname string) *Payload {
-
 	// Get processes metadata from gohai
-	proc, err := new(processes.Processes).Collect()
+	var proc interface{}
+	info, err := processes.CollectInfo()
+	if err != nil {
+		proc, _, err = info.AsJSON()
+	}
 	if err != nil {
 		log.Warn("Failed to retrieve processes metadata: ", err)
 		return nil

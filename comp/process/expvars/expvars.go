@@ -97,6 +97,7 @@ func initStatus(deps dependencies) error {
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
+	languageDetectionEnabled := deps.Config.GetBool("language_detection.enabled")
+	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
 	return nil
 }

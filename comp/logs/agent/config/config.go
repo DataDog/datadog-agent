@@ -344,3 +344,8 @@ func TaggerWarmupDuration(coreConfig pkgConfig.ConfigReader) time.Duration {
 func AggregationTimeout(coreConfig pkgConfig.ConfigReader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).aggregationTimeout()
 }
+
+// MaxMessageSizeBytes is used to cap the maximum log message size in bytes
+func MaxMessageSizeBytes(coreConfig pkgConfig.ConfigReader) int {
+	return defaultLogsConfigKeys(coreConfig).maxMessageSizeBytes()
+}

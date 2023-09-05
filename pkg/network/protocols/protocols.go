@@ -30,7 +30,7 @@ type Protocol interface {
 	// PreStart is called before the start of the provided eBPF manager.
 	// Additional initialisation steps, such as starting an event consumer,
 	// should be performed here.
-	PreStart(*manager.Manager, BuildMode) error
+	PreStart(*manager.Manager) error
 
 	// PostStart is called after the start of the provided eBPF manager. Final
 	// initialisation steps, such as setting up a map cleaner, should be
@@ -70,14 +70,3 @@ type ProtocolSpec struct {
 	Probes    []*manager.Probe
 	TailCalls []manager.TailCallRoute
 }
-
-// BuildMode represents the way the eBPF code will be built. It used by
-// protocols to check if they are actually compatible with that build mode
-// before starting.
-type BuildMode string
-
-const (
-	Prebuilt        BuildMode = "prebuilt"
-	RuntimeCompiled BuildMode = "runtime-compilation"
-	CORE            BuildMode = "CO-RE"
-)

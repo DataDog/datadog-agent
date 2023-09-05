@@ -457,8 +457,24 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
     return 0;
 }
 
+SEC("fexit/tcp_connect")
+int BPF_PROG(tcp_connect_exit, struct sock *sk, int rc) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_connect");
+    if (rc == 0) {
+        // successful tcp_connect call, nothing to do
+        return 0;
+    }
+
+    // error returned from tcp_connect, remove entry
+    // from tcp_ongoing_connect_pid as tcp_finish_connect
+    // kprobe or tcp_close kprobe may not be called
+    // for this tcp_connect call
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+    return 0;
+}
+
 SEC("fentry/tcp_finish_connect")
-int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
+int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
     u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     if (!pid_tgid_p) {
@@ -655,7 +671,4 @@ int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struc
     return 0;
 }
 
-// This number will be interpreted by elf-loader to set the current running kernel version
-__u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)
-
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

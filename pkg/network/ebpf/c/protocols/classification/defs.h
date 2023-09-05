@@ -90,6 +90,26 @@ typedef struct {
     __u8 flags;
 } protocol_stack_t;
 
+// This wrapper type is being added so we can associate an update timestamp to
+// each `protocol_stack_t` value.
+//
+// This timestamp acts as a heartbeat and it is used only in userspace to detect stale
+// entries in the `connection_protocol` map which is currently leaking in some scenarios.
+//
+// Why create a wrapper type?
+//
+// `protocol_stack_t` is embedded in the `conn_stats_t` type, which is used
+// across the whole NPM kernel code. If we added the 64-bit timestamp field
+// directly to `protocol_stack_t`, we would go from 4 bytes to 12 bytes, which
+// bloats the eBPF stack size of some NPM probes.  Using the wrapper type
+// prevents that, because we pretty much only store the wrapper type in the
+// connection_protocol map, but elsewhere in the code we're still using
+// protocol_stack_t, so this is change is "transparent" to most of the code.
+typedef struct {
+    protocol_stack_t stack;
+    __u64 updated;
+} protocol_stack_wrapper_t;
+
 typedef enum {
     CLASSIFICATION_PROG_UNKNOWN = 0,
     __PROG_APPLICATION,

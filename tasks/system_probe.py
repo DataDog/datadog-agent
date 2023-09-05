@@ -28,7 +28,6 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
-SBOM_TAG = "trivy"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
@@ -487,7 +486,6 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
-    sbom=True,
 ):
     """
     Build the system-probe
@@ -513,7 +511,6 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
-        sbom=sbom,
     )
 
 
@@ -541,7 +538,6 @@ def build_sysprobe_binary(
     arch=CURRENT_ARCH,
     bundle_ebpf=False,
     strip_binary=False,
-    sbom=True,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -552,9 +548,6 @@ def build_sysprobe_binary(
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if sbom:
-        build_tags.append(SBOM_TAG)
-
     if strip_binary:
         ldflags += ' -s -w'
 
@@ -704,21 +697,63 @@ def go_package_dirs(packages, build_tags):
     return target_packages
 
 
+BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
+
+
+def clean_build(ctx):
+    if not os.path.exists(KITCHEN_ARTIFACT_DIR):
+        return True
+
+    if not os.path.exists(BUILD_COMMIT):
+        return True
+
+    # if this build happens on a new commit do it cleanly
+    with open(BUILD_COMMIT, 'r') as f:
+        build_commit = f.read().rstrip()
+        curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
+        if curr_commit != build_commit:
+            return True
+
+    return False
+
+
+def full_pkg_path(name):
+    return os.path.join(os.getcwd(), name[name.index("pkg") :])
+
+
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages=""):
     """
     Compile test suite for kitchen
     """
-
-    # Clean up previous build
-    if os.path.exists(KITCHEN_ARTIFACT_DIR):
-        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
-
     build_tags = [NPM_TAG]
     if not windows:
         build_tags.append(BPF_TAG)
 
     target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
+
+    # Clean up previous build
+    if os.path.exists(KITCHEN_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
+        shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+    elif packages != "":
+        packages = [full_pkg_path(name) for name in packages.split(",")]
+        # make sure valid packages were provided.
+        for pkg in packages:
+            if pkg not in target_packages:
+                raise Exit(f"Unknown target packages {pkg} specified")
+
+        target_packages = packages
+
+    if os.path.exists(BUILD_COMMIT):
+        os.remove(BUILD_COMMIT)
+
+    os.makedirs(KITCHEN_ARTIFACT_DIR, exist_ok=True)
+
+    # clean target_packages only
+    for pkg_dir in target_packages:
+        test_dir = pkg_dir.lstrip(os.getcwd())
+        if os.path.exists(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir)):
+            shutil.rmtree(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir))
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
@@ -774,6 +809,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
+    ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
 
 
 @task
@@ -1545,7 +1581,7 @@ def print_failed_tests(_, output_dir):
 
         for key, res in test_results.items():
             if res == "fail":
-                package, name = key.split(".")
+                package, name = key.split(".", maxsplit=1)
                 print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
                 fail_count += 1
 

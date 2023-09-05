@@ -6,11 +6,13 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -59,10 +61,10 @@ func TestServer(t *testing.T) {
 		fi.handleGetPayloads(response, request)
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 
-		expectedResponse := api.APIFakeIntakePayloadsGETResponse{
+		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: nil,
 		}
-		actualResponse := api.APIFakeIntakePayloadsGETResponse{}
+		actualResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading response")
 		json.Unmarshal(body, &actualResponse)
@@ -96,7 +98,7 @@ func TestServer(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
-		expectedGETResponse := api.APIFakeIntakePayloadsGETResponse{
+		expectedGETResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{
 				{
 					Timestamp: clock.Now(),
@@ -110,12 +112,49 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		actualGETResponse := api.APIFakeIntakePayloadsGETResponse{}
+		actualGETResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
 
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
+	})
+
+	t.Run("should store multiple payloads on any route and return them in json", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock))
+
+		postSomePayloads(t, fi)
+
+		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
+		assert.NoError(t, err, "Error creating GET request")
+		getResponse := httptest.NewRecorder()
+
+		fi.handleGetPayloads(getResponse, request)
+
+		assert.Equal(t, http.StatusOK, getResponse.Code)
+		expectedGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{
+			Payloads: []api.ParsedPayload{
+				{
+					Timestamp: clock.Now(),
+					Data: []interface{}{map[string]interface{}{
+						"hostname":  "totoro",
+						"message":   "Hello, can you hear me",
+						"service":   "callme",
+						"source":    "Adele",
+						"status":    "Info",
+						"tags":      []interface{}{"singer:adele"},
+						"timestamp": float64(0)}},
+					Encoding: "gzip",
+				},
+			},
+		}
+		actualGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{}
+		body, err := io.ReadAll(getResponse.Body)
+		assert.NoError(t, err, "Error reading GET response")
+		json.Unmarshal(body, &actualGETResponse)
+		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
+
 	})
 
 	t.Run("should accept GET requests on /fakeintake/health route", func(t *testing.T) {
@@ -257,7 +296,7 @@ func TestServer(t *testing.T) {
 		clock.Add(10 * time.Minute)
 
 		response10Min := httptest.NewRecorder()
-		var getResponse10Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
@@ -267,7 +306,7 @@ func TestServer(t *testing.T) {
 		clock.Add(10 * time.Minute)
 
 		response20Min := httptest.NewRecorder()
-		var getResponse20Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response20Min, request)
 		json.NewDecoder(response20Min.Body).Decode(&getResponse10Min)
@@ -291,7 +330,7 @@ func TestServer(t *testing.T) {
 		postSomePayloads(t, fi)
 
 		response10Min := httptest.NewRecorder()
-		var getResponse10Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
@@ -301,7 +340,7 @@ func TestServer(t *testing.T) {
 		clock.Add(10 * time.Minute)
 
 		response20Min := httptest.NewRecorder()
-		var getResponse20Min api.APIFakeIntakePayloadsGETResponse
+		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
 
 		fi.handleGetPayloads(response20Min, request)
 		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
@@ -323,7 +362,10 @@ func postSomePayloads(t *testing.T, fi *Server) {
 	postResponse = httptest.NewRecorder()
 	fi.handleDatadogRequest(postResponse, request)
 
-	request, err = http.NewRequest(http.MethodPost, "/api/v2/logs", strings.NewReader("I am just a poor log"))
+	fileBytes, err := os.ReadFile("fixture_test/log_bytes")
+	require.NoError(t, err, "Error reading logs fixture")
+	request, err = http.NewRequest(http.MethodPost, "/api/v2/logs", bytes.NewBuffer(fileBytes))
+	request.Header.Set("Content-Encoding", "gzip")
 	require.NoError(t, err, "Error creating POST request")
 	postResponse = httptest.NewRecorder()
 	fi.handleDatadogRequest(postResponse, request)

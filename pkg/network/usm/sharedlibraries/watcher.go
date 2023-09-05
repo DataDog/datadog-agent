@@ -78,7 +78,7 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 		loadEvents:     ebpfProgram.GetPerfHandler(),
 		processMonitor: monitor.GetProcessMonitor(),
 		ebpfProgram:    ebpfProgram,
-		registry:       utils.NewFileRegistry(),
+		registry:       utils.NewFileRegistry("shared_libraries"),
 
 		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
 		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),

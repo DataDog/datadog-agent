@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace
 
-go 1.18
+go 1.20
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -10,15 +10,15 @@ go 1.18
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230717151521-271965684571
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.7.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.0
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
@@ -32,7 +32,7 @@ require (
 	github.com/tinylib/msgp v1.1.8
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0014
-	go.opentelemetry.io/collector/semconv v0.82.0
+	go.opentelemetry.io/collector/semconv v0.83.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.10.0
 	golang.org/x/time v0.3.0

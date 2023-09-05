@@ -971,6 +971,10 @@ func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
+func (m mockCollector) GetChecks() []check.Check {
+	return nil
+}
+
 func TestGetVersion(t *testing.T) {
 	rawInstanceConfig := []byte(`
 unit_names:

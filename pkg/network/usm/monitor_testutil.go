@@ -30,7 +30,7 @@ type protocolMock struct {
 type protocolMockSpec struct {
 	// These functions can be set to change the behavior of those methods. If
 	// not set, the methods from the base protocol will be called.
-	preStartFn  func(*manager.Manager, protocols.BuildMode) error
+	preStartFn  func(*manager.Manager) error
 	postStartFn func(*manager.Manager) error
 	stopFn      func(*manager.Manager)
 }
@@ -43,11 +43,11 @@ func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Option
 	p.inner.ConfigureOptions(m, opts)
 }
 
-func (p *protocolMock) PreStart(mgr *manager.Manager, mode protocols.BuildMode) (err error) {
+func (p *protocolMock) PreStart(mgr *manager.Manager) (err error) {
 	if p.spec.preStartFn != nil {
-		return p.spec.preStartFn(mgr, mode)
+		return p.spec.preStartFn(mgr)
 	} else {
-		return p.inner.PreStart(mgr, mode)
+		return p.inner.PreStart(mgr)
 	}
 }
 

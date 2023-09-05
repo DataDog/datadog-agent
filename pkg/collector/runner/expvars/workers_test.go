@@ -151,7 +151,7 @@ func TestWorkersInstancesAsync(t *testing.T) {
 
 	maxTestWorkers := 500
 
-	start := make(chan struct{}, 0)
+	start := make(chan struct{})
 	expectedStats := make(map[string]*WorkerStats)
 
 	require.Equal(t, 0, GetWorkerCount())
@@ -244,7 +244,7 @@ func TestWorkersCountAsync(t *testing.T) {
 
 	var wg sync.WaitGroup
 	maxTestWorkers := 500
-	start := make(chan struct{}, 0)
+	start := make(chan struct{})
 
 	require.Equal(t, 0, GetWorkerCount())
 	require.Equal(t, 0, getWorkersCountExpvar(t))
