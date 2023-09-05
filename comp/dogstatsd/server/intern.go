@@ -80,9 +80,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 
 		// Clear strings of keys, leave the underlying allocation
 		// intact.
-		for k := range i.strings {
-			delete(i.strings, k)
-		}
+		clear(i.strings)
 		log.Debug("clearing the string interner cache")
 
 	}
