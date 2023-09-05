@@ -5,7 +5,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
+int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory, const char *uargs) {
     struct policy_t policy = fetch_policy(EVENT_INIT_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_INIT_MODULE)) {
         return 0;
@@ -18,16 +18,21 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
         },
     };
 
+	int len = bpf_probe_read_user_str(&syscall.init_module.args, sizeof(syscall.init_module.args), uargs);
+    if (len == sizeof(syscall.init_module.args)) {
+        syscall.init_module.args_truncated = 1;
+    }
+
     cache_syscall(&syscall);
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(init_module) {
-    return trace_init_module(1);
+HOOK_SYSCALL_ENTRY3(init_module, void *, umod, unsigned long, len, const char *, uargs) {
+    return trace_init_module(1, uargs);
 }
 
-HOOK_SYSCALL_ENTRY0(finit_module) {
-    return trace_init_module(0);
+HOOK_SYSCALL_ENTRY3(finit_module, int, fd, const char *, uargs, int, flags) {
+    return trace_init_module(0, uargs);
 }
 
 int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, int dr_type) {
@@ -52,21 +57,6 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_INIT_MODULE);
 
-    return 0;
-}
-
-HOOK_ENTRY("load_module")
-int hook_load_module(ctx_t *ctx) {
-	struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
-    if (!syscall) {
-        return 0;
-    }
-
-    char *args = (char *)CTX_PARM2(ctx);
-    int len = bpf_probe_read_user_str(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
-    if (len == sizeof(syscall->init_module.args)) {
-        syscall->init_module.args_truncated = 1;
-    }
     return 0;
 }
 
