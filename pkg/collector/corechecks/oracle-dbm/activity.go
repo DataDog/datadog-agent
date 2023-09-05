@@ -90,8 +90,8 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	sql_fulltext,
-	prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, 4000, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, 4000, 1) prev_sql_fulltext,
 	pdb_name,
 	command_name
 FROM sys.dd_session
@@ -161,8 +161,8 @@ ELSE
 END wait_class,
 s.wait_time_micro,
 c.name as pdb_name,
-sq.sql_fulltext as sql_fulltext,
-sq_prev.sql_fulltext as prev_sql_fulltext,
+dbms_lob.substr(sq.sql_fulltext, 4000, 1) sql_fulltext,
+dbms_lob.substr(sq.prev_sql_fulltext, 4000, 1) prev_sql_fulltext,
 comm.command_name
 FROM
 v$session s,
@@ -283,6 +283,7 @@ type OracleActivityRowDB struct {
 	CommandName                sql.NullString `db:"COMMAND_NAME"`
 }
 
+// Converts sql types to Go native types
 func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString) (OracleSQLRow, error) {
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
@@ -334,6 +335,10 @@ func (c *Check) SampleSession() error {
 		activityQuery = ACTIVITY_QUERY_DIRECT
 	} else {
 		activityQuery = ACTIVITY_QUERY
+	}
+
+	if c.config.QuerySamples.IncludeAllSessions {
+		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
 	}
 
 	err := selectWrapper(c, &sessionSamples, activityQuery)
@@ -447,19 +452,54 @@ func (c *Check) SampleSession() error {
 		obfuscate := true
 		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
+
+			// If we captured the statement, we are assigning the value
 			statement = sample.Statement.String
+
+			/*
+			 * If the statement length is 4000 characters, we are assuming that the statement was truncated,
+			 * so we are trying to fetch it complete. The full statement is stored in a LOB, so we are calling
+			 * getFullSQLText which doesn't leak PGA memory
+			 */
+			if len(statement) == 4000 {
+				var fetchedStatement string
+				err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlCurrentSQL.SQLID)
+				if err != nil {
+					log.Warnf("failed to fetch full sql text for the current sql_id: %s", err)
+				}
+				if fetchedStatement != "" {
+					statement = fetchedStatement
+				}
+			}
+
 			hasRealSQLText = true
 		} else if previousSQL {
 			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
 				statement = sample.PrevSQLFullText.String
+				if len(statement) == 4000 {
+					var fetchedStatement string
+					err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlPrevSQL.SQLID)
+					if err != nil {
+						log.Warnf("failed to fetch full sql text for the previous sql_id (truncated text): %s", err)
+					}
+					if fetchedStatement != "" {
+						statement = fetchedStatement
+					}
+				}
 			} else {
 				/* The case where we got the previous sql but not the text. Happens when
 				 * a cursor with a short living explain plan was evicted from the shared pool.
 				 * We'll search for the text of a different cursor of the same SQL.
 				 */
-				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
-				if err != nil {
-					log.Errorf("sql_text for the previous statement: %s", err)
+				if len(statement) == 4000 {
+					var fetchedStatement string
+					err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlPrevSQL.SQLID)
+					if err != nil {
+						log.Warnf("failed to fetch full sql text for the previous sql_id: %s", err)
+					}
+					if fetchedStatement != "" {
+						statement = fetchedStatement
+					}
 				}
 				if statement != "" {
 					hasRealSQLText = true

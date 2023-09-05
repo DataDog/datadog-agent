@@ -45,9 +45,7 @@ func (c *Check) CustomQueries() error {
 	if c.dbCustomQueries == nil {
 		db, err := c.Connect()
 		if err != nil {
-			if errClosing := CloseDatabaseConnection(db); err != nil {
-				log.Errorf("Error closing connection %s", errClosing)
-			}
+			closeDatabase(c, db)
 			return err
 		}
 		if db == nil {
