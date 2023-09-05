@@ -48,3 +48,15 @@ func (vmClient *vmClient) Execute(command string) string {
 	require.NoError(vmClient.t, err)
 	return output
 }
+
+// CopyFile copy file to the remote host
+func (vmClient *vmClient) CopyFile(src string, dst string) {
+	err := clients.CopyFile(vmClient.client, src, dst)
+	require.NoError(vmClient.t, err)
+}
+
+// CopyFolder copy a folder to the remote host
+func (vmClient *vmClient) CopyFolder(srcFolder string, dstFolder string) {
+	err := clients.CopyFolder(vmClient.client, srcFolder, dstFolder)
+	require.NoError(vmClient.t, err)
+}
