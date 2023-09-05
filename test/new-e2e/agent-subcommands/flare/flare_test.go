@@ -27,7 +27,7 @@ func TestFlareSuite(t *testing.T) {
 	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef(nil), params.WithDevMode())
 }
 
-func waitForAgentAndGetFlare(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
+func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
 	_ = v.Env().Agent.Flare(flareArgs...)
 
 	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
@@ -38,7 +38,7 @@ func waitForAgentAndGetFlare(v *commandFlareSuite, flareArgs ...client.AgentArgs
 
 func (v *commandFlareSuite) TestFlareDefaultFiles() {
 	v.UpdateEnv(e2e.FakeIntakeStackDef(nil))
-	flare := waitForAgentAndGetFlare(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
@@ -90,7 +90,7 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	v.UpdateEnv(e2e.FakeIntakeStackDef(nil, agentOptions...))
 
-	flare := waitForAgentAndGetFlare(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
