@@ -121,7 +121,7 @@ class GithubAPI:
         """
         url = artifact.archive_download_url
 
-        return self.download_from_url(url, destination_dir, destination_dir=artifact.id)
+        return self.download_from_url(url, destination_dir, destination_file=artifact.id)
 
     def download_from_url(self, url, destination_dir, destination_file):
         import requests
