@@ -73,7 +73,7 @@ func (rc *RemoteConfigProvider) String() string {
 	return names.RemoteConfig
 }
 
-// GetConfigErrors is not implemented for the FileConfigProvider
+// GetConfigErrors returns a map of configuration errors for each configuration path
 func (rc *RemoteConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
