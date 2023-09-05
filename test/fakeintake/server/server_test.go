@@ -108,12 +108,12 @@ func TestServer(t *testing.T) {
 		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{
 				{
-					Timestamp: clock.Now(),
+					Timestamp: clock.Now().UTC(),
 					Encoding:  "",
 					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
 				},
 				{
-					Timestamp: clock.Now(),
+					Timestamp: clock.Now().UTC(),
 					Encoding:  "",
 					Data:      []byte("totoro|5|tag:valid,owner:kiki"),
 				},
@@ -138,7 +138,7 @@ func TestServer(t *testing.T) {
 		expectedGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: []api.ParsedPayload{
 				{
-					Timestamp: clock.Now(),
+					Timestamp: clock.Now().UTC(),
 					Data: []interface{}{map[string]interface{}{
 						"hostname":  "totoro",
 						"message":   "Hello, can you hear me",

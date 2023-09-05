@@ -207,7 +207,7 @@ func (fi *Server) cleanUpPayloadsRoutine() {
 }
 
 func (fi *Server) cleanUpPayloads() {
-	now := fi.clock.Now()
+	now := fi.clock.Now().UTC()
 	fi.storeMutex.Lock()
 	defer fi.storeMutex.Unlock()
 	for route, payloads := range fi.payloadStore {
@@ -371,7 +371,7 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 		fi.payloadStore[route] = []api.Payload{}
 	}
 	rawPayload := api.Payload{
-		Timestamp: fi.clock.Now(),
+		Timestamp: fi.clock.Now().UTC(),
 		Data:      data,
 		Encoding:  encoding,
 	}
