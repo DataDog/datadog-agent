@@ -295,6 +295,7 @@ def lint_flavor(
     arch: str,
     rtloader_root: bool,
     concurrency: int,
+    timeout=None,
     golangci_lint_kwargs: str = "",
 ):
     """
@@ -310,6 +311,7 @@ def lint_flavor(
                 build_tags=build_tags,
                 arch=arch,
                 concurrency=concurrency,
+                timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
             )
             for lint_result in lint_results:
@@ -740,6 +742,7 @@ def run_lint_go(
     rtloader_root=None,
     arch="x64",
     cpus=None,
+    timeout=None,
     golangci_lint_kwargs="",
 ):
     modules, flavors = process_input_args(module, targets, flavors)
@@ -765,6 +768,7 @@ def run_lint_go(
             arch=arch,
             rtloader_root=rtloader_root,
             concurrency=cpus,
+            timeout=timeout,
             golangci_lint_kwargs=golangci_lint_kwargs,
         )
 
@@ -784,6 +788,7 @@ def lint_go(
     rtloader_root=None,
     arch="x64",
     cpus=None,
+    timeout: int = None,
     golangci_lint_kwargs="",
 ):
     """
@@ -795,6 +800,8 @@ def lint_go(
     If targets are provided but no module is set, the main module (".") is used.
 
     If no module or target is set the tests are run against all modules and targets.
+
+    --timeout is the number of minutes after which the linter should time out.
 
     Example invokation:
         inv lint-go --targets=./pkg/collector/check,./pkg/aggregator
@@ -822,6 +829,7 @@ def lint_go(
         rtloader_root=rtloader_root,
         arch=arch,
         cpus=cpus,
+        timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
     )
 

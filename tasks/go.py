@@ -37,6 +37,7 @@ def run_golangci_lint(
     build="test",
     arch="x64",
     concurrency=None,
+    timeout=None,
     verbose=False,
     golangci_lint_kwargs="",
 ):
@@ -60,8 +61,9 @@ def run_golangci_lint(
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(sorted(set(tags)))
+        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
         result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout 25m0s {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
+            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )
