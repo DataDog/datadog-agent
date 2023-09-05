@@ -32,6 +32,9 @@ var Cache = cache.New(defaultExpire, defaultPurge)
 // and path elements passed as arguments. It is to be used by core agent
 // packages to reuse the prefix constant
 func BuildAgentKey(keys ...string) string {
+	// NOTE this function is called repeatedly in the normal operation of
+	// the Agent. In PR #19125 we modified its internals to allocate
+	// less. Please be aware that this function is an allocation hotspot.
 	var builder strings.Builder
 
 	// Preallocate memory for the passed keys and the slashes. This will be
