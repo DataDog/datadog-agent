@@ -352,7 +352,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
-		assert.Equal(out, result)
+		assertConnsEqual(t, out, result)
 	})
 
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
@@ -376,7 +376,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
-		assert.Equal(out, result)
+		assertConnsEqual(t, out, result)
 	})
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
@@ -407,8 +407,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
-		assert.Equal(out, result)
-
+		assertConnsEqual(t, out, result)
 	})
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
@@ -440,7 +439,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
-		assert.Equal(out, result)
+		assertConnsEqual(t, out, result)
 	})
 
 	t.Run("render default values with application/json", func(t *testing.T) {
@@ -481,7 +480,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		require.NoError(t, err)
 		sort.Strings(result.Tags)
 
-		assert.Equal(out, result)
+		assertConnsEqual(t, out, result)
 	})
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
 		newConfig(t)
@@ -497,7 +496,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		require.NoError(t, err)
 		sort.Strings(result.Tags)
 
-		assert.Equal(out, result)
+		assertConnsEqual(t, out, result)
 	})
 }
 
@@ -609,8 +608,36 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
+	assertConnsEqual(t, out, result)
+}
 
-	assert.Equal(t, out, result)
+func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
+	require.Equal(t, len(expected.Conns), len(actual.Conns), "expected both model.Connections to have the same number of connections")
+
+	for i := 0; i < len(actual.Conns); i++ {
+		expectedRawHTTP := expected.Conns[i].HttpAggregations
+		actualRawHTTP := actual.Conns[i].HttpAggregations
+
+		if len(expectedRawHTTP) == 0 && len(actualRawHTTP) != 0 {
+			t.Fatalf("expected connection %d to have no HTTP, but got %v", i, actualRawHTTP)
+		}
+		if len(expectedRawHTTP) != 0 && len(actualRawHTTP) == 0 {
+			t.Fatalf("expected connection %d to have HTTP data, but got none", i)
+		}
+
+		// the expected HTTPAggregations are encoded with  gogoproto, and the actual HTTPAggregations are encoded with gostreamer.
+		// thus they will not be byte-for-byte equal.
+		// the workaround is to check for protobuf equality, and then set actual.Conns[i] == expected.Conns[i]
+		// so actual.Conns and expected.Conns can be compared.
+		var expectedHTTP, actualHTTP model.HTTPAggregations
+		require.NoError(t, proto.Unmarshal(expectedRawHTTP, &expectedHTTP))
+		require.NoError(t, proto.Unmarshal(actualRawHTTP, &actualHTTP))
+		require.Equalf(t, expectedHTTP, actualHTTP, "HTTP connection %d was not equal", i)
+		actual.Conns[i].HttpAggregations = expected.Conns[i].HttpAggregations
+	}
+
+	assert.Equal(t, expected, actual)
+
 }
 
 func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
