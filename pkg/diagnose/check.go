@@ -99,16 +99,19 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config) []diagnosis.Diagnosis 
 		}
 	}
 
-	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 0
-	opts.DontStartForwarders = true
-	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
-	log := log.NewTemporaryLoggerWithoutInit()
+	aggregator.SetDemultiplexerIfNotSet(func() {
+		// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
+		opts := aggregator.DefaultAgentDemultiplexerOptions()
+		opts.FlushInterval = 0
+		opts.DontStartForwarders = true
+		opts.UseNoopEventPlatformForwarder = true
+		opts.UseNoopOrchestratorForwarder = true
+		log := log.NewTemporaryLoggerWithoutInit()
 
-	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
+		forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
+		// Call InitAndStartAgentDemultiplexerWithoutLock because SetDemultiplexerIfNotSet already have the lock
+		aggregator.InitAndStartAgentDemultiplexerWithoutLock(log, forwarder, opts, hostnameDetected)
+	})
 
 	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

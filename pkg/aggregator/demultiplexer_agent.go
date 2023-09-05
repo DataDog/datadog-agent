@@ -118,13 +118,28 @@ type dataOutputs struct {
 	noAggSerializer  serializer.MetricSerializer
 }
 
+// SetDemultiplexerIfNotSet set the global demultiplexer instance if it is not set.
+// This is a temporary function
+func SetDemultiplexerIfNotSet(createAndSetGlobalInstance func()) {
+	demultiplexerInstanceMu.Lock()
+	defer demultiplexerInstanceMu.Unlock()
+	if demultiplexerInstance == nil {
+		createAndSetGlobalInstance()
+	}
+}
+
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
+	return InitAndStartAgentDemultiplexerWithoutLock(log, sharedForwarder, options, hostname)
+}
 
+// InitAndStartAgentDemultiplexerWithoutLock is the same as InitAndStartAgentDemultiplexer but without lock.
+// This is a temporary function.
+func InitAndStartAgentDemultiplexerWithoutLock(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demux := initAgentDemultiplexer(log, sharedForwarder, options, hostname)
 
 	if demultiplexerInstance != nil {
