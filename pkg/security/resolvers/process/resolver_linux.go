@@ -98,6 +98,7 @@ type Resolver struct {
 	envsTruncated             *atomic.Int64
 	envsSize                  *atomic.Int64
 	brokenLineage             *atomic.Int64
+	inodeErrStats             *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
@@ -271,6 +272,12 @@ func (p *Resolver) SendStats() error {
 		}
 	}
 
+	if count := p.inodeErrStats.Swap(0); count > 0 {
+		if err := p.statsdClient.Count(metrics.MetricProcessInodeError, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send process_resolver inode error metric: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -321,19 +328,19 @@ func (p *Resolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(entry, model.ProcessCacheEntryFromEvent)
+	p.insertForkEntry(entry, inode, model.ProcessCacheEntryFromEvent)
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry) {
+func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry, inode uint64) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry, model.ProcessCacheEntryFromEvent)
+	p.insertExecEntry(entry, inode, model.ProcessCacheEntryFromEvent)
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
@@ -518,7 +525,7 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint
 	p.cacheSize.Inc()
 }
 
-func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -526,27 +533,32 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, source uint64
 	}
 
 	parent := p.entryCache[entry.PPid]
-	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid, entry.ExecInode, true)
+	if entry.PPid >= 1 && (parent == nil || parent.FileEvent.Inode != inode) {
+		if candidate := p.resolve(entry.PPid, entry.PPid, inode, true); candidate != nil {
+			parent = candidate
+		} else {
+			entry.IsParentMissing = true
+			p.inodeErrStats.Inc()
+		}
 	}
 
-	if parent == nil {
-		return
+	if parent != nil {
+		parent.Fork(entry)
+	} else {
+		entry.IsParentMissing = true
 	}
-
-	// check the inode to make sure that if we miss an exec, we don't copy the data from the wrong parent.
-	if parent.FileEvent.Inode != entry.ExecInode {
-		return
-	}
-
-	parent.Fork(entry)
 
 	p.insertEntry(entry, prev, source)
 }
 
-func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
+		if prev.FileEvent.Inode != inode {
+			entry.IsParentMissing = true
+			p.inodeErrStats.Inc()
+		}
+
 		// check exec bomb
 		if prev.Equals(entry) {
 			prev.ApplyExecTimeOf(entry)
@@ -554,6 +566,8 @@ func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, source uint64
 		}
 
 		prev.Exec(entry)
+	} else {
+		entry.IsParentMissing = true
 	}
 
 	p.insertEntry(entry, prev, source)
@@ -843,11 +857,11 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.P
 	}
 
 	if entry.ExecTime.IsZero() {
-		p.insertForkEntry(entry, model.ProcessCacheEntryFromKernelMap)
-		return entry
+		p.insertForkEntry(entry, entry.FileEvent.Inode, model.ProcessCacheEntryFromKernelMap)
+	} else {
+		p.insertExecEntry(entry, 0, model.ProcessCacheEntryFromKernelMap)
 	}
 
-	p.insertExecEntry(entry, model.ProcessCacheEntryFromKernelMap)
 	return entry
 }
 
@@ -1350,6 +1364,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		envsTruncated:             atomic.NewInt64(0),
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
+		inodeErrStats:             atomic.NewInt64(0),
 		containerResolver:         containerResolver,
 		mountResolver:             mountResolver,
 		cgroupResolver:            cgroupResolver,

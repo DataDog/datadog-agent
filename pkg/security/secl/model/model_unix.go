@@ -337,8 +337,9 @@ type Process struct {
 	ScrubbedArgsTruncated bool           `field:"-" json:"-"`
 	Variables             eval.Variables `field:"-" json:"-"`
 
-	IsThread    bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
-	IsExecChild bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsThread        bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExecChild     bool `field:"-"`         // Indicates whether the process is an exec child of its parent
+	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
 	Source uint64 `field:"-" json:"-"`
 }

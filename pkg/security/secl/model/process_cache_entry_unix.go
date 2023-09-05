@@ -39,6 +39,21 @@ func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
 	return false
 }
 
+// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
+func (pc *ProcessCacheEntry) HasValidLineage() bool {
+	for pc != nil {
+		if pc.IsParentMissing {
+			return false
+		}
+
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
+}
+
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime

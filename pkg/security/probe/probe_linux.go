@@ -484,12 +484,13 @@ func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
 	}
 }
 
-func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event) error {
+// setProcessContext set the process context, should return false if the event shouldn't be dispatched
+func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
 			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
-		} else if !entry.HasCompleteLineage() {
+		} else if !entry.HasValidLineage() {
 			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
 			p.resolvers.ProcessResolver.CountBrokenLineage()
 		}
@@ -505,7 +506,14 @@ func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event)
 		panic("should always return a process context")
 	}
 
-	return event.Error
+	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+		return false
+	}
+
+	// flush exited process
+	p.resolvers.ProcessResolver.DequeueExited()
+
+	return true
 }
 
 func (p *Probe) handleEvent(CPU int, data []byte) {
@@ -522,6 +530,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
+	if eventType > model.MaxKernelEventType {
+		seclog.Errorf("unsupported event type %d", eventType)
+		return
+	}
+
 	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
@@ -591,9 +604,45 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		offset += read
 	}
 
-	// process context first except for exec and fork
-	if eventType != model.ExecEventType && eventType != model.ForkEventType {
-		_ = p.setProcessContext(eventType, event)
+	// handle exec and fork before process context resolution as they modify the process context resolution
+	switch eventType {
+	case model.ForkEventType:
+		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+			return
+		}
+
+		p.resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
+		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+
+		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+	case model.ExecEventType:
+		// unmarshal and fill event.processCacheEntry
+		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
+			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
+
+			var errResolution *path.ErrPathResolution
+			if errors.As(err, &errResolution) {
+				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
+			}
+		} else {
+			p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+		}
+
+		event.Exec.Process = &event.ProcessCacheEntry.Process
+	}
+
+	if !p.setProcessContext(eventType, event) {
+		return
 	}
 
 	switch eventType {
@@ -689,39 +738,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case model.ForkEventType:
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
-			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
-			return
-		}
-
-		p.resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
-		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
-
-		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry)
-	case model.ExecEventType:
-		// unmarshal and fill event.processCacheEntry
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
-			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
-			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
-
-			var errResolution *path.ErrPathResolution
-			if errors.As(err, &errResolution) {
-				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
-			}
-		} else {
-			p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
-		}
-
-		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
 		if _, err = event.Exit.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
@@ -889,30 +905,16 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-	default:
-		seclog.Errorf("unsupported event type %d", eventType)
-		return
 	}
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
-	if eventType == model.ExecEventType || eventType == model.ForkEventType {
-		_ = p.setProcessContext(eventType, event)
-	}
-
-	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-		return
-	}
-
-	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, p.fieldHandlers.ResolveEventTime(event))
-	}
-
 	p.DispatchEvent(event)
 
-	// flush exited process
-	p.resolvers.ProcessResolver.DequeueExited()
+	if eventType == model.ExitEventType {
+		p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, p.fieldHandlers.ResolveEventTime(event))
+	}
 }
 
 // AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
