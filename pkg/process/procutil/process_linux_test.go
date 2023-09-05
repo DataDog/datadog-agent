@@ -945,11 +945,9 @@ func TestGetFDCountLocalFS(t *testing.T) {
 }
 
 func TestStatsWithPermByPID(t *testing.T) {
-	t.Skip("flaky")
-
 	t.Setenv("HOST_PROC", "resources/zero_io")
 	// create a fd dir so that the FD collection doesn't return -1
-	os.Mkdir("resources/zero_io/3/fd", 0400)
+	os.Mkdir("resources/zero_io/3/fd", 0500)
 	defer os.Remove("resources/zero_io/3/fd")
 
 	probe := getProbeWithPermission()
