@@ -18,8 +18,7 @@ build do
   # and manually move the contents of libcom_err into the Agent
   # Build e2fsprogs in a temp directory
   build_with_autotools({
-    :prefix="#{install_dir}/embedded/temp_dir",
-    :config_opts=[
+    :configure_opts => [
       "--enable-elf-shlibs"
     ]
   })
