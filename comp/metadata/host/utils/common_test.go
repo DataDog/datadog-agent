@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package common
+package utils
 
 import (
 	"testing"
@@ -14,12 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func TestGetPayload(t *testing.T) {
+func TestGetCommonPayload(t *testing.T) {
 	mockConfig := config.Mock(t)
 	mockConfig.Set("api_key", "foo")
 
-	p := GetPayload("hostname")
-	assert.Equal(t, p.APIKey, "foo")
-	assert.Equal(t, p.AgentVersion, version.AgentVersion)
-	assert.Equal(t, p.InternalHostname, "hostname")
+	p := GetCommonPayload("hostname", mockConfig)
+	assert.Equal(t, "foo", p.APIKey)
+	assert.Equal(t, version.AgentVersion, p.AgentVersion)
+	assert.Equal(t, "hostname", p.InternalHostname)
+	assert.Equal(t, getUUID(), p.UUID)
 }

@@ -6,8 +6,12 @@
 // Package resources collects the resources payload
 package resources
 
-// Payload handles the JSON unmarshalling of the metadata payload
-type Payload struct {
-	Processes map[string]interface{} `json:"processes"`
-	Meta      map[string]string      `json:"meta"`
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func Test(t *testing.T) {
+	assert.True(t, Disabled().Disabled)
 }

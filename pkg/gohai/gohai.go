@@ -8,6 +8,7 @@
 package gohai
 
 import (
+	"encoding/json"
 	"net"
 	"sync"
 
@@ -62,6 +63,16 @@ func GetPayloadWithProcesses(isContainerized bool) *Payload {
 	return &Payload{
 		Gohai: getGohaiInfo(isContainerized, true),
 	}
+}
+
+// GetPayloadAsString marshals the gohai struct twice (to a string). This allows the gohai payload to be embedded as a
+// string in a JSON. This is required to mimic the metadata format inherited from Agent v5.
+func GetPayloadAsString(IsContainerized bool) (string, error) {
+	marshalledPayload, err := json.Marshal(getGohaiInfo(IsContainerized, false))
+	if err != nil {
+		return "", err
+	}
+	return string(marshalledPayload), nil
 }
 
 func getGohaiInfo(isContainerized, withProcesses bool) *gohai {

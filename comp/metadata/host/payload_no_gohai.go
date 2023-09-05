@@ -5,18 +5,16 @@
 
 //go:build freebsd || netbsd || openbsd || solaris || dragonfly
 
-package v5
+package host
 
 import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	CommonPayload
-	HostPayload
+	hostMetadataUtils.CommonPayload
+	hostMetadataUtils.Payload
 	// Notice: ResourcesPayload requires gohai so it can't be included
 	// TODO: gohai alternative (or fix gohai)
 }
@@ -25,4 +23,13 @@ type Payload struct {
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	// Metadata payloads are analyzed as a whole, so they cannot be split
 	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
+}
+
+// getPayload returns the complete metadata payload as seen in Agent v5. Note: gohai can't be used on the platforms
+// this module builds for
+func (h *host) getPayload(hostname string) *Payload {
+	return &Payload{
+		CommonPayload: *common.GetPayload(host.hostname),
+		HostPayload:   *hostMetadataUtils.GetPayload(ctx, h.config),
+	}
 }
