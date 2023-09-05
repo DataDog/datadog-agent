@@ -18,7 +18,7 @@ func GetPayload(hostname string) *Payload {
 	// Get processes metadata from gohai
 	var proc interface{}
 	info, err := processes.CollectInfo()
-	if err != nil {
+	if err == nil {
 		proc, _, err = info.AsJSON()
 	}
 	if err != nil {
