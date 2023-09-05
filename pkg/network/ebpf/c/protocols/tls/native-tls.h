@@ -124,7 +124,7 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
         goto cleanup;
     }
 
-    https_process(t, args->buf, len, LIBSSL);
+    tls_process(t, args->buf, len, LIBSSL);
     http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
@@ -161,7 +161,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    https_process(t, args->buf, write_len, LIBSSL);
+    tls_process(t, args->buf, write_len, LIBSSL);
     http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
@@ -214,7 +214,7 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+    tls_process(conn_tuple, args->buf, bytes_count, LIBSSL);
     http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
@@ -266,7 +266,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
         goto cleanup;
     }
 
-    https_process(conn_tuple, args->buf, bytes_count, LIBSSL);
+    tls_process(conn_tuple, args->buf, bytes_count, LIBSSL);
     http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
@@ -283,7 +283,7 @@ int uprobe__SSL_shutdown(struct pt_regs *ctx) {
         return 0;
     }
 
-    https_finish(t);
+    tls_finish(t);
     http_batch_flush(ctx);
 
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
@@ -389,7 +389,7 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
         goto cleanup;
     }
 
-    https_process(t, args->buf, read_len, LIBGNUTLS);
+    tls_process(t, args->buf, read_len, LIBGNUTLS);
     http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
@@ -427,7 +427,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
         goto cleanup;
     }
 
-    https_process(t, args->buf, write_len, LIBGNUTLS);
+    tls_process(t, args->buf, write_len, LIBGNUTLS);
     http_batch_flush(ctx);
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
@@ -442,7 +442,7 @@ static __always_inline void gnutls_goodbye(void *ssl_session) {
         return;
     }
 
-    https_finish(t);
+    tls_finish(t);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
 }
 

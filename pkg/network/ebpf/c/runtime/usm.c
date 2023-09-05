@@ -166,7 +166,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     }
 
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
-    https_process(t, (void*) call_data_ptr->b_data, bytes_written, GO);
+    tls_process(t, (void*) call_data_ptr->b_data, bytes_written, GO);
     http_batch_flush(ctx);
 
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
@@ -257,7 +257,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     }
 
     log_debug("[go-tls-read] processing %s\n", call_data_ptr->b_data);
-    https_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
+    tls_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
     http_batch_flush(ctx);
 
     bpf_map_delete_elem(&go_tls_read_args, &call_key);
@@ -294,7 +294,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
         return 0;
     }
 
-    https_finish(t);
+    tls_finish(t);
     http_batch_flush(ctx);
 
     // Clear the element in the map since this connection is closed

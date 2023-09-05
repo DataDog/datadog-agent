@@ -29,15 +29,18 @@
 
 #define HTTPS_PORT 443
 
-/* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS) and */
+static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
+
+/* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS, JavaTLS) and */
 /* it's used for classify the subset of protocols that is supported by `classify_protocol_for_dispatcher` */
-static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *buffer, size_t len) {
-    protocol_stack_t *stack = get_protocol_stack(t);
-    if (!stack || is_protocol_layer_known(stack, LAYER_APPLICATION)) {
-        return;
-    }
+static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, conn_tuple_t *t, void *buffer, size_t len) {
     // we're in the context of TLS hookpoints, thus the protocol is TLS.
     set_protocol(stack, PROTOCOL_TLS);
+
+    if (is_protocol_layer_known(stack, LAYER_APPLICATION)) {
+        // No classification is needed.
+        return;
+    }
 
     protocol_t proto = PROTOCOL_UNKNOWN;
     classify_protocol_for_dispatcher(&proto, t, buffer, len);
@@ -48,25 +51,55 @@ static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *bu
     set_protocol(stack, proto);
 }
 
-static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
+static __always_inline void tls_process(conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
+    protocol_stack_t *stack = get_protocol_stack(t);
+    if (!stack) {
+        return;
+    }
 
-static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {
+    char request_fragment[CLASSIFICATION_MAX_BUFFER];
+    bpf_memset(request_fragment, 0, sizeof(CLASSIFICATION_MAX_BUFFER));
+    read_into_buffer_classification(request_fragment, buffer_ptr, len);
+
+    classify_decrypted_payload(stack, t, request_fragment, len);
+
+    protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     http_transaction_t http;
-    bpf_memset(&http, 0, sizeof(http));
-    bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
-    read_into_buffer(http.request_fragment, buffer, len);
-    http_process(&http, NULL, tags);
-    classify_decrypted_payload(&http.tup, http.request_fragment, len);
+    switch (protocol) {
+    case PROTOCOL_HTTP:
+        bpf_memset(&http, 0, sizeof(http));
+        bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
+        read_into_buffer(http.request_fragment, buffer_ptr, len);
+        http_process(&http, NULL, tags);
+        break;
+    default:
+        return;
+    }
 }
 
-static __always_inline void https_finish(conn_tuple_t *t) {
-    http_transaction_t http;
-    bpf_memset(&http, 0, sizeof(http));
-    bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
+static __always_inline void tls_finish(conn_tuple_t *t) {
+    protocol_stack_t *stack = get_protocol_stack(t);
+    if (!stack) {
+        return;
+    }
 
-    skb_info_t skb_info = {0};
-    skb_info.tcp_flags |= TCPHDR_FIN;
-    http_process(&http, &skb_info, NO_TAGS);
+    protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+    http_transaction_t http;
+    switch (protocol) {
+    case PROTOCOL_HTTP:
+        bpf_memset(&http, 0, sizeof(http));
+        bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
+
+        skb_info_t skb_info = {0};
+        skb_info.tcp_flags |= TCPHDR_FIN;
+        http_process(&http, &skb_info, NO_TAGS);
+        break;
+    case PROTOCOL_HTTP2:
+        log_debug("http2 finish tls guy");
+        break;
+    default:
+        return;
+    }
 }
 
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
