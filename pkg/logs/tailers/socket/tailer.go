@@ -6,6 +6,7 @@
 package socket
 
 import (
+	"bufio"
 	"io"
 	"net"
 
@@ -23,6 +24,7 @@ import (
 type Tailer struct {
 	source     *sources.LogSource
 	Conn       net.Conn
+	Reader     *bufio.Reader
 	outputChan chan *message.Message
 	read       func(*Tailer) ([]byte, error)
 	decoder    *decoder.Decoder
@@ -33,7 +35,10 @@ type Tailer struct {
 // NewTailer returns a new Tailer
 func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
 	return &Tailer{
-		source:     source,
+		source: source,
+		// 1Mb buffered IO, rely on deadlines set on conn to time out if
+		// less than this is pushed by the peer.
+		Reader:     bufio.NewReaderSize(conn, 1048576),
 		Conn:       conn,
 		outputChan: outputChan,
 		read:       read,
@@ -65,7 +70,7 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		if len(output.Content) > 0 {
+		if output.Content != nil {
 			t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source, output.IngestionTimestamp)
 		}
 	}

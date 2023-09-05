@@ -132,7 +132,7 @@ func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, error) {
 		tailer.Conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
 	}
 	frame := make([]byte, l.frameSize)
-	n, err := tailer.Conn.Read(frame)
+	n, err := tailer.Reader.Read(frame)
 	if err != nil {
 		l.source.Status.Error(err)
 		go l.stopTailer(tailer)

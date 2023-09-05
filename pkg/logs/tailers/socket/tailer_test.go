@@ -60,7 +60,7 @@ func TestReadShouldFailWithError(t *testing.T) {
 
 func read(tailer *Tailer) ([]byte, error) {
 	inBuf := make([]byte, 4096)
-	n, err := tailer.Conn.Read(inBuf)
+	n, err := tailer.Reader.Read(inBuf)
 	if err != nil {
 		return nil, err
 	}
