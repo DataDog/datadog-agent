@@ -259,12 +259,6 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("sel_write_enforce", fentry),
 				kprobeOrFentry("sel_write_bool", fentry),
 				kprobeOrFentry("sel_commit_bools_write", fentry),
-			}},
-
-			// pipes
-			// This is needed to skip FIM events relatives to pipes (avoiding abnormal path events)
-			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mntget", fentry),
 			}}},
 
 		// List of probes required to capture chmod events
