@@ -44,7 +44,7 @@ def trigger_macos_build(
 
     workflow_conclusion, workflow_url = follow_workflow_run(run)
 
-    if workflow_conclusion == "failures":
+    if workflow_conclusion == "failure":
         print_failed_jobs_logs(run)
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
@@ -79,7 +79,7 @@ def trigger_macos_test(
 
     workflow_conclusion, workflow_url = follow_workflow_run(run)
 
-    if workflow_conclusion == "failures":
+    if workflow_conclusion == "failure":
         print_failed_jobs_logs(run)
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
