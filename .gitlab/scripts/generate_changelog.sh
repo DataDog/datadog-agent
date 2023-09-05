@@ -2,8 +2,11 @@
 
 set -euo pipefail
 
-if [ -z "$1" ]; then
-    echo "Missing old agent tag"
+# Get the value of the Git tag "stripe_staging"
+old_agent_tag=$(git tag -l 'stripe_staging' | tail -n 1)
+
+if [ -z "$old_agent_tag" ]; then
+    echo "Git tag 'stripe_staging' not found"
     exit 1
 fi
 

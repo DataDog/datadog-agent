@@ -51,7 +51,9 @@ notify-on-success:
   extends: .slack-notifier.on-success
   script:
     - scripts/generate_changelog.sh ${CI_COMMIT_SHORT_SHA}
-
+    - git checkout ${CI_COMMIT_SHORT_SHA}
+    - git tag stripe-staging
+    - git push origin stripe-staging
 
 notify-on-failure:
   extends: .slack-notifier.on-failure
