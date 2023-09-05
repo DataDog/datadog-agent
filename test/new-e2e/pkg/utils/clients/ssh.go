@@ -83,11 +83,12 @@ func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 
 // CopyFile create a sftp session and copy a single file to the remote host through SSH
 func CopyFile(client *ssh.Client, src string, dst string) error {
-	sftpClient, err := sftp.NewClient(client)
 
+	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
 		return err
 	}
+	defer sftpClient.Close()
 
 	if err := copyFile(sftpClient, src, dst); err != nil {
 		return err
@@ -102,10 +103,7 @@ func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
 	if err != nil {
 		return err
 	}
-
-	if err := sftpClient.MkdirAll(dstFolder); err != nil {
-		return err
-	}
+	defer sftpClient.Close()
 
 	if err := copyFolder(sftpClient, srcFolder, dstFolder); err != nil {
 		return err
@@ -120,14 +118,17 @@ func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) err
 		return err
 	}
 
+	if err := sftpClient.MkdirAll(dstFolder); err != nil {
+		return err
+	}
+
 	for _, d := range folderContent {
 		if !d.IsDir() {
-			copyFile(sftpClient, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
-		} else {
-			err := sftpClient.Mkdir(path.Join(dstFolder, d.Name()))
+			err := copyFile(sftpClient, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
 			if err != nil {
 				return err
 			}
+		} else {
 			err = copyFolder(sftpClient, path.Join(srcFolder, d.Name()), path.Join(dstFolder, d.Name()))
 			if err != nil {
 				return err
