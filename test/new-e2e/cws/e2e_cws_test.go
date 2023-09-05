@@ -134,43 +134,11 @@ func (a *agentSuite) TestOpenSignal() {
 
 	// Check `downloaded` ruleset_loaded
 	result, err := cws.WaitAppLogs(a.apiClient, "rule_id:ruleset_loaded")
-	agentContext := result["agent"].(map[string]interface{})
+	agentContext := result.Attributes["agent"].(map[string]interface{})
 	if err != nil {
 		fmt.Println("Error", err)
 	}
 	assert.EqualValues(a.T(), "ruleset_loaded", agentContext["rule_id"], "Ruleset should be loaded")
-
-	/*
-			with Step(msg="check agent event", emoji=":check_mark_button:"):
-			os.system(f"touch {filename}")
-
-			wait_agent_log(
-				"system-probe",
-				self.docker_helper,
-				f"Sending event message for rule `{agent_rule_name}`",
-			)
-
-			wait_agent_log("security-agent", self.docker_helper, "Successfully posted payload to")
-
-		with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
-			event = self.app.wait_app_log(f"rule_id:{agent_rule_name}")
-			attributes = event["data"][0]["attributes"]
-
-			self.assertIn("tag1", attributes["tags"], "unable to find tag")
-			self.assertIn("tag2", attributes["tags"], "unable to find tag")
-
-		with Step(msg="check app signal", emoji=":1st_place_medal:"):
-			tag = f"rule_id:{agent_rule_name}"
-			signal = self.app.wait_app_signal(tag)
-			attributes = signal["data"][0]["attributes"]
-
-			self.assertIn(tag, attributes["tags"], "unable to find rule_id tag")
-			self.assertEqual(
-				agent_rule_name,
-				attributes["attributes"]["agent"]["rule_id"],
-				"unable to find rule_id tag attribute",
-			)
-	*/
 
 	// Wait for host tags
 	time.Sleep(time.Minute * 3)
@@ -185,10 +153,13 @@ func (a *agentSuite) TestOpenSignal() {
 	// Check app event
 	event, err := cws.WaitAppLogs(a.apiClient, fmt.Sprintf("rule_id:%s", a.agentRuleName))
 	assert.NoError(a.T(), err)
-	fmt.Println("event =", event)
-	assert.Contains(a.T(), event["tags"], "tag1", "unable to find tag")
-	assert.Contains(a.T(), event["tags"], "tag2", "unable to find tag")
+	assert.Contains(a.T(), event.Tags, "tag1", "unable to find tag")
+	assert.Contains(a.T(), event.Tags, "tag2", "unable to find tag")
 
 	// Check app signal
+	signal, err := cws.WaitAppSignal(a.apiClient, fmt.Sprintf("rule_id:%s", a.agentRuleName))
+	assert.NoError(a.T(), err)
+	agentContext = signal.Attributes["agent"].(map[string]interface{})
+	assert.Contains(a.T(), agentContext["rule_id"], a.agentRuleName, "unable to find tag")
 
 }

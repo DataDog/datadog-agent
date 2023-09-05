@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 	"github.com/cenkalti/backoff"
 )
 
@@ -30,15 +31,32 @@ func WaitAgentLogs(vm *client.VM, agentName string, pattern string) error {
 	return err
 }
 
-func WaitAppLogs(apiClient MyApiClient, query string) (map[string]interface{}, error) {
-	var resp map[string]interface{}
+func WaitAppLogs(apiClient MyApiClient, query string) (*datadog.LogAttributes, error) {
+	var resp *datadog.LogAttributes
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppLog(query)
 		if err != nil {
 			return err
 		}
 		if len(tmpResp.Data) > 0 {
-			resp = tmpResp.Data[len(tmpResp.Data)-1].Attributes.Attributes
+			resp = tmpResp.Data[0].Attributes
+			json.Marshal(resp)
+			return nil
+		}
+		return errors.New("no log found")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	return resp, err
+}
+
+func WaitAppSignal(apiClient MyApiClient, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
+	var resp *datadog.SecurityMonitoringSignalAttributes
+	err := backoff.Retry(func() error {
+		tmpResp, err := apiClient.GetAppSignal(query)
+		if err != nil {
+			return err
+		}
+		if len(tmpResp.Data) > 0 {
+			resp = tmpResp.Data[0].Attributes
 			json.Marshal(resp)
 			return nil
 		}
