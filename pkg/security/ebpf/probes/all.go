@@ -255,12 +255,9 @@ func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableM
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"kprobe_dentry_resolver_erpc_write_user",
-		"kprobe_dentry_resolver_parent_erpc_write_user",
-		"kprobe_dentry_resolver_segment_erpc_write_user",
-		"fentry_dentry_resolver_erpc_write_user",
-		"fentry_dentry_resolver_parent_erpc_write_user",
-		"fentry_dentry_resolver_segment_erpc_write_user",
+		"tail_call_target_dentry_resolver_erpc_write_user",
+		"tail_call_target_dentry_resolver_parent_erpc_write_user",
+		"tail_call_target_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

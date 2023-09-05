@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -52,10 +53,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -498,6 +501,14 @@ func startAgent(
 		} else {
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
+
+			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+				// Spin up the config provider to schedule integrations through remote-config
+				rcProvider := providers.NewRemoteConfigProvider()
+				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+				// LoadAndRun is called later on
+				common.AC.AddConfigProvider(rcProvider, true, 10*time.Second)
+			}
 		}
 	}
 

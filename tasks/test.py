@@ -295,6 +295,7 @@ def lint_flavor(
     arch: str,
     rtloader_root: bool,
     concurrency: int,
+    golangci_lint_kwargs: str = "",
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -309,6 +310,7 @@ def lint_flavor(
                 build_tags=build_tags,
                 arch=arch,
                 concurrency=concurrency,
+                golangci_lint_kwargs=golangci_lint_kwargs,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -567,15 +569,15 @@ def test(
 
     if not skip_linters:
         modules_results_per_phase["lint"] = run_lint_go(
-            ctx,
-            module,
-            targets,
-            flavors,
-            build_include,
-            build_exclude,
-            rtloader_root,
-            arch,
-            cpus,
+            ctx=ctx,
+            module=module,
+            targets=targets,
+            flavors=flavors,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            rtloader_root=rtloader_root,
+            arch=arch,
+            cpus=cpus,
         )
 
     # Process input arguments
@@ -731,17 +733,21 @@ def run_lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
     cpus=None,
+    golangci_lint_kwargs="",
 ):
     modules, flavors = process_input_args(module, targets, flavors)
 
     linter_tags = {
-        f: compute_build_tags_for_flavor(
-            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
+        f: build_tags
+        or compute_build_tags_for_flavor(
+            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
     }
@@ -759,6 +765,7 @@ def run_lint_go(
             arch=arch,
             rtloader_root=rtloader_root,
             concurrency=cpus,
+            golangci_lint_kwargs=golangci_lint_kwargs,
         )
 
     return modules_lint_results_per_flavor
@@ -770,11 +777,14 @@ def lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
     cpus=None,
+    golangci_lint_kwargs="",
 ):
     """
     Run go linters on the given module and targets.
@@ -801,15 +811,18 @@ def lint_go(
     modules_results_per_phase = defaultdict(dict)
 
     modules_results_per_phase["lint"] = run_lint_go(
-        ctx,
-        module,
-        targets,
-        flavors,
-        build_include,
-        build_exclude,
-        rtloader_root,
-        arch,
-        cpus,
+        ctx=ctx,
+        module=module,
+        targets=targets,
+        flavors=flavors,
+        build=build,
+        build_tags=build_tags,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        rtloader_root=rtloader_root,
+        arch=arch,
+        cpus=cpus,
+        golangci_lint_kwargs=golangci_lint_kwargs,
     )
 
     success = process_module_results(modules_results_per_phase)
