@@ -468,6 +468,10 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 		options.MapEditors = make(map[string]*ebpf.Map)
 	}
 
+	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
+		MaxEntries: o.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
 }
 

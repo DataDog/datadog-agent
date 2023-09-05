@@ -292,16 +292,16 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
+
+	options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
+		MaxEntries: e.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	if e.connectionProtocolMap != nil {
 		if options.MapEditors == nil {
 			options.MapEditors = make(map[string]*ebpf.Map)
 		}
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
-	} else {
-		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
-			MaxEntries: e.cfg.MaxTrackedConnections,
-			EditorFlag: manager.EditMaxEntries,
-		}
 	}
 
 	options.TailCallRouter = e.tailCallRouter
