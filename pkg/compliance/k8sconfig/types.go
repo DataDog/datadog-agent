@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+//revive:disable
+
 type K8sNodeConfig struct {
 	Version            string               `json:"version"`
 	ManagedEnvironment *K8sManagedEnvConfig `json:"managedEnvironment,omitempty"`
