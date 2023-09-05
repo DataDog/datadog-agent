@@ -168,7 +168,7 @@ network_devices:
 			err := config.Datadog.ReadConfig(strings.NewReader(tt.configYaml))
 			require.NoError(t, err)
 
-			readConfig, err := ReadConfig()
+			readConfig, err := ReadConfig(config.Datadog)
 			if tt.expectedError != "" {
 				assert.ErrorContains(t, err, tt.expectedError)
 				assert.Nil(t, readConfig)
