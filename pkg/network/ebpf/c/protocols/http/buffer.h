@@ -24,7 +24,9 @@ static __always_inline bool read_into_buffer(char *buffer, char *data, size_t da
     if (final_size <= 0) {
         return false;
     }
-    bool ret = bpf_probe_read_user_with_telemetry(buffer, final_size, data) >= 0;
+    // Tricking the verifier
+    const size_t final_size2 = final_size % (HTTP_BUFFER_SIZE + 1);
+    bool ret = bpf_probe_read_user_with_telemetry(buffer, final_size2, data) >= 0;
     // In case of a success and we read more than HTTP_BUFFER_SIZE, zero the last byte.
     if (ret && final_size == HTTP_BUFFER_SIZE) {
         buffer[HTTP_BUFFER_SIZE-1] = 0;
