@@ -110,6 +110,21 @@ func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error)
 	return entity.(*workloadmeta.KubernetesPod), nil
 }
 
+// GetKubernetesPodByName implements Store#GetKubernetesPodByName
+func (s *Store) GetKubernetesPodByName(podName, podNamespace string) (*workloadmeta.KubernetesPod, error) {
+	entities := s.listEntitiesByKind(workloadmeta.KindKubernetesPod)
+
+	// Not very efficient
+	for k := range entities {
+		entity := entities[k].(*workloadmeta.KubernetesPod)
+		if entity.Name == podName && entity.Namespace == podNamespace {
+			return entity, nil
+		}
+	}
+
+	return nil, errors.NewNotFound(podName)
+}
+
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
 func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {

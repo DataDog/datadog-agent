@@ -80,31 +80,10 @@ func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) 
 		return
 	}
 
-	podUid := string(metric.Metric["pod_uid"])
-	containerName := string(metric.Metric["container"])
-	pod, err := p.store.GetKubernetesPod(podUid)
-	if err != nil {
+	cId := common.GetContainerId(p.store, metric.Metric, p.filter)
+	if cId == "" {
 		return
 	}
-
-	var container *workloadmeta.OrchestratorContainer
-	for _, c := range pod.Containers {
-		if c.Name == containerName {
-			container = &c
-			break
-		}
-	}
-
-	if container == nil {
-		log.Debugf("container %s not found for pod with id %s", containerName, podUid)
-		return
-	}
-
-	if p.filter.IsExcluded(pod.EntityMeta.Annotations, container.Name, container.Image.Name, pod.Namespace) {
-		return
-	}
-
-	cId := containers.BuildTaggerEntityName(container.ID)
 
 	tags, _ := tagger.Tag(cId, collectors.HighCardinality)
 	if len(tags) == 0 {
