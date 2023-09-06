@@ -34,6 +34,7 @@ func NewDelimiter(useProto bool) Delimiter {
 type lengthPrefixDelimiter struct{}
 
 func (l lengthPrefixDelimiter) delimit(content []byte) ([]byte, error) {
+	content = append(content, 0, 0, 0, 0)
 	copy(content[4:], content)
 	binary.BigEndian.PutUint32(content[:4], uint32(len(content)))
 	return content, nil
