@@ -14,8 +14,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
-	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
