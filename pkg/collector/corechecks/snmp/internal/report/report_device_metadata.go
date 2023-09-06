@@ -7,7 +7,7 @@ package report
 
 import (
 	json "encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"net"
 	"sort"
 	"strconv"
@@ -114,7 +114,7 @@ func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.
 	return common.InterfaceStatus_Down
 }
 
-func buildMetadataStore(metadataConfigs cprofstruct.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
+func buildMetadataStore(metadataConfigs profiledefinition.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
 	metadataStore := metadata.NewMetadataStore()
 	if values == nil {
 		return metadataStore
@@ -124,13 +124,13 @@ func buildMetadataStore(metadataConfigs cprofstruct.MetadataConfig, values *valu
 		for fieldName, field := range metadataConfig.Fields {
 			fieldFullName := resourceName + "." + fieldName
 
-			var symbols []cprofstruct.SymbolConfig
+			var symbols []profiledefinition.SymbolConfig
 			if field.Symbol.OID != "" {
 				symbols = append(symbols, field.Symbol)
 			}
 			symbols = append(symbols, field.Symbols...)
 
-			if cprofstruct.IsMetadataResourceWithScalarOids(resourceName) {
+			if profiledefinition.IsMetadataResourceWithScalarOids(resourceName) {
 				for _, symbol := range symbols {
 					if metadataStore.ScalarFieldHasValue(fieldFullName) {
 						break

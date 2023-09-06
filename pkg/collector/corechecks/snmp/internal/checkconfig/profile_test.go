@@ -9,7 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func getMetricFromProfile(p cprofstruct.ProfileDefinition, metricName string) *cprofstruct.MetricsConfig {
+func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName string) *profiledefinition.MetricsConfig {
 	for _, m := range p.Metrics {
 		if m.Symbol.Name == metricName {
 			return &m
@@ -34,33 +34,33 @@ func getMetricFromProfile(p cprofstruct.ProfileDefinition, metricName string) *c
 }
 
 func fixtureProfileDefinitionMap() profileConfigMap {
-	metrics := []cprofstruct.MetricsConfig{
-		{Symbol: cprofstruct.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: cprofstruct.ProfileMetricTypeGauge},
-		{Symbol: cprofstruct.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
+	metrics := []profiledefinition.MetricsConfig{
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: profiledefinition.ProfileMetricTypeGauge},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
-			MetricType: cprofstruct.ProfileMetricTypeMonotonicCount,
-			Symbols: []cprofstruct.SymbolConfig{
+			MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
+			Symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
-			MetricTags: []cprofstruct.MetricTagConfig{
-				{Tag: "interface", Column: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+			MetricTags: []profiledefinition.MetricTagConfig{
+				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
-		{Symbol: cprofstruct.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+		{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
 	return profileConfigMap{
 		"f5-big-ip": profileConfig{
-			Definition: cprofstruct.ProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-				Device:       cprofstruct.DeviceMeta{Vendor: "f5"},
-				SysObjectIds: cprofstruct.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
+				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
-				MetricTags: []cprofstruct.MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						OID:     "1.3.6.1.2.1.1.5.0",
 						Name:    "sysName",
@@ -72,34 +72,34 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 							"suffix":   "\\2",
 						},
 					},
-					{Tag: "snmp_host", Index: 0x0, Column: cprofstruct.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+					{Tag: "snmp_host", Index: 0x0, Column: profiledefinition.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 				},
-				Metadata: cprofstruct.MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
 							"description": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
 								},
 							},
 							"name": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
 								},
 							},
 							"serial_number": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
 									Name: "sysGeneralChassisSerialNum",
 								},
 							},
 							"sys_object_id": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.2.0",
 									Name: "sysObjectID",
 								},
@@ -107,22 +107,22 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 						},
 					},
 					"interface": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"admin_status": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 
 									OID:  "1.3.6.1.2.1.2.2.1.7",
 									Name: "ifAdminStatus",
 								},
 							},
 							"alias": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.18",
 									Name: "ifAlias",
 								},
 							},
 							"description": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
 									Name:                 "ifName",
 									ExtractValue:         "(Row\\d)",
@@ -130,36 +130,36 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 								},
 							},
 							"mac_address": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:    "1.3.6.1.2.1.2.2.1.6",
 									Name:   "ifPhysAddress",
 									Format: "mac_address",
 								},
 							},
 							"name": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
 							},
 							"oper_status": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
 								},
 							},
 						},
-						IDTags: cprofstruct.MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "custom-tag",
-								Column: cprofstruct.SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},
 							},
 							{
 								Tag: "interface",
-								Column: cprofstruct.SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
@@ -171,16 +171,16 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 			isUserProfile: true,
 		},
 		"another_profile": profileConfig{
-			Definition: cprofstruct.ProfileDefinition{
-				SysObjectIds: cprofstruct.StringArray{"1.3.6.1.4.1.32473.1.1"},
-				Metrics: []cprofstruct.MetricsConfig{
-					{Symbol: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
+			Definition: profiledefinition.ProfileDefinition{
+				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
 				},
-				MetricTags: []cprofstruct.MetricTagConfig{
-					{Tag: "snmp_host2", Column: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+				MetricTags: []profiledefinition.MetricTagConfig{
+					{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 					{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
 				},
-				Metadata: cprofstruct.MetadataConfig{},
+				Metadata: profiledefinition.MetadataConfig{},
 			},
 			isUserProfile: true,
 		},
@@ -340,7 +340,7 @@ func Test_loadProfiles(t *testing.T) {
 			}
 
 			for i, profile := range profiles {
-				cprofstruct.NormalizeMetrics(profile.Definition.Metrics)
+				profiledefinition.NormalizeMetrics(profile.Definition.Metrics)
 				profile.DefinitionFile = ""
 				profiles[i] = profile
 			}
@@ -535,7 +535,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	defaultProfiles, err := loadDefaultProfiles()
 
 	for _, profile := range defaultProfiles {
-		cprofstruct.NormalizeMetrics(profile.Definition.Metrics)
+		profiledefinition.NormalizeMetrics(profile.Definition.Metrics)
 	}
 
 	w.Flush()
@@ -548,25 +548,25 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 }
 
 func Test_mergeProfileDefinition(t *testing.T) {
-	okBaseDefinition := cprofstruct.ProfileDefinition{
-		Metrics: []cprofstruct.MetricsConfig{
-			{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
+	okBaseDefinition := profiledefinition.ProfileDefinition{
+		Metrics: []profiledefinition.MetricsConfig{
+			{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 		},
-		MetricTags: []cprofstruct.MetricTagConfig{
+		MetricTags: []profiledefinition.MetricTagConfig{
 			{
 				Tag:  "tag1",
 				OID:  "2.1",
 				Name: "tagName1",
 			},
 		},
-		Metadata: cprofstruct.MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]cprofstruct.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"vendor": {
 						Value: "f5",
 					},
 					"description": {
-						Symbol: cprofstruct.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.1.0",
 							Name: "sysDescr",
 						},
@@ -574,19 +574,19 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 			},
 			"interface": {
-				Fields: map[string]cprofstruct.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"admin_status": {
-						Symbol: cprofstruct.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 
 							OID:  "1.3.6.1.2.1.2.2.1.7",
 							Name: "ifAdminStatus",
 						},
 					},
 				},
-				IDTags: cprofstruct.MetricTagConfigList{
+				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "alias",
-						Column: cprofstruct.SymbolConfig{
+						Column: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifAlias",
 						},
@@ -595,23 +595,23 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			},
 		},
 	}
-	emptyBaseDefinition := cprofstruct.ProfileDefinition{}
-	okTargetDefinition := cprofstruct.ProfileDefinition{
-		Metrics: []cprofstruct.MetricsConfig{
-			{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
+	emptyBaseDefinition := profiledefinition.ProfileDefinition{}
+	okTargetDefinition := profiledefinition.ProfileDefinition{
+		Metrics: []profiledefinition.MetricsConfig{
+			{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 		},
-		MetricTags: []cprofstruct.MetricTagConfig{
+		MetricTags: []profiledefinition.MetricTagConfig{
 			{
 				Tag:  "tag2",
 				OID:  "2.2",
 				Name: "tagName2",
 			},
 		},
-		Metadata: cprofstruct.MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]cprofstruct.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
-						Symbol: cprofstruct.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
 							Name: "sysName",
 						},
@@ -619,18 +619,18 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 			},
 			"interface": {
-				Fields: map[string]cprofstruct.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"oper_status": {
-						Symbol: cprofstruct.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
 						},
 					},
 				},
-				IDTags: cprofstruct.MetricTagConfigList{
+				IDTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag: "interface",
-						Column: cprofstruct.SymbolConfig{
+						Column: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
@@ -641,20 +641,20 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	}
 	tests := []struct {
 		name               string
-		targetDefinition   cprofstruct.ProfileDefinition
-		baseDefinition     cprofstruct.ProfileDefinition
-		expectedDefinition cprofstruct.ProfileDefinition
+		targetDefinition   profiledefinition.ProfileDefinition
+		baseDefinition     profiledefinition.ProfileDefinition
+		expectedDefinition profiledefinition.ProfileDefinition
 	}{
 		{
 			name:             "merge case",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: cprofstruct.ProfileDefinition{
-				Metrics: []cprofstruct.MetricsConfig{
-					{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
-					{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
+			expectedDefinition: profiledefinition.ProfileDefinition{
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
-				MetricTags: []cprofstruct.MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						Tag:  "tag2",
 						OID:  "2.2",
@@ -666,20 +666,20 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						Name: "tagName1",
 					},
 				},
-				Metadata: cprofstruct.MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
 							"name": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
 								},
 							},
 							"description": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
 								},
@@ -687,32 +687,32 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"oper_status": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
 								},
 							},
 							"admin_status": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 
 									OID:  "1.3.6.1.2.1.2.2.1.7",
 									Name: "ifAdminStatus",
 								},
 							},
 						},
-						IDTags: cprofstruct.MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "interface",
-								Column: cprofstruct.SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
 							},
 							{
 								Tag: "alias",
-								Column: cprofstruct.SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},
@@ -726,22 +726,22 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty base definition",
 			baseDefinition:   copyProfileDefinition(emptyBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: cprofstruct.ProfileDefinition{
-				Metrics: []cprofstruct.MetricsConfig{
-					{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
+			expectedDefinition: profiledefinition.ProfileDefinition{
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
-				MetricTags: []cprofstruct.MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						Tag:  "tag2",
 						OID:  "2.2",
 						Name: "tagName2",
 					},
 				},
-				Metadata: cprofstruct.MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"name": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
 									Name: "sysName",
 								},
@@ -749,18 +749,18 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"oper_status": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
 									Name: "ifOperStatus",
 								},
 							},
 						},
-						IDTags: cprofstruct.MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "interface",
-								Column: cprofstruct.SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifName",
 								},
@@ -774,25 +774,25 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty taget definition",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(emptyBaseDefinition),
-			expectedDefinition: cprofstruct.ProfileDefinition{
-				Metrics: []cprofstruct.MetricsConfig{
-					{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
+			expectedDefinition: profiledefinition.ProfileDefinition{
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
-				MetricTags: []cprofstruct.MetricTagConfig{
+				MetricTags: []profiledefinition.MetricTagConfig{
 					{
 						Tag:  "tag1",
 						OID:  "2.1",
 						Name: "tagName1",
 					},
 				},
-				Metadata: cprofstruct.MetadataConfig{
+				Metadata: profiledefinition.MetadataConfig{
 					"device": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
 							"description": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.1.0",
 									Name: "sysDescr",
 								},
@@ -800,19 +800,19 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]cprofstruct.MetadataField{
+						Fields: map[string]profiledefinition.MetadataField{
 							"admin_status": {
-								Symbol: cprofstruct.SymbolConfig{
+								Symbol: profiledefinition.SymbolConfig{
 
 									OID:  "1.3.6.1.2.1.2.2.1.7",
 									Name: "ifAdminStatus",
 								},
 							},
 						},
-						IDTags: cprofstruct.MetricTagConfigList{
+						IDTags: profiledefinition.MetricTagConfigList{
 							{
 								Tag: "alias",
-								Column: cprofstruct.SymbolConfig{
+								Column: profiledefinition.SymbolConfig{
 									OID:  "1.3.6.1.2.1.31.1.1.1.1",
 									Name: "ifAlias",
 								},

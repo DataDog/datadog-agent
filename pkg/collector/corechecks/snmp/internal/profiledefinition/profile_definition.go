@@ -1,4 +1,4 @@
-package cprofstruct
+package profiledefinition
 
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax

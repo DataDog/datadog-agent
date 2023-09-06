@@ -2,13 +2,13 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
 )
 
 // BuildMetricTagsFromValue returns tags based on MetricTagConfig and a value
-func BuildMetricTagsFromValue(metricTag *cprofstruct.MetricTagConfig, value string) []string {
+func BuildMetricTagsFromValue(metricTag *profiledefinition.MetricTagConfig, value string) []string {
 	var tags []string
 	if metricTag.Tag != "" {
 		if len(metricTag.Mapping) > 0 {

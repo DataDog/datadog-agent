@@ -8,7 +8,7 @@ package report
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"strings"
 	"testing"
 
@@ -29,12 +29,12 @@ func TestSendMetric(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		caseName           string
-		symbol             cprofstruct.SymbolConfig
-		value              valuestore.ResultValue
-		tags               []string
-		metricConfig       cprofstruct.MetricsConfig
-		expectedMethod     string
+		caseName       string
+		symbol         profiledefinition.SymbolConfig
+		value          valuestore.ResultValue
+		tags           []string
+		metricConfig   profiledefinition.MetricsConfig
+		expectedMethod string
 		expectedMetricName string
 		expectedValue      float64
 		expectedTags       []string
@@ -43,8 +43,8 @@ func TestSendMetric(t *testing.T) {
 	}{
 		{
 			caseName:           "Gauge metric case",
-			symbol:             cprofstruct.SymbolConfig{Name: "gauge.metric"},
-			value:              valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeGauge, Value: float64(10)},
+			symbol:             profiledefinition.SymbolConfig{Name: "gauge.metric"},
+			value:              valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.gauge.metric",
@@ -54,8 +54,8 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName:           "Counter32 metric case",
-			symbol:             cprofstruct.SymbolConfig{Name: "counter.metric"},
-			value:              valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:             profiledefinition.SymbolConfig{Name: "counter.metric"},
+			value:              valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.counter.metric",
@@ -65,11 +65,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced gauge metric case",
-			symbol:   cprofstruct.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:   profiledefinition.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
-				MetricType: cprofstruct.ProfileMetricTypeGauge,
+			metricConfig: profiledefinition.MetricsConfig{
+				MetricType: profiledefinition.ProfileMetricTypeGauge,
 			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.my.metric",
@@ -79,11 +79,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced counter metric case",
-			symbol:   cprofstruct.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:   profiledefinition.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
-				MetricType: cprofstruct.ProfileMetricTypeCounter,
+			metricConfig: profiledefinition.MetricsConfig{
+				MetricType: profiledefinition.ProfileMetricTypeCounter,
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric",
@@ -93,10 +93,10 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced rate metric case",
-			symbol:   cprofstruct.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeRate, Value: float64(10)},
+			symbol:   profiledefinition.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeRate, Value: float64(10)},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
+			metricConfig: profiledefinition.MetricsConfig{
 				ForcedType: "rate",
 			},
 			expectedMethod:     "Rate",
@@ -107,11 +107,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced monotonic_count metric case",
-			symbol:   cprofstruct.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:   profiledefinition.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
-				MetricType: cprofstruct.ProfileMetricTypeMonotonicCount,
+			metricConfig: profiledefinition.MetricsConfig{
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
@@ -121,11 +121,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced monotonic_count_and_rate metric case: MonotonicCount called",
-			symbol:   cprofstruct.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:   profiledefinition.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
-				MetricType: cprofstruct.ProfileMetricTypeMonotonicCountAndRate,
+			metricConfig: profiledefinition.MetricsConfig{
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCountAndRate,
 			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
@@ -135,11 +135,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced monotonic_count_and_rate metric case: Rate called",
-			symbol:   cprofstruct.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:   profiledefinition.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
-				MetricType: cprofstruct.ProfileMetricTypeMonotonicCountAndRate,
+			metricConfig: profiledefinition.MetricsConfig{
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCountAndRate,
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric.rate",
@@ -149,11 +149,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced percent metric case: Rate called",
-			symbol:   cprofstruct.SymbolConfig{Name: "Rate.metric"},
+			symbol:   profiledefinition.SymbolConfig{Name: "Rate.metric"},
 			value:    valuestore.ResultValue{Value: 0.5},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
-				MetricType: cprofstruct.ProfileMetricTypePercent,
+			metricConfig: profiledefinition.MetricsConfig{
+				MetricType: profiledefinition.ProfileMetricTypePercent,
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.Rate.metric",
@@ -163,12 +163,12 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced flag_stream case 1",
-			symbol:   cprofstruct.SymbolConfig{Name: "metric"},
+			symbol:   profiledefinition.SymbolConfig{Name: "metric"},
 			value:    valuestore.ResultValue{Value: "1010"},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
+			metricConfig: profiledefinition.MetricsConfig{
 				MetricType: "flag_stream",
-				Options:    cprofstruct.MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
+				Options:    profiledefinition.MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
 			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.metric.foo",
@@ -178,12 +178,12 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced flag_stream case 2",
-			symbol:   cprofstruct.SymbolConfig{Name: "metric"},
+			symbol:   profiledefinition.SymbolConfig{Name: "metric"},
 			value:    valuestore.ResultValue{Value: "1010"},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
+			metricConfig: profiledefinition.MetricsConfig{
 				MetricType: "flag_stream",
-				Options:    cprofstruct.MetricsConfigOption{Placement: 2, MetricSuffix: "bar"},
+				Options:    profiledefinition.MetricsConfigOption{Placement: 2, MetricSuffix: "bar"},
 			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.metric.bar",
@@ -193,12 +193,12 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Forced flag_stream invalid index",
-			symbol:   cprofstruct.SymbolConfig{Name: "metric"},
+			symbol:   profiledefinition.SymbolConfig{Name: "metric"},
 			value:    valuestore.ResultValue{Value: "1010"},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
+			metricConfig: profiledefinition.MetricsConfig{
 				MetricType: "flag_stream",
-				Options:    cprofstruct.MetricsConfigOption{Placement: 10, MetricSuffix: "none"},
+				Options:    profiledefinition.MetricsConfigOption{Placement: 10, MetricSuffix: "none"},
 			},
 			expectedMethod:     "",
 			expectedMetricName: "",
@@ -211,10 +211,10 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName:           "Forced monotonic_count via symbol config",
-			symbol:             cprofstruct.SymbolConfig{Name: "my.metric", MetricType: cprofstruct.ProfileMetricTypeMonotonicCount},
-			value:              valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:             profiledefinition.SymbolConfig{Name: "my.metric", MetricType: profiledefinition.ProfileMetricTypeMonotonicCount},
+			value:              valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:               []string{},
-			metricConfig:       cprofstruct.MetricsConfig{},
+			metricConfig:       profiledefinition.MetricsConfig{},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -223,11 +223,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "symbol metric_type has precedence over metric root metric_type",
-			symbol:   cprofstruct.SymbolConfig{Name: "my.metric", MetricType: cprofstruct.ProfileMetricTypeGauge},
-			value:    valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeCounter, Value: float64(10)},
+			symbol:   profiledefinition.SymbolConfig{Name: "my.metric", MetricType: profiledefinition.ProfileMetricTypeGauge},
+			value:    valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
-				MetricType: cprofstruct.ProfileMetricTypeMonotonicCount,
+			metricConfig: profiledefinition.MetricsConfig{
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.my.metric",
@@ -237,12 +237,12 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Error converting value",
-			symbol:   cprofstruct.SymbolConfig{Name: "metric"},
+			symbol:   profiledefinition.SymbolConfig{Name: "metric"},
 			value:    valuestore.ResultValue{Value: valuestore.ResultValue{}},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
+			metricConfig: profiledefinition.MetricsConfig{
 				MetricType: "flag_stream",
-				Options:    cprofstruct.MetricsConfigOption{Placement: 10, MetricSuffix: "ouch"},
+				Options:    profiledefinition.MetricsConfigOption{Placement: 10, MetricSuffix: "ouch"},
 			},
 			expectedMethod:     "",
 			expectedMetricName: "",
@@ -255,7 +255,7 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName:           "Cannot convert value to float",
-			symbol:             cprofstruct.SymbolConfig{Name: "gauge.metric"},
+			symbol:             profiledefinition.SymbolConfig{Name: "gauge.metric"},
 			value:              valuestore.ResultValue{Value: "abc"},
 			tags:               []string{},
 			expectedMethod:     "",
@@ -269,10 +269,10 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Unsupported type",
-			symbol:   cprofstruct.SymbolConfig{Name: "gauge.metric"},
+			symbol:   profiledefinition.SymbolConfig{Name: "gauge.metric"},
 			value:    valuestore.ResultValue{Value: "1"},
 			tags:     []string{},
-			metricConfig: cprofstruct.MetricsConfig{
+			metricConfig: profiledefinition.MetricsConfig{
 				MetricType: "invalidForceType",
 			},
 			expectedMethod:     "",
@@ -286,11 +286,11 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName: "Scaled value",
-			symbol: cprofstruct.SymbolConfig{
+			symbol: profiledefinition.SymbolConfig{
 				Name:        "scaled.metric",
 				ScaleFactor: 2,
 			},
-			value:              valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeGauge, Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.scaled.metric",
@@ -300,8 +300,8 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName:           "Scaled value by float",
-			symbol:             cprofstruct.SymbolConfig{Name: "scaled.metric", ScaleFactor: 0.5},
-			value:              valuestore.ResultValue{SubmissionType: cprofstruct.ProfileMetricTypeGauge, Value: float64(10)},
+			symbol:             profiledefinition.SymbolConfig{Name: "scaled.metric", ScaleFactor: 0.5},
+			value:              valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.scaled.metric",
@@ -361,7 +361,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name            string
-		metrics         []cprofstruct.MetricsConfig
+		metrics         []profiledefinition.MetricsConfig
 		values          *valuestore.ResultValueStore
 		tags            []string
 		expectedMetrics []expectedMetric
@@ -369,8 +369,8 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 	}{
 		{
 			name: "report scalar error",
-			metrics: []cprofstruct.MetricsConfig{
-				{Symbol: cprofstruct.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+			metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
 			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
@@ -379,11 +379,11 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		},
 		{
 			name: "report constant metric",
-			metrics: []cprofstruct.MetricsConfig{
-				{Symbols: []cprofstruct.SymbolConfig{{Name: "constantMetric", ConstantValueOne: true}}, MetricTags: cprofstruct.MetricTagConfigList{
+			metrics: []profiledefinition.MetricsConfig{
+				{Symbols: []profiledefinition.SymbolConfig{{Name: "constantMetric", ConstantValueOne: true}}, MetricTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag:    "status",
-						Column: cprofstruct.SymbolConfig{Name: "status", OID: "1.2.3.4"},
+						Column: profiledefinition.SymbolConfig{Name: "status", OID: "1.2.3.4"},
 					},
 				}},
 			},
@@ -462,14 +462,14 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 	}
 	tests := []struct {
 		name         string
-		metricsTags  []cprofstruct.MetricTagConfig
+		metricsTags  []profiledefinition.MetricTagConfig
 		values       *valuestore.ResultValueStore
 		expectedTags []string
 		expectedLogs []logCount
 	}{
 		{
 			name: "no scalar oids found",
-			metricsTags: []cprofstruct.MetricTagConfig{
+			metricsTags: []profiledefinition.MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			},
@@ -479,7 +479,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		},
 		{
 			name: "report scalar tags with regex",
-			metricsTags: []cprofstruct.MetricTagConfig{
+			metricsTags: []profiledefinition.MetricTagConfig{
 				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
 					"word":   "\\1",
 					"number": "\\2",
@@ -497,7 +497,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		},
 		{
 			name: "error converting tag value",
-			metricsTags: []cprofstruct.MetricTagConfig{
+			metricsTags: []profiledefinition.MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 			},
 			values: &valuestore.ResultValueStore{
@@ -513,7 +513,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		},
 		{
 			name: "tag value mapping",
-			metricsTags: []cprofstruct.MetricTagConfig{
+			metricsTags: []profiledefinition.MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
 			},
 			values: &valuestore.ResultValueStore{
@@ -528,7 +528,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		},
 		{
 			name: "invalid tag value mapping",
-			metricsTags: []cprofstruct.MetricTagConfig{
+			metricsTags: []profiledefinition.MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
 			},
 			values: &valuestore.ResultValueStore{
@@ -543,7 +543,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		},
 		{
 			name: "empty tag value mapping",
-			metricsTags: []cprofstruct.MetricTagConfig{
+			metricsTags: []profiledefinition.MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{}},
 			},
 			values: &valuestore.ResultValueStore{

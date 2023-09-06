@@ -7,7 +7,7 @@ package valuestore
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"regexp"
 	"strconv"
 
@@ -16,8 +16,8 @@ import (
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType cprofstruct.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
-	Value          interface{}                   `json:"value"`              // might be a `string`, `[]byte` or `float64` type
+	SubmissionType profiledefinition.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
+	Value          interface{}                         `json:"value"`              // might be a `string`, `[]byte` or `float64` type
 }
 
 // ToFloat64 converts value to float64

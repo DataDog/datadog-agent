@@ -8,7 +8,7 @@ package report
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"net"
 	"strings"
 
@@ -24,7 +24,7 @@ const (
 	ifXTablePrefix = "1.3.6.1.2.1.31.1.1."
 )
 
-func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol cprofstruct.SymbolConfig) (valuestore.ResultValue, error) {
+func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol profiledefinition.SymbolConfig) (valuestore.ResultValue, error) {
 	value, err := values.GetScalarValue(symbol.OID)
 	if err != nil {
 		return valuestore.ResultValue{}, err
@@ -32,7 +32,7 @@ func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol cprofs
 	return processValueUsingSymbolConfig(value, symbol)
 }
 
-func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol cprofstruct.SymbolConfig) (map[string]valuestore.ResultValue, error) {
+func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol profiledefinition.SymbolConfig) (map[string]valuestore.ResultValue, error) {
 	columnValues, err := values.GetColumnValues(symbol.OID)
 	newValues := make(map[string]valuestore.ResultValue, len(columnValues))
 	if err != nil {
@@ -48,7 +48,7 @@ func getColumnValueFromSymbol(values *valuestore.ResultValueStore, symbol cprofs
 	return newValues, nil
 }
 
-func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol cprofstruct.SymbolConfig) (valuestore.ResultValue, error) {
+func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol profiledefinition.SymbolConfig) (valuestore.ResultValue, error) {
 	if symbol.ExtractValueCompiled != nil {
 		extractedValue, err := value.ExtractStringValue(symbol.ExtractValueCompiled)
 		if err != nil {
@@ -85,7 +85,7 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol cprofstr
 }
 
 // getTagsFromMetricTagConfigList retrieve tags using the metric config and values
-func getTagsFromMetricTagConfigList(mtcl cprofstruct.MetricTagConfigList, fullIndex string, values *valuestore.ResultValueStore) []string {
+func getTagsFromMetricTagConfigList(mtcl profiledefinition.MetricTagConfigList, fullIndex string, values *valuestore.ResultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
 	for _, metricTag := range mtcl {
@@ -138,7 +138,7 @@ func getTagsFromMetricTagConfigList(mtcl cprofstruct.MetricTagConfigList, fullIn
 
 // transformIndex change a source index into a new index using a list of transform rules.
 // A transform rule has start/end fields, it is used to extract a subset of the source index.
-func transformIndex(indexes []string, transformRules []cprofstruct.MetricIndexTransform) []string {
+func transformIndex(indexes []string, transformRules []profiledefinition.MetricIndexTransform) []string {
 	var newIndex []string
 
 	for _, rule := range transformRules {
@@ -178,7 +178,7 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 }
 
 // getConstantMetricValues retrieve all metric tags indexes and set their value as 1
-func getConstantMetricValues(mtcl cprofstruct.MetricTagConfigList, values *valuestore.ResultValueStore) map[string]valuestore.ResultValue {
+func getConstantMetricValues(mtcl profiledefinition.MetricTagConfigList, values *valuestore.ResultValueStore) map[string]valuestore.ResultValue {
 	constantValues := make(map[string]valuestore.ResultValue)
 	for _, metricTag := range mtcl {
 		if len(metricTag.IndexTransform) > 0 {

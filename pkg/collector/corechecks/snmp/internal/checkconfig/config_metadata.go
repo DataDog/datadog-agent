@@ -6,30 +6,30 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 )
 
 // LegacyMetadataConfig contains metadata config used for backward compatibility
 // When users have their own copy of _base.yaml and _generic_if.yaml files
 // they won't have the new profile based metadata definitions for device and interface resources
 // The LegacyMetadataConfig is used as fallback to provide metadata definitions for those resources.
-var LegacyMetadataConfig = cprofstruct.MetadataConfig{
+var LegacyMetadataConfig = profiledefinition.MetadataConfig{
 	"device": {
-		Fields: map[string]cprofstruct.MetadataField{
+		Fields: map[string]profiledefinition.MetadataField{
 			"description": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.1.1.0",
 					Name: "sysDescr",
 				},
 			},
 			"name": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.1.5.0",
 					Name: "sysName",
 				},
 			},
 			"sys_object_id": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.1.2.0",
 					Name: "sysObjectID",
 				},
@@ -37,49 +37,49 @@ var LegacyMetadataConfig = cprofstruct.MetadataConfig{
 		},
 	},
 	"interface": {
-		Fields: map[string]cprofstruct.MetadataField{
+		Fields: map[string]profiledefinition.MetadataField{
 			"name": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.31.1.1.1.1",
 					Name: "ifName",
 				},
 			},
 			"description": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.2.2.1.2",
 					Name: "ifDescr",
 				},
 			},
 			"admin_status": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.2.2.1.7",
 					Name: "ifAdminStatus",
 				},
 			},
 			"oper_status": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.2.2.1.8",
 					Name: "ifOperStatus",
 				},
 			},
 			"alias": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.31.1.1.1.18",
 					Name: "ifAlias",
 				},
 			},
 			"mac_address": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:    "1.3.6.1.2.1.2.2.1.6",
 					Name:   "ifPhysAddress",
 					Format: "mac_address",
 				},
 			},
 		},
-		IDTags: cprofstruct.MetricTagConfigList{
+		IDTags: profiledefinition.MetricTagConfigList{
 			{
 				Tag: "interface",
-				Column: cprofstruct.SymbolConfig{
+				Column: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.31.1.1.1.1",
 					Name: "ifName",
 				},
@@ -87,15 +87,15 @@ var LegacyMetadataConfig = cprofstruct.MetadataConfig{
 		},
 	},
 	"ip_addresses": {
-		Fields: map[string]cprofstruct.MetadataField{
+		Fields: map[string]profiledefinition.MetadataField{
 			"if_index": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.20.1.2",
 					Name: "ipAdEntIfIndex",
 				},
 			},
 			"netmask": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.20.1.3",
 					Name: "ipAdEntNetMask",
 				},
@@ -104,47 +104,47 @@ var LegacyMetadataConfig = cprofstruct.MetadataConfig{
 	},
 }
 
-var TopologyMetadataConfig = cprofstruct.MetadataConfig{
+var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	"lldp_remote": {
-		Fields: map[string]cprofstruct.MetadataField{
+		Fields: map[string]profiledefinition.MetadataField{
 			"chassis_id_type": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.4",
 					Name: "lldpRemChassisIdSubtype",
 				},
 			},
 			"chassis_id": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.5",
 					Name: "lldpRemChassisId",
 				},
 			},
 			"interface_id_type": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.6",
 					Name: "lldpRemPortIdSubtype",
 				},
 			},
 			"interface_id": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.7",
 					Name: "lldpRemPortId",
 				},
 			},
 			"interface_desc": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.8",
 					Name: "lldpRemPortDesc",
 				},
 			},
 			"device_name": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.9",
 					Name: "lldpRemSysName",
 				},
 			},
 			"device_desc": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.10",
 					Name: "lldpRemSysDesc",
 				},
@@ -155,9 +155,9 @@ var TopologyMetadataConfig = cprofstruct.MetadataConfig{
 		},
 	},
 	"lldp_remote_management": {
-		Fields: map[string]cprofstruct.MetadataField{
+		Fields: map[string]profiledefinition.MetadataField{
 			"interface_id_type": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.2.1.3",
 					Name: "lldpRemManAddrIfSubtype",
 				},
@@ -165,15 +165,15 @@ var TopologyMetadataConfig = cprofstruct.MetadataConfig{
 		},
 	},
 	"lldp_local": {
-		Fields: map[string]cprofstruct.MetadataField{
+		Fields: map[string]profiledefinition.MetadataField{
 			"interface_id_type": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.3.7.1.2",
 					Name: "lldpLocPortIdSubtype",
 				},
 			},
 			"interface_id": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.3.7.1.3",
 					Name: "lldpLocPortID",
 				},
@@ -181,39 +181,39 @@ var TopologyMetadataConfig = cprofstruct.MetadataConfig{
 		},
 	},
 	"cdp_remote": {
-		Fields: map[string]cprofstruct.MetadataField{
+		Fields: map[string]profiledefinition.MetadataField{
 			"device_desc": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
 					Name: "cdpCacheVersion",
 				},
 			},
 			"device_id": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
 					Name: "cdpCacheDeviceId",
 				},
 			},
 			"interface_id": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
 					Name: "cdpCacheDevicePort",
 				},
 			},
 			"device_name": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
 					Name: "cdpCacheSysName",
 				},
 			},
 			"device_address_type": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
 					Name: "cdpCachePrimaryMgmtAddrType",
 				},
 			},
 			"device_address": {
-				Symbol: cprofstruct.SymbolConfig{
+				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
 					Name: "cdpCachePrimaryMgmtAddr",
 				},
@@ -228,8 +228,8 @@ var TopologyMetadataConfig = cprofstruct.MetadataConfig{
 
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithDefaults(metadataConfig cprofstruct.MetadataConfig, collectTopology bool) cprofstruct.MetadataConfig {
-	newConfig := make(cprofstruct.MetadataConfig)
+func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool) profiledefinition.MetadataConfig {
+	newConfig := make(profiledefinition.MetadataConfig)
 	mergeMetadata(newConfig, metadataConfig)
 	mergeMetadata(newConfig, LegacyMetadataConfig)
 	if collectTopology {
@@ -238,7 +238,7 @@ func updateMetadataDefinitionWithDefaults(metadataConfig cprofstruct.MetadataCon
 	return newConfig
 }
 
-func mergeMetadata(metadataConfig cprofstruct.MetadataConfig, extraMetadata cprofstruct.MetadataConfig) {
+func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata profiledefinition.MetadataConfig) {
 	for resourceName, resourceConfig := range extraMetadata {
 		if _, ok := metadataConfig[resourceName]; !ok {
 			metadataConfig[resourceName] = resourceConfig

@@ -6,7 +6,7 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"os"
 	"path/filepath"
 
@@ -33,19 +33,19 @@ func pathExists(path string) bool {
 }
 
 // copyProfileDefinition copies a profile, it's used for testing
-func copyProfileDefinition(profileDef cprofstruct.ProfileDefinition) cprofstruct.ProfileDefinition {
-	newDef := cprofstruct.ProfileDefinition{}
+func copyProfileDefinition(profileDef profiledefinition.ProfileDefinition) profiledefinition.ProfileDefinition {
+	newDef := profiledefinition.ProfileDefinition{}
 	newDef.Metrics = append(newDef.Metrics, profileDef.Metrics...)
 	newDef.MetricTags = append(newDef.MetricTags, profileDef.MetricTags...)
 	newDef.StaticTags = append(newDef.StaticTags, profileDef.StaticTags...)
-	newDef.Metadata = make(cprofstruct.MetadataConfig)
+	newDef.Metadata = make(profiledefinition.MetadataConfig)
 	newDef.Device = profileDef.Device
 	newDef.Extends = append(newDef.Extends, profileDef.Extends...)
 	newDef.SysObjectIds = append(newDef.SysObjectIds, profileDef.SysObjectIds...)
 
 	for resName, resource := range profileDef.Metadata {
-		resConfig := cprofstruct.MetadataResourceConfig{}
-		resConfig.Fields = make(map[string]cprofstruct.MetadataField)
+		resConfig := profiledefinition.MetadataResourceConfig{}
+		resConfig.Fields = make(map[string]profiledefinition.MetadataField)
 		for fieldName, field := range resource.Fields {
 			resConfig.Fields[fieldName] = field
 		}

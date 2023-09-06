@@ -7,7 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
 )
@@ -47,7 +47,7 @@ const (
 )
 
 // ValidateEnrichMetricTags validates and enrich metric tags
-func ValidateEnrichMetricTags(metricTags []cprofstruct.MetricTagConfig) []string {
+func ValidateEnrichMetricTags(metricTags []profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
 		errors = append(errors, validateEnrichMetricTag(&metricTags[i])...)
@@ -58,7 +58,7 @@ func ValidateEnrichMetricTags(metricTags []cprofstruct.MetricTagConfig) []string
 // ValidateEnrichMetrics will validate MetricsConfig and enrich it.
 // Example of enrichment:
 // - storage of compiled regex pattern
-func ValidateEnrichMetrics(metrics []cprofstruct.MetricsConfig) []string {
+func ValidateEnrichMetrics(metrics []profiledefinition.MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
@@ -96,7 +96,7 @@ func ValidateEnrichMetrics(metrics []cprofstruct.MetricsConfig) []string {
 }
 
 // validateEnrichMetadata will validate MetadataConfig and enrich it.
-func validateEnrichMetadata(metadata cprofstruct.MetadataConfig) []string {
+func validateEnrichMetadata(metadata profiledefinition.MetadataConfig) []string {
 	var errors []string
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]
@@ -132,7 +132,7 @@ func validateEnrichMetadata(metadata cprofstruct.MetadataConfig) []string {
 	return errors
 }
 
-func validateEnrichSymbol(symbol *cprofstruct.SymbolConfig, symbolContext SymbolContext) []string {
+func validateEnrichSymbol(symbol *profiledefinition.SymbolConfig, symbolContext SymbolContext) []string {
 	var errors []string
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
@@ -168,7 +168,7 @@ func validateEnrichSymbol(symbol *cprofstruct.SymbolConfig, symbolContext Symbol
 	}
 	return errors
 }
-func validateEnrichMetricTag(metricTag *cprofstruct.MetricTagConfig) []string {
+func validateEnrichMetricTag(metricTag *profiledefinition.MetricTagConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)

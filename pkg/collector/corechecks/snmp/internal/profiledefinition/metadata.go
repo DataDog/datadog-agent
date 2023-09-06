@@ -1,4 +1,4 @@
-package cprofstruct
+package profiledefinition
 
 // MetadataDeviceResource is the device resource name
 const MetadataDeviceResource = "device"

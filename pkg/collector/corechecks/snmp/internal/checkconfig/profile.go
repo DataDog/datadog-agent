@@ -7,7 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -124,19 +124,19 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func readProfileDefinition(definitionFile string) (*cprofstruct.ProfileDefinition, error) {
+func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
 	}
 
-	profileDefinition := cprofstruct.NewProfileDefinition()
+	profileDefinition := profiledefinition.NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
 	}
-	cprofstruct.NormalizeMetrics(profileDefinition.Metrics)
+	profiledefinition.NormalizeMetrics(profileDefinition.Metrics)
 	errors := validateEnrichMetadata(profileDefinition.Metadata)
 	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)
@@ -162,7 +162,7 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(parentPath string, definition *cprofstruct.ProfileDefinition, extends []string, extendsHistory []string) error {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string) error {
 	parentBasePath := filepath.Base(parentPath)
 	for _, extendEntry := range extends {
 		// User profile can extend default profile by extending the default profile.
@@ -191,13 +191,13 @@ func recursivelyExpandBaseProfiles(parentPath string, definition *cprofstruct.Pr
 	return nil
 }
 
-func mergeProfileDefinition(targetDefinition *cprofstruct.ProfileDefinition, baseDefinition *cprofstruct.ProfileDefinition) {
+func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinition, baseDefinition *profiledefinition.ProfileDefinition) {
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
 	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
 	for baseResName, baseResource := range baseDefinition.Metadata {
 		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
-			targetDefinition.Metadata[baseResName] = cprofstruct.NewMetadataResourceConfig()
+			targetDefinition.Metadata[baseResName] = profiledefinition.NewMetadataResourceConfig()
 		}
 		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
 			for _, tagConfig := range baseResource.IDTags {
@@ -205,7 +205,7 @@ func mergeProfileDefinition(targetDefinition *cprofstruct.ProfileDefinition, bas
 			}
 
 			if resource.Fields == nil {
-				resource.Fields = make(map[string]cprofstruct.MetadataField, len(baseResource.Fields))
+				resource.Fields = make(map[string]profiledefinition.MetadataField, len(baseResource.Fields))
 			}
 			for field, symbol := range baseResource.Fields {
 				if _, ok := resource.Fields[field]; !ok {
