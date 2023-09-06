@@ -269,6 +269,9 @@ variables:
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
+.if_not_e2e: &if_not_e2e
+  if: $RUN_KITCHEN_TESTS == "false"
+
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
 
@@ -909,3 +912,9 @@ workflow:
     when: always
   - when: manual
     allow_failure: true
+
+.on_main_and_no_skip_e2e:
+  - <<: *if_not_e2e
+    when: never
+  - <<: *if_main_branch
+    when: always
