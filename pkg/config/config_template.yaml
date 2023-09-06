@@ -1815,9 +1815,9 @@ api_key:
 
   ## @param health_port - integer - optional - default: 0
   ## @env DD_SYSTEM_PROBE_HEALTH_PORT - integer - optional - default: 0
-  ## The Agent can expose its health check on a dedicated http port.
-  ## This is useful for orchestrators that support http probes.
-  ## Default is 0 (disabled), set a valid port number (eg. 5558) to enable.
+  ## The Agent can expose its health check on a dedicated HTTP port.
+  ## This is useful for orchestrators that support HTTP probes.
+  ## Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
   #
   # health_port: 0
 
