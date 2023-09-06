@@ -154,7 +154,7 @@ namespace WixSetup.Datadog
                 .AddDirectories(
                     CreateProgramFilesFolder(),
                     CreateAppDataFolder(),
-                    new Dir(@"%ProgramMenu%\Datadog",
+                    new Dir(new Id("ProgramMenuDatadog"), @"%ProgramMenu%\Datadog",
                         new ExeFileShortcut
                         {
                             Name = "Datadog Agent Manager",
@@ -234,14 +234,14 @@ namespace WixSetup.Datadog
                     .Where(x => x.HasAttribute("Id",
                         value => value.Equals("TARGETDIR") ||
                                  value.Equals("ProgramFiles64Folder") ||
-                                 value.Equals("Datadog")))
+                                 value.Equals("DatadogAppRoot")))
                     .Remove();
                 document
                     .FindAll("ComponentRef")
                     .Where(x => x.HasAttribute("Id",
                         value => value.Equals("TARGETDIR") ||
                                  value.Equals("ProgramFiles64Folder") ||
-                                 value.Equals("Datadog")))
+                                 value.Equals("DatadogAppRoot")))
                     .Remove();
                 // END TODO: Wix# adds these automatically
                 document
@@ -346,7 +346,7 @@ namespace WixSetup.Datadog
                 datadogAgentFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
             }
 
-            return new Dir("%ProgramFiles%\\Datadog", datadogAgentFolder);
+            return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
         private static PermissionEx DefaultPermissions()
