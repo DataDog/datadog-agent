@@ -10,8 +10,8 @@ include:
   rules:
   - if: $FORCE_K8S_DEPLOYMENT == "true"
     when: always
-  - if: $CI_COMMIT_BRANCH != "main"
-    when: never
+#  - if: $CI_COMMIT_BRANCH != "main"
+#    when: never
   - !reference [.on_deploy_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -36,7 +36,7 @@ internal_kubernetes_deploy_snowver:
       optional: true
   variables:
     OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh snowver ${CI_COMMIT_REF_SLUG}-jmx-${CI_COMMIT_SHORT_SHA} ${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}"
-    FILTER: "cluster.env == 'experimental' and cluster.shortName == 'snowver'"
+    FILTER: "cluster.shortName == 'snowver'"
 
 internal_kubernetes_deploy_stripe:
   extends: .internal_kubernetes_deploy
