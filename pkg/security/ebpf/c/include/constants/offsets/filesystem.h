@@ -181,7 +181,6 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
 int __attribute__((always_inline)) get_sizeof_inode() {
     u64 sizeof_inode;
     LOAD_CONSTANT("sizeof_inode", sizeof_inode);
-
     return sizeof_inode;
 }
 
@@ -194,7 +193,12 @@ u64 __attribute__((always_inline)) get_ovl_path_in_inode() {
 int __attribute__((always_inline)) get_sb_magic_offset() {
     u64 offset;
     LOAD_CONSTANT("sb_magic_offset", offset);
+    return offset;
+}
 
+int __attribute__((always_inline)) get_sb_flags_offset() {
+    u64 offset;
+    LOAD_CONSTANT("sb_flags_offset", offset);
     return offset;
 }
 
@@ -202,8 +206,18 @@ int __attribute__((always_inline)) get_sb_magic_offset() {
 static __attribute__((always_inline)) int get_sb_magic(struct super_block *sb) {
     u64 magic;
     bpf_probe_read(&magic, sizeof(magic), (char *)sb + get_sb_magic_offset());
-
     return magic;
+}
+
+static __attribute__((always_inline)) int get_sb_flags(struct super_block *sb) {
+    u64 s_flags;
+    bpf_probe_read(&s_flags, sizeof(s_flags), (char *)sb + get_sb_flags_offset());
+    return s_flags;
+}
+
+static __attribute__((always_inline)) int is_non_mountable_dentry(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_flags(sb) & SB_NOUSER;
 }
 
 static __attribute__((always_inline)) int is_tmpfs(struct dentry *dentry) {

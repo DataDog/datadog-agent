@@ -83,8 +83,7 @@ type Tracer struct {
 	bpfTelemetry *nettelemetry.EBPFTelemetry
 	lastCheck    *atomic.Int64
 
-	activeBuffer *network.ConnectionBuffer
-	bufferLock   sync.Mutex
+	bufferLock sync.Mutex
 
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
@@ -205,7 +204,6 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}
 
-	tr.activeBuffer = network.NewConnectionBuffer(512, 256)
 	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
 	tr.destExcludes = network.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
@@ -323,7 +321,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if c.Tags == nil {
-		c.Tags = make(map[string]struct{})
+		c.Tags = make(map[string]struct{}, 3)
 	}
 
 	addTag := func(k, v string) {
@@ -337,8 +335,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Env("DD_VERSION"))
 	addTag("service", p.Env("DD_SERVICE"))
 
-	if p.ContainerID != "" {
-		c.ContainerID = &p.ContainerID
+	containerID := p.ContainerID.Get().(string)
+	if containerID != "" {
+		c.ContainerID = &containerID
 	}
 }
 
@@ -379,13 +378,14 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		log.Tracef("GetActiveConnections clientID=%s", clientID)
 	}
 	t.ebpfTracer.FlushPending()
-	latestTime, active, err := t.getConnections(t.activeBuffer)
+
+	buffer := network.ClientPool.Get(clientID)
+	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats())
-	t.activeBuffer.Reset()
 
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	var udpConns, tcpConns int
@@ -403,27 +403,22 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
 	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
-	names := t.reverseDNS.Resolve(ips)
-	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
-	rctm := t.getRuntimeCompilationTelemetry()
-	khfr := int32(kernel.HeaderProvider.GetResult())
-	coretm := ddebpf.GetCORETelemetryByAsset()
-	pbassets := netebpf.GetModulesInUse()
+
+	buffer.ConnectionBuffer.Assign(delta.Conns)
+	conns := network.NewConnections(buffer)
+	conns.DNS = t.reverseDNS.Resolve(ips)
+	conns.DNSStats = delta.DNSStats
+	conns.HTTP = delta.HTTP
+	conns.HTTP2 = delta.HTTP2
+	conns.Kafka = delta.Kafka
+	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
+	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
+	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
+	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
+	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
-	return &network.Connections{
-		BufferedData:                delta.BufferedData,
-		DNS:                         names,
-		DNSStats:                    delta.DNSStats,
-		HTTP:                        delta.HTTP,
-		HTTP2:                       delta.HTTP2,
-		Kafka:                       delta.Kafka,
-		ConnTelemetry:               ctm,
-		KernelHeaderFetchResult:     khfr,
-		CompilationTelemetryByAsset: rctm,
-		CORETelemetryByAsset:        coretm,
-		PrebuiltAssets:              pbassets,
-	}, nil
+	return conns, nil
 }
 
 // RegisterClient registers a clientID with the tracer

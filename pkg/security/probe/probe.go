@@ -16,11 +16,14 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
@@ -50,6 +53,9 @@ type Probe struct {
 	ctx          context.Context
 	cancelFnc    context.CancelFunc
 	wg           sync.WaitGroup
+
+	// internals
+	scrubber *procutil.DataScrubber
 
 	// Events section
 	seclModelEventHandlers [model.MaxAllEventType][]EventHandler
@@ -111,4 +117,52 @@ func (p *Probe) GetService(ev *model.Event) string {
 		return service
 	}
 	return p.Config.RuntimeSecurity.HostServiceName
+}
+
+// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
+func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
+	var ruleSetsToInclude []*rules.RuleSet
+	for _, ruleSetTagValue := range ruleSetTagValues {
+		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
+
+		ruleOpts.WithLogger(seclog.DefaultLogger)
+		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
+			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+		}
+
+		eventCtor := func() eval.Event {
+			return NewEvent(p.fieldHandlers)
+		}
+
+		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
+		ruleSetsToInclude = append(ruleSetsToInclude, rs)
+	}
+
+	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return evaluationSet, nil
+}
+
+// IsNetworkEnabled returns whether network is enabled
+func (p *Probe) IsNetworkEnabled() bool {
+	return p.Config.Probe.NetworkEnabled
+}
+
+// IsActivityDumpEnabled returns whether activity dump is enabled
+func (p *Probe) IsActivityDumpEnabled() bool {
+	return p.Config.RuntimeSecurity.ActivityDumpEnabled
+}
+
+// IsActivityDumpTagRulesEnabled returns whether rule tags is enabled for activity dumps
+func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
+	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
+}
+
+// IsSecurityProfileEnabled returns whether security profile is enabled
+func (p *Probe) IsSecurityProfileEnabled() bool {
+	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }

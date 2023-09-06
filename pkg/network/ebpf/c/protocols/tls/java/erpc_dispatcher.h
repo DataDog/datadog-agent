@@ -46,4 +46,13 @@ static void __always_inline handle_erpc_request(struct pt_regs *ctx) {
     bpf_tail_call_compat(ctx, &java_tls_erpc_handlers, op);
 }
 
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        handle_erpc_request(ctx);
+    }
+
+    return 0;
+}
+
 #endif // _ERPC_DISPATCHER_H

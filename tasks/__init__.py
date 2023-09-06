@@ -11,10 +11,11 @@ from . import (
     cluster_agent_cloudfoundry,
     components,
     customaction,
+    diff,
     docker_tasks,
     dogstatsd,
     epforwarder,
-    github,
+    github_tasks,
     kmt,
     msi,
     new_e2e_tests,
@@ -47,6 +48,7 @@ from .go import (
     reset,
     tidy_all,
 )
+from .show_linters_issues import show_linters_issues
 from .test import (
     codecov,
     download_tools,
@@ -91,6 +93,7 @@ ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
+ns.add_task(show_linters_issues)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
@@ -120,7 +123,7 @@ ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
-ns.add_collection(github)
+ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(pylauncher)
@@ -134,6 +137,7 @@ ns.add_collection(security_agent)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(kmt)
+ns.add_collection(diff)
 ns.configure(
     {
         'run': {
