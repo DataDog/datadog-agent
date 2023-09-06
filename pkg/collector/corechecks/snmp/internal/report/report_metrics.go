@@ -94,7 +94,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []cprofstruct.Metr
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			continue
 		}
-		globalTags = append(globalTags, checkconfig.GetTags(&metricTag, strValue)...)
+		globalTags = append(globalTags, checkconfig.BuildMetricTagsFromValue(&metricTag, strValue)...)
 	}
 	return globalTags
 }

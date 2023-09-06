@@ -733,7 +733,7 @@ metric_tags:
 			},
 			expectedTags: []string(nil),
 			expectedLogs: []logCount{
-				{"[DEBUG] GetTags: error getting tags. mapping for `5` does not exist.", 1},
+				{"[DEBUG] BuildMetricTagsFromValue: error getting tags. mapping for `5` does not exist.", 1},
 			},
 		},
 		{

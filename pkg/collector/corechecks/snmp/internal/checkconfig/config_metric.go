@@ -7,31 +7,31 @@ import (
 	"regexp"
 )
 
-// GetTags returns tags based on MetricTagConfig and a value
-func GetTags(mtc *cprofstruct.MetricTagConfig, value string) []string {
+// BuildMetricTagsFromValue returns tags based on MetricTagConfig and a value
+func BuildMetricTagsFromValue(metricTag *cprofstruct.MetricTagConfig, value string) []string {
 	var tags []string
-	if mtc.Tag != "" {
-		if len(mtc.Mapping) > 0 {
-			mappedValue, err := GetMappedValue(value, mtc.Mapping)
+	if metricTag.Tag != "" {
+		if len(metricTag.Mapping) > 0 {
+			mappedValue, err := GetMappedValue(value, metricTag.Mapping)
 			if err != nil {
-				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`", value, mtc.Mapping)
+				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`", value, metricTag.Mapping)
 			} else {
-				tags = append(tags, mtc.Tag+":"+mappedValue)
+				tags = append(tags, metricTag.Tag+":"+mappedValue)
 			}
 		} else {
-			tags = append(tags, mtc.Tag+":"+value)
+			tags = append(tags, metricTag.Tag+":"+value)
 		}
-	} else if mtc.Match != "" {
-		if mtc.Pattern == nil {
-			log.Warnf("match Pattern must be present: match=%s", mtc.Match)
+	} else if metricTag.Match != "" {
+		if metricTag.Pattern == nil {
+			log.Warnf("match Pattern must be present: match=%s", metricTag.Match)
 			return tags
 		}
-		if mtc.Pattern.MatchString(value) {
-			for key, val := range mtc.Tags {
+		if metricTag.Pattern.MatchString(value) {
+			for key, val := range metricTag.Tags {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
-				replacedVal := RegexReplaceValue(value, mtc.Pattern, normalizedTemplate)
+				replacedVal := RegexReplaceValue(value, metricTag.Pattern, normalizedTemplate)
 				if replacedVal == "" {
-					log.Debugf("Pattern `%v` failed to match `%v` with template `%v`", mtc.Pattern, value, normalizedTemplate)
+					log.Debugf("Pattern `%v` failed to match `%v` with template `%v`", metricTag.Pattern, value, normalizedTemplate)
 					continue
 				}
 				tags = append(tags, key+":"+replacedVal)

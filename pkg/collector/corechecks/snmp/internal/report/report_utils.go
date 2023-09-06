@@ -130,7 +130,7 @@ func getTagsFromMetricTagConfigList(mtcl cprofstruct.MetricTagConfigList, fullIn
 				log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
 				continue
 			}
-			rowTags = append(rowTags, checkconfig.GetTags(&metricTag, strValue)...)
+			rowTags = append(rowTags, checkconfig.BuildMetricTagsFromValue(&metricTag, strValue)...)
 		}
 	}
 	return rowTags
