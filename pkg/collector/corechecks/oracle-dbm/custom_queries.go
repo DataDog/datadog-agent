@@ -24,9 +24,9 @@ type metricRow struct {
 	tags   []string
 }
 
-func logTypeError(prefix string, expectedType string, column string, value interface{}, query string, err error) {
-	log.Errorf(
-		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s". Error: %s`,
+func concatenateTypeError(input error, prefix string, expectedType string, column string, value interface{}, query string, err error) error {
+	return fmt.Errorf(
+		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s". Error: %w`,
 		prefix, expectedType, column, value, reflect.TypeOf(value), query, err,
 	)
 }
@@ -108,7 +108,7 @@ func (c *Check) CustomQueries() error {
 			}
 			cols, err := rows.SliceScan()
 			if err != nil {
-				log.Errorf("failed to get values for the custom query %s %s", metricPrefix, err)
+				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to get values for the custom query %s %s", metricPrefix, err))
 				errInQuery = true
 				break
 			}
@@ -128,26 +128,26 @@ func (c *Check) CustomQueries() error {
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
 						if err != nil {
-							logTypeError(metricPrefix, "number", metricRow.name, v, q.Query, err)
+							allErrors = concatenateTypeError(allErrors, metricPrefix, "number", metricRow.name, v, q.Query, err)
 							errInQuery = true
 							break
 						}
 					} else if v_gn, ok := v.(godror.Number); ok {
 						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
 						if err != nil {
-							logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query, err)
+							allErrors = concatenateTypeError(allErrors, metricPrefix, "godror.Number", metricRow.name, v, q.Query, err)
 							errInQuery = true
 							break
 						}
 					} else if vInt64, ok := v.(int64); ok {
 						metricRow.value = float64(vInt64)
 						if err != nil {
-							logTypeError(metricPrefix, "int64", metricRow.name, v, q.Query, err)
+							allErrors = concatenateTypeError(allErrors, metricPrefix, "int64", metricRow.name, v, q.Query, err)
 							errInQuery = true
 							break
 						}
 					} else {
-						logTypeError(metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
+						allErrors = concatenateTypeError(allErrors, metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
 						errInQuery = true
 						break
 					}
