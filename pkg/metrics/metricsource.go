@@ -5,20 +5,31 @@
 
 package metrics
 
-import "github.com/DataDog/datadog-agent/pkg/metrics/model"
-
 // MetricSource represents how this metric made it into the Agent
-type MetricSource = model.MetricSource
+type MetricSource uint16
 
 // Enumeration of the currently supported MetricSources
 const (
-	MetricSourceUnknown = model.MetricSourceUnknown
+	MetricSourceUnknown MetricSource = iota
 
-	MetricSourceDogstatsd = model.MetricSourceDogstatsd
+	MetricSourceDogstatsd
 
 	// In the future, metrics from official JMX integrations will
 	// be properly categorized, but as things are today, ALL metrics
 	// from a JMX check will be marked as "custom", including official
 	// integrations
-	MetricSourceJmxCustom = model.MetricSourceJmxCustom
+	MetricSourceJmxCustom
 )
+
+// String returns a string representation of MetricSource
+func (ms MetricSource) String() string {
+	switch ms {
+	case MetricSourceDogstatsd:
+		return "dogstatsd"
+	case MetricSourceJmxCustom:
+		return "jmx-custom-check"
+	default:
+		return "<unknown>"
+
+	}
+}
