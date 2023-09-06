@@ -467,7 +467,7 @@ namespace WixSetup.Datadog
                     Name = Constants.AgentServiceName,
                     Log = "Application",
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
-                    AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                    AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 },
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
                 new Dir(new Id("AGENT"), "agent",
@@ -481,7 +481,7 @@ namespace WixSetup.Datadog
                         Name = Constants.ProcessAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     },
                     new WixSharp.File(_agentBinaries.SystemProbe, systemProbeService),
                     new EventSource
@@ -489,7 +489,7 @@ namespace WixSetup.Datadog
                         Name = Constants.SystemProbeServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     },
                     new WixSharp.File(_agentBinaries.TraceAgent, traceAgentService),
                     new EventSource
@@ -497,7 +497,7 @@ namespace WixSetup.Datadog
                         Name = Constants.TraceAgentServiceName,
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
+                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
                 )
             );
