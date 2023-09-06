@@ -14,6 +14,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health"
+	kube "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/node"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
@@ -64,6 +65,7 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Pr
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
 	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
 	}
@@ -73,6 +75,7 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Pr
 		nodeProvider,
 		probeProvider,
 		healthProvider,
+		kubeletProvider,
 	}
 }
 
