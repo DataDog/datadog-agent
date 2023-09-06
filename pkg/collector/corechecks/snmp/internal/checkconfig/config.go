@@ -8,7 +8,7 @@ package checkconfig
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
+	profiledefinition2 "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"hash/fnv"
 	"net"
 	"path/filepath"
@@ -56,48 +56,48 @@ const deviceIPTagKey = "snmp_device"
 // - snmp-net uses 10
 const DefaultBulkMaxRepetitions = uint32(10)
 
-var uptimeMetricConfig = profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
+var uptimeMetricConfig = profiledefinition2.MetricsConfig{Symbol: profiledefinition2.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles                     profileConfigMap                  `yaml:"profiles"`
-	GlobalMetrics                []profiledefinition.MetricsConfig `yaml:"global_metrics"`
-	OidBatchSize                 Number                            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions           Number                            `yaml:"bulk_max_repetitions"`
-	CollectDeviceMetadata        Boolean                           `yaml:"collect_device_metadata"`
-	CollectTopology              Boolean                           `yaml:"collect_topology"`
-	UseDeviceIDAsHostname        Boolean                           `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval        int                               `yaml:"min_collection_interval"`
-	Namespace                    string                            `yaml:"namespace"`
-	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
-	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
+	Profiles                     profileConfigMap                   `yaml:"profiles"`
+	GlobalMetrics                []profiledefinition2.MetricsConfig `yaml:"global_metrics"`
+	OidBatchSize                 Number                             `yaml:"oid_batch_size"`
+	BulkMaxRepetitions           Number                             `yaml:"bulk_max_repetitions"`
+	CollectDeviceMetadata        Boolean                            `yaml:"collect_device_metadata"`
+	CollectTopology              Boolean                            `yaml:"collect_topology"`
+	UseDeviceIDAsHostname        Boolean                            `yaml:"use_device_id_as_hostname"`
+	MinCollectionInterval        int                                `yaml:"min_collection_interval"`
+	Namespace                    string                             `yaml:"namespace"`
+	DetectMetricsEnabled         Boolean                            `yaml:"experimental_detect_metrics_enabled"`
+	DetectMetricsRefreshInterval int                                `yaml:"experimental_detect_metrics_refresh_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	Name                  string                              `yaml:"name"`
-	IPAddress             string                              `yaml:"ip_address"`
-	Port                  Number                              `yaml:"port"`
-	CommunityString       string                              `yaml:"community_string"`
-	SnmpVersion           string                              `yaml:"snmp_version"`
-	Timeout               Number                              `yaml:"timeout"`
-	Retries               Number                              `yaml:"retries"`
-	User                  string                              `yaml:"user"`
-	AuthProtocol          string                              `yaml:"authProtocol"`
-	AuthKey               string                              `yaml:"authKey"`
-	PrivProtocol          string                              `yaml:"privProtocol"`
-	PrivKey               string                              `yaml:"privKey"`
-	ContextName           string                              `yaml:"context_name"`
-	Metrics               []profiledefinition.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
-	MetricTags            []profiledefinition.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
-	Profile               string                              `yaml:"profile"`
-	UseGlobalMetrics      bool                                `yaml:"use_global_metrics"`
-	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
-	CollectTopology       *Boolean                            `yaml:"collect_topology"`
-	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
+	Name                  string                               `yaml:"name"`
+	IPAddress             string                               `yaml:"ip_address"`
+	Port                  Number                               `yaml:"port"`
+	CommunityString       string                               `yaml:"community_string"`
+	SnmpVersion           string                               `yaml:"snmp_version"`
+	Timeout               Number                               `yaml:"timeout"`
+	Retries               Number                               `yaml:"retries"`
+	User                  string                               `yaml:"user"`
+	AuthProtocol          string                               `yaml:"authProtocol"`
+	AuthKey               string                               `yaml:"authKey"`
+	PrivProtocol          string                               `yaml:"privProtocol"`
+	PrivKey               string                               `yaml:"privKey"`
+	ContextName           string                               `yaml:"context_name"`
+	Metrics               []profiledefinition2.MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
+	MetricTags            []profiledefinition2.MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
+	Profile               string                               `yaml:"profile"`
+	UseGlobalMetrics      bool                                 `yaml:"use_global_metrics"`
+	CollectDeviceMetadata *Boolean                             `yaml:"collect_device_metadata"`
+	CollectTopology       *Boolean                             `yaml:"collect_topology"`
+	UseDeviceIDAsHostname *Boolean                             `yaml:"use_device_id_as_hostname"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -155,20 +155,20 @@ type CheckConfig struct {
 	ContextName     string
 	OidConfig       OidConfig
 	// RequestedMetrics are the metrics explicitly requested by config.
-	RequestedMetrics []profiledefinition.MetricsConfig
+	RequestedMetrics []profiledefinition2.MetricsConfig
 	// RequestedMetricTags are the tags explicitly requested by config.
-	RequestedMetricTags []profiledefinition.MetricTagConfig
+	RequestedMetricTags []profiledefinition2.MetricTagConfig
 	// Metrics combines RequestedMetrics with profile metrics.
-	Metrics  []profiledefinition.MetricsConfig
-	Metadata profiledefinition.MetadataConfig
+	Metrics  []profiledefinition2.MetricsConfig
+	Metadata profiledefinition2.MetadataConfig
 	// MetricTags combines RequestedMetricTags with profile metric tags.
-	MetricTags            []profiledefinition.MetricTagConfig
+	MetricTags            []profiledefinition2.MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
 	Profiles              profileConfigMap
 	ProfileTags           []string
 	Profile               string
-	ProfileDef            *profiledefinition.ProfileDefinition
+	ProfileDef            *profiledefinition2.ProfileDefinition
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
@@ -216,9 +216,9 @@ func (c *CheckConfig) SetProfile(profile string) error {
 // SetAutodetectProfile sets the profile to the provided auto-detected metrics
 // and tags. This overwrites any preexisting profile but does not affect
 // RequestedMetrics or RequestedMetricTags, which will still be queried.
-func (c *CheckConfig) SetAutodetectProfile(metrics []profiledefinition.MetricsConfig, tags []profiledefinition.MetricTagConfig) {
+func (c *CheckConfig) SetAutodetectProfile(metrics []profiledefinition2.MetricsConfig, tags []profiledefinition2.MetricTagConfig) {
 	c.Profile = "autodetect"
-	c.ProfileDef = &profiledefinition.ProfileDefinition{
+	c.ProfileDef = &profiledefinition2.ProfileDefinition{
 		Metrics:    metrics,
 		MetricTags: tags,
 	}
@@ -505,7 +505,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		profiles = defaultProfiles
 	}
 	for _, profileDef := range profiles {
-		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)
+		profiledefinition2.NormalizeMetrics(profileDef.Definition.Metrics)
 	}
 	c.Profiles = profiles
 
@@ -528,7 +528,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	// Always request uptime
 	c.RequestedMetrics = append(c.RequestedMetrics, uptimeMetricConfig)
-	profiledefinition.NormalizeMetrics(c.RequestedMetrics)
+	profiledefinition2.NormalizeMetrics(c.RequestedMetrics)
 	c.RequestedMetricTags = instance.MetricTags
 	errors := ValidateEnrichMetrics(c.RequestedMetrics)
 	errors = append(errors, ValidateEnrichMetricTags(c.RequestedMetricTags)...)
@@ -620,18 +620,18 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ContextName = c.ContextName
 	newConfig.ContextName = c.ContextName
 	newConfig.OidConfig = c.OidConfig
-	newConfig.RequestedMetrics = make([]profiledefinition.MetricsConfig, len(c.RequestedMetrics))
+	newConfig.RequestedMetrics = make([]profiledefinition2.MetricsConfig, len(c.RequestedMetrics))
 	copy(newConfig.RequestedMetrics, c.RequestedMetrics)
-	newConfig.Metrics = make([]profiledefinition.MetricsConfig, len(c.Metrics))
+	newConfig.Metrics = make([]profiledefinition2.MetricsConfig, len(c.Metrics))
 	copy(newConfig.Metrics, c.Metrics)
 
 	// Metadata: shallow copy is enough since metadata is not modified.
 	// However, it might be fully replaced, see CheckConfig.SetProfile
 	newConfig.Metadata = c.Metadata
 
-	newConfig.RequestedMetricTags = make([]profiledefinition.MetricTagConfig, len(c.RequestedMetricTags))
+	newConfig.RequestedMetricTags = make([]profiledefinition2.MetricTagConfig, len(c.RequestedMetricTags))
 	copy(newConfig.RequestedMetricTags, c.RequestedMetricTags)
-	newConfig.MetricTags = make([]profiledefinition.MetricTagConfig, len(c.MetricTags))
+	newConfig.MetricTags = make([]profiledefinition2.MetricTagConfig, len(c.MetricTags))
 	copy(newConfig.MetricTags, c.MetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
@@ -671,7 +671,7 @@ func (c *CheckConfig) IsDiscovery() bool {
 	return c.Network != ""
 }
 
-func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig, metricTags []profiledefinition.MetricTagConfig, metadataConfigs profiledefinition.MetadataConfig) []string {
+func (c *CheckConfig) parseScalarOids(metrics []profiledefinition2.MetricsConfig, metricTags []profiledefinition2.MetricTagConfig, metadataConfigs profiledefinition2.MetadataConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
 		oids = append(oids, metric.Symbol.OID)
@@ -681,7 +681,7 @@ func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig,
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
-			if !profiledefinition.IsMetadataResourceWithScalarOids(resource) {
+			if !profiledefinition2.IsMetadataResourceWithScalarOids(resource) {
 				continue
 			}
 			for _, field := range metadataConfig.Fields {
@@ -698,7 +698,7 @@ func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig,
 	return oids
 }
 
-func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig, metadataConfigs profiledefinition.MetadataConfig) []string {
+func (c *CheckConfig) parseColumnOids(metrics []profiledefinition2.MetricsConfig, metadataConfigs profiledefinition2.MetadataConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
 		for _, symbol := range metric.Symbols {
@@ -710,7 +710,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
-			if profiledefinition.IsMetadataResourceWithScalarOids(resource) {
+			if profiledefinition2.IsMetadataResourceWithScalarOids(resource) {
 				continue
 			}
 			for _, field := range metadataConfig.Fields {

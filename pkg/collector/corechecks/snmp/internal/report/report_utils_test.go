@@ -8,7 +8,7 @@ package report
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"regexp"
 	"strings"
 	"testing"
@@ -911,9 +911,9 @@ func Test_getContantMetricValues(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		name       string
-		metricTags profiledefinition.MetricTagConfigList
-		values     *valuestore.ResultValueStore
+		name           string
+		metricTags     profiledefinition.MetricTagConfigList
+		values         *valuestore.ResultValueStore
 		expectedValues map[string]valuestore.ResultValue
 		expectedLogs   []logCount
 	}{

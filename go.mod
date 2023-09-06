@@ -561,6 +561,7 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.7.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
@@ -577,7 +578,6 @@ require (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20221215162035-5330a85ea652 // indirect
-	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect

@@ -9,7 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
+	profiledefinition2 "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"testing"
 	"time"
 
@@ -62,16 +62,16 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: profiledefinition.MetadataConfig{
+		Metadata: profiledefinition2.MetadataConfig{
 			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
+				Fields: map[string]profiledefinition2.MetadataField{
 					"name": {
 						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
 							Name: "sysName",
 						},
-						Symbols: []profiledefinition.SymbolConfig{
+						Symbols: []profiledefinition2.SymbolConfig{
 							{
 								OID:  "1.2.99",
 								Name: "doesNotExist",
@@ -80,11 +80,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"description": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []profiledefinition.SymbolConfig{
+						Symbols: []profiledefinition2.SymbolConfig{
 							{
 								OID:  "1.3.6.1.2.1.1.1.0",
 								Name: "sysDescr",
@@ -93,11 +93,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"location": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []profiledefinition.SymbolConfig{
+						Symbols: []profiledefinition2.SymbolConfig{
 							{
 								OID:  "1.888",
 								Name: "doesNotExist2",
@@ -277,37 +277,37 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: profiledefinition.MetadataConfig{
+		Metadata: profiledefinition2.MetadataConfig{
 			"interface": {
-				Fields: map[string]profiledefinition.MetadataField{
+				Fields: map[string]profiledefinition2.MetadataField{
 					"name": {
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
 					},
 					"alias": {
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.18",
 							Name: "ifAlias",
 						},
 					},
 					"admin_status": {
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.7",
 							Name: "ifAdminStatus",
 						},
 					},
 					"oper_status": {
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
 						},
 					},
 				},
-				IDTags: profiledefinition.MetricTagConfigList{
-					profiledefinition.MetricTagConfig{
-						Column: profiledefinition.SymbolConfig{
+				IDTags: profiledefinition2.MetricTagConfigList{
+					profiledefinition2.MetricTagConfig{
+						Column: profiledefinition2.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "interface",
 						},
@@ -399,11 +399,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: profiledefinition.MetadataConfig{
+		Metadata: profiledefinition2.MetadataConfig{
 			"device": {
-				Fields: map[string]profiledefinition.MetadataField{
+				Fields: map[string]profiledefinition2.MetadataField{
 					"name": {
-						Symbol: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition2.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
 						},

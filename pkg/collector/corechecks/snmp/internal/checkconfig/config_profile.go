@@ -5,7 +5,9 @@
 
 package checkconfig
 
-import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
+import (
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+)
 
 type profileConfigMap map[string]profileConfig
 

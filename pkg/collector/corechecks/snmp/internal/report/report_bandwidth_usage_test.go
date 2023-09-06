@@ -7,7 +7,7 @@ package report
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -416,9 +416,9 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		tags  []string
 	}
 	tests := []struct {
-		name      string
-		symbol    profiledefinition.SymbolConfig
-		fullIndex string
+		name             string
+		symbol           profiledefinition.SymbolConfig
+		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
 		interfaceConfigs []snmpintegration.InterfaceConfig
@@ -582,9 +582,9 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 		value        float64
 	}
 	tests := []struct {
-		name      string
-		symbol    profiledefinition.SymbolConfig
-		fullIndex string
+		name           string
+		symbol         profiledefinition.SymbolConfig
+		fullIndex      string
 		values         *valuestore.ResultValueStore
 		expectedMetric []Metric
 	}{

@@ -6,7 +6,7 @@
 package valuestore
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

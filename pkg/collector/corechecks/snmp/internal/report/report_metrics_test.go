@@ -8,7 +8,7 @@ package report
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"strings"
 	"testing"
 
@@ -29,12 +29,12 @@ func TestSendMetric(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		caseName       string
-		symbol         profiledefinition.SymbolConfig
-		value          valuestore.ResultValue
-		tags           []string
-		metricConfig   profiledefinition.MetricsConfig
-		expectedMethod string
+		caseName           string
+		symbol             profiledefinition.SymbolConfig
+		value              valuestore.ResultValue
+		tags               []string
+		metricConfig       profiledefinition.MetricsConfig
+		expectedMethod     string
 		expectedMetricName string
 		expectedValue      float64
 		expectedTags       []string
