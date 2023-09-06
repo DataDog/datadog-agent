@@ -8,6 +8,7 @@ package processor
 import (
 	"unicode"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -17,10 +18,11 @@ type Encoder interface {
 	Encode(msg *message.Message, redactedMsg []byte) ([]byte, error)
 }
 
-// toValidUtf8 ensures all characters are UTF-8.
+// toValidUtf8 ensures all characters are UTF-8. `msg` must not be modified
+// after calling this function.
 func toValidUtf8(msg []byte) string {
 	if utf8.Valid(msg) {
-		return string(msg)
+		return unsafe.String(unsafe.SliceData(msg), len(msg))
 	}
 	str := make([]rune, 0, len(msg))
 	for i := range msg {
