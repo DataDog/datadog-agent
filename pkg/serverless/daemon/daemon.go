@@ -177,7 +177,7 @@ func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
 	return d.flushStrategy.ShouldFlush(moment, t)
 }
 
-// GetFlushStrategy returns the flush stategy
+// GetFlushStrategy returns the flush strategy
 func (d *Daemon) GetFlushStrategy() string {
 	return d.flushStrategy.String()
 }

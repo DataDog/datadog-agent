@@ -35,10 +35,10 @@ const (
 // Returns either (the serverless ID assigned by the serverless daemon + the api key as read from
 // the environment) or an error.
 func RegisterExtension(registrationRoute string, timeout time.Duration) (ID, FunctionARN, error) {
-	extesnionRegistrationURL := BuildURL(registrationRoute)
+	extensionRegistrationURL := BuildURL(registrationRoute)
 	payload := createRegistrationPayload()
 
-	request, err := buildRegisterRequest(extesnionRegistrationURL, payload)
+	request, err := buildRegisterRequest(extensionRegistrationURL, payload)
 	if err != nil {
 		return "", "", fmt.Errorf("registerExtension: can't create the POST register request: %v", err)
 	}
