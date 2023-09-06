@@ -222,13 +222,20 @@ namespace WixSetup.Datadog
                 document
                     .FindAll("RemoveFolder")
                     .Where(x => x.HasAttribute("Id",
-                        value => value.StartsWith("TARGETDIR") ||
-                                 value.Equals("ProgramFiles64Folder")))
+                        value => value.Equals("TARGETDIR") ||
+                                 value.Equals("ProgramFiles64Folder") ||
+                                 value.Equals("BIN") ||
+                                 value.Equals("AGENT")))
                     .Remove();
                 document
                     .FindAll("CreateFolder")
                     .Where(x => x.Parent.Parent.HasAttribute("Id",
                         value => value.Equals("ProgramFiles64Folder")))
+                    .Remove();
+                document
+                    .FindAll("CreateFolder")
+                    .Where(x => x.Parent.HasAttribute("Id",
+                        value => value.StartsWith("EventSource")))
                     .Remove();
                 // Windows Installer (MSI.dll) calls the obsolete SetFileSecurityW function during CreateFolder rollback,
                 // this causes directories in the CreateFolder table to have their SE_DACL_AUTO_INHERITED flag removed.
