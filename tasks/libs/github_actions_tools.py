@@ -158,7 +158,7 @@ def get_failed_jobs(run):
     for job in jobs:
         if job.conclusion == "failure":
             failed_jobs.append(job)
-    return failed_jobs
+    return [job for job in run.jobs() if job.conclusion == "failure"]
 
 
 def get_failed_steps_log_files(log_dir, failed_jobs):
