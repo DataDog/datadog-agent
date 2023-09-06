@@ -111,6 +111,7 @@ func (s *Periodically) String() string {
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 	if moment == Starting && !s.lastFailure.tooEarly(t) {
+		// Periodically strategy will not flush anyway if the s.interval didn't pass
 		if s.lastFlush.Add(s.interval).Before(t) {
 			s.lastFlush = t
 			return true
@@ -136,7 +137,7 @@ func (f *failedAttempt) tooEarly(now time.Time) bool {
 	if f.retries > 0 {
 		spreadRetrySeconds := float64(rand.Int31n(1_000)) / 1_000
 		ignoreWindowSeconds := int(math.Min(math.Pow(2, float64(f.retries))+spreadRetrySeconds, maxBackoffRetrySeconds))
-		log.Debug("Flush failed, retry number %s will happen in %s seconds", f.retries, ignoreWindowSeconds)
+		log.Debugf("Flush failed, retry number %d will happen after at least %d seconds", f.retries, ignoreWindowSeconds)
 		return now.Before(f.lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9)))
 	} else {
 		return false
