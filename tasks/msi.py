@@ -395,7 +395,7 @@ def validate_msi_createfolder_table(db):
 
 
 @task
-def validate_msi(ctx, msi=None):
+def validate_msi(_ctx, msi=None):
     with MsiClosing(msilib.OpenDatabase(msi, msilib.MSIDBOPEN_READONLY)) as db:
         validate_msi_createfolder_table(db)
 
