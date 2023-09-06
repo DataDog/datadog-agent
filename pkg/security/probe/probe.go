@@ -29,11 +29,6 @@ type EventHandler interface {
 	Copy(_ *model.Event) interface{}
 }
 
-// SECLModelEventHandler represents a handler for events sent by the probe. This handler needs access to all the fields in the SECL model
-type SECLModelEventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
 // CustomEventHandler represents an handler for the custom events sent by the probe
 type CustomEventHandler interface {
 	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
@@ -57,7 +52,7 @@ type Probe struct {
 	wg           sync.WaitGroup
 
 	// Events section
-	seclModelEventHandlers [model.MaxAllEventType][]SECLModelEventHandler
+	seclModelEventHandlers [model.MaxAllEventType][]EventHandler
 	eventHandlers          [model.MaxAllEventType][]EventHandler
 	customEventHandlers    [model.MaxAllEventType][]CustomEventHandler
 
@@ -66,17 +61,6 @@ type Probe struct {
 	resolvers     *resolvers.Resolvers
 	fieldHandlers *FieldHandlers
 	event         *model.Event
-}
-
-// AddSECLModelEventHandler set the probe event handler
-func (p *Probe) AddSECLModelEventHandler(eventType model.EventType, handler SECLModelEventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
-	}
-
-	p.seclModelEventHandlers[eventType] = append(p.seclModelEventHandlers[eventType], handler)
-
-	return nil
 }
 
 // GetResolvers returns the resolvers of Probe

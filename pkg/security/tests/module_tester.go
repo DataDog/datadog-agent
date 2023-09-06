@@ -1020,6 +1020,11 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 	}
 }
 
+// Copy is no-op function used to satisfy the EventHandler interface
+func (tm *testModule) Copy(_ *model.Event) interface{} {
+	return nil
+}
+
 func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {}
 
 func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {

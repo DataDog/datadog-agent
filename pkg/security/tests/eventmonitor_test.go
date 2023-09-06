@@ -80,6 +80,11 @@ func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
 	}
 }
 
+// Copy is no-op function used to satisfy the EventHandler interface
+func (fc *FakeEventConsumer) Copy(_ *model.Event) interface{} {
+	return nil
+}
+
 func TestEventMonitor(t *testing.T) {
 	var fc *FakeEventConsumer
 	test, err := newTestModule(t, nil, nil, testOpts{
