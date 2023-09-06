@@ -225,6 +225,11 @@ namespace WixSetup.Datadog
                         value => value.StartsWith("TARGETDIR") ||
                                  value.Equals("ProgramFiles64Folder")))
                     .Remove();
+                document
+                    .FindAll("CreateFolder")
+                    .Where(x => x.Parent.Parent.HasAttribute("Id",
+                        value => value.Equals("ProgramFiles64Folder")))
+                    .Remove();
                 // Windows Installer (MSI.dll) calls the obsolete SetFileSecurityW function during CreateFolder rollback,
                 // this causes directories in the CreateFolder table to have their SE_DACL_AUTO_INHERITED flag removed.
                 // Wix# is auto-adding components for the following directories for some reason, which causes them to be placed
