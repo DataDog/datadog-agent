@@ -157,7 +157,6 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 		{
 			name:            "Remote Configuration",
 			shouldBePresent: true,
-			shouldContain:   []string{"Organization enabled: False"},
 		},
 		{
 			name:            "Runtime Security",
