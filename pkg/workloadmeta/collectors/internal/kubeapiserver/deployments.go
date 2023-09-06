@@ -46,7 +46,8 @@ func (f *deploymentFilter) filteredOut(obj metav1.Object) bool {
 		return false
 	}
 
-	// if _, ok := deployment.Annotations["tags.datadog.com/languages"] { // stub, exact annotation will need to be defined in the future
+	// annotations := obj.GetAnnotations()
+	// if _, ok := annotations["tags.datadog.com/languages"] { // stub, exact annotation will need to be defined in the future
 	// 	return false
 	// }
 
