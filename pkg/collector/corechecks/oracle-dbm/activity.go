@@ -162,7 +162,7 @@ END wait_class,
 s.wait_time_micro,
 c.name as pdb_name,
 dbms_lob.substr(sq.sql_fulltext, 4000, 1) sql_fulltext,
-dbms_lob.substr(sq.prev_sql_fulltext, 4000, 1) prev_sql_fulltext,
+dbms_lob.substr(sq_prev.sql_fulltext, 4000, 1) prev_sql_fulltext,
 comm.command_name
 FROM
 v$session s,
