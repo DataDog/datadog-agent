@@ -114,7 +114,7 @@ func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.
 	return common.InterfaceStatus_Down
 }
 
-func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
+func buildMetadataStore(metadataConfigs cprofstruct.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
 	metadataStore := metadata.NewMetadataStore()
 	if values == nil {
 		return metadataStore
@@ -130,7 +130,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 			}
 			symbols = append(symbols, field.Symbols...)
 
-			if checkconfig.IsMetadataResourceWithScalarOids(resourceName) {
+			if cprofstruct.IsMetadataResourceWithScalarOids(resourceName) {
 				for _, symbol := range symbols {
 					if metadataStore.ScalarFieldHasValue(fieldFullName) {
 						break

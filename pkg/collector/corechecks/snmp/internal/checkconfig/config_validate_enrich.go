@@ -96,7 +96,7 @@ func ValidateEnrichMetrics(metrics []cprofstruct.MetricsConfig) []string {
 }
 
 // validateEnrichMetadata will validate MetadataConfig and enrich it.
-func validateEnrichMetadata(metadata MetadataConfig) []string {
+func validateEnrichMetadata(metadata cprofstruct.MetadataConfig) []string {
 	var errors []string
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]

@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func getMetricFromProfile(p ProfileDefinition, metricName string) *cprofstruct.MetricsConfig {
+func getMetricFromProfile(p cprofstruct.ProfileDefinition, metricName string) *cprofstruct.MetricsConfig {
 	for _, m := range p.Metrics {
 		if m.Symbol.Name == metricName {
 			return &m
@@ -54,10 +54,10 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 	}
 	return profileConfigMap{
 		"f5-big-ip": profileConfig{
-			Definition: ProfileDefinition{
+			Definition: cprofstruct.ProfileDefinition{
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-				Device:       DeviceMeta{Vendor: "f5"},
+				Device:       cprofstruct.DeviceMeta{Vendor: "f5"},
 				SysObjectIds: cprofstruct.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 				MetricTags: []cprofstruct.MetricTagConfig{
@@ -74,9 +74,9 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 					},
 					{Tag: "snmp_host", Index: 0x0, Column: cprofstruct.SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 				},
-				Metadata: MetadataConfig{
+				Metadata: cprofstruct.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
@@ -107,7 +107,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"admin_status": {
 								Symbol: cprofstruct.SymbolConfig{
 
@@ -171,7 +171,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 			isUserProfile: true,
 		},
 		"another_profile": profileConfig{
-			Definition: ProfileDefinition{
+			Definition: cprofstruct.ProfileDefinition{
 				SysObjectIds: cprofstruct.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
@@ -180,7 +180,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 					{Tag: "snmp_host2", Column: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 					{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
 				},
-				Metadata: MetadataConfig{},
+				Metadata: cprofstruct.MetadataConfig{},
 			},
 			isUserProfile: true,
 		},
@@ -548,7 +548,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 }
 
 func Test_mergeProfileDefinition(t *testing.T) {
-	okBaseDefinition := ProfileDefinition{
+	okBaseDefinition := cprofstruct.ProfileDefinition{
 		Metrics: []cprofstruct.MetricsConfig{
 			{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 		},
@@ -559,9 +559,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				Name: "tagName1",
 			},
 		},
-		Metadata: MetadataConfig{
+		Metadata: cprofstruct.MetadataConfig{
 			"device": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]cprofstruct.MetadataField{
 					"vendor": {
 						Value: "f5",
 					},
@@ -574,7 +574,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 			},
 			"interface": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]cprofstruct.MetadataField{
 					"admin_status": {
 						Symbol: cprofstruct.SymbolConfig{
 
@@ -595,8 +595,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			},
 		},
 	}
-	emptyBaseDefinition := ProfileDefinition{}
-	okTargetDefinition := ProfileDefinition{
+	emptyBaseDefinition := cprofstruct.ProfileDefinition{}
+	okTargetDefinition := cprofstruct.ProfileDefinition{
 		Metrics: []cprofstruct.MetricsConfig{
 			{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 		},
@@ -607,9 +607,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				Name: "tagName2",
 			},
 		},
-		Metadata: MetadataConfig{
+		Metadata: cprofstruct.MetadataConfig{
 			"device": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]cprofstruct.MetadataField{
 					"name": {
 						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
@@ -619,7 +619,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 			},
 			"interface": {
-				Fields: map[string]MetadataField{
+				Fields: map[string]cprofstruct.MetadataField{
 					"oper_status": {
 						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
@@ -641,15 +641,15 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	}
 	tests := []struct {
 		name               string
-		targetDefinition   ProfileDefinition
-		baseDefinition     ProfileDefinition
-		expectedDefinition ProfileDefinition
+		targetDefinition   cprofstruct.ProfileDefinition
+		baseDefinition     cprofstruct.ProfileDefinition
+		expectedDefinition cprofstruct.ProfileDefinition
 	}{
 		{
 			name:             "merge case",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: ProfileDefinition{
+			expectedDefinition: cprofstruct.ProfileDefinition{
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
@@ -666,9 +666,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						Name: "tagName1",
 					},
 				},
-				Metadata: MetadataConfig{
+				Metadata: cprofstruct.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
@@ -687,7 +687,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"oper_status": {
 								Symbol: cprofstruct.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
@@ -726,7 +726,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty base definition",
 			baseDefinition:   copyProfileDefinition(emptyBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: ProfileDefinition{
+			expectedDefinition: cprofstruct.ProfileDefinition{
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 				},
@@ -737,9 +737,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						Name: "tagName2",
 					},
 				},
-				Metadata: MetadataConfig{
+				Metadata: cprofstruct.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"name": {
 								Symbol: cprofstruct.SymbolConfig{
 									OID:  "1.3.6.1.2.1.1.5.0",
@@ -749,7 +749,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"oper_status": {
 								Symbol: cprofstruct.SymbolConfig{
 									OID:  "1.3.6.1.2.1.2.2.1.8",
@@ -774,7 +774,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty taget definition",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(emptyBaseDefinition),
-			expectedDefinition: ProfileDefinition{
+			expectedDefinition: cprofstruct.ProfileDefinition{
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 				},
@@ -785,9 +785,9 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						Name: "tagName1",
 					},
 				},
-				Metadata: MetadataConfig{
+				Metadata: cprofstruct.MetadataConfig{
 					"device": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"vendor": {
 								Value: "f5",
 							},
@@ -800,7 +800,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 						},
 					},
 					"interface": {
-						Fields: map[string]MetadataField{
+						Fields: map[string]cprofstruct.MetadataField{
 							"admin_status": {
 								Symbol: cprofstruct.SymbolConfig{
 

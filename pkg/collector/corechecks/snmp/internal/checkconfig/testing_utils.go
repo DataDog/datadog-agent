@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"os"
 	"path/filepath"
 
@@ -32,19 +33,19 @@ func pathExists(path string) bool {
 }
 
 // copyProfileDefinition copies a profile, it's used for testing
-func copyProfileDefinition(profileDef ProfileDefinition) ProfileDefinition {
-	newDef := ProfileDefinition{}
+func copyProfileDefinition(profileDef cprofstruct.ProfileDefinition) cprofstruct.ProfileDefinition {
+	newDef := cprofstruct.ProfileDefinition{}
 	newDef.Metrics = append(newDef.Metrics, profileDef.Metrics...)
 	newDef.MetricTags = append(newDef.MetricTags, profileDef.MetricTags...)
 	newDef.StaticTags = append(newDef.StaticTags, profileDef.StaticTags...)
-	newDef.Metadata = make(MetadataConfig)
+	newDef.Metadata = make(cprofstruct.MetadataConfig)
 	newDef.Device = profileDef.Device
 	newDef.Extends = append(newDef.Extends, profileDef.Extends...)
 	newDef.SysObjectIds = append(newDef.SysObjectIds, profileDef.SysObjectIds...)
 
 	for resName, resource := range profileDef.Metadata {
-		resConfig := MetadataResourceConfig{}
-		resConfig.Fields = make(map[string]MetadataField)
+		resConfig := cprofstruct.MetadataResourceConfig{}
+		resConfig.Fields = make(map[string]cprofstruct.MetadataField)
 		for fieldName, field := range resource.Fields {
 			resConfig.Fields[fieldName] = field
 		}

@@ -5,11 +5,13 @@
 
 package checkconfig
 
+import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
+
 type profileConfigMap map[string]profileConfig
 
 type profileConfig struct {
-	DefinitionFile string            `yaml:"definition_file"`
-	Definition     ProfileDefinition `yaml:"definition"`
+	DefinitionFile string                        `yaml:"definition_file"`
+	Definition     cprofstruct.ProfileDefinition `yaml:"definition"`
 
 	isUserProfile bool `yaml:"-"`
 }

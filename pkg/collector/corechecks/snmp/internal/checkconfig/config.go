@@ -160,7 +160,7 @@ type CheckConfig struct {
 	RequestedMetricTags []cprofstruct.MetricTagConfig
 	// Metrics combines RequestedMetrics with profile metrics.
 	Metrics  []cprofstruct.MetricsConfig
-	Metadata MetadataConfig
+	Metadata cprofstruct.MetadataConfig
 	// MetricTags combines RequestedMetricTags with profile metric tags.
 	MetricTags            []cprofstruct.MetricTagConfig
 	OidBatchSize          int
@@ -168,7 +168,7 @@ type CheckConfig struct {
 	Profiles              profileConfigMap
 	ProfileTags           []string
 	Profile               string
-	ProfileDef            *ProfileDefinition
+	ProfileDef            *cprofstruct.ProfileDefinition
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
@@ -218,7 +218,7 @@ func (c *CheckConfig) SetProfile(profile string) error {
 // RequestedMetrics or RequestedMetricTags, which will still be queried.
 func (c *CheckConfig) SetAutodetectProfile(metrics []cprofstruct.MetricsConfig, tags []cprofstruct.MetricTagConfig) {
 	c.Profile = "autodetect"
-	c.ProfileDef = &ProfileDefinition{
+	c.ProfileDef = &cprofstruct.ProfileDefinition{
 		Metrics:    metrics,
 		MetricTags: tags,
 	}
@@ -671,7 +671,7 @@ func (c *CheckConfig) IsDiscovery() bool {
 	return c.Network != ""
 }
 
-func (c *CheckConfig) parseScalarOids(metrics []cprofstruct.MetricsConfig, metricTags []cprofstruct.MetricTagConfig, metadataConfigs MetadataConfig) []string {
+func (c *CheckConfig) parseScalarOids(metrics []cprofstruct.MetricsConfig, metricTags []cprofstruct.MetricTagConfig, metadataConfigs cprofstruct.MetadataConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
 		oids = append(oids, metric.Symbol.OID)
@@ -681,7 +681,7 @@ func (c *CheckConfig) parseScalarOids(metrics []cprofstruct.MetricsConfig, metri
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
-			if !IsMetadataResourceWithScalarOids(resource) {
+			if !cprofstruct.IsMetadataResourceWithScalarOids(resource) {
 				continue
 			}
 			for _, field := range metadataConfig.Fields {
@@ -698,7 +698,7 @@ func (c *CheckConfig) parseScalarOids(metrics []cprofstruct.MetricsConfig, metri
 	return oids
 }
 
-func (c *CheckConfig) parseColumnOids(metrics []cprofstruct.MetricsConfig, metadataConfigs MetadataConfig) []string {
+func (c *CheckConfig) parseColumnOids(metrics []cprofstruct.MetricsConfig, metadataConfigs cprofstruct.MetadataConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
 		for _, symbol := range metric.Symbols {
@@ -710,7 +710,7 @@ func (c *CheckConfig) parseColumnOids(metrics []cprofstruct.MetricsConfig, metad
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
-			if IsMetadataResourceWithScalarOids(resource) {
+			if cprofstruct.IsMetadataResourceWithScalarOids(resource) {
 				continue
 			}
 			for _, field := range metadataConfig.Fields {

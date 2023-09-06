@@ -6,7 +6,6 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 )
 
@@ -14,9 +13,9 @@ import (
 // When users have their own copy of _base.yaml and _generic_if.yaml files
 // they won't have the new profile based metadata definitions for device and interface resources
 // The LegacyMetadataConfig is used as fallback to provide metadata definitions for those resources.
-var LegacyMetadataConfig = MetadataConfig{
+var LegacyMetadataConfig = cprofstruct.MetadataConfig{
 	"device": {
-		Fields: map[string]MetadataField{
+		Fields: map[string]cprofstruct.MetadataField{
 			"description": {
 				Symbol: cprofstruct.SymbolConfig{
 					OID:  "1.3.6.1.2.1.1.1.0",
@@ -38,7 +37,7 @@ var LegacyMetadataConfig = MetadataConfig{
 		},
 	},
 	"interface": {
-		Fields: map[string]MetadataField{
+		Fields: map[string]cprofstruct.MetadataField{
 			"name": {
 				Symbol: cprofstruct.SymbolConfig{
 					OID:  "1.3.6.1.2.1.31.1.1.1.1",
@@ -88,7 +87,7 @@ var LegacyMetadataConfig = MetadataConfig{
 		},
 	},
 	"ip_addresses": {
-		Fields: map[string]MetadataField{
+		Fields: map[string]cprofstruct.MetadataField{
 			"if_index": {
 				Symbol: cprofstruct.SymbolConfig{
 					OID:  "1.3.6.1.2.1.4.20.1.2",
@@ -105,9 +104,9 @@ var LegacyMetadataConfig = MetadataConfig{
 	},
 }
 
-var TopologyMetadataConfig = MetadataConfig{
+var TopologyMetadataConfig = cprofstruct.MetadataConfig{
 	"lldp_remote": {
-		Fields: map[string]MetadataField{
+		Fields: map[string]cprofstruct.MetadataField{
 			"chassis_id_type": {
 				Symbol: cprofstruct.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.1.1.4",
@@ -156,7 +155,7 @@ var TopologyMetadataConfig = MetadataConfig{
 		},
 	},
 	"lldp_remote_management": {
-		Fields: map[string]MetadataField{
+		Fields: map[string]cprofstruct.MetadataField{
 			"interface_id_type": {
 				Symbol: cprofstruct.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.4.2.1.3",
@@ -166,7 +165,7 @@ var TopologyMetadataConfig = MetadataConfig{
 		},
 	},
 	"lldp_local": {
-		Fields: map[string]MetadataField{
+		Fields: map[string]cprofstruct.MetadataField{
 			"interface_id_type": {
 				Symbol: cprofstruct.SymbolConfig{
 					OID:  "1.0.8802.1.1.2.1.3.7.1.2",
@@ -182,7 +181,7 @@ var TopologyMetadataConfig = MetadataConfig{
 		},
 	},
 	"cdp_remote": {
-		Fields: map[string]MetadataField{
+		Fields: map[string]cprofstruct.MetadataField{
 			"device_desc": {
 				Symbol: cprofstruct.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
@@ -227,37 +226,10 @@ var TopologyMetadataConfig = MetadataConfig{
 	},
 }
 
-// MetadataConfig holds configs per resource type
-type MetadataConfig map[string]MetadataResourceConfig
-
-// MetadataResourceConfig holds configs for a metadata resource
-type MetadataResourceConfig struct {
-	Fields map[string]MetadataField        `yaml:"fields"`
-	IDTags cprofstruct.MetricTagConfigList `yaml:"id_tags"`
-}
-
-// MetadataField holds configs for a metadata field
-type MetadataField struct {
-	Symbol  cprofstruct.SymbolConfig   `yaml:"symbol"`
-	Symbols []cprofstruct.SymbolConfig `yaml:"symbols"`
-	Value   string                     `yaml:"value"`
-}
-
-// newMetadataResourceConfig returns a new metadata resource config
-func newMetadataResourceConfig() MetadataResourceConfig {
-	return MetadataResourceConfig{}
-}
-
-// IsMetadataResourceWithScalarOids returns true if the resource is based on scalar OIDs
-// at the moment, we only expect "device" resource to be based on scalar OIDs
-func IsMetadataResourceWithScalarOids(resource string) bool {
-	return resource == common.MetadataDeviceResource
-}
-
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithDefaults(metadataConfig MetadataConfig, collectTopology bool) MetadataConfig {
-	newConfig := make(MetadataConfig)
+func updateMetadataDefinitionWithDefaults(metadataConfig cprofstruct.MetadataConfig, collectTopology bool) cprofstruct.MetadataConfig {
+	newConfig := make(cprofstruct.MetadataConfig)
 	mergeMetadata(newConfig, metadataConfig)
 	mergeMetadata(newConfig, LegacyMetadataConfig)
 	if collectTopology {
@@ -266,7 +238,7 @@ func updateMetadataDefinitionWithDefaults(metadataConfig MetadataConfig, collect
 	return newConfig
 }
 
-func mergeMetadata(metadataConfig MetadataConfig, extraMetadata MetadataConfig) {
+func mergeMetadata(metadataConfig cprofstruct.MetadataConfig, extraMetadata cprofstruct.MetadataConfig) {
 	for resourceName, resourceConfig := range extraMetadata {
 		if _, ok := metadataConfig[resourceName]; !ok {
 			metadataConfig[resourceName] = resourceConfig

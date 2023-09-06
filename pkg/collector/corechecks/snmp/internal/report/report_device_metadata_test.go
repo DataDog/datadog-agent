@@ -62,9 +62,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: cprofstruct.MetadataConfig{
 			"device": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]cprofstruct.MetadataField{
 					"name": {
 						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
 						Symbol: cprofstruct.SymbolConfig{
@@ -277,9 +277,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: cprofstruct.MetadataConfig{
 			"interface": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]cprofstruct.MetadataField{
 					"name": {
 						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
@@ -399,9 +399,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: cprofstruct.MetadataConfig{
 			"device": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]cprofstruct.MetadataField{
 					"name": {
 						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.999",

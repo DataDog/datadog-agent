@@ -26,29 +26,6 @@ import (
 const defaultProfilesFolder = "default_profiles"
 const userProfilesFolder = "profiles"
 
-// DeviceMeta holds device related static metadata
-// DEPRECATED in favour of profile metadata syntax
-type DeviceMeta struct {
-	// deprecated in favour of new `ProfileDefinition.Metadata` syntax
-	Vendor string `yaml:"vendor"`
-}
-
-type ProfileDefinition struct {
-	Metrics      []cprofstruct.MetricsConfig   `yaml:"metrics"`
-	Metadata     MetadataConfig                `yaml:"metadata"`
-	MetricTags   []cprofstruct.MetricTagConfig `yaml:"metric_tags"`
-	StaticTags   []string                      `yaml:"static_tags"`
-	Extends      []string                      `yaml:"extends"`
-	Device       DeviceMeta                    `yaml:"device"`
-	SysObjectIds cprofstruct.StringArray       `yaml:"sysobjectid"`
-}
-
-func NewProfileDefinition() *ProfileDefinition {
-	p := &ProfileDefinition{}
-	p.Metadata = make(MetadataConfig)
-	return p
-}
-
 var defaultProfilesMu = &sync.Mutex{}
 
 var globalProfileConfigMap profileConfigMap
@@ -147,14 +124,14 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func readProfileDefinition(definitionFile string) (*ProfileDefinition, error) {
+func readProfileDefinition(definitionFile string) (*cprofstruct.ProfileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
 	}
 
-	profileDefinition := NewProfileDefinition()
+	profileDefinition := cprofstruct.NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
@@ -185,7 +162,7 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(parentPath string, definition *ProfileDefinition, extends []string, extendsHistory []string) error {
+func recursivelyExpandBaseProfiles(parentPath string, definition *cprofstruct.ProfileDefinition, extends []string, extendsHistory []string) error {
 	parentBasePath := filepath.Base(parentPath)
 	for _, extendEntry := range extends {
 		// User profile can extend default profile by extending the default profile.
@@ -214,13 +191,13 @@ func recursivelyExpandBaseProfiles(parentPath string, definition *ProfileDefinit
 	return nil
 }
 
-func mergeProfileDefinition(targetDefinition *ProfileDefinition, baseDefinition *ProfileDefinition) {
+func mergeProfileDefinition(targetDefinition *cprofstruct.ProfileDefinition, baseDefinition *cprofstruct.ProfileDefinition) {
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
 	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)
 	for baseResName, baseResource := range baseDefinition.Metadata {
 		if _, ok := targetDefinition.Metadata[baseResName]; !ok {
-			targetDefinition.Metadata[baseResName] = newMetadataResourceConfig()
+			targetDefinition.Metadata[baseResName] = cprofstruct.NewMetadataResourceConfig()
 		}
 		if resource, ok := targetDefinition.Metadata[baseResName]; ok {
 			for _, tagConfig := range baseResource.IDTags {
@@ -228,7 +205,7 @@ func mergeProfileDefinition(targetDefinition *ProfileDefinition, baseDefinition 
 			}
 
 			if resource.Fields == nil {
-				resource.Fields = make(map[string]MetadataField, len(baseResource.Fields))
+				resource.Fields = make(map[string]cprofstruct.MetadataField, len(baseResource.Fields))
 			}
 			for field, symbol := range baseResource.Fields {
 				if _, ok := resource.Fields[field]; !ok {

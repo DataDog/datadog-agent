@@ -611,15 +611,15 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 func Test_validateEnrichMetadata(t *testing.T) {
 	tests := []struct {
 		name             string
-		metadata         MetadataConfig
+		metadata         cprofstruct.MetadataConfig
 		expectedErrors   []string
-		expectedMetadata MetadataConfig
+		expectedMetadata cprofstruct.MetadataConfig
 	}{
 		{
 			name: "both field symbol and value can be provided",
-			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Value: "hey",
 							Symbol: cprofstruct.SymbolConfig{
@@ -630,9 +630,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					},
 				},
 			},
-			expectedMetadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			expectedMetadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Value: "hey",
 							Symbol: cprofstruct.SymbolConfig{
@@ -646,9 +646,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid regex pattern for symbol",
-			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Symbol: cprofstruct.SymbolConfig{
 								OID:          "1.2.3",
@@ -665,9 +665,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid regex pattern for multiple symbols",
-			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Symbols: []cprofstruct.SymbolConfig{
 								{
@@ -686,9 +686,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "field regex pattern is compiled",
-			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Symbol: cprofstruct.SymbolConfig{
 								OID:          "1.2.3",
@@ -700,9 +700,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{},
-			expectedMetadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			expectedMetadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Symbol: cprofstruct.SymbolConfig{
 								OID:                  "1.2.3",
@@ -717,9 +717,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid resource",
-			metadata: MetadataConfig{
-				"invalid-res": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"invalid-res": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Value: "hey",
 						},
@@ -732,9 +732,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid field",
-			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"invalid-field": {
 							Value: "hey",
 						},
@@ -747,9 +747,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "invalid idtags",
-			metadata: MetadataConfig{
-				"interface": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"interface": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"invalid-field": {
 							Value: "hey",
 						},
@@ -775,9 +775,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 		},
 		{
 			name: "device resource does not support id_tags",
-			metadata: MetadataConfig{
-				"device": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
+			metadata: cprofstruct.MetadataConfig{
+				"device": cprofstruct.MetadataResourceConfig{
+					Fields: map[string]cprofstruct.MetadataField{
 						"name": {
 							Value: "hey",
 						},
