@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"go.uber.org/atomic"
+	"go4.org/intern"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -28,7 +29,7 @@ var initErr error
 type Process struct {
 	Pid         uint32
 	Envs        []string
-	ContainerID string
+	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
 }
@@ -103,7 +104,7 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) interface{} {
 
 		return &Process{
 			Pid:         ev.ProcessContext.Pid,
-			ContainerID: ev.ProcessContext.ContainerID,
+			ContainerID: intern.GetByString(ev.ProcessContext.ContainerID),
 			StartTime:   ev.ProcessContext.ExecTime.UnixNano(),
 			Envs:        envCopy,
 		}

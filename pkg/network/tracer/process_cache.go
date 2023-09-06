@@ -15,7 +15,6 @@ import (
 	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -157,7 +156,7 @@ func (pc *processCache) processEvent(entry *events.Process) *events.Process {
 		}
 	}
 
-	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID == "" {
+	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID.Get() == "" {
 		return nil
 	}
 
