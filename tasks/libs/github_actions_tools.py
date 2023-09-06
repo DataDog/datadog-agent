@@ -153,11 +153,6 @@ def get_failed_jobs(run):
     """
     Retrieves failed jobs for the workflow run
     """
-    failed_jobs = []
-    jobs = run.jobs()
-    for job in jobs:
-        if job.conclusion == "failure":
-            failed_jobs.append(job)
     return [job for job in run.jobs() if job.conclusion == "failure"]
 
 
@@ -173,11 +168,11 @@ def get_failed_steps_log_files(log_dir, failed_jobs):
 def parse_log_file(log_file):
     """
     Parse log file and return relevant line to print in GitlabCI logs.
-    The function will iterate over the log file, once one of the following lines is encountered, it will return
-    all the next lines:
+    The function will iterate over the log file, and check a line matching the following criteria:
         - line containing [error]
         - line containing Linter|Test failures
         - line containing Traceback
+    When such a line is found, the line is returned with all the lines after it
     """
 
     error_regex = re.compile(r'\[error\]|(Linter|Test) failures|Traceback')
