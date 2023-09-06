@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"net"
 	"strings"
@@ -64,7 +65,7 @@ func processValueUsingSymbolConfig(value valuestore.ResultValue, symbol cprofstr
 		}
 
 		if symbol.MatchPatternCompiled.MatchString(strValue) {
-			replacedVal := cprofstruct.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
+			replacedVal := checkconfig.RegexReplaceValue(strValue, symbol.MatchPatternCompiled, symbol.MatchValue)
 			if replacedVal == "" {
 				return valuestore.ResultValue{}, fmt.Errorf("the pattern `%v` matched value `%v`, but template `%s` is not compatible", symbol.MatchPattern, strValue, symbol.MatchValue)
 			}
@@ -95,7 +96,7 @@ func getTagsFromMetricTagConfigList(mtcl cprofstruct.MetricTagConfigList, fullIn
 				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
 				continue
 			}
-			tagValue, err := cprofstruct.GetMappedValue(indexes[index], metricTag.Mapping)
+			tagValue, err := checkconfig.GetMappedValue(indexes[index], metricTag.Mapping)
 			if err != nil {
 				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
 				continue
@@ -129,7 +130,7 @@ func getTagsFromMetricTagConfigList(mtcl cprofstruct.MetricTagConfigList, fullIn
 				log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
 				continue
 			}
-			rowTags = append(rowTags, metricTag.GetTags(strValue)...)
+			rowTags = append(rowTags, checkconfig.GetTags(&metricTag, strValue)...)
 		}
 	}
 	return rowTags

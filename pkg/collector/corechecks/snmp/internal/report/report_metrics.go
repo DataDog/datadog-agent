@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -93,7 +94,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []cprofstruct.Metr
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			continue
 		}
-		globalTags = append(globalTags, metricTag.GetTags(strValue)...)
+		globalTags = append(globalTags, checkconfig.GetTags(&metricTag, strValue)...)
 	}
 	return globalTags
 }
