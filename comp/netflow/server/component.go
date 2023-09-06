@@ -12,7 +12,7 @@ package server
 import (
 	"go.uber.org/fx"
 
-	nfconfig "github.com/DataDog/datadog-agent/pkg/netflow/config"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

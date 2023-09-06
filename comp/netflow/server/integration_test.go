@@ -17,11 +17,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/netflow/common"
-	nfconfig "github.com/DataDog/datadog-agent/pkg/netflow/config"
-	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
-	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

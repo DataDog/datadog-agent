@@ -7,9 +7,9 @@ package server
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/netflow/config"
-	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
 // netflowListener contains state of goflow listener and the related netflow config
