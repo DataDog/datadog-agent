@@ -360,6 +360,7 @@ def validate_msi_createfolder_table(db):
     (C:\\Program Files\\) to end up in the CrateFolder MSI table. Then because MSI.dll CreateFolder rollback
     uses the obsolete SetFileSecurityW function the AI DACL flag is removed from those directories
     on rollback.
+    https://github.com/oleg-shilo/wixsharp/issues/1336
 
     If you think you need to add a new directory to this list, perform the following checks:
     * Ensure the directory and its parents are deleted or persisted on uninstall as expected
