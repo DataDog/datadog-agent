@@ -121,19 +121,6 @@ void __attribute__((always_inline)) fill_resolver_mnt(void *ctx, struct syscall_
     pop_syscall(syscall->type);
 }
 
-int __attribute__((always_inline)) get_pipefs_mount_id(void) {
-    u32 key = 0;
-    u32* val = bpf_map_lookup_elem(&pipefs_mountid, &key);
-    if (val) { return *val; }
-    return 0;
-}
-
-int __attribute__((always_inline)) is_pipefs_mount_id(u32 id) {
-    u32 pipefs_id = get_pipefs_mount_id();
-    if (!pipefs_id) { return 0; }
-    return (pipefs_id == id);
-}
-
 void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, struct file_metadata_t* file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 

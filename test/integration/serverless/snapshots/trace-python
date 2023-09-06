@@ -23,6 +23,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "-0",
               "account_id": "425362996713",
               "architecture": "XXX",
               "aws_account": "425362996713",
@@ -36,6 +37,7 @@
               "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-python",
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-python",
+              "language": "python",
               "memorysize": "1024",
               "region": "eu-west-1",
               "request_id": "null",
@@ -43,6 +45,7 @@
               "runtime": "python3.8",
               "runtime-id": "null",
               "service": "integration-tests-service",
+              "span.name": "aws.lambda",
               "tagA": "valueA",
               "tagB": "valueB",
               "taga": "valuea",
@@ -53,11 +56,12 @@
             },
             "metrics": {
               "_dd.agent_psr": 1,
+              "_dd.top_level": 1,
               "_dd.tracer_kr": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "function.response.statusCode": 200,
-              "system.pid": null
+              "process_id": null
             },
             "type": "serverless"
           },
@@ -130,6 +134,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "-0",
               "account_id": "425362996713",
               "architecture": "XXX",
               "aws_account": "425362996713",
@@ -142,6 +147,7 @@
               "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-python",
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-python",
+              "language": "python",
               "memorysize": "1024",
               "region": "eu-west-1",
               "request_id": "null",
@@ -149,6 +155,7 @@
               "runtime": "python3.8",
               "runtime-id": "null",
               "service": "integration-tests-service",
+              "span.name": "aws.lambda",
               "tagA": "valueA",
               "tagB": "valueB",
               "taga": "valuea",
@@ -159,11 +166,12 @@
             },
             "metrics": {
               "_dd.agent_psr": 1,
+              "_dd.top_level": 1,
               "_dd.tracer_kr": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "function.response.statusCode": 200,
-              "system.pid": null
+              "process_id": null
             },
             "type": "serverless"
           },
