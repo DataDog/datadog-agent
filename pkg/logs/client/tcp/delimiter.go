@@ -34,10 +34,9 @@ func NewDelimiter(useProto bool) Delimiter {
 type lengthPrefixDelimiter struct{}
 
 func (l lengthPrefixDelimiter) delimit(content []byte) ([]byte, error) {
-	buf := make([]byte, 4+len(content))
-	binary.BigEndian.PutUint32(buf[:4], uint32(len(content)))
-	copy(buf[4:], content)
-	return buf, nil
+	copy(content[4:], content)
+	binary.BigEndian.PutUint32(content[:4], uint32(len(content)))
+	return content, nil
 }
 
 // lineBreakDelimiter is a delimiter that appends a line break after each message.
