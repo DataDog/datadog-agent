@@ -48,7 +48,7 @@ def get_failed_jobs(project_name, pipeline_id):
         }
 
         # Also exclude jobs allowed to fail
-        if final_status["status"] == "failed" and not final_status["allow_failure"]:
+        if final_status["status"] == "failed" and should_include_failed_job(job_name, final_status["allow_failure"]):
             final_failed_jobs.append(final_status)
 
     return final_failed_jobs
@@ -130,3 +130,15 @@ def truncate_job_name(job_name, max_char_per_job=48):
     # We also want to avoid it being too long
     truncated_job_name = truncated_job_name[:max_char_per_job]
     return truncated_job_name
+
+
+def should_include_failed_job(job_name, allow_failure):
+    if not allow_failure:
+        return True
+
+    # the security agent team wants their jobs to be "allowed to fail",
+    # but at the same time to appear in the slack messages
+    if job_name.startswith("kitchen_test_security_agent"):
+        return True
+
+    return False
