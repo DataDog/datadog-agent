@@ -138,7 +138,7 @@ func (f *failedAttempt) tooEarly(now time.Time) bool {
 		maxRetryBackoff := math.Min(float64(f.retries), 10) // no need to go higher and risk overflow in the power op
 		spreadRetrySeconds := float64(rand.Int31n(1_000)) / 1_000
 		ignoreWindowSeconds := int(math.Min(math.Pow(2, maxRetryBackoff)+spreadRetrySeconds, maxBackoffRetrySeconds))
-		log.Debugf("Flush failed, retry number %d will happen after at least %d seconds", f.retries, ignoreWindowSeconds)
+		log.Debugf("Flush failed %d times, flushes will be prevented for %d seconds", f.retries, ignoreWindowSeconds)
 		return now.Before(f.lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9)))
 	} else {
 		return false
