@@ -130,11 +130,21 @@ type VolumeSpec struct {
 	Name string `json:"name"`
 	// Only try to retrieve persistent volume claim to tag statefulsets
 	PersistentVolumeClaim *PersistentVolumeClaimSpec `json:"persistentVolumeClaim,omitempty"`
+	Ephemeral             *EphemeralSpec             `json:"ephemeral,omitempty"`
 }
 
 // PersistentVolumeClaimSpec contains fields for unmarshalling a Pod.Spec.Volumes.PersistentVolumeClaim
 type PersistentVolumeClaimSpec struct {
 	ClaimName string `json:"claimName"`
+}
+
+// EphemeralSpec contains fields for unmarshalling a Pod.Spec.Volumes.Ephemeral
+type EphemeralSpec struct {
+	VolumeClaimTemplate *VolumeClaimTemplateSpec `json:"volumeClaimTemplate,omitempty"`
+}
+
+type VolumeClaimTemplateSpec struct {
+	Metadata PodMetadata `json:"metadata,omitempty"`
 }
 
 // Status contains fields for unmarshalling a Pod.Status

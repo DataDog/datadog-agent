@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/prometheus/common/model"
@@ -15,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -82,8 +87,6 @@ var (
 		"kubelet_volume_stats_inodes_free":     "kubelet.volume.stats.inodes_free",
 		"kubelet_volume_stats_inodes_used":     "kubelet.volume.stats.inodes_used",
 	}
-
-	VOLUME_TAG_KEYS_TO_EXCLUDE = []string{"persistentvolumeclaim", "pod_phase"}
 )
 
 // Provider provides the metrics related to data collected from the `/metrics` Kubelet endpoint
@@ -151,10 +154,35 @@ func (p *Provider) sendAlwaysCounter(metric *model.Sample, sender sender.Sender)
 
 func (p *Provider) appendPodTagsToVolumeMetrics(metric *model.Sample, sender sender.Sender) {
 	// TODO
+	// Store PV -> pod UID in cache for some amount of time in /pods provider
+	// Get pod UID from cache based on PV
+	// Compute tags based on pod UID (maybe these should be cached? they are cached in the python version)
+
+	metricName := string(metric.Metric["__name__"])
+	metricNameWithNamespace := common.KubeletMetricsPrefix + VOLUME_METRICS[metricName]
+	pvcName := metric.Metric["persistentvolumeclaim"]
+	namespace := metric.Metric["namespace"]
+	if pvcName == "" || namespace == "" || p.filter.IsExcluded(nil, "", "", string(namespace)) {
+		return
+	}
+	tags := p.MetricTags(metric)
+	if podTags, found := cache.Cache.Get(fmt.Sprintf("check/kubelet/pvc/%s/%s", namespace, pvcName)); found {
+		tags = utils.ConcatenateTags(tags, podTags.([]string))
+	}
+	sender.Gauge(metricNameWithNamespace, float64(metric.Value), "", tags)
 }
 
 func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metric *model.Sample, sender sender.Sender) {
-	// TODO
+	metricName := common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes"
+	cId := common.GetContainerId(p.store, metric.Metric, p.filter)
+
+	tags, _ := tagger.Tag(cId, collectors.HighCardinality)
+	if len(tags) == 0 {
+		log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cId)
+	}
+	tags = utils.ConcatenateTags(tags, p.Config.Tags)
+
+	sender.Gauge(metricName, float64(metric.Value), "", tags)
 }
 
 func (p *Provider) restClientLatency(metric *model.Sample, sender sender.Sender) {
