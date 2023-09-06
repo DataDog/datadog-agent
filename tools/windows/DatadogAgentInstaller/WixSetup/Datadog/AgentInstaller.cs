@@ -119,8 +119,7 @@ namespace WixSetup.Datadog
                 )
                 {
                     Win64 = true
-                },
-                new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
+                }
             );
             project
                 .SetCustomActions(_agentCustomActions)
