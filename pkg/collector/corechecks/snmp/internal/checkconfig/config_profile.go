@@ -9,7 +9,7 @@ type profileConfigMap map[string]profileConfig
 
 type profileConfig struct {
 	DefinitionFile string            `yaml:"definition_file"`
-	Definition     profileDefinition `yaml:"definition"`
+	Definition     ProfileDefinition `yaml:"definition"`
 
 	isUserProfile bool `yaml:"-"`
 }

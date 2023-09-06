@@ -29,11 +29,11 @@ const userProfilesFolder = "profiles"
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
 type DeviceMeta struct {
-	// deprecated in favour of new `profileDefinition.Metadata` syntax
+	// deprecated in favour of new `ProfileDefinition.Metadata` syntax
 	Vendor string `yaml:"vendor"`
 }
 
-type profileDefinition struct {
+type ProfileDefinition struct {
 	Metrics      []cprofstruct.MetricsConfig   `yaml:"metrics"`
 	Metadata     MetadataConfig                `yaml:"metadata"`
 	MetricTags   []cprofstruct.MetricTagConfig `yaml:"metric_tags"`
@@ -43,8 +43,8 @@ type profileDefinition struct {
 	SysObjectIds cprofstruct.StringArray       `yaml:"sysobjectid"`
 }
 
-func newProfileDefinition() *profileDefinition {
-	p := &profileDefinition{}
+func NewProfileDefinition() *ProfileDefinition {
+	p := &ProfileDefinition{}
 	p.Metadata = make(MetadataConfig)
 	return p
 }
@@ -147,14 +147,14 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
+func readProfileDefinition(definitionFile string) (*ProfileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
 	}
 
-	profileDefinition := newProfileDefinition()
+	profileDefinition := NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
@@ -185,7 +185,7 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinition, extends []string, extendsHistory []string) error {
+func recursivelyExpandBaseProfiles(parentPath string, definition *ProfileDefinition, extends []string, extendsHistory []string) error {
 	parentBasePath := filepath.Base(parentPath)
 	for _, extendEntry := range extends {
 		// User profile can extend default profile by extending the default profile.
@@ -214,7 +214,7 @@ func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinit
 	return nil
 }
 
-func mergeProfileDefinition(targetDefinition *profileDefinition, baseDefinition *profileDefinition) {
+func mergeProfileDefinition(targetDefinition *ProfileDefinition, baseDefinition *ProfileDefinition) {
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
 	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)

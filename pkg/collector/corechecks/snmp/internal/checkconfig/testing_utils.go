@@ -32,8 +32,8 @@ func pathExists(path string) bool {
 }
 
 // copyProfileDefinition copies a profile, it's used for testing
-func copyProfileDefinition(profileDef profileDefinition) profileDefinition {
-	newDef := profileDefinition{}
+func copyProfileDefinition(profileDef ProfileDefinition) ProfileDefinition {
+	newDef := ProfileDefinition{}
 	newDef.Metrics = append(newDef.Metrics, profileDef.Metrics...)
 	newDef.MetricTags = append(newDef.MetricTags, profileDef.MetricTags...)
 	newDef.StaticTags = append(newDef.StaticTags, profileDef.StaticTags...)

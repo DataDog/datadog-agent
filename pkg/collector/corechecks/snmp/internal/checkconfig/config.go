@@ -168,7 +168,7 @@ type CheckConfig struct {
 	Profiles              profileConfigMap
 	ProfileTags           []string
 	Profile               string
-	ProfileDef            *profileDefinition
+	ProfileDef            *ProfileDefinition
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
@@ -218,7 +218,7 @@ func (c *CheckConfig) SetProfile(profile string) error {
 // RequestedMetrics or RequestedMetricTags, which will still be queried.
 func (c *CheckConfig) SetAutodetectProfile(metrics []cprofstruct.MetricsConfig, tags []cprofstruct.MetricTagConfig) {
 	c.Profile = "autodetect"
-	c.ProfileDef = &profileDefinition{
+	c.ProfileDef = &ProfileDefinition{
 		Metrics:    metrics,
 		MetricTags: tags,
 	}

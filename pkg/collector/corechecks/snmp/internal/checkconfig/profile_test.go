@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func getMetricFromProfile(p profileDefinition, metricName string) *cprofstruct.MetricsConfig {
+func getMetricFromProfile(p ProfileDefinition, metricName string) *cprofstruct.MetricsConfig {
 	for _, m := range p.Metrics {
 		if m.Symbol.Name == metricName {
 			return &m
@@ -54,7 +54,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 	}
 	return profileConfigMap{
 		"f5-big-ip": profileConfig{
-			Definition: profileDefinition{
+			Definition: ProfileDefinition{
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 				Device:       DeviceMeta{Vendor: "f5"},
@@ -171,7 +171,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 			isUserProfile: true,
 		},
 		"another_profile": profileConfig{
-			Definition: profileDefinition{
+			Definition: ProfileDefinition{
 				SysObjectIds: cprofstruct.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
@@ -548,7 +548,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 }
 
 func Test_mergeProfileDefinition(t *testing.T) {
-	okBaseDefinition := profileDefinition{
+	okBaseDefinition := ProfileDefinition{
 		Metrics: []cprofstruct.MetricsConfig{
 			{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 		},
@@ -595,8 +595,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			},
 		},
 	}
-	emptyBaseDefinition := profileDefinition{}
-	okTargetDefinition := profileDefinition{
+	emptyBaseDefinition := ProfileDefinition{}
+	okTargetDefinition := ProfileDefinition{
 		Metrics: []cprofstruct.MetricsConfig{
 			{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 		},
@@ -641,15 +641,15 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	}
 	tests := []struct {
 		name               string
-		targetDefinition   profileDefinition
-		baseDefinition     profileDefinition
-		expectedDefinition profileDefinition
+		targetDefinition   ProfileDefinition
+		baseDefinition     ProfileDefinition
+		expectedDefinition ProfileDefinition
 	}{
 		{
 			name:             "merge case",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: profileDefinition{
+			expectedDefinition: ProfileDefinition{
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
@@ -726,7 +726,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty base definition",
 			baseDefinition:   copyProfileDefinition(emptyBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: profileDefinition{
+			expectedDefinition: ProfileDefinition{
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 				},
@@ -774,7 +774,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty taget definition",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(emptyBaseDefinition),
-			expectedDefinition: profileDefinition{
+			expectedDefinition: ProfileDefinition{
 				Metrics: []cprofstruct.MetricsConfig{
 					{Symbol: cprofstruct.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: cprofstruct.ProfileMetricTypeGauge},
 				},
