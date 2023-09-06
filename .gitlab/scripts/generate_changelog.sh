@@ -53,4 +53,4 @@ done
 
 # Use the 'changelog' variable as needed, e.g., post it to Slack or append it to your message.
 # Append the unique list of Slack handles to the end of the changelog
-postmessage "automated changelog$changelog\nUnique Slack Handles: $unique_slack_handles"
+postmessage "system-probe-ops" "Changelog:\n$changelog\nUnique Slack Handles: $unique_slack_handles"
