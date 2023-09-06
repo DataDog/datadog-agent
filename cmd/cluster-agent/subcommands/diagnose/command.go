@@ -9,6 +9,8 @@
 package diagnose
 
 import (
+	"regexp"
+
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,7 +33,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
 				core.Bundle,
 			)
@@ -42,9 +44,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(log log.Component, config config.Component) error {
+	// Verbose:  true - to show details like if was done a while ago
+	// RunLocal: true - do not attept to run in actual running agent but
+	//                  may need to implement it in future
+	// Include: connectivity-datadog-autodiscovery - limit to a single
+	//                  diagnose suite as it was done in this agent for
+	//                  a while. Most likely need to relax or add more
+	//                  diagnose suites in the future
+	reAutoDiscovery, _ := regexp.Compile("connectivity-datadog-autodiscovery")
 	diagCfg := diagnosis.Config{
-		Verbose:  false,
-		RunLocal: false,
+		Verbose:  true, // show details
+		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
+		Include:  []*regexp.Regexp{reAutoDiscovery},
 	}
 	return diagnose.RunStdOut(color.Output, diagCfg)
 }
