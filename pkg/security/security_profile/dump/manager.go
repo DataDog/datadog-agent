@@ -633,7 +633,7 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		}
 
 		for _, parent = range ancestors {
-			_, _, _, err := ad.ActivityTree.CreateProcessNode(parent, nil, activity_tree.Snapshot, false, adm.resolvers)
+			_, _, err := ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false, adm.resolvers)
 			if err != nil {
 				// if one of the parents wasn't inserted, leave now
 				break
