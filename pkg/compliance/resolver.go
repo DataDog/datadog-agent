@@ -164,16 +164,7 @@ func (r *defaultResolver) Close() {
 }
 
 func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
-	resolvingContext := struct {
-		RuleID            string                `json:"ruleID"`
-		Hostname          string                `json:"hostname"`
-		KubernetesCluster string                `json:"kubernetes_cluster"`
-		ContainerID       string                `json:"container_id"`
-		ImageID           string                `json:"image_id"`
-		ImageName         string                `json:"image_name"`
-		ImageTag          string                `json:"image_tag"`
-		InputSpecs        map[string]*InputSpec `json:"input"`
-	}{
+	resolvingContext := ResolvingContext{
 		RuleID:      rule.ID,
 		Hostname:    r.opts.Hostname,
 		ContainerID: r.opts.ContainerID,
@@ -286,33 +277,7 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 		}
 	}
 
-	preMarshal := make(map[string]interface{})
-	for k, v := range resolved {
-		preMarshal[k] = v
-	}
-	if _, ok := preMarshal["context"]; ok {
-		return nil, fmt.Errorf("\"context\" key is reserved")
-	}
-	preMarshal["context"] = resolvingContext
-	preMarshalBuf, err := json.Marshal(preMarshal)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal resolver outcome: %w", err)
-	}
-
-	var outcome ResolvedInputs
-	log.Tracef("rego input for rule=%s:\n%s", rule.ID, preMarshalBuf)
-	if err := json.Unmarshal(preMarshalBuf, &outcome); err != nil {
-		return nil, fmt.Errorf("could not unmarshal resolver outcome: %w", err)
-	}
-
-	if statsdClient := r.opts.StatsdClient; statsdClient != nil {
-		tags := []string{"rule_id:" + rule.ID, "agent_version:" + version.AgentVersion}
-		if err := statsdClient.Gauge(metrics.MetricInputsSize, float64(len(preMarshalBuf)), tags, 1.0); err != nil {
-			log.Errorf("failed to send input size metric: %v", err)
-		}
-	}
-
-	return outcome, nil
+	return NewResolvedInputs(resolvingContext, resolved)
 }
 
 func (r *defaultResolver) pathNormalize(rootPath, path string) string {

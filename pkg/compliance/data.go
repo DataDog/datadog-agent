@@ -295,8 +295,50 @@ type (
 	InputSpecConstants map[string]interface{}
 )
 
-// ResolvedInputs is the generic data structure that is returned by a Resolver.
+// ResolvingContext is part of the resolved inputs data that should be passed
+// as the "context" field in the rego evaluator input. Note that because of the
+// way rego bails when dereferencing an undefined key, we do not mark any json
+// tag as "omitempty".
+type ResolvingContext struct {
+	RuleID            string                `json:"ruleID"`
+	Hostname          string                `json:"hostname"`
+	KubernetesCluster string                `json:"kubernetes_cluster"`
+	ContainerID       string                `json:"container_id"`
+	InputSpecs        map[string]*InputSpec `json:"input"`
+}
+
+// ResolvedInputs is the generic data structure that is returned by a Resolver and
+// passed to the rego evaluator.
+//
+// Ideally if Go did support inline JSON struct tag, this type would be:
+// see https://github.com/golang/go/issues/6213
+//
+//	struct {
+//		Context  *ResolvingContext      `json:"context"`
+//		Resolved map[string]interface{} `json:",inline"`
+//	}
 type ResolvedInputs map[string]interface{}
+
+// GetContext returns the ResolvingContext associated with this resolved
+// inputs.
+func (r ResolvedInputs) GetContext() *ResolvingContext {
+	c := r["context"].(ResolvingContext)
+	return &c
+}
+
+// NewResolvedInputs builds a ResolvedInputs map from the given resolving
+// context and generic resolved data.
+func NewResolvedInputs(resolvingContext ResolvingContext, resolved map[string]interface{}) (ResolvedInputs, error) {
+	ri := make(ResolvedInputs, len(resolved)+1)
+	for k, v := range resolved {
+		if k == "context" {
+			return nil, fmt.Errorf("NewResolvedInputs: \"context\" is a reserved keyword")
+		}
+		ri[k] = v
+	}
+	ri["context"] = resolvingContext
+	return ri, nil
+}
 
 // Benchmark represents a set of rules that have a common identity, typically
 // part of the same framework. It holds metadata that are shared between these
