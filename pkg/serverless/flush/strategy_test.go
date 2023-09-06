@@ -79,14 +79,15 @@ func TestSkipAfterFailure(t *testing.T) {
 	afterMoreThanRetryTimeout := now.Add(2 * time.Minute)
 
 	sEnd := &AtTheEnd{}
-	assert.True(sEnd.ShouldFlush(Stopping, now), "it should flush because it's not the end of the function invocation")
+	assert.True(sEnd.ShouldFlush(Stopping, now), "it should flush because it didn't fail")
 	for i := 1; i <= 5; i++ {
 		sEnd.Failure(now)
 	}
-	assert.False(sEnd.ShouldFlush(Stopping, afterLessThanRetryTimeout), "it should not flush because it failed right away")
+	assert.False(sEnd.ShouldFlush(Stopping, afterLessThanRetryTimeout), "it should not flush because it failed early before")
 	assert.True(sEnd.ShouldFlush(Stopping, afterMoreThanRetryTimeout), "it flush because enough time has passed since failure")
 
 	sPeriodic := &Periodically{}
+	sPeriodic.Success() // reset global var
 	assert.True(sPeriodic.ShouldFlush(Starting, now), "it should flush because it's not the end of the function invocation")
 	for i := 1; i <= 5; i++ {
 		sPeriodic.Failure(now)
@@ -94,6 +95,9 @@ func TestSkipAfterFailure(t *testing.T) {
 	assert.False(sPeriodic.ShouldFlush(Starting, afterLessThanRetryTimeout), "it should not flush because it failed right away")
 	assert.True(sPeriodic.ShouldFlush(Starting, afterMoreThanRetryTimeout), "it flush because enough time has passed since failure")
 
+	t.Cleanup(func() {
+		sPeriodic.Success() // reset global var
+	})
 }
 
 func TestMaxBackoff(t *testing.T) {
@@ -111,4 +115,7 @@ func TestMaxBackoff(t *testing.T) {
 	assert.False(sEnd.ShouldFlush(Stopping, afterLessThanRetryTimeout), "it should not flush because it failed right away")
 	assert.True(sEnd.ShouldFlush(Stopping, afterMoreThanRetryTimeout), "it flush because more than max backoff passed")
 
+	t.Cleanup(func() {
+		sEnd.Success() // reset global var
+	})
 }

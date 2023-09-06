@@ -330,7 +330,7 @@ func (d *Daemon) Stop() {
 
 	// Once the HTTP server is shut down, it is safe to shut down the agents
 	// Otherwise, we might try to handle API calls after the agent has already been shut down
-	if !d.ShouldFlush(flush.Stopping, time.Now()) {
+	if d.ShouldFlush(flush.Stopping, time.Now()) {
 		d.TriggerFlush(true)
 	}
 
