@@ -26,8 +26,6 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
@@ -565,7 +563,7 @@ func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
 		}
 
 		if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-			return nil, errors.New(fmt.Sprintf("failed to get syntax from parse file %s", file))
+			return nil, errors.New("failed to get syntax from parse file")
 		}
 
 		astFiles.files = append(astFiles.files, pkgs[0].Syntax[0])
@@ -642,18 +640,6 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	}
 
 	return result
-}
-
-func pascalCaseFieldName(fieldName string) string {
-	chunks := strings.Split(fieldName, ".")
-	caser := cases.Title(language.Und, cases.NoLower)
-
-	for idx, chunk := range chunks {
-		newChunk := chunk
-		chunks[idx] = caser.String(newChunk)
-	}
-
-	return strings.Join(chunks, "")
 }
 
 func getFieldHandler(allFields map[string]*common.StructField, field *common.StructField) string {
@@ -760,15 +746,14 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 }
 
 var funcMap = map[string]interface{}{
-	"TrimPrefix":          strings.TrimPrefix,
-	"TrimSuffix":          strings.TrimSuffix,
-	"HasPrefix":           strings.HasPrefix,
-	"NewField":            newField,
-	"GetFieldHandler":     getFieldHandler,
-	"FieldADPrint":        fieldADPrint,
-	"GetChecks":           getChecks,
-	"GetHandlers":         getHandlers,
-	"PascalCaseFieldName": pascalCaseFieldName,
+	"TrimPrefix":      strings.TrimPrefix,
+	"TrimSuffix":      strings.TrimSuffix,
+	"HasPrefix":       strings.HasPrefix,
+	"NewField":        newField,
+	"GetFieldHandler": getFieldHandler,
+	"FieldADPrint":    fieldADPrint,
+	"GetChecks":       getChecks,
+	"GetHandlers":     getHandlers,
 }
 
 //go:embed accessors.tmpl
@@ -776,9 +761,6 @@ var accessorsTemplateCode string
 
 //go:embed field_handlers.tmpl
 var fieldHandlersTemplate string
-
-//go:embed process_context_accessors.tmpl
-var processContextAccessorsTemplate string
 
 func main() {
 	module, err := parseFile(modelFile, typesFile, pkgname)
