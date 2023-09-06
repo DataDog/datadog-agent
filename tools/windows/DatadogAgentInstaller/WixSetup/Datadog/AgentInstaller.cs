@@ -114,8 +114,9 @@ namespace WixSetup.Datadog
                     RegistryHive.LocalMachine, @"Software\Datadog\Datadog Agent",
                     // Store these properties in the registry for retrieval by future
                     // installer runs via the ReadInstallState CA.
-                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
-                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true }
+                    // Must set KeyPath=yes to ensure WiX# doesn't automatically try to use the parent Directory as the KeyPath
+                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true, AttributesDefinition = "KeyPath=yes"},
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true, AttributesDefinition = "KeyPath=yes"}
                 )
                 {
                     Win64 = true
