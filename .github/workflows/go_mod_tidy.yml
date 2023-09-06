@@ -13,7 +13,7 @@ permissions:
   contents: write
 jobs:
   mod_tidy_and_generate_licenses:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go')) }}
+    if: ${{ true || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go')) }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
