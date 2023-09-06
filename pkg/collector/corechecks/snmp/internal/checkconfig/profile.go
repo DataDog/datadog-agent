@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,13 +34,13 @@ type DeviceMeta struct {
 }
 
 type profileDefinition struct {
-	Metrics      []MetricsConfig   `yaml:"metrics"`
-	Metadata     MetadataConfig    `yaml:"metadata"`
-	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
-	StaticTags   []string          `yaml:"static_tags"`
-	Extends      []string          `yaml:"extends"`
-	Device       DeviceMeta        `yaml:"device"`
-	SysObjectIds StringArray       `yaml:"sysobjectid"`
+	Metrics      []MetricsConfig         `yaml:"metrics"`
+	Metadata     MetadataConfig          `yaml:"metadata"`
+	MetricTags   []MetricTagConfig       `yaml:"metric_tags"`
+	StaticTags   []string                `yaml:"static_tags"`
+	Extends      []string                `yaml:"extends"`
+	Device       DeviceMeta              `yaml:"device"`
+	SysObjectIds cprofstruct.StringArray `yaml:"sysobjectid"`
 }
 
 func newProfileDefinition() *profileDefinition {

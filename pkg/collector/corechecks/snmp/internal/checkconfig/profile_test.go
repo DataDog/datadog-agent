@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -57,7 +58,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 				Device:       DeviceMeta{Vendor: "f5"},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+				SysObjectIds: cprofstruct.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
 				MetricTags: []MetricTagConfig{
 					{
@@ -171,7 +172,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 		},
 		"another_profile": profileConfig{
 			Definition: profileDefinition{
-				SysObjectIds: StringArray{"1.3.6.1.4.1.32473.1.1"},
+				SysObjectIds: cprofstruct.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []MetricsConfig{
 					{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
 				},
