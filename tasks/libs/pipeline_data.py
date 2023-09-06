@@ -132,13 +132,17 @@ def truncate_job_name(job_name, max_char_per_job=48):
     return truncated_job_name
 
 
+# those jobs are `allow_failure: true` but still needs to be included
+# in fail reports
+jobs_allowed_to_fails_but_need_report = [re.compile(r'kitchen_test_security_agent.*')]
+
+
 def should_include_failed_job(job_name, allow_failure):
     if not allow_failure:
         return True
 
-    # the security agent team wants their jobs to be "allowed to fail",
-    # but at the same time to appear in the slack messages
-    if job_name.startswith("kitchen_test_security_agent"):
-        return True
+    for job_to_include in jobs_allowed_to_fails_but_need_report:
+        if job_to_include.fullmatch(job_name):
+            return True
 
     return False
