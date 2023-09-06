@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package cprofstruct
 
 import (
 	"fmt"
@@ -75,8 +75,8 @@ type MetricTagConfig struct {
 	Match string            `yaml:"match"`
 	Tags  map[string]string `yaml:"tags"`
 
-	symbolTag string
-	pattern   *regexp.Regexp
+	SymbolTag string
+	Pattern   *regexp.Regexp
 }
 
 // MetricTagConfigList holds configs for a list of metric tags
@@ -119,7 +119,7 @@ type MetricsConfig struct {
 func (m *MetricsConfig) GetSymbolTags() []string {
 	var symbolTags []string
 	for _, metricTag := range m.MetricTags {
-		symbolTags = append(symbolTags, metricTag.symbolTag)
+		symbolTags = append(symbolTags, metricTag.SymbolTag)
 	}
 	return symbolTags
 }
@@ -149,16 +149,16 @@ func (mtc *MetricTagConfig) GetTags(value string) []string {
 			tags = append(tags, mtc.Tag+":"+value)
 		}
 	} else if mtc.Match != "" {
-		if mtc.pattern == nil {
-			log.Warnf("match pattern must be present: match=%s", mtc.Match)
+		if mtc.Pattern == nil {
+			log.Warnf("match Pattern must be present: match=%s", mtc.Match)
 			return tags
 		}
-		if mtc.pattern.MatchString(value) {
+		if mtc.Pattern.MatchString(value) {
 			for key, val := range mtc.Tags {
 				normalizedTemplate := normalizeRegexReplaceValue(val)
-				replacedVal := RegexReplaceValue(value, mtc.pattern, normalizedTemplate)
+				replacedVal := RegexReplaceValue(value, mtc.Pattern, normalizedTemplate)
 				if replacedVal == "" {
-					log.Debugf("pattern `%v` failed to match `%v` with template `%v`", mtc.pattern, value, normalizedTemplate)
+					log.Debugf("Pattern `%v` failed to match `%v` with template `%v`", mtc.Pattern, value, normalizedTemplate)
 					continue
 				}
 				tags = append(tags, key+":"+replacedVal)
@@ -184,10 +184,10 @@ func normalizeRegexReplaceValue(val string) string {
 	return re.ReplaceAllString(val, "$$$1")
 }
 
-// normalizeMetrics converts legacy syntax to new syntax
+// NormalizeMetrics converts legacy syntax to new syntax
 // 1/ converts old symbol syntax to new symbol syntax
 // metric.Name and metric.OID info are moved to metric.Symbol.Name and metric.Symbol.OID
-func normalizeMetrics(metrics []MetricsConfig) {
+func NormalizeMetrics(metrics []MetricsConfig) {
 	for i := range metrics {
 		metric := &metrics[i]
 

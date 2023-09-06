@@ -7,17 +7,16 @@ package valuestore
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"regexp"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 )
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType checkconfig.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
+	SubmissionType cprofstruct.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
 	Value          interface{}                   `json:"value"`              // might be a `string`, `[]byte` or `float64` type
 }
 

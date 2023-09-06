@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"regexp"
@@ -26,39 +27,39 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		metrics         []MetricsConfig
+		metrics         []cprofstruct.MetricsConfig
 		expectedErrors  []string
-		expectedMetrics []MetricsConfig
+		expectedMetrics []cprofstruct.MetricsConfig
 		expectedLogs    []logCount
 	}{
 		{
 			name: "either table symbol or scalar symbol must be provided",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{},
 			},
 			expectedErrors: []string{
 				"either a table symbol or a scalar symbol must be provided",
 			},
-			expectedMetrics: []MetricsConfig{
+			expectedMetrics: []cprofstruct.MetricsConfig{
 				{},
 			},
 		},
 		{
 			name: "table column symbols and scalar symbol cannot be both provided",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{},
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{},
 					},
 				},
 			},
@@ -68,21 +69,21 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "multiple errors",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{},
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{},
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{},
 					},
 				},
 			},
@@ -93,9 +94,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing symbol name",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						OID: "1.2.3",
 					},
 				},
@@ -106,9 +107,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table column symbol name missing",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID: "1.2",
 						},
@@ -116,8 +117,8 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{},
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{},
 					},
 				},
 			},
@@ -128,22 +129,22 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table external metric column tag symbol error",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID: "1.2.3",
 							},
 						},
-						MetricTagConfig{
-							Column: SymbolConfig{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name: "abc",
 							},
 						},
@@ -157,15 +158,15 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing MetricTags",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{},
+					MetricTags: cprofstruct.MetricTagConfigList{},
 				},
 			},
 			expectedErrors: []string{
@@ -174,22 +175,22 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table external metric column tag MIB error",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID: "1.2.3",
 							},
 						},
-						MetricTagConfig{
-							Column: SymbolConfig{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name: "abc",
 							},
 						},
@@ -203,17 +204,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing match tags",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -228,17 +229,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "match cannot compile regex",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -256,22 +257,22 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "match cannot compile regex",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
 							Tag: "hello",
-							IndexTransform: []MetricIndexTransform{
+							IndexTransform: []cprofstruct.MetricIndexTransform{
 								{
 									Start: 2,
 									End:   1,
@@ -287,25 +288,25 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "compiling extract_value",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						OID:          "1.2.3",
 						Name:         "myMetric",
 						ExtractValue: `(\d+)C`,
 					},
 				},
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:          "1.2",
 							Name:         "hey",
 							ExtractValue: `(\d+)C`,
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "abc",
 								ExtractValue: `(\d+)C`,
@@ -315,9 +316,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedMetrics: []MetricsConfig{
+			expectedMetrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						OID:                  "1.2.3",
 						Name:                 "myMetric",
 						ExtractValue:         `(\d+)C`,
@@ -325,7 +326,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:                  "1.2",
 							Name:                 "hey",
@@ -333,9 +334,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 							ExtractValueCompiled: regexp.MustCompile(`(\d+)C`),
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:                  "1.2.3",
 								Name:                 "abc",
 								ExtractValue:         `(\d+)C`,
@@ -350,9 +351,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "error compiling extract_value",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						OID:          "1.2.3",
 						Name:         "myMetric",
 						ExtractValue: "[{",
@@ -365,17 +366,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in column symbol",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							Name:             "abc",
 							ConstantValueOne: true,
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -388,9 +389,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in scalar symbol",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						Name:             "myMetric",
 						ConstantValueOne: true,
 					},
@@ -402,9 +403,9 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in scalar symbol with OID",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						OID:              "1.2.3",
 						Name:             "myMetric",
 						ConstantValueOne: true,
@@ -417,17 +418,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "constant_value_one usage in metric tags",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name:             "abc",
 								ConstantValueOne: true,
 							},
@@ -443,18 +444,18 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "metric_type usage in column symbol",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							Name:       "abc",
 							OID:        "1.2.3",
-							MetricType: ProfileMetricTypeCounter,
+							MetricType: cprofstruct.ProfileMetricTypeCounter,
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -467,12 +468,12 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "metric_type usage in scalar symbol",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbol: SymbolConfig{
+					Symbol: cprofstruct.SymbolConfig{
 						Name:       "abc",
 						OID:        "1.2.3",
-						MetricType: ProfileMetricTypeCounter,
+						MetricType: cprofstruct.ProfileMetricTypeCounter,
 					},
 				},
 			},
@@ -480,20 +481,20 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "ERROR metric_type usage in metric_tags",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							Name: "abc",
 							OID:  "1.2.3",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name:       "abc",
 								OID:        "1.2.3",
-								MetricType: ProfileMetricTypeCounter,
+								MetricType: cprofstruct.ProfileMetricTypeCounter,
 							},
 							Tag: "hello",
 						},
@@ -506,18 +507,18 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "metric root forced_type converted to metric_type",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					ForcedType: ProfileMetricTypeCounter,
-					Symbols: []SymbolConfig{
+					ForcedType: cprofstruct.ProfileMetricTypeCounter,
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							Name: "abc",
 							OID:  "1.2.3",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -526,18 +527,18 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedMetrics: []MetricsConfig{
+			expectedMetrics: []cprofstruct.MetricsConfig{
 				{
-					MetricType: ProfileMetricTypeCounter,
-					Symbols: []SymbolConfig{
+					MetricType: cprofstruct.ProfileMetricTypeCounter,
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							Name: "abc",
 							OID:  "1.2.3",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								Name: "abc",
 								OID:  "1.2.3",
 							},
@@ -549,17 +550,17 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "mapping used without tag should raise a warning",
-			metrics: []MetricsConfig{
+			metrics: []cprofstruct.MetricsConfig{
 				{
-					Symbols: []SymbolConfig{
+					Symbols: []cprofstruct.SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					MetricTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:  "1.2",
 								Name: "abc",
 							},
@@ -621,7 +622,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					Fields: map[string]MetadataField{
 						"name": {
 							Value: "hey",
-							Symbol: SymbolConfig{
+							Symbol: cprofstruct.SymbolConfig{
 								OID:  "1.2.3",
 								Name: "someSymbol",
 							},
@@ -634,7 +635,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 					Fields: map[string]MetadataField{
 						"name": {
 							Value: "hey",
-							Symbol: SymbolConfig{
+							Symbol: cprofstruct.SymbolConfig{
 								OID:  "1.2.3",
 								Name: "someSymbol",
 							},
@@ -649,7 +650,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				"device": MetadataResourceConfig{
 					Fields: map[string]MetadataField{
 						"name": {
-							Symbol: SymbolConfig{
+							Symbol: cprofstruct.SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "someSymbol",
 								ExtractValue: "(\\w[)",
@@ -668,7 +669,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				"device": MetadataResourceConfig{
 					Fields: map[string]MetadataField{
 						"name": {
-							Symbols: []SymbolConfig{
+							Symbols: []cprofstruct.SymbolConfig{
 								{
 									OID:          "1.2.3",
 									Name:         "someSymbol",
@@ -689,7 +690,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				"device": MetadataResourceConfig{
 					Fields: map[string]MetadataField{
 						"name": {
-							Symbol: SymbolConfig{
+							Symbol: cprofstruct.SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "someSymbol",
 								ExtractValue: "(\\w)",
@@ -703,7 +704,7 @@ func Test_validateEnrichMetadata(t *testing.T) {
 				"device": MetadataResourceConfig{
 					Fields: map[string]MetadataField{
 						"name": {
-							Symbol: SymbolConfig{
+							Symbol: cprofstruct.SymbolConfig{
 								OID:                  "1.2.3",
 								Name:                 "someSymbol",
 								ExtractValue:         "(\\w)",
@@ -753,9 +754,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 							Value: "hey",
 						},
 					},
-					IDTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					IDTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -781,9 +782,9 @@ func Test_validateEnrichMetadata(t *testing.T) {
 							Value: "hey",
 						},
 					},
-					IDTags: MetricTagConfigList{
-						MetricTagConfig{
-							Column: SymbolConfig{
+					IDTags: cprofstruct.MetricTagConfigList{
+						cprofstruct.MetricTagConfig{
+							Column: cprofstruct.SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},

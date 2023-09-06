@@ -7,6 +7,7 @@ package report
 
 import (
 	json "encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"net"
 	"sort"
 	"strconv"
@@ -123,7 +124,7 @@ func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valu
 		for fieldName, field := range metadataConfig.Fields {
 			fieldFullName := resourceName + "." + fieldName
 
-			var symbols []checkconfig.SymbolConfig
+			var symbols []cprofstruct.SymbolConfig
 			if field.Symbol.OID != "" {
 				symbols = append(symbols, field.Symbol)
 			}

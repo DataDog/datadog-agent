@@ -17,6 +17,30 @@ type MyStringArray struct {
 	SomeIds StringArray `yaml:"my_field"`
 }
 
+func Test_metricTagConfig_UnmarshalYAML(t *testing.T) {
+	myStruct := MetricsConfig{}
+	expected := MetricsConfig{MetricTags: []MetricTagConfig{{Index: 3}}}
+
+	yaml.Unmarshal([]byte(`
+metric_tags:
+- index: 3
+`), &myStruct)
+
+	assert.Equal(t, expected, myStruct)
+}
+
+func Test_metricTagConfig_onlyTags(t *testing.T) {
+	myStruct := MetricsConfig{}
+	expected := MetricsConfig{MetricTags: []MetricTagConfig{{SymbolTag: "aaa"}}}
+
+	yaml.Unmarshal([]byte(`
+metric_tags:
+- aaa
+`), &myStruct)
+
+	assert.Equal(t, expected, myStruct)
+}
+
 func TestStringArray_UnmarshalYAML_array(t *testing.T) {
 	myStruct := MyStringArray{}
 	expected := MyStringArray{SomeIds: StringArray{"aaa", "bbb"}}

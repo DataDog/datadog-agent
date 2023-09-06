@@ -25,30 +25,6 @@ type MyInterfaceConfigs struct {
 	SomeInterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
 }
 
-func Test_metricTagConfig_UnmarshalYAML(t *testing.T) {
-	myStruct := MetricsConfig{}
-	expected := MetricsConfig{MetricTags: []MetricTagConfig{{Index: 3}}}
-
-	yaml.Unmarshal([]byte(`
-metric_tags:
-- index: 3
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
-}
-
-func Test_metricTagConfig_onlyTags(t *testing.T) {
-	myStruct := MetricsConfig{}
-	expected := MetricsConfig{MetricTags: []MetricTagConfig{{symbolTag: "aaa"}}}
-
-	yaml.Unmarshal([]byte(`
-metric_tags:
-- aaa
-`), &myStruct)
-
-	assert.Equal(t, expected, myStruct)
-}
-
 func Test_Number_UnmarshalYAML(t *testing.T) {
 	tests := []struct {
 		name   string

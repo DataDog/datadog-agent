@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -26,7 +26,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 	}
 	tests := []struct {
 		name             string
-		symbols          []checkconfig.SymbolConfig
+		symbols          []cprofstruct.SymbolConfig
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
@@ -36,7 +36,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 	}{
 		{
 			name:      "snmp.ifBandwidthInUsage.Rate submitted",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			tags:      []string{"abc"},
 			values: &valuestore.ResultValueStore{
@@ -68,7 +68,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate submitted",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -99,7 +99,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "not a bandwidth metric",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{},
@@ -108,7 +108,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "missing ifHighSpeed",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -131,7 +131,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "missing ifHCInOctets",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -154,7 +154,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "missing ifHCOutOctets",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -177,7 +177,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "missing ifHCInOctets value",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -206,7 +206,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "missing ifHighSpeed value",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -235,7 +235,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "cannot convert ifHighSpeed to float",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -264,7 +264,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "cannot convert ifHCInOctets to float",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []cprofstruct.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -293,7 +293,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name: "[custom speed] snmp.ifBandwidthIn/OutUsage.rate with custom interface speed matched by name",
-			symbols: []checkconfig.SymbolConfig{
+			symbols: []cprofstruct.SymbolConfig{
 				{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 				{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			},
@@ -341,7 +341,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name: "[custom speed] snmp.ifBandwidthIn/OutUsage.rate with custom interface speed matched by index",
-			symbols: []checkconfig.SymbolConfig{
+			symbols: []cprofstruct.SymbolConfig{
 				{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 				{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			},
@@ -417,7 +417,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name             string
-		symbol           checkconfig.SymbolConfig
+		symbol           cprofstruct.SymbolConfig
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
@@ -426,7 +426,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 	}{
 		{
 			name:      "InSpeed and OutSpeed Override",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -452,7 +452,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:      "InSpeed and OutSpeed Override with custom tags",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -479,7 +479,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:      "InSpeed Override but not OutSpeed Override",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -504,7 +504,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:      "InSpeed and OutSpeed config with zero values",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -529,7 +529,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:             "no interface config found",
-			symbol:           checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:           cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex:        "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{},
 			values: &valuestore.ResultValueStore{
@@ -549,7 +549,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:             "no interface config found and no ifHighSpeed",
-			symbol:           checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:           cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex:        "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{},
 			values:           &valuestore.ResultValueStore{},
@@ -583,14 +583,14 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name           string
-		symbol         checkconfig.SymbolConfig
+		symbol         cprofstruct.SymbolConfig
 		fullIndex      string
 		values         *valuestore.ResultValueStore
 		expectedMetric []Metric
 	}{
 		{
 			"snmp.ifBandwidthInUsage.Rate submitted",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -623,7 +623,7 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 		},
 		{
 			"should complete even on error",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			cprofstruct.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{

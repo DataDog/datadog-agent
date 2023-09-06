@@ -34,13 +34,13 @@ type DeviceMeta struct {
 }
 
 type profileDefinition struct {
-	Metrics      []MetricsConfig         `yaml:"metrics"`
-	Metadata     MetadataConfig          `yaml:"metadata"`
-	MetricTags   []MetricTagConfig       `yaml:"metric_tags"`
-	StaticTags   []string                `yaml:"static_tags"`
-	Extends      []string                `yaml:"extends"`
-	Device       DeviceMeta              `yaml:"device"`
-	SysObjectIds cprofstruct.StringArray `yaml:"sysobjectid"`
+	Metrics      []cprofstruct.MetricsConfig   `yaml:"metrics"`
+	Metadata     MetadataConfig                `yaml:"metadata"`
+	MetricTags   []cprofstruct.MetricTagConfig `yaml:"metric_tags"`
+	StaticTags   []string                      `yaml:"static_tags"`
+	Extends      []string                      `yaml:"extends"`
+	Device       DeviceMeta                    `yaml:"device"`
+	SysObjectIds cprofstruct.StringArray       `yaml:"sysobjectid"`
 }
 
 func newProfileDefinition() *profileDefinition {
@@ -159,7 +159,7 @@ func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
 	}
-	normalizeMetrics(profileDefinition.Metrics)
+	cprofstruct.NormalizeMetrics(profileDefinition.Metrics)
 	errors := validateEnrichMetadata(profileDefinition.Metadata)
 	errors = append(errors, ValidateEnrichMetrics(profileDefinition.Metrics)...)
 	errors = append(errors, ValidateEnrichMetricTags(profileDefinition.MetricTags)...)

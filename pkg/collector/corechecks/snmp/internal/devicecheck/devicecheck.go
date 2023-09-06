@@ -8,6 +8,7 @@ package devicecheck
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"strings"
 	"time"
 
@@ -243,7 +244,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []checkconfig.MetricTagConfig) {
+func (d *DeviceCheck) detectAvailableMetrics() ([]cprofstruct.MetricsConfig, []cprofstruct.MetricTagConfig) {
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
@@ -252,8 +253,8 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 		root.DebugPrint()
 	}
 
-	var metricConfigs []checkconfig.MetricsConfig
-	var metricTagConfigs []checkconfig.MetricTagConfig
+	var metricConfigs []cprofstruct.MetricsConfig
+	var metricTagConfigs []cprofstruct.MetricTagConfig
 
 	// If a metric name has already been encountered, we won't try to add it again.
 	alreadySeenMetrics := make(map[string]bool)
@@ -272,7 +273,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {
-				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
+				newMetricConfig.Symbols = []cprofstruct.SymbolConfig{}
 				for _, symbol := range metricConfig.Symbols {
 					if !alreadySeenMetrics[symbol.Name] && root.NonLeafNodeExist(symbol.OID) {
 						alreadySeenMetrics[symbol.Name] = true

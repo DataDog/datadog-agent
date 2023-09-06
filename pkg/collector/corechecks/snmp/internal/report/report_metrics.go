@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -15,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -31,9 +31,9 @@ type MetricSender struct {
 type MetricSample struct {
 	value      valuestore.ResultValue
 	tags       []string
-	symbol     checkconfig.SymbolConfig
-	forcedType checkconfig.ProfileMetricType
-	options    checkconfig.MetricsConfigOption
+	symbol     cprofstruct.SymbolConfig
+	forcedType cprofstruct.ProfileMetricType
+	options    cprofstruct.MetricsConfigOption
 }
 
 // NewMetricSender create a new MetricSender
@@ -46,7 +46,7 @@ func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []s
 }
 
 // ReportMetrics reports metrics using Sender
-func (ms *MetricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) ReportMetrics(metrics []cprofstruct.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	scalarSamples := make(map[string]MetricSample)
 	columnSamples := make(map[string]map[string]MetricSample)
 
@@ -79,7 +79,7 @@ func (ms *MetricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, value
 }
 
 // GetCheckInstanceMetricTags returns check instance metric tags
-func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.MetricTagConfig, values *valuestore.ResultValueStore) []string {
+func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []cprofstruct.MetricTagConfig, values *valuestore.ResultValueStore) []string {
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
@@ -98,7 +98,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	return globalTags
 }
 
-func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) (MetricSample, error) {
+func (ms *MetricSender) reportScalarMetrics(metric cprofstruct.MetricsConfig, values *valuestore.ResultValueStore, tags []string) (MetricSample, error) {
 	value, err := getScalarValueFromSymbol(values, metric.Symbol)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
@@ -118,7 +118,7 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 	return sample, nil
 }
 
-func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) map[string]map[string]MetricSample {
+func (ms *MetricSender) reportColumnMetrics(metricConfig cprofstruct.MetricsConfig, values *valuestore.ResultValueStore, tags []string) map[string]map[string]MetricSample {
 	rowTagsCache := make(map[string][]string)
 	samples := map[string]map[string]MetricSample{}
 	for _, symbol := range metricConfig.Symbols {
@@ -178,7 +178,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 		if metricSample.value.SubmissionType != "" {
 			forcedType = metricSample.value.SubmissionType
 		} else {
-			forcedType = checkconfig.ProfileMetricTypeGauge
+			forcedType = cprofstruct.ProfileMetricTypeGauge
 		}
 	} else if forcedType == "flag_stream" {
 		strValue, err := metricSample.value.ToString()
@@ -194,7 +194,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 		}
 		metricFullName = metricFullName + "." + options.MetricSuffix
 		metricSample.value = valuestore.ResultValue{Value: floatValue}
-		forcedType = checkconfig.ProfileMetricTypeGauge
+		forcedType = cprofstruct.ProfileMetricTypeGauge
 	}
 
 	floatValue, err := metricSample.value.ToFloat64()
@@ -209,19 +209,19 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	}
 
 	switch forcedType {
-	case checkconfig.ProfileMetricTypeGauge:
+	case cprofstruct.ProfileMetricTypeGauge:
 		ms.Gauge(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case checkconfig.ProfileMetricTypeCounter, checkconfig.ProfileMetricTypeRate:
+	case cprofstruct.ProfileMetricTypeCounter, cprofstruct.ProfileMetricTypeRate:
 		ms.Rate(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case checkconfig.ProfileMetricTypePercent:
+	case cprofstruct.ProfileMetricTypePercent:
 		ms.Rate(metricFullName, floatValue*100, metricSample.tags)
 		ms.submittedMetrics++
-	case checkconfig.ProfileMetricTypeMonotonicCount:
+	case cprofstruct.ProfileMetricTypeMonotonicCount:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case checkconfig.ProfileMetricTypeMonotonicCountAndRate:
+	case cprofstruct.ProfileMetricTypeMonotonicCountAndRate:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.Rate(metricFullName+".rate", floatValue, metricSample.tags)
 		ms.submittedMetrics += 2

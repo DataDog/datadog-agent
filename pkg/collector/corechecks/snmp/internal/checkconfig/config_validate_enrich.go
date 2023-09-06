@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
 )
@@ -46,7 +47,7 @@ const (
 )
 
 // ValidateEnrichMetricTags validates and enrich metric tags
-func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
+func ValidateEnrichMetricTags(metricTags []cprofstruct.MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
 		errors = append(errors, validateEnrichMetricTag(&metricTags[i])...)
@@ -57,7 +58,7 @@ func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 // ValidateEnrichMetrics will validate MetricsConfig and enrich it.
 // Example of enrichment:
 // - storage of compiled regex pattern
-func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
+func ValidateEnrichMetrics(metrics []cprofstruct.MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
@@ -131,7 +132,7 @@ func validateEnrichMetadata(metadata MetadataConfig) []string {
 	return errors
 }
 
-func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []string {
+func validateEnrichSymbol(symbol *cprofstruct.SymbolConfig, symbolContext SymbolContext) []string {
 	var errors []string
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
@@ -167,7 +168,7 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 	}
 	return errors
 }
-func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
+func validateEnrichMetricTag(metricTag *cprofstruct.MetricTagConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, MetricTagSymbol)...)
@@ -177,7 +178,7 @@ func validateEnrichMetricTag(metricTag *MetricTagConfig) []string {
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("cannot compile `match` (`%s`): %s", metricTag.Match, err.Error()))
 		} else {
-			metricTag.pattern = pattern
+			metricTag.Pattern = pattern
 		}
 		if len(metricTag.Tags) == 0 {
 			errors = append(errors, fmt.Sprintf("`tags` mapping must be provided if `match` (`%s`) is defined", metricTag.Match))

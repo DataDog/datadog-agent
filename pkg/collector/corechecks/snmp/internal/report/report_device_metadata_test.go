@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"testing"
 	"time"
 
@@ -66,11 +67,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 				Fields: map[string]checkconfig.MetadataField{
 					"name": {
 						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
 							Name: "sysName",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []cprofstruct.SymbolConfig{
 							{
 								OID:  "1.2.99",
 								Name: "doesNotExist",
@@ -79,11 +80,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"description": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []cprofstruct.SymbolConfig{
 							{
 								OID:  "1.3.6.1.2.1.1.1.0",
 								Name: "sysDescr",
@@ -92,11 +93,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"location": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []cprofstruct.SymbolConfig{
 							{
 								OID:  "1.888",
 								Name: "doesNotExist2",
@@ -280,33 +281,33 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 			"interface": {
 				Fields: map[string]checkconfig.MetadataField{
 					"name": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
 					},
 					"alias": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.18",
 							Name: "ifAlias",
 						},
 					},
 					"admin_status": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.7",
 							Name: "ifAdminStatus",
 						},
 					},
 					"oper_status": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
 						},
 					},
 				},
-				IDTags: checkconfig.MetricTagConfigList{
-					checkconfig.MetricTagConfig{
-						Column: checkconfig.SymbolConfig{
+				IDTags: cprofstruct.MetricTagConfigList{
+					cprofstruct.MetricTagConfig{
+						Column: cprofstruct.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "interface",
 						},
@@ -402,7 +403,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 			"device": {
 				Fields: map[string]checkconfig.MetadataField{
 					"name": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: cprofstruct.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
 						},

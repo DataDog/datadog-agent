@@ -7,9 +7,9 @@ package report
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -72,8 +72,8 @@ func (ms *MetricSender) trySendScalarMemoryUsage(scalarSamples map[string]Metric
 			memoryUsageSample := MetricSample{
 				value:      valuestore.ResultValue{Value: memoryUsageValue},
 				tags:       scalarMemoryUsed.tags,
-				symbol:     checkconfig.SymbolConfig{Name: "memory.usage"},
-				options:    checkconfig.MetricsConfigOption{},
+				symbol:     cprofstruct.SymbolConfig{Name: "memory.usage"},
+				options:    cprofstruct.MetricsConfigOption{},
 				forcedType: "",
 			}
 
@@ -103,8 +103,8 @@ func (ms *MetricSender) trySendScalarMemoryUsage(scalarSamples map[string]Metric
 			memoryUsageSample := MetricSample{
 				value:      valuestore.ResultValue{Value: memoryUsageValue},
 				tags:       scalarMemoryUsed.tags,
-				symbol:     checkconfig.SymbolConfig{Name: "memory.usage"},
-				options:    checkconfig.MetricsConfigOption{},
+				symbol:     cprofstruct.SymbolConfig{Name: "memory.usage"},
+				options:    cprofstruct.MetricsConfigOption{},
 				forcedType: "",
 			}
 
@@ -135,8 +135,8 @@ func (ms *MetricSender) trySendScalarMemoryUsage(scalarSamples map[string]Metric
 		memoryUsageSample := MetricSample{
 			value:      valuestore.ResultValue{Value: memoryUsageValue},
 			tags:       scalarMemoryTotal.tags,
-			symbol:     checkconfig.SymbolConfig{Name: "memory.usage"},
-			options:    checkconfig.MetricsConfigOption{},
+			symbol:     cprofstruct.SymbolConfig{Name: "memory.usage"},
+			options:    cprofstruct.MetricsConfigOption{},
 			forcedType: "",
 		}
 
@@ -195,8 +195,8 @@ func (ms *MetricSender) trySendColumnMemoryUsage(columnSamples map[string]map[st
 				memoryUsageSample := MetricSample{
 					value:      valuestore.ResultValue{Value: memoryUsageValue},
 					tags:       memoryUsedSample.tags,
-					symbol:     checkconfig.SymbolConfig{Name: "memory.usage"},
-					options:    checkconfig.MetricsConfigOption{},
+					symbol:     cprofstruct.SymbolConfig{Name: "memory.usage"},
+					options:    cprofstruct.MetricsConfigOption{},
 					forcedType: "",
 				}
 
@@ -229,8 +229,8 @@ func (ms *MetricSender) trySendColumnMemoryUsage(columnSamples map[string]map[st
 				memoryUsageSample := MetricSample{
 					value:      valuestore.ResultValue{Value: memoryUsageValue},
 					tags:       memoryUsedSample.tags,
-					symbol:     checkconfig.SymbolConfig{Name: "memory.usage"},
-					options:    checkconfig.MetricsConfigOption{},
+					symbol:     cprofstruct.SymbolConfig{Name: "memory.usage"},
+					options:    cprofstruct.MetricsConfigOption{},
 					forcedType: "",
 				}
 
@@ -264,8 +264,8 @@ func (ms *MetricSender) trySendColumnMemoryUsage(columnSamples map[string]map[st
 			memoryUsageSample := MetricSample{
 				value:      valuestore.ResultValue{Value: memoryUsageValue},
 				tags:       memoryTotalSample.tags,
-				symbol:     checkconfig.SymbolConfig{Name: "memory.usage"},
-				options:    checkconfig.MetricsConfigOption{},
+				symbol:     cprofstruct.SymbolConfig{Name: "memory.usage"},
+				options:    cprofstruct.MetricsConfigOption{},
 				forcedType: "",
 			}
 

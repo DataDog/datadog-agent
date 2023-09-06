@@ -8,6 +8,7 @@ package report
 import (
 	"bufio"
 	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cprofstruct"
 	"regexp"
 	"strings"
 	"testing"
@@ -33,14 +34,14 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 	tests := []struct {
 		name          string
 		values        *valuestore.ResultValueStore
-		symbol        checkconfig.SymbolConfig
+		symbol        cprofstruct.SymbolConfig
 		expectedValue valuestore.ResultValue
 		expectedError string
 	}{
 		{
 			name:   "OK oid value case",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{OID: "1.2.3.4", Name: "mySymbol"},
+			symbol: cprofstruct.SymbolConfig{OID: "1.2.3.4", Name: "mySymbol"},
 			expectedValue: valuestore.ResultValue{
 				Value: "value1",
 			},
@@ -49,14 +50,14 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		{
 			name:          "not found",
 			values:        mockValues,
-			symbol:        checkconfig.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
+			symbol:        cprofstruct.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "value for Scalar OID `1.2.3.99` not found in results",
 		},
 		{
 			name:   "extract value pattern error",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				ExtractValue:         "abc",
@@ -68,7 +69,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		{
 			name:   "OK match pattern without replace",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				MatchPatternCompiled: regexp.MustCompile("value\\d"),
@@ -82,7 +83,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		{
 			name:   "Error match pattern does not match",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				MatchPattern:         "doesNotMatch",
@@ -95,7 +96,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		{
 			name:   "Error match pattern template does not match",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				MatchPattern:         "value(\\d)",
@@ -108,7 +109,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		{
 			name:   "OK Extract value case",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				ExtractValue:         "[a-z]+(\\d)",
@@ -122,7 +123,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		{
 			name:   "Error extract value pattern des not contain any matching group",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				ExtractValue:         "[a-z]+\\d",
@@ -134,7 +135,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 		{
 			name:   "Error extract value extractValuePattern does not match",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				ExtractValue:         "[a-z]+(\\d)",
@@ -152,7 +153,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 					},
 				},
 			},
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:    "1.2.3.4",
 				Name:   "mySymbol",
 				Format: "mac_address",
@@ -171,7 +172,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 					},
 				},
 			},
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:    "1.2.3.4",
 				Name:   "mySymbol",
 				Format: "unknown_format",
@@ -203,14 +204,14 @@ func Test_getColumnValueFromSymbol(t *testing.T) {
 	tests := []struct {
 		name           string
 		values         *valuestore.ResultValueStore
-		symbol         checkconfig.SymbolConfig
+		symbol         cprofstruct.SymbolConfig
 		expectedValues map[string]valuestore.ResultValue
 		expectedError  string
 	}{
 		{
 			name:   "valid case",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{OID: "1.2.3.4", Name: "mySymbol"},
+			symbol: cprofstruct.SymbolConfig{OID: "1.2.3.4", Name: "mySymbol"},
 			expectedValues: map[string]valuestore.ResultValue{
 				"1": {Value: "value1"},
 				"2": {Value: "value2"},
@@ -220,14 +221,14 @@ func Test_getColumnValueFromSymbol(t *testing.T) {
 		{
 			name:           "value not found",
 			values:         mockValues,
-			symbol:         checkconfig.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
+			symbol:         cprofstruct.SymbolConfig{OID: "1.2.3.99", Name: "mySymbol"},
 			expectedValues: nil,
 			expectedError:  "value for Column OID `1.2.3.99` not found in results",
 		},
 		{
 			name:   "invalid extract value pattern",
 			values: mockValues,
-			symbol: checkconfig.SymbolConfig{
+			symbol: cprofstruct.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				ExtractValue:         "abc",
@@ -252,19 +253,19 @@ func Test_transformIndex(t *testing.T) {
 	tests := []struct {
 		name               string
 		indexes            []string
-		transformRules     []checkconfig.MetricIndexTransform
+		transformRules     []cprofstruct.MetricIndexTransform
 		expectedNewIndexes []string
 	}{
 		{
 			"no rule",
 			[]string{"10", "11", "12", "13"},
-			[]checkconfig.MetricIndexTransform{},
+			[]cprofstruct.MetricIndexTransform{},
 			nil,
 		},
 		{
 			"one",
 			[]string{"10", "11", "12", "13"},
-			[]checkconfig.MetricIndexTransform{
+			[]cprofstruct.MetricIndexTransform{
 				{Start: 2, End: 3},
 			},
 			[]string{"12", "13"},
@@ -272,7 +273,7 @@ func Test_transformIndex(t *testing.T) {
 		{
 			"multi",
 			[]string{"10", "11", "12", "13"},
-			[]checkconfig.MetricIndexTransform{
+			[]cprofstruct.MetricIndexTransform{
 				{Start: 2, End: 2},
 				{Start: 0, End: 1},
 			},
@@ -281,7 +282,7 @@ func Test_transformIndex(t *testing.T) {
 		{
 			"out of index end",
 			[]string{"10", "11", "12", "13"},
-			[]checkconfig.MetricIndexTransform{
+			[]cprofstruct.MetricIndexTransform{
 				{Start: 2, End: 1000},
 			},
 			nil,
@@ -289,7 +290,7 @@ func Test_transformIndex(t *testing.T) {
 		{
 			"out of index start and end",
 			[]string{"10", "11", "12", "13"},
-			[]checkconfig.MetricIndexTransform{
+			[]cprofstruct.MetricIndexTransform{
 				{Start: 1000, End: 2000},
 			},
 			nil,
@@ -774,10 +775,10 @@ metric_tags:
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			m := checkconfig.MetricsConfig{}
+			m := cprofstruct.MetricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
 
-			checkconfig.ValidateEnrichMetrics([]checkconfig.MetricsConfig{m})
+			checkconfig.ValidateEnrichMetrics([]cprofstruct.MetricsConfig{m})
 			tags := getTagsFromMetricTagConfigList(m.MetricTags, tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)
@@ -911,15 +912,15 @@ func Test_getContantMetricValues(t *testing.T) {
 	}
 	tests := []struct {
 		name           string
-		metricTags     checkconfig.MetricTagConfigList
+		metricTags     cprofstruct.MetricTagConfigList
 		values         *valuestore.ResultValueStore
 		expectedValues map[string]valuestore.ResultValue
 		expectedLogs   []logCount
 	}{
 		{
 			name: "One metric tag",
-			metricTags: checkconfig.MetricTagConfigList{{
-				Column: checkconfig.SymbolConfig{
+			metricTags: cprofstruct.MetricTagConfigList{{
+				Column: cprofstruct.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
@@ -946,15 +947,15 @@ func Test_getContantMetricValues(t *testing.T) {
 		},
 		{
 			name: "Two metric tags",
-			metricTags: checkconfig.MetricTagConfigList{{
-				Column: checkconfig.SymbolConfig{
+			metricTags: cprofstruct.MetricTagConfigList{{
+				Column: cprofstruct.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: checkconfig.SymbolConfig{
+					Column: cprofstruct.SymbolConfig{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -983,15 +984,15 @@ func Test_getContantMetricValues(t *testing.T) {
 		},
 		{
 			name: "Two metric tags with index overlap",
-			metricTags: checkconfig.MetricTagConfigList{{
-				Column: checkconfig.SymbolConfig{
+			metricTags: cprofstruct.MetricTagConfigList{{
+				Column: cprofstruct.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: checkconfig.SymbolConfig{
+					Column: cprofstruct.SymbolConfig{
 						OID:  "1.2.4",
 						Name: "value",
 					},
@@ -1026,19 +1027,19 @@ func Test_getContantMetricValues(t *testing.T) {
 		},
 		{
 			name: "Should ignore metric tags with index transform",
-			metricTags: checkconfig.MetricTagConfigList{{
-				Column: checkconfig.SymbolConfig{
+			metricTags: cprofstruct.MetricTagConfigList{{
+				Column: cprofstruct.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
 				Tag: "my_first_tag",
 			},
 				{
-					Column: checkconfig.SymbolConfig{
+					Column: cprofstruct.SymbolConfig{
 						OID:  "1.2.4",
 						Name: "value",
 					},
-					IndexTransform: []checkconfig.MetricIndexTransform{
+					IndexTransform: []cprofstruct.MetricIndexTransform{
 						{Start: 0,
 							End: 1,
 						}},
@@ -1064,8 +1065,8 @@ func Test_getContantMetricValues(t *testing.T) {
 		},
 		{
 			name: "Value not found",
-			metricTags: checkconfig.MetricTagConfigList{{
-				Column: checkconfig.SymbolConfig{
+			metricTags: cprofstruct.MetricTagConfigList{{
+				Column: cprofstruct.SymbolConfig{
 					OID:  "1.2.3",
 					Name: "value",
 				},
@@ -1079,7 +1080,7 @@ func Test_getContantMetricValues(t *testing.T) {
 		},
 		{
 			name:           "No metric tags",
-			metricTags:     checkconfig.MetricTagConfigList{},
+			metricTags:     cprofstruct.MetricTagConfigList{},
 			values:         &valuestore.ResultValueStore{},
 			expectedValues: map[string]valuestore.ResultValue{},
 		},
