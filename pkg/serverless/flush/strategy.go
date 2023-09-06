@@ -130,13 +130,14 @@ func (s *Periodically) Success() {
 
 type failedAttempt struct {
 	lastFail time.Time
-	retries  int
+	retries  uint64
 }
 
 func (f *failedAttempt) tooEarly(now time.Time) bool {
 	if f.retries > 0 {
+		maxRetryBackoff := math.Min(float64(f.retries), 10) // no need to go higher and risk overflow in the power op
 		spreadRetrySeconds := float64(rand.Int31n(1_000)) / 1_000
-		ignoreWindowSeconds := int(math.Min(math.Pow(2, float64(f.retries))+spreadRetrySeconds, maxBackoffRetrySeconds))
+		ignoreWindowSeconds := int(math.Min(math.Pow(2, maxRetryBackoff)+spreadRetrySeconds, maxBackoffRetrySeconds))
 		log.Debugf("Flush failed, retry number %d will happen after at least %d seconds", f.retries, ignoreWindowSeconds)
 		return now.Before(f.lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9)))
 	} else {
@@ -145,9 +146,7 @@ func (f *failedAttempt) tooEarly(now time.Time) bool {
 }
 
 func (f *failedAttempt) incrementFailure(t time.Time) {
-	if f.retries < 10 { // no need to go higher and risk overflow in the power op when calculating backoff
-		f.retries += 1
-	}
+	f.retries += 1
 	f.lastFail = t
 }
 
