@@ -1,6 +1,7 @@
 package cprofstruct
 
-import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+// MetadataDeviceResource is the device resource name
+const MetadataDeviceResource = "device"
 
 // MetadataConfig holds configs per resource type
 type MetadataConfig map[string]MetadataResourceConfig
@@ -26,5 +27,5 @@ func NewMetadataResourceConfig() MetadataResourceConfig {
 // IsMetadataResourceWithScalarOids returns true if the resource is based on scalar OIDs
 // at the moment, we only expect "device" resource to be based on scalar OIDs
 func IsMetadataResourceWithScalarOids(resource string) bool {
-	return resource == common.MetadataDeviceResource
+	return resource == MetadataDeviceResource
 }
