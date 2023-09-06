@@ -22,6 +22,8 @@ golang_deps_commenter:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
   tags: ["arch:amd64"]
+  rules: # this should only run on dev branches
+    - !reference [ .except_main_or_release_branch ]
   needs: ["golang_deps_diff"]
   script:
     - echo "${CI_COMMIT_REF_NAME}"
