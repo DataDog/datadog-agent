@@ -9,7 +9,6 @@ package oracle
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	"strings"
 )

@@ -10,7 +10,6 @@ package oracle
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 )

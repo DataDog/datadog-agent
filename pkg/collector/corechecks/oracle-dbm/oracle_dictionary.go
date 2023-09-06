@@ -20,7 +20,6 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 		sql = fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
 		err = c.db.Get(SQLStatement, sql, value)
 		reconnectOnConnectionError(c, &c.db, err)
-		return err
 	} else {
 		var sqlFullText go_ora.Clob
 		sql = fmt.Sprintf("BEGIN SELECT /* DD */ sql_fulltext INTO :sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1; END;", key)
@@ -42,10 +41,10 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 			} else {
 				c.connection = conn
 			}
-			return err
+			return fmt.Errorf("failed to query sql full text for %s = %s %s", key, value, err)
 		} else if sqlFullText.String == "" {
 			return fmt.Errorf("no rows for %s = %s", key, value)
 		}
-		return err
 	}
+	return err
 }
