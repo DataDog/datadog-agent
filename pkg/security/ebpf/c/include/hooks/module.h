@@ -77,13 +77,13 @@ int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
 HOOK_ENTRY("mod_sysfs_setup")
 int hook_mod_sysfs_setup(ctx_t *ctx) {
     struct module *m = (struct module*)CTX_PARM1(ctx);
-	return fetch_mod_name_common(m);
+    return fetch_mod_name_common(m);
 }
 
 HOOK_ENTRY("module_param_sysfs_setup")
 int hook_module_param_sysfs_setup(ctx_t *ctx) {
     struct module *m = (struct module*)CTX_PARM1(ctx);
-	return fetch_mod_name_common(m);
+    return fetch_mod_name_common(m);
 }
 
 HOOK_ENTRY("security_kernel_module_from_file")
