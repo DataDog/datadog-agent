@@ -76,7 +76,7 @@ func (s *AtTheEnd) String() string { return "end" }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
-	if tooEarly(t) {
+	if shouldWaitBackoff(t) {
 		return false
 	} else {
 		return moment == Stopping
@@ -108,7 +108,7 @@ func (s *Periodically) String() string {
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
-	if moment == Starting && !tooEarly(t) {
+	if moment == Starting && !shouldWaitBackoff(t) {
 		// Periodically strategy will not flush anyway if the s.interval didn't pass
 		if s.lastFlush.Add(s.interval).Before(t) {
 			s.lastFlush = t
@@ -129,13 +129,18 @@ func (s *Periodically) Success() {
 var lastFail time.Time
 var retries uint64
 
-func tooEarly(now time.Time) bool {
+func shouldWaitBackoff(now time.Time) bool {
 	if retries > 0 {
 		maxRetryBackoff := math.Min(float64(retries), 10) // no need to go higher and risk overflow in the power op
 		spreadRetrySeconds := float64(rand.Int31n(1_000)) / 1_000
 		ignoreWindowSeconds := int(math.Min(math.Pow(2, maxRetryBackoff)+spreadRetrySeconds, maxBackoffRetrySeconds))
-		log.Debugf("Flush failed %d times, flushes will be prevented for %d seconds", retries, ignoreWindowSeconds)
-		return now.Before(lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9)))
+
+		whenAcceptingFlush := lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9))
+
+		timeLeft := math.Max(float64(whenAcceptingFlush.Second()-now.Second()), 0)
+
+		log.Debugf("Flush failed %d times, flushes will be prevented for %d seconds (%d left)", retries, ignoreWindowSeconds, timeLeft)
+		return now.Before(whenAcceptingFlush)
 	} else {
 		return false
 	}
