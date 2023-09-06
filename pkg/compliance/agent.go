@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package compliance implements a specific part of the datadog-agent
+// responsible for scanning host and containers and report various
+// misconfigurations and compliance issues.
 package compliance
 
 import (
@@ -30,6 +33,7 @@ const containersCountMetricName = "datadog.security_agent.compliance.containers_
 
 var status = expvar.NewMap("compliance")
 
+// AgentOptions holds the different options to configure the compliance agent.
 type AgentOptions struct {
 	// ResolverOptions is the options passed to the constructed resolvers
 	// internally. See resolver.go.
@@ -62,6 +66,8 @@ type AgentOptions struct {
 	EvalThrottling time.Duration
 }
 
+// Agent is the compliance agent that is responsible for running compliance
+// continuously benchmarks and configuration checking.
 type Agent struct {
 	senderManager sender.SenderManager
 	opts          AgentOptions
@@ -78,6 +84,9 @@ func xccdfEnabled() bool {
 	return config.Datadog.GetBool("compliance_config.xccdf.enabled") || config.Datadog.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
+// DefaultRuleFilter implements the default filtering of benchmarks' rules. It
+// will exclude rules based on the evaluation context / environment running
+// the benchmark.
 func DefaultRuleFilter(r *Rule) bool {
 	if config.IsKubernetes() {
 		if r.SkipOnK8s {
@@ -108,6 +117,7 @@ func DefaultRuleFilter(r *Rule) bool {
 	return true
 }
 
+// NewAgent returns a new compliance agent.
 func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
@@ -141,6 +151,7 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 	}
 }
 
+// Start starts the compliance agent.
 func (a *Agent) Start() error {
 	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
 	if err != nil {
@@ -202,6 +213,7 @@ func (a *Agent) Start() error {
 	return nil
 }
 
+// Stop stops the compliance agent.
 func (a *Agent) Stop() {
 	log.Tracef("shutting down compliance agent")
 	a.cancel()
@@ -384,6 +396,7 @@ func (a *Agent) runTelemetry(ctx context.Context) {
 	}
 }
 
+// GetStatus returns a map of the different last results of our checks.
 func (a *Agent) GetStatus() map[string]interface{} {
 	return map[string]interface{}{
 		"endpoints": a.opts.Reporter.Endpoints().GetStatus(),
