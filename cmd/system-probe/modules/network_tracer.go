@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -83,6 +84,11 @@ type networkTracer struct {
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
+}
+
+// RegisterGRPC register system probe grpc server
+func (nt *networkTracer) RegisterGRPC(_ *grpc.Server) error {
+	return nil
 }
 
 // Register all networkTracer endpoints
@@ -290,7 +296,10 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	err := marshaler.Marshal(cs, w)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	defer connectionsModeler.Close()
+
+	err := marshaler.Marshal(cs, w, connectionsModeler)
 	if err != nil {
 		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		w.WriteHeader(500)

@@ -61,7 +61,11 @@ func TestDecode(t *testing.T) {
 
 	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
 	ostream := bytes.NewBuffer(nil)
-	err := marshaller.Marshal(in, ostream)
+
+	connectionsModeler := encoding.NewConnectionsModeler(in)
+	defer connectionsModeler.Close()
+
+	err := marshaller.Marshal(in, ostream, connectionsModeler)
 	require.NoError(t, err)
 
 	writeConnections(rec, marshaller, in)
