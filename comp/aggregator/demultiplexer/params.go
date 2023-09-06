@@ -7,6 +7,7 @@ package demultiplexer
 
 import "github.com/DataDog/datadog-agent/pkg/aggregator"
 
+// Params contains the parameters for the demultiplexer
 type Params struct {
 	Options aggregator.AgentDemultiplexerOptions
 }

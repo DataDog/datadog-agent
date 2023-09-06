@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,8 @@ func TestBundleDependencies(t *testing.T) {
 		Bundle,
 		log.Module,
 		fx.Supply(log.Params{}),
+		config.Module,
+		fx.Supply(config.Params{}),
 		defaultforwarder.Module,
 		fx.Supply(defaultforwarder.Params{}),
 	))
