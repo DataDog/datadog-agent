@@ -661,3 +661,10 @@ replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4
 
 // Fixes a panic in trivy, see gitlab.com/cznic/libc/-/issues/25
 replace modernc.org/sqlite v1.17.3 => modernc.org/sqlite v1.19.3
+
+// Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
+// https://github.com/open-telemetry/opentelemetry-collector/issues/8127
+exclude (
+	github.com/knadh/koanf/maps v0.1.1
+	github.com/knadh/koanf/providers/confmap v0.1.0
+)
