@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,7 +23,7 @@ type commandFlareSuite struct {
 }
 
 func TestFlareSuite(t *testing.T) {
-	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef(nil), params.WithDevMode())
+	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef(nil))
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
