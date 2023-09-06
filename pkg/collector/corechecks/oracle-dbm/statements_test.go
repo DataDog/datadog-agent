@@ -11,14 +11,24 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 )
 
+func TestQueryMetrics(t *testing.T) {
+	initAndStartAgentDemultiplexer(t)
+	chk.dbmEnabled = true
+	chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
+	count, err := chk.StatementMetrics()
+	assert.NoError(t, err, "failed to run query metrics")
+	assert.NotEmpty(t, count, "No statements processed in query metrics")
+}
+
 func TestUInt64Binding(t *testing.T) {
-	initAndStartAgentDemultiplexer()
+	initAndStartAgentDemultiplexer(t)
 
 	chk.dbmEnabled = true
 	chk.config.QueryMetrics.Enabled = true

@@ -15,6 +15,7 @@ const (
 
 // Offset names in the format "OffsetName[Struct Name]Struct[Field Name]"
 const (
+	OffsetNameSuperBlockStructSFlags = "sb_flags_offset"
 	OffsetNameSuperBlockStructSMagic = "sb_magic_offset"
 	OffsetNameSignalStructStructTTY  = "tty_offset"
 	OffsetNameTTYStructStructName    = "tty_name_offset"

@@ -6,7 +6,7 @@ Gohai is a tool which collects an inventory of system information. It aims to im
 
 ## Usage
 
-Gohai will build and install with `go get`. We require at least Go 1.7.
+Gohai will build and install with `go get`. We require at least Go 1.20.
 
 ```sh
 go get github.com/DataDog/datadog-agent/pkg/gohai
@@ -63,16 +63,6 @@ Pipe it through eg. `jq` or `python -m json.tool` for pretty output.
 ## How to build
 
 Just run `go build`!
-
-## Build with version info
-
-To build Gohai with version information, use `make.go`:
-
-```sh
-go run make.go
-```
-
-It will build gohai using the `go build` command, with the version info passed through `-ldflags`.
 
 ## Updating CPU Information
 

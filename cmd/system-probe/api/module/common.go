@@ -8,6 +8,8 @@ package module
 import (
 	"errors"
 
+	"google.golang.org/grpc"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
@@ -26,5 +28,6 @@ type Factory struct {
 type Module interface {
 	GetStats() map[string]interface{}
 	Register(*Router) error
+	RegisterGRPC(*grpc.Server) error
 	Close()
 }
