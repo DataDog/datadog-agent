@@ -136,7 +136,7 @@ func (c *Check) Run() error {
 		HostName:           c.hostName,
 		MsgGroupID:         groupID,
 		NodeType:           orchestrator.K8sPod,
-		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
+		ApiGroupVersionTag: "kube_api_version:v1",
 	}
 
 	processResult, processed := c.processor.Process(ctx, podList)
