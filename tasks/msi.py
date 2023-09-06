@@ -4,7 +4,6 @@ msi namespaced tasks
 
 
 import mmap
-import msilib
 import os
 import shutil
 import sys
@@ -14,6 +13,14 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.utils import get_version, load_release_versions, timed
+
+# Windows only import
+try:
+    import msilib
+except ImportError:
+    if sys.platform == "win32":
+        raise
+    msilib = None
 
 # constants
 OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
