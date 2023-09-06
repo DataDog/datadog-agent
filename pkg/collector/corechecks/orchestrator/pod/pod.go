@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-const checkName = "pod"
+const checkName = "orchestrator_pod"
 
 var groupID atomic.Int32
 
