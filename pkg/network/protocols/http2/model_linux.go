@@ -109,7 +109,7 @@ func (tx *EbpfTx) RequestStarted() uint64 {
 }
 
 func (tx *EbpfTx) SetRequestMethod(m http.Method) {
-	tx.Request_method = uint32(m)
+	tx.Request_method = uint8(m)
 }
 
 func (tx *EbpfTx) StaticTags() uint64 {

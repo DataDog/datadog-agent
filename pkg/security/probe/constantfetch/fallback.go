@@ -40,6 +40,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 	switch id {
 	case SizeOfInode:
 		value = getSizeOfStructInode(f.kernelVersion)
+	case OffsetNameSuperBlockStructSFlags:
+		value = getSuperBlockFlagsOffset(f.kernelVersion)
 	case OffsetNameSuperBlockStructSMagic:
 		value = getSuperBlockMagicOffset(f.kernelVersion)
 	case OffsetNameSignalStructStructTTY:
@@ -207,14 +209,18 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
+func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 {
+	return uint64(80)
+}
+
 func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
-	sizeOf := uint64(96)
+	offset := uint64(96)
 
 	if kv.IsRH7Kernel() {
-		sizeOf = 88
+		offset = 88
 	}
 
-	return sizeOf
+	return offset
 }
 
 // Depending on the value CONFIG_NO_HZ_FULL, a field can be added before the `tty` field.

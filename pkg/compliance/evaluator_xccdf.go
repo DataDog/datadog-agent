@@ -34,6 +34,7 @@ const (
 )
 
 const (
+	//revive:disable
 	XCCDF_RESULT_PASS = iota + 1
 	XCCDF_RESULT_FAIL
 	XCCDF_RESULT_ERROR
@@ -41,6 +42,7 @@ const (
 	XCCDF_RESULT_NOT_APPLICABLE
 	XCCDF_RESULT_NOT_CHECKED
 	XCCDF_RESULT_NOT_SELECTED
+	//revive:enable
 )
 
 type oscapIORule struct {
@@ -252,6 +254,7 @@ func (p *oscapIO) Kill() error {
 	return nil
 }
 
+// EvaluateXCCDFRule evaluates the given rule using OpenSCAP tool.
 func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	if !rule.IsXCCDF() {
 		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)

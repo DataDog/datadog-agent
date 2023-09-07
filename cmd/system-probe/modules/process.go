@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -86,6 +87,11 @@ func (t *process) Register(httpMux *module.Router) error {
 		logProcTracerRequests(count, len(stats), start)
 	}).Methods("POST")
 
+	return nil
+}
+
+// RegisterGRPC register to system probe gRPC server
+func (t *process) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }
 

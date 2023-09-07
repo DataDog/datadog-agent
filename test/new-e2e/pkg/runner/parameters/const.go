@@ -31,4 +31,6 @@ const (
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
 	// StackParameters config file parameter name
 	StackParameters StoreKey = "stack_params"
+	// PipelineID config file parameter name
+	PipelineID StoreKey = "pipeline_id"
 )

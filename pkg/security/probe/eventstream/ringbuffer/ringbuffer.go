@@ -44,7 +44,7 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 
 // Start the event stream.
 func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
-	return nil
+	return rb.ringBuffer.Start()
 }
 
 // SetMonitor set the monitor
