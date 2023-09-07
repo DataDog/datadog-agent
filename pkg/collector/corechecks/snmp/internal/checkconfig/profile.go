@@ -125,7 +125,7 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, error) {
+func readProfileDefinition(definitionFile string) (*profiledefinition.AgentProfileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
@@ -163,7 +163,7 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string) error {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinition.AgentProfileDefinition, extends []string, extendsHistory []string) error {
 	parentBasePath := filepath.Base(parentPath)
 	for _, extendEntry := range extends {
 		// User profile can extend default profile by extending the default profile.
@@ -192,7 +192,7 @@ func recursivelyExpandBaseProfiles(parentPath string, definition *profiledefinit
 	return nil
 }
 
-func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinition, baseDefinition *profiledefinition.ProfileDefinition) {
+func mergeProfileDefinition(targetDefinition *profiledefinition.AgentProfileDefinition, baseDefinition *profiledefinition.AgentProfileDefinition) {
 	targetDefinition.Metrics = append(targetDefinition.Metrics, baseDefinition.Metrics...)
 	targetDefinition.MetricTags = append(targetDefinition.MetricTags, baseDefinition.MetricTags...)
 	targetDefinition.StaticTags = append(targetDefinition.StaticTags, baseDefinition.StaticTags...)

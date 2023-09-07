@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func getMetricFromProfile(p profiledefinition.ProfileDefinition, metricName string) *profiledefinition.MetricsConfig {
+func getMetricFromProfile(p profiledefinition.AgentProfileDefinition, metricName string) *profiledefinition.MetricsConfig {
 	for _, m := range p.Metrics {
 		if m.Symbol.Name == metricName {
 			return &m
@@ -53,7 +53,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 	}
 	return profileConfigMap{
 		"f5-big-ip": profileConfig{
-			Definition: profiledefinition.ProfileDefinition{
+			Definition: profiledefinition.AgentProfileDefinition{
 				Metrics:      metrics,
 				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 				Device:       profiledefinition.DeviceMeta{Vendor: "f5"},
@@ -170,7 +170,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 			isUserProfile: true,
 		},
 		"another_profile": profileConfig{
-			Definition: profiledefinition.ProfileDefinition{
+			Definition: profiledefinition.AgentProfileDefinition{
 				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.32473.1.1"},
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "anotherMetric"}, MetricType: ""},
@@ -547,7 +547,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 }
 
 func Test_mergeProfileDefinition(t *testing.T) {
-	okBaseDefinition := profiledefinition.ProfileDefinition{
+	okBaseDefinition := profiledefinition.AgentProfileDefinition{
 		Metrics: []profiledefinition.MetricsConfig{
 			{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 		},
@@ -594,8 +594,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			},
 		},
 	}
-	emptyBaseDefinition := profiledefinition.ProfileDefinition{}
-	okTargetDefinition := profiledefinition.ProfileDefinition{
+	emptyBaseDefinition := profiledefinition.AgentProfileDefinition{}
+	okTargetDefinition := profiledefinition.AgentProfileDefinition{
 		Metrics: []profiledefinition.MetricsConfig{
 			{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 		},
@@ -640,15 +640,15 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	}
 	tests := []struct {
 		name               string
-		targetDefinition   profiledefinition.ProfileDefinition
-		baseDefinition     profiledefinition.ProfileDefinition
-		expectedDefinition profiledefinition.ProfileDefinition
+		targetDefinition   profiledefinition.AgentProfileDefinition
+		baseDefinition     profiledefinition.AgentProfileDefinition
+		expectedDefinition profiledefinition.AgentProfileDefinition
 	}{
 		{
 			name:             "merge case",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: profiledefinition.ProfileDefinition{
+			expectedDefinition: profiledefinition.AgentProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
@@ -725,7 +725,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty base definition",
 			baseDefinition:   copyProfileDefinition(emptyBaseDefinition),
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
-			expectedDefinition: profiledefinition.ProfileDefinition{
+			expectedDefinition: profiledefinition.AgentProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
@@ -773,7 +773,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			name:             "empty taget definition",
 			baseDefinition:   copyProfileDefinition(okBaseDefinition),
 			targetDefinition: copyProfileDefinition(emptyBaseDefinition),
-			expectedDefinition: profiledefinition.ProfileDefinition{
+			expectedDefinition: profiledefinition.AgentProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
 				},
