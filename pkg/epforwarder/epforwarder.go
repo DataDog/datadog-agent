@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	pkgsender "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -21,7 +21,7 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	pkgsender "github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -230,7 +230,7 @@ func init() {
 }
 
 // Enumerate known epforwarder pipelines and endpoints to test each of them connectivity
-func diagnose(diagnoseCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnose(diagnoseCfg diagnosis.Config, senderManager pkgsender.SenderManager) []diagnosis.Diagnosis {
 
 	var diagnoses []diagnosis.Diagnosis
 
@@ -336,8 +336,8 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender                    *pkgsender.Sender
-	strategy                  pkgsender.Strategy
+	sender                    *sender.Sender
+	strategy                  sender.Strategy
 	in                        chan *message.Message
 	auditor                   auditor.Auditor
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
@@ -395,19 +395,19 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
-	encoder := pkgsender.IdentityContentType
+	encoder := sender.IdentityContentType
 	if endpoints.Main.UseCompression {
-		encoder = pkgsender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 	}
 
-	var strategy pkgsender.Strategy
+	var strategy sender.Strategy
 	if desc.contentType == http.ProtobufContentType {
-		strategy = pkgsender.NewStreamStrategy(inputChan, senderInput, encoder)
+		strategy = sender.NewStreamStrategy(inputChan, senderInput, encoder)
 	} else {
-		strategy = pkgsender.NewBatchStrategy(inputChan,
+		strategy = sender.NewBatchStrategy(inputChan,
 			senderInput,
 			make(chan struct{}),
-			pkgsender.ArraySerializer,
+			sender.ArraySerializer,
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
@@ -419,7 +419,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                    pkgsender.NewSender(senderInput, a.Channel(), destinations, 10),
+		sender:                    sender.NewSender(senderInput, a.Channel(), destinations, 10),
 		strategy:                  strategy,
 		in:                        inputChan,
 		auditor:                   a,
