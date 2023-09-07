@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package reorderer holds reorderer related files
 package reorderer
 
 import (
@@ -29,7 +30,7 @@ import (
 type OrderedPerfMap struct {
 	perfMap          *manager.PerfMap
 	lostEventCounter eventstream.LostEventCounter
-	reordererMonitor *ReordererMonitor
+	reordererMonitor *Monitor
 	reOrderer        *ReOrderer
 	recordPool       *RecordPool
 }
@@ -91,7 +92,7 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}
 
 	return QuickInfo{
-		Cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		CPU:       model.ByteOrder.Uint64(record.RawSample[0:8]),
 		Timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
 	}, nil
 }
@@ -105,7 +106,7 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdCli
 			handler(record.CPU, record.RawSample)
 		},
 		ExtractEventInfo,
-		ReOrdererOpts{
+		Opts{
 			QueueSize:       10000,
 			Rate:            50 * time.Millisecond,
 			Retention:       5,

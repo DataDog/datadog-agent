@@ -5,6 +5,7 @@
 
 //go:build !windows && kubeapiserver
 
+// Package check holds check related files
 package check
 
 import (
@@ -51,6 +52,7 @@ type CliParams struct {
 	dumpReports       string
 }
 
+// SecurityAgentCommands returns the security agent commands
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
@@ -60,6 +62,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	})
 }
 
+// ClusterAgentCommands returns the cluster agent commands
 func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return bundleParams
@@ -99,6 +102,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 	return []*cobra.Command{cmd}
 }
 
+// RunCheck runs a check
 func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {

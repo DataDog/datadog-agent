@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
@@ -125,7 +126,7 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducedPath string, resolvers *resolvers.Resolvers) bool {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.Resolvers) bool {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false

@@ -5,6 +5,7 @@
 
 //go:build (functionaltests && amd64) || (stresstests && amd64)
 
+// Package tests holds tests related files
 package tests
 
 import "syscall"

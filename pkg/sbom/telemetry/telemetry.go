@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package telemetry holds telemetry related files
 package telemetry
 
 import (
@@ -72,7 +73,7 @@ var (
 		commonOpts,
 	)
 
-	// SBOM number of cache keys stored in memory
+	// SBOMCacheEntries number of cache keys stored in memory
 	SBOMCacheEntries = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"cached_keys",
