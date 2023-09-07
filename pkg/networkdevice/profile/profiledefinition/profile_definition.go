@@ -9,17 +9,18 @@ package profiledefinition
 // DEPRECATED in favour of profile metadata syntax
 type DeviceMeta struct {
 	// deprecated in favour of new `ProfileDefinition.Metadata` syntax
-	Vendor string `yaml:"vendor"`
+	Vendor string `yaml:"vendor" json:"vendor"`
 }
 
 type ProfileDefinition struct {
-	Metrics      []MetricsConfig   `yaml:"metrics"`
-	Metadata     MetadataConfig    `yaml:"metadata"`
-	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
-	StaticTags   []string          `yaml:"static_tags"`
-	Extends      []string          `yaml:"extends"`
-	Device       DeviceMeta        `yaml:"device"`
-	SysObjectIds StringArray       `yaml:"sysobjectid"`
+	Name         string            `yaml:"sysobjectid" json:"name"`
+	SysObjectIds StringArray       `yaml:"sysobjectid" json:"sysobjectid"`
+	Device       DeviceMeta        `yaml:"device" json:"device"` // DEPRECATED
+	Metrics      []MetricsConfig   `yaml:"metrics" json:"metrics"`
+	Metadata     MetadataConfig    `yaml:"metadata" json:"metadata"`
+	MetricTags   []MetricTagConfig `yaml:"metric_tags" json:"metric_tags"`
+	StaticTags   []string          `yaml:"static_tags" json:"static_tags"`
+	Extends      []string          `yaml:"extends" json:"extends"`
 }
 
 func NewProfileDefinition() *ProfileDefinition {

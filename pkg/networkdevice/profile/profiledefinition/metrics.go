@@ -29,48 +29,48 @@ const (
 
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
-	OID  string `yaml:"OID"`
-	Name string `yaml:"name"`
+	OID  string `yaml:"OID" json:"OID"`
+	Name string `yaml:"name" json:"name"`
 
-	ExtractValue         string `yaml:"extract_value"`
+	ExtractValue         string `yaml:"extract_value" json:"extract_value"`
 	ExtractValueCompiled *regexp.Regexp
 
-	MatchPattern         string `yaml:"match_pattern"`
-	MatchValue           string `yaml:"match_value"`
+	MatchPattern         string `yaml:"match_pattern" json:"match_pattern"`
+	MatchValue           string `yaml:"match_value" json:"match_value"`
 	MatchPatternCompiled *regexp.Regexp
 
-	ScaleFactor      float64 `yaml:"scale_factor"`
-	Format           string  `yaml:"format"`
-	ConstantValueOne bool    `yaml:"constant_value_one"`
+	ScaleFactor      float64 `yaml:"scale_factor" json:"scale_factor"`
+	Format           string  `yaml:"format" json:"format"`
+	ConstantValueOne bool    `yaml:"constant_value_one" json:"constant_value_one"`
 
 	// `metric_type` is used for force the metric type
 	//   When empty, by default, the metric type is derived from SNMP OID value type.
 	//   Valid `metric_type` types: `gauge`, `rate`, `monotonic_count`, `monotonic_count_and_rate`
 	//   Deprecated types: `counter` (use `rate` instead), percent (use `scale_factor` instead)
-	MetricType ProfileMetricType `yaml:"metric_type"`
+	MetricType ProfileMetricType `yaml:"metric_type" json:"metric_type"`
 }
 
 // MetricTagConfig holds metric tag info
 type MetricTagConfig struct {
-	Tag string `yaml:"tag"`
+	Tag string `yaml:"tag" json:"tag"`
 
 	// Table config
-	Index uint `yaml:"index"`
+	Index uint `yaml:"index" json:"index"`
 
 	// TODO: refactor to rename to `symbol` instead (keep backward compat with `column`)
-	Column SymbolConfig `yaml:"column"`
+	Column SymbolConfig `yaml:"column" json:"column"`
 
 	// Symbol config
-	OID  string `yaml:"OID"`
-	Name string `yaml:"symbol"`
+	OID  string `yaml:"OID" json:"OID"`
+	Name string `yaml:"symbol" json:"symbol"`
 
-	IndexTransform []MetricIndexTransform `yaml:"index_transform"`
+	IndexTransform []MetricIndexTransform `yaml:"index_transform" json:"index_transform"`
 
-	Mapping map[string]string `yaml:"mapping"`
+	Mapping map[string]string `yaml:"mapping" json:"mapping"`
 
 	// Regex
-	Match string            `yaml:"match"`
-	Tags  map[string]string `yaml:"tags"`
+	Match string            `yaml:"match" json:"match"`
+	Tags  map[string]string `yaml:"tags" json:"tags"`
 
 	SymbolTag string
 	Pattern   *regexp.Regexp
@@ -81,35 +81,35 @@ type MetricTagConfigList []MetricTagConfig
 
 // MetricIndexTransform holds configs for metric index transform
 type MetricIndexTransform struct {
-	Start uint `yaml:"start"`
-	End   uint `yaml:"end"`
+	Start uint `yaml:"start" json:"start"`
+	End   uint `yaml:"end" json:"end"`
 }
 
 // MetricsConfigOption holds config for metrics options
 type MetricsConfigOption struct {
-	Placement    uint   `yaml:"placement"`
-	MetricSuffix string `yaml:"metric_suffix"`
+	Placement    uint   `yaml:"placement" json:"placement"`
+	MetricSuffix string `yaml:"metric_suffix" json:"metric_suffix"`
 }
 
 // MetricsConfig holds configs for a metric
 type MetricsConfig struct {
 	// Symbol configs
-	Symbol SymbolConfig `yaml:"symbol"`
+	Symbol SymbolConfig `yaml:"symbol" json:"symbol"`
 
 	// Legacy Symbol configs syntax
-	OID  string `yaml:"OID"`
-	Name string `yaml:"name"`
+	OID  string `yaml:"OID" json:"OID"`
+	Name string `yaml:"name" json:"name"`
 
 	// Table configs
-	Symbols []SymbolConfig `yaml:"symbols"`
+	Symbols []SymbolConfig `yaml:"symbols" json:"symbols"`
 
-	StaticTags []string            `yaml:"static_tags"`
-	MetricTags MetricTagConfigList `yaml:"metric_tags"`
+	StaticTags []string            `yaml:"static_tags" json:"static_tags"`
+	MetricTags MetricTagConfigList `yaml:"metric_tags" json:"metric_tags"`
 
-	ForcedType ProfileMetricType `yaml:"forced_type"` // deprecated in favour of metric_type
-	MetricType ProfileMetricType `yaml:"metric_type"`
+	ForcedType ProfileMetricType `yaml:"forced_type" json:"forced_type"` // deprecated in favour of metric_type
+	MetricType ProfileMetricType `yaml:"metric_type" json:"metric_type"`
 
-	Options MetricsConfigOption `yaml:"options"`
+	Options MetricsConfigOption `yaml:"options" json:"options"`
 }
 
 // GetSymbolTags returns symbol tags

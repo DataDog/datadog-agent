@@ -13,15 +13,15 @@ type MetadataConfig map[string]MetadataResourceConfig
 
 // MetadataResourceConfig holds configs for a metadata resource
 type MetadataResourceConfig struct {
-	Fields map[string]MetadataField `yaml:"fields"`
-	IDTags MetricTagConfigList      `yaml:"id_tags"`
+	Fields map[string]MetadataField `yaml:"fields" json:"fields"`
+	IDTags MetricTagConfigList      `yaml:"id_tags" json:"id_tags"`
 }
 
 // MetadataField holds configs for a metadata field
 type MetadataField struct {
-	Symbol  SymbolConfig   `yaml:"symbol"`
-	Symbols []SymbolConfig `yaml:"symbols"`
-	Value   string         `yaml:"value"`
+	Symbol  SymbolConfig   `yaml:"symbol" json:"symbol"`
+	Symbols []SymbolConfig `yaml:"symbols" json:"symbols"`
+	Value   string         `yaml:"value" json:"value"`
 }
 
 // NewMetadataResourceConfig returns a new metadata resource config
