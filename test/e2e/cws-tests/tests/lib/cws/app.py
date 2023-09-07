@@ -35,6 +35,11 @@ from retry.api import retry_call
 
 
 def get_app_log(api_client, query):
+    # in CI ensure that we are filtering the logs from the e2e runs and not
+    # other agents from people doing QA
+    if os.environ["CI"] == "true":
+        query = f"app:agent-e2e-tests host:k8s-e2e-tests-control-plane {query}"
+
     api_instance = logs_api.LogsApi(api_client)
     body = LogsListRequest(
         filter=LogsQueryFilter(
