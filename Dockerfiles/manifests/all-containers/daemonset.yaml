@@ -385,6 +385,8 @@ spec:
                   fieldPath: status.hostIP
             - name: DD_LOG_LEVEL
               value: "INFO"
+            - name: DD_SYSTEM_PROBE_HEALTH_PORT
+              value: "5558"
           resources: {}
           volumeMounts:
             - name: auth-token
@@ -427,6 +429,26 @@ spec:
             - name: etc-lsb-release
               mountPath: /host/etc/lsb-release
               readOnly: true
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /live
+              port: 5558
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /ready
+              port: 5558
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
         - name: security-agent
           image: "gcr.io/datadoghq/agent:7.46.0"
           imagePullPolicy: IfNotPresent
