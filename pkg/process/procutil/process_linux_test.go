@@ -610,6 +610,7 @@ func TestParseIOLine(t *testing.T) {
 }
 
 func TestParseIOTestFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testParseIO(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
 }
 
@@ -810,6 +811,7 @@ func TestBootTimeRefresh(t *testing.T) {
 }
 
 func TestParseStatmTestFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testParseStatm(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
 }
 
