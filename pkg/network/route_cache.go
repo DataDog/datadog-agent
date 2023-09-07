@@ -275,13 +275,20 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		})
 
 	if err != nil {
-		routeCacheTelemetry.netlinkErrors.Inc()
+		var tag string
 		if iifIndex > 0 {
-			if errno, ok := err.(syscall.Errno); ok && (errno == syscall.EINVAL || errno == syscall.ENODEV) {
-				// invalidate interface cache entry as this may have been the cause of the netlink error
-				n.removeInterface(source, netns)
+			errno, ok := err.(syscall.Errno)
+			if ok {
+				tag = errno.Error()
+				if errno == syscall.EINVAL || errno == syscall.ENODEV {
+					// invalidate interface cache entry as this may have been the cause of the netlink error
+					n.removeInterface(source, netns)
+				}
 			}
 		}
+		log.Warnf("Netlink Error: %s", err)
+		routeCacheTelemetry.netlinkErrors.Inc(tag)
+
 	} else if len(routes) != 1 {
 		routeCacheTelemetry.netlinkMisses.Inc()
 	}
@@ -315,7 +322,13 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		routeCacheTelemetry.netlinkErrors.Inc()
+		var tag string
+		errno, ok := err.(syscall.Errno)
+		if ok {
+			tag = errno.Error()
+		}
+		log.Warnf("Netlink Error: %s", err)
+		routeCacheTelemetry.netlinkErrors.Inc(tag)
 		return nil
 	} else if len(routes) != 1 {
 		routeCacheTelemetry.netlinkMisses.Inc()
