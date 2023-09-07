@@ -7,21 +7,7 @@ package model
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"fmt"
-	"regexp"
 )
-
-// ContainerIDPatternStr is the pattern of a container ID
-var ContainerIDPatternStr = fmt.Sprintf(`([[:xdigit:]]{%v})`, sha256.Size*2)
-
-// containerIDPattern is the pattern of a container ID
-var containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
-
-// FindContainerID extracts the first sub string that matches the pattern of a container ID
-func FindContainerID(s string) string {
-	return containerIDPattern.FindString(s)
-}
 
 // SliceToArray copy src bytes to dst. Destination should have enough space
 func SliceToArray(src []byte, dst []byte) {
