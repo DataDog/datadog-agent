@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"runtime/pprof"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
@@ -89,7 +91,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 		}
 
 		if grpcServer != nil {
-			if err = module.RegisterGRPC(grpcServer); err != nil {
+			if err = module.RegisterGRPC(&systemProbeGRPCServer{sr: grpcServer, ns: factory.Name}); err != nil {
 				l.errors[factory.Name] = err
 				log.Errorf("error registering grpc endpoints for module %s: %s", factory.Name, err)
 				continue
@@ -215,4 +217,45 @@ func updateStats() {
 		then = now
 		now = <-ticker.C
 	}
+}
+
+type systemProbeGRPCServer struct {
+	sr grpc.ServiceRegistrar
+	ns config.ModuleName
+}
+
+func (s *systemProbeGRPCServer) RegisterService(desc *grpc.ServiceDesc, impl interface{}) {
+	modName := NameFromGRPCServiceName(desc.ServiceName)
+	if modName != string(s.ns) {
+		panic(fmt.Sprintf("module name `%s` from service name `%s` does not match `%s`", modName, desc.ServiceName, s.ns))
+	}
+	s.sr.RegisterService(desc, impl)
+}
+
+// NameFromGRPCServiceName extracts a system-probe module name from the gRPC service name.
+// It expects a prefix of `datadog.agent.systemprobe.` and then the pascal cased version of the module name.
+func NameFromGRPCServiceName(service string) string {
+	prefix := "datadog.agent.systemprobe."
+	if !strings.HasPrefix(service, prefix) {
+		return ""
+	}
+	s := strings.TrimPrefix(service, prefix)
+	// we are expecting a pascal case service name, so convert it to snake case to match system-probe module names
+	return toSnakeCase(s)
+}
+
+func toSnakeCase(s string) string {
+	var sb strings.Builder
+	sb.Grow(len(s))
+	for i, r := range s {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				sb.WriteRune('_')
+			}
+			sb.WriteRune(unicode.ToLower(r))
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
 }
