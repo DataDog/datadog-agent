@@ -5,13 +5,10 @@
 package platform
 
 import (
-	"bytes"
-	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCollectPlatform(t *testing.T) {
@@ -41,11 +38,6 @@ func TestCollectPlatform(t *testing.T) {
 
 func TestPlatformAsJSON(t *testing.T) {
 	platformInfo := CollectInfo()
-	marshallable, _, err := platformInfo.AsJSON()
-	require.NoError(t, err)
-
-	marshalled, err := json.Marshal(marshallable)
-	require.NoError(t, err)
 
 	// Any change to this datastructure should be notified to the backend
 	// team to ensure compatibility.
@@ -64,16 +56,8 @@ func TestPlatformAsJSON(t *testing.T) {
 		HardwarePlatform string `json:"hardware_platform"`
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(marshalled))
-	// do not ignore unknown fields
-	decoder.DisallowUnknownFields()
-
 	var decodedPlatform Platform
-	err = decoder.Decode(&decodedPlatform)
-	require.NoError(t, err)
-
-	// check that we read the full json
-	require.False(t, decoder.More())
+	utils.RequireMarshallJSON(t, platformInfo, &decodedPlatform)
 
 	utils.AssertDecodedValue(t, decodedPlatform.GoVersion, &platformInfo.GoVersion, "")
 	utils.AssertDecodedValue(t, decodedPlatform.GoOS, &platformInfo.GoOS, "")

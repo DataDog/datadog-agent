@@ -28,6 +28,5 @@ func TestVAgentSuiteEx3(t *testing.T) {
 }
 
 func (v *agentSuiteEx3) TestLogDebug() {
-	v.Env().Agent.WaitForReady()
 	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: debug")
 }

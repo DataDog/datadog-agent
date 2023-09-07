@@ -223,7 +223,7 @@ func main() {
 	}
 }
 
-func defaultedType(conf *conf) *conf {
+func defaultedType(componentName string, conf *conf) *conf {
 	if conf.flagName == "kubeconfig" || conf.flagName == "authentication-kubeconfig" {
 		conf.flagType = "kubeconfig"
 	} else if conf.flagType == "string" || conf.flagType == "stringArray" {
@@ -389,7 +389,13 @@ func printKomponentCode(komp *komponent) string {
 		case "*K8sTokenFileMeta":
 			return fmt.Sprintf("res.%s = l.loadTokenFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sConfigFileMeta":
-			return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
+			if komp.name == "kubelet" && c.flagName == "config" {
+				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
+			} else {
+				return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
+			}
+		case "*K8sKubeletConfigFileMeta":
+			return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sAdmissionConfigFileMeta":
 			return fmt.Sprintf("res.%s = l.loadAdmissionConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sEncryptionProviderConfigFileMeta":
@@ -411,10 +417,10 @@ func printKomponentCode(komp *komponent) string {
 		s += fmt.Sprintf(" %s %s `json:\"%s\"` // versions: %s\n",
 			toGoField(c.flagName), c.goType, toGoJSONTag(c.flagName), strings.Join(c.versions, ", "))
 	}
-	s += fmt.Sprint(" SkippedFlags map[string]string `json:\"skippedFlags,omitempty\"`\n")
+	s += " SkippedFlags map[string]string `json:\"skippedFlags,omitempty\"`\n"
 	s += "}\n"
 	s += fmt.Sprintf("func (l *loader) newK8s%sConfig(flags map[string]string) *K8s%sConfig {\n", goStructName, goStructName)
-	s += fmt.Sprintf("if (flags == nil) { return nil }\n")
+	s += "if (flags == nil) { return nil }\n"
 	s += fmt.Sprintf("var res K8s%sConfig\n", goStructName)
 	for _, c := range komp.confs {
 		if !isKnownFlag(c.flagName) {
@@ -424,14 +430,14 @@ func printKomponentCode(komp *komponent) string {
 		s += fmt.Sprintf("delete(flags, \"--%s\")\n", c.flagName)
 		s += printAssignment(c, "v")
 		if c.flagDefault != "" {
-			s += fmt.Sprintf("\n} else {\n")
+			s += "\n} else {\n"
 			s += printAssignment(c, fmt.Sprintf("%q", c.flagDefault))
 		}
-		s += fmt.Sprintf("}\n")
+		s += "}\n"
 	}
-	s += fmt.Sprintf("if len(flags) > 0 { res.SkippedFlags = flags }\n")
-	s += fmt.Sprintf("return &res\n")
-	s += fmt.Sprintf("}\n")
+	s += "if len(flags) > 0 { res.SkippedFlags = flags }\n"
+	s += "return &res\n"
+	s += "}\n"
 	return s
 }
 
@@ -496,7 +502,7 @@ func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
 		line := scanner.Text()
 		conf, ok := scanEtcdHelpLine(line)
 		if ok {
-			confs = append(confs, defaultedType(conf))
+			confs = append(confs, defaultedType(componentName, conf))
 		}
 	}
 	return &komponent{
@@ -534,7 +540,7 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 		line := scanner.Text()
 		conf, ok := scanK8sHelpLine(line)
 		if ok {
-			confs = append(confs, defaultedType(conf))
+			confs = append(confs, defaultedType(componentName, conf))
 		}
 	}
 

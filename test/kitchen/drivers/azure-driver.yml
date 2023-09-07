@@ -195,5 +195,6 @@ platforms:
     downloads:
       "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
       "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
+      "/tmp/kitchen/rspec.xml": kitchen-rspec-<%= platform_name %>.xml
 
 <% end %>

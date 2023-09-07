@@ -109,24 +109,7 @@ def gen_mocks(ctx):
     """
     Generate mocks.
     """
-
-    interfaces = {
-        "./pkg/security/proto/api": [
-            "SecurityModuleServer",
-            "SecurityModuleClient",
-        ],
-        "./pkg/eventmonitor/proto/api": [
-            "EventMonitoringModuleServer",
-            "EventMonitoringModuleClient",
-            "EventMonitoringModule_GetProcessEventsClient",
-        ],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
+    ctx.run("mockery")
 
 
 @task

@@ -68,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
-				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfig.WithConfigLoadSecrets(true))),
+				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
 				telemetry.Module,
@@ -150,7 +150,7 @@ func StartSystemProbeWithDefaults() error {
 		},
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
-		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""), sysprobeconfig.WithConfigLoadSecrets(true))),
+		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""))),
 		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		rcclient.Module,
 		config.Module,
@@ -200,7 +200,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 
 	setupInternalProfiling(sysprobeconfig, configPrefix, log)
 
-	if ddconfig.Datadog.GetBool("remote_configuration.enabled") {
+	if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
+		// Even if the system-probe happen to not have access to ddconfig.Datadog, the
+		// thin client will deactivate itself if the core-agent RC server is disabled
 		err = rcclient.Listen("system-probe", []data.Product{data.ProductAgentConfig})
 		if err != nil {
 			return log.Criticalf("unable to start remote configuration client: %s", err)

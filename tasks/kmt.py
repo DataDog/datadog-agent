@@ -27,48 +27,47 @@ ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 
 
 @task
-def create_stack(ctx, stack=None, branch=False):
-    stacks.create_stack(ctx, stack, branch)
+def create_stack(ctx, stack=None):
+    stacks.create_stack(ctx, stack)
 
 
 @task(
     help={
         "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
         "stack": "Name of the stack within which to generate the configuration file",
-        "branch": "Generate stack name from the current branch",
         "vcpu": "Comma separated list of CPUs, to launch each VM with",
         "memory": "Comma separated list of memory to launch each VM with. Automatically rounded up to power of 2",
         "new": "Generate new configuration file instead of appending to existing one within the provided stack",
-        "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>|--branch]'",
+        "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
     }
 )
-def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
-    vmconfig.gen_config(ctx, stack, branch, vms, init_stack, vcpu, memory, new)
+def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
+    vmconfig.gen_config(ctx, stack, vms, init_stack, vcpu, memory, new)
 
 
 @task
-def launch_stack(ctx, stack=None, branch=False, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_ami=ARM_AMI_ID_SANDBOX):
-    stacks.launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami)
+def launch_stack(ctx, stack=None, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_ami=ARM_AMI_ID_SANDBOX):
+    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami)
 
 
 @task
-def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
-    stacks.destroy_stack(ctx, stack, branch, force, ssh_key)
+def destroy_stack(ctx, stack=None, force=False, ssh_key=""):
+    stacks.destroy_stack(ctx, stack, force, ssh_key)
 
 
 @task
-def pause_stack(stack=None, branch=False):
-    stacks.pause_stack(stack, branch)
+def pause_stack(stack=None):
+    stacks.pause_stack(stack)
 
 
 @task
-def resume_stack(stack=None, branch=False):
-    stacks.resume_stack(stack, branch)
+def resume_stack(stack=None):
+    stacks.resume_stack(stack)
 
 
 @task
-def stack(ctx, stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
+def stack(ctx, stack=None):
+    stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
@@ -133,8 +132,8 @@ def get_instance_ip(stack, arch):
 
 
 @task
-def sync(ctx, stack=None, branch=False, vms="", ssh_key=""):
-    stack = check_and_get_stack(stack, branch)
+def sync(ctx, stack=None, vms="", ssh_key=""):
+    stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 

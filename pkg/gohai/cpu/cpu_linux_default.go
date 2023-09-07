@@ -10,36 +10,57 @@ package cpu
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
-var cpuMap = map[string]string{
-	"vendor_id":  "vendor_id",
-	"model name": "model_name",
-	"cpu cores":  "cpu_cores",
-	"siblings":   "cpu_logical_processors",
-	"cpu MHz\t":  "mhz",
-	"cache size": "cache_size",
-	"cpu family": "family",
-	"model\t":    "model",
-	"stepping":   "stepping",
+func getCPUValueSetter(cpuInfo *Info) map[string]func(string, error) {
+	// cache size has a ' KB' suffix so use a custom parser
+	cacheSizeParse := func(value string) (uint64, error) {
+		return strconv.ParseUint(strings.TrimSuffix(value, " KB"), 10, 64)
+	}
+	return map[string]func(string, error){
+		"vendor_id":  utils.ValueStringSetter(&cpuInfo.VendorID),
+		"model name": utils.ValueStringSetter(&cpuInfo.ModelName),
+		"cpu cores":  utils.ValueParseInt64Setter(&cpuInfo.CPUCores),
+		"siblings":   utils.ValueParseInt64Setter(&cpuInfo.CPULogicalProcessors),
+		"cpu MHz\t":  utils.ValueParseFloat64Setter(&cpuInfo.Mhz),
+		"cache size": utils.ValueParseSetter(&cpuInfo.CacheSizeKB, cacheSizeParse),
+		"cpu family": utils.ValueStringSetter(&cpuInfo.Family),
+		"model\t":    utils.ValueStringSetter(&cpuInfo.Model),
+		"stepping":   utils.ValueStringSetter(&cpuInfo.Stepping),
+	}
 }
 
-// Values that need to be multiplied by the number of physical processors
-var perPhysicalProcValues = []string{
-	"cpu_cores",
-	"cpu_logical_processors",
-}
-
-func getCPUInfo() (cpuInfo map[string]string, err error) {
-	lines, err := readProcFile()
-	if err != nil {
-		return
+func getCPUInfo() *Info {
+	cpuInfo := &Info{
+		CPUPkgs:          utils.NewErrorValue[uint64](utils.ErrNotCollectable),
+		CPUNumaNodes:     utils.NewErrorValue[uint64](utils.ErrNotCollectable),
+		CacheSizeL1Bytes: utils.NewErrorValue[uint64](utils.ErrNotCollectable),
+		CacheSizeL2Bytes: utils.NewErrorValue[uint64](utils.ErrNotCollectable),
+		CacheSizeL3Bytes: utils.NewErrorValue[uint64](utils.ErrNotCollectable),
 	}
 
-	cpuInfo = make(map[string]string)
+	cpuMap := getCPUValueSetter(cpuInfo)
+	lines, err := readProcFile()
+	if err != nil {
+		// store the error in each field
+		for _, setter := range cpuMap {
+			setter("", err)
+		}
+		return cpuInfo
+	}
+
+	// initialize each field with a 'key not found' error by default
+	for key, setter := range cpuMap {
+		setter("", fmt.Errorf("%s key not found in /proc/cpuInfo", strings.TrimSpace(key)))
+	}
+
 	// Implementation of a set that holds the physical IDs
 	physicalProcIDs := make(map[string]struct{})
 
@@ -50,30 +71,31 @@ func getCPUInfo() (cpuInfo map[string]string, err error) {
 			physicalProcIDs[pair[1]] = struct{}{}
 		}
 
-		key, ok := cpuMap[pair[0]]
+		setter, ok := cpuMap[pair[0]]
 		if ok {
-			cpuInfo[key] = pair[1]
+			setter(pair[1], nil)
 		}
 	}
 
+	// Values that need to be multiplied by the number of physical processors
+	var perPhysicalProcValues = []*utils.Value[uint64]{
+		&cpuInfo.CPUCores,
+		&cpuInfo.CPULogicalProcessors,
+	}
+
+	nbPhysProcs := uint64(len(physicalProcIDs))
 	// Multiply the values that are "per physical processor" by the number of physical procs
 	for _, field := range perPhysicalProcValues {
-		if value, ok := cpuInfo[field]; ok {
-			intValue, err := strconv.Atoi(value)
-			if err != nil {
-				continue
-			}
-
-			cpuInfo[field] = strconv.Itoa(intValue * len(physicalProcIDs))
+		if value, err := field.Value(); err == nil {
+			(*field) = utils.NewValue(value * nbPhysProcs)
 		}
 	}
 
-	return
+	return cpuInfo
 }
 
 func readProcFile() (lines []string, err error) {
 	file, err := os.Open("/proc/cpuinfo")
-
 	if err != nil {
 		return
 	}

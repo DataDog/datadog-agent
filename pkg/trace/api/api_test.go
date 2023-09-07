@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -46,7 +46,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -626,12 +626,12 @@ func TestDecodeV05(t *testing.T) {
 
 type mockStatsProcessor struct {
 	mu                sync.RWMutex
-	lastP             pb.ClientStatsPayload
+	lastP             *pb.ClientStatsPayload
 	lastLang          string
 	lastTracerVersion string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
@@ -639,7 +639,7 @@ func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerV
 	m.lastTracerVersion = tracerVersion
 }
 
-func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion string) {
+func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.lastP, m.lastLang, m.lastTracerVersion
@@ -656,7 +656,7 @@ func TestHandleStats(t *testing.T) {
 		server := httptest.NewServer(mux)
 
 		var buf bytes.Buffer
-		if err := msgp.Encode(&buf, &p); err != nil {
+		if err := msgp.Encode(&buf, p); err != nil {
 			t.Fatal(err)
 		}
 		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
@@ -771,7 +771,7 @@ func TestHandleTraces(t *testing.T) {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived.Load())
-		assert.Equal(int64(61822), ts.TracesBytes.Load())
+		assert.Equal(int64(59222), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())

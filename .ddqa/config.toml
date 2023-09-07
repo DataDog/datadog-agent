@@ -251,3 +251,14 @@ jira_statuses = [
 ]
 github_team = "container-app"
 github_labels = ["team/container-app"]
+
+[teams."APM Onboarding"]
+jira_project = "APMON"
+jira_issue_type = "Task"
+jira_statuses = [
+  "Selected For Development",
+  "In Progress",
+  "Done",
+]
+github_team = "apm-onboarding"
+github_labels = ["team/apm-onboarding"]

@@ -11,6 +11,7 @@ import emoji
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
 from lib.cws.app import App
 from lib.cws.policy import PolicyLoader
+from lib.cws.schemas import JsonSchemaValidator
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
@@ -156,6 +157,22 @@ class TestE2EKubernetes(unittest.TestCase):
             self.app.check_policy_found(self, attributes, "remote-config", "cws_custom")
             self.app.check_policy_found(self, attributes, "file", "test.policy")
             self.app.check_for_ignored_policies(self, attributes)
+
+        with Step(msg="check self_tests", emoji=":test_tube:"):
+            rule_id = "self_test"
+            event = self.app.wait_app_log(f"rule_id:{rule_id}")
+            attributes = event["data"][0]["attributes"]["attributes"]
+            if "date" in attributes:
+                attributes["date"] = attributes["date"].strftime("%Y-%m-%dT%H:%M:%S")
+
+            self.assertEqual(rule_id, attributes["agent"]["rule_id"], "unable to find rule_id tag attribute")
+            self.assertTrue(
+                "failed_tests" not in attributes,
+                f"failed tests: {attributes['failed_tests']}" if "failed_tests" in attributes else "success",
+            )
+
+            jsonSchemaValidator = JsonSchemaValidator()
+            jsonSchemaValidator.validate_json_data("self_test.json", attributes)
 
         with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)

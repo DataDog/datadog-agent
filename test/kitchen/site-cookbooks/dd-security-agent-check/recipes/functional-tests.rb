@@ -80,15 +80,8 @@ directory "/tmp/junit" do
   recursive true
 end
 
-cookbook_file "/tmp/junit/job_url.txt" do
-  source "job_url.txt"
-  mode '0444'
-  action :create
-  ignore_failure true
-end
-
-cookbook_file "/tmp/junit/tags.txt" do
-  source "tags.txt"
+cookbook_file "/tmp/junit/job_env.txt" do
+  source "job_env.txt"
   mode '0444'
   action :create
   ignore_failure true

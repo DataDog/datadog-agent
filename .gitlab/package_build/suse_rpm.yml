@@ -22,6 +22,8 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess-debug.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.o.${PACKAGE_ARCH} /tmp/system-probe/usm.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-debug.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns.o.${PACKAGE_ARCH} /tmp/system-probe/dns.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dns-debug.o.${PACKAGE_ARCH} /tmp/system-probe/dns-debug.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.o.${PACKAGE_ARCH} /tmp/system-probe/conntrack.o
@@ -39,8 +41,11 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-fentry-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-fentry-debug-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-co-re.o
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-debug-co-re.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.c.${PACKAGE_ARCH} /tmp/system-probe/usm.c
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries.c.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill.c.${PACKAGE_ARCH} /tmp/system-probe/oom-kill.c
@@ -56,6 +61,10 @@
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
     - !reference [.upload_sbom_artifacts]
+  variables:
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -68,10 +77,9 @@ agent_suse-x64-a6:
     !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
@@ -86,10 +94,9 @@ agent_suse-x64-a7:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
@@ -102,7 +109,7 @@ iot_agent_suse-x64:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
     - source /root/.bashrc
@@ -139,10 +146,9 @@ dogstatsd_suse-x64:
     !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
   variables:
-    AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]

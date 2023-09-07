@@ -26,7 +26,7 @@ docker run -i datadog/fakeintake
 
 ```yaml
 # datadog.yaml
-DD_DD_URL: "http://localhost:8080"
+DD_DD_URL: "http://localhost:80"
 ```
 
 ### Locally
@@ -41,7 +41,7 @@ go run $DATADOG_ROOT/datadog-agent/test/fakeintake/app/main.go
 
 ```yaml
 # datadog.yaml
-DD_DD_URL: "http://localhost:8080"
+DD_DD_URL: "http://localhost:80"
 ```
 
 ## How to build
@@ -98,9 +98,9 @@ Example:
 curl ${SERVICE_IP}/fakeintake/payloads/?endpoint=/api/V2/series
 ```
 
-#### Juniper Notebook
+#### Jupyter Notebook
 
-Play with fakeintake in a Juniper Notebook
+Play with fakeintake in a Jupyter Notebook
 
 ```python
 # POST payloads
@@ -109,7 +109,7 @@ import requests
 import json
 
 data = "totoro|25|owner:kiki"
-response = requests.post("http://localhost:8080/api/v2/series", data)
+response = requests.post("http://localhost:80/api/v2/series", data)
 
 json_content = response.content.decode('utf8')
 
@@ -120,7 +120,7 @@ import base64
 import requests
 import json
 
-response = requests.get("http://localhost:8080/fakeintake/payloads/?endpoint=/api/v2/series")
+response = requests.get("http://localhost:80/fakeintake/payloads/?endpoint=/api/v2/series")
 
 json_content = response.content.decode('utf8')
 

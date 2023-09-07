@@ -127,7 +127,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runDatadogConnectivityDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					// This command loads secrets as it needs the API Key which might be provided via secrets
+					ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)

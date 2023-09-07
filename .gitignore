@@ -16,7 +16,9 @@ venv3[78]/
 **/debug.test
 # files
 .DS_Store
+# *.cov could be removed in OCT 2023, replaced by **/coverage.out
 *.cov
+**/coverage.out
 *.pyc
 *.swp
 *.exe
@@ -116,6 +118,7 @@ pkg/ebpf/bytecode/build/**/*.d
 pkg/ebpf/bytecode/runtime/conntrack.go
 pkg/ebpf/bytecode/runtime/http.go
 pkg/ebpf/bytecode/runtime/usm.go
+pkg/ebpf/bytecode/runtime/shared-libraries.go
 pkg/ebpf/bytecode/runtime/offsetguess-test.go
 pkg/ebpf/bytecode/runtime/oom-kill.go
 pkg/ebpf/bytecode/runtime/runtime-security.go

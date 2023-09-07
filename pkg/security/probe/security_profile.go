@@ -89,6 +89,9 @@ func (spm *SecurityProfileManagers) SendStats() error {
 // ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
 var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
 
+// ErrSecurityProfileManagerDisabled is returned when the security profile manager is disabled
+var ErrSecurityProfileManagerDisabled = errors.New("SecurityProfileManager is disabled")
+
 // AddActivityDumpHandler add a handler
 func (spm *SecurityProfileManagers) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 	if spm.activityDumpManager != nil {
@@ -148,11 +151,17 @@ func (spm *SecurityProfileManagers) SnapshotTracedCgroups() {
 
 // ListSecurityProfiles list the profiles
 func (spm *SecurityProfileManagers) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	if spm.securityProfileManager == nil {
+		return nil, ErrSecurityProfileManagerDisabled
+	}
 	return spm.securityProfileManager.ListSecurityProfiles(params)
 }
 
 // SaveSecurityProfile save a security profile
 func (spm *SecurityProfileManagers) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	if spm.securityProfileManager == nil {
+		return nil, ErrSecurityProfileManagerDisabled
+	}
 	return spm.securityProfileManager.SaveSecurityProfile(params)
 }
 

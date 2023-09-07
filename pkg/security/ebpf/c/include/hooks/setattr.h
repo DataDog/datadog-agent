@@ -8,17 +8,16 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-// fentry blocked by: tail call
-SEC("kprobe/security_inode_setattr")
-int kprobe_security_inode_setattr(struct pt_regs *ctx) {
+HOOK_ENTRY("security_inode_setattr")
+int hook_security_inode_setattr(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall) {
         return 0;
     }
 
-    u64 param1 = PT_REGS_PARM1(ctx);
-    u64 param2 = PT_REGS_PARM2(ctx);
-    u64 param3 = PT_REGS_PARM3(ctx);
+    u64 param1 = CTX_PARM1(ctx);
+    u64 param2 = CTX_PARM2(ctx);
+    u64 param3 = CTX_PARM3(ctx);
 
     struct dentry *dentry;
     struct iattr *iattr;
@@ -86,7 +85,7 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall_with(security_inode_predicate);
@@ -94,9 +93,8 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 SEC("kprobe/dr_setattr_callback")
-int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ctx) {
+int kprobe_dr_setattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall) {
         return 0;
@@ -109,5 +107,24 @@ int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ct
 
     return 0;
 }
+
+#ifdef USE_FENTRY
+
+TAIL_CALL_TARGET("dr_setattr_callback")
+int fentry_dr_setattr_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(syscall->type);
+        return discard_syscall(syscall);
+    }
+
+    return 0;
+}
+
+#endif // USE_FENTRY
 
 #endif

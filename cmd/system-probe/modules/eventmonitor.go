@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
-	procevents "github.com/DataDog/datadog-agent/pkg/process/events"
+	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -65,7 +65,7 @@ var EventMonitor = module.Factory{
 		}
 
 		if emconfig.ProcessConsumerEnabled {
-			process, err := procevents.NewProcessConsumer(evm)
+			process, err := procconsumer.NewProcessConsumer(evm)
 			if err != nil {
 				return nil, err
 			}

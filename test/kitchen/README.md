@@ -28,7 +28,6 @@ Note: When building on macOS M1, you might run into an error when installing the
 bundle config build.ffi-yajl --with-ldflags="-Wl,-undefined,dynamic_lookup"
 ```
 
-
 #### Azure
 
 These tests are set up to be run on Azure.

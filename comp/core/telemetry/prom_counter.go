@@ -14,10 +14,10 @@ type promCounter struct {
 	pc *prometheus.CounterVec
 }
 
-// Initialize creates the counter with the given tags and initializes it to 0.
+// InitializeToZero creates the counter with the given tags and initializes it to 0.
 // This method is intended to be used when the counter value is important to
 // send even before any incrementing/addition is done on it.
-func (c *promCounter) Initialize(tagsValue ...string) {
+func (c *promCounter) InitializeToZero(tagsValue ...string) {
 	// By requesting a counter for a set of tags, we are creating and initializing
 	// the counter at 0. See the following for more info:
 	// https://github.com/prometheus/client_golang/blob/v1.9.0/prometheus/counter.go#L194-L196

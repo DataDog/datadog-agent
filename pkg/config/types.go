@@ -49,6 +49,9 @@ type ConfigReader interface {
 
 	IsSet(key string) bool
 
+	// UnmarshalKey Unmarshal a configuration key into a struct
+	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
+
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
 

@@ -9,11 +9,12 @@ package telemetry
 import (
 	"net/http"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/prometheus/client_golang/prometheus"
+	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
 // team: agent-shared-components
@@ -63,6 +64,9 @@ type Component interface {
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
+
+	GetRegistry() *prometheus.Registry
+	GetMeterProvider() *sdk.MeterProvider
 }
 
 // Module defines the fx options for this component.
@@ -73,4 +77,5 @@ var Module = fxutil.Component(
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),
+	fx.Provide(func(m Mock) Component { return m }),
 )

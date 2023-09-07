@@ -387,12 +387,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 	pids := []uint32{pid}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
-	if exists {
-		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 && pid != 1 {
-		pids = append(pids, 1)
-	}
+	workload, workloadExists := mr.cgroupsResolver.GetWorkload(containerID)
 
 	path, err := mr.getMountPath(mountID)
 	if err == nil {
@@ -411,6 +406,12 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 
 	if !mr.fallbackLimiter.Allow(mountID) {
 		return "", &ErrMountNotFound{MountID: mountID}
+	}
+
+	if workloadExists {
+		pids = append(pids, workload.GetPIDs()...)
+	} else if len(containerID) == 0 && pid != 1 {
+		pids = append(pids, 1)
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -442,12 +443,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
-	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
-	if exists {
-		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 {
-		pids = append(pids, 1)
-	}
+	workload, workloadExists := mr.cgroupsResolver.GetWorkload(containerID)
 
 	mount, exists := mr.mounts[mountID]
 	if exists {
@@ -466,6 +462,12 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 
 	if !mr.fallbackLimiter.Allow(mountID) {
 		return nil, &ErrMountNotFound{MountID: mountID}
+	}
+
+	if workloadExists {
+		pids = append(pids, workload.GetPIDs()...)
+	} else if len(containerID) == 0 {
+		pids = append(pids, 1)
 	}
 
 	if err := mr.syncCache(pids...); err != nil {

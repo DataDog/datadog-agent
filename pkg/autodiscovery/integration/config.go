@@ -78,7 +78,7 @@ type Config struct {
 
 	// ServiceID is the ID of the service (set only for resolved templates and
 	// for service configs)
-	ServiceID string `json:"-"` // (include in digest: true)
+	ServiceID string `json:"service_id"` // (include in digest: true)
 
 	// TaggerEntity is the tagger entity ID
 	TaggerEntity string `json:"-"` // (include in digest: false)

@@ -25,8 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -184,7 +185,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 
-	if env := coreconfig.GetTraceAgentDefaultEnv(); env != "" {
+	if env := configUtils.GetTraceAgentDefaultEnv(coreconfig.Datadog); env != "" {
 		c.DefaultEnv = env
 	}
 

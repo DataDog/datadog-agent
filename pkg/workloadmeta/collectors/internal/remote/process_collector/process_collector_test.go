@@ -22,8 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote"
 	"google.golang.org/grpc"
@@ -32,7 +31,7 @@ import (
 type mockServer struct {
 	pbgo.UnimplementedProcessEntityStreamServer
 
-	responses     []*pb.ProcessStreamResponse
+	responses     []*pbgo.ProcessStreamResponse
 	errorResponse bool // first response is an error
 
 	currentResponse int
@@ -72,21 +71,21 @@ func TestCollection(t *testing.T) {
 		name      string
 		preEvents []workloadmeta.CollectorEvent
 
-		serverResponses   []*pb.ProcessStreamResponse
+		serverResponses   []*pbgo.ProcessStreamResponse
 		expectedProcesses []*workloadmeta.Process
 		errorResponse     bool
 	}{
 		{
 			name: "initially empty",
-			serverResponses: []*pb.ProcessStreamResponse{
+			serverResponses: []*pbgo.ProcessStreamResponse{
 				{
 					EventID: 0,
-					SetEvents: []*pb.ProcessEventSet{
+					SetEvents: []*pbgo.ProcessEventSet{
 						{
 							Pid:          123,
 							Nspid:        345,
 							ContainerId:  "cid",
-							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							Language:     &pbgo.Language{Name: string(languagemodels.Java)},
 							CreationTime: creationTime,
 						},
 					},
@@ -108,27 +107,27 @@ func TestCollection(t *testing.T) {
 		},
 		{
 			name: "two response with set",
-			serverResponses: []*pb.ProcessStreamResponse{
+			serverResponses: []*pbgo.ProcessStreamResponse{
 				{
 					EventID: 0,
-					SetEvents: []*pb.ProcessEventSet{
+					SetEvents: []*pbgo.ProcessEventSet{
 						{
 							Pid:          123,
 							Nspid:        345,
 							ContainerId:  "cid",
-							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							Language:     &pbgo.Language{Name: string(languagemodels.Java)},
 							CreationTime: creationTime,
 						},
 					},
 				},
 				{
 					EventID: 1,
-					SetEvents: []*pb.ProcessEventSet{
+					SetEvents: []*pbgo.ProcessEventSet{
 						{
 							Pid:          345,
 							Nspid:        567,
 							ContainerId:  "cid",
-							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							Language:     &pbgo.Language{Name: string(languagemodels.Java)},
 							CreationTime: creationTime,
 						},
 					},
@@ -160,22 +159,22 @@ func TestCollection(t *testing.T) {
 		},
 		{
 			name: "one set one unset",
-			serverResponses: []*pb.ProcessStreamResponse{
+			serverResponses: []*pbgo.ProcessStreamResponse{
 				{
 					EventID: 0,
-					SetEvents: []*pb.ProcessEventSet{
+					SetEvents: []*pbgo.ProcessEventSet{
 						{
 							Pid:          123,
 							Nspid:        345,
 							ContainerId:  "cid",
-							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							Language:     &pbgo.Language{Name: string(languagemodels.Java)},
 							CreationTime: creationTime,
 						},
 					},
 				},
 				{
 					EventID: 1,
-					UnsetEvents: []*pb.ProcessEventUnset{
+					UnsetEvents: []*pbgo.ProcessEventUnset{
 						{
 							Pid: 123,
 						},
@@ -202,15 +201,15 @@ func TestCollection(t *testing.T) {
 					},
 				},
 			},
-			serverResponses: []*pb.ProcessStreamResponse{
+			serverResponses: []*pbgo.ProcessStreamResponse{
 				{
 					EventID: 0,
-					SetEvents: []*pb.ProcessEventSet{
+					SetEvents: []*pbgo.ProcessEventSet{
 						{
 							Pid:          345,
 							Nspid:        678,
 							ContainerId:  "cid",
-							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							Language:     &pbgo.Language{Name: string(languagemodels.Java)},
 							CreationTime: creationTime,
 						},
 					},

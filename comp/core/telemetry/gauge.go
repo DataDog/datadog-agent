@@ -21,6 +21,6 @@ type Gauge interface {
 	Delete(tagsValue ...string)
 	// WithValues returns SimpleGauge for this metric with the given tag values.
 	WithValues(tagsValue ...string) SimpleGauge
-	// WithTags returns SimpleGauge for this metric with the given tqg values.
+	// WithTags returns SimpleGauge for this metric with the given tag values.
 	WithTags(tags map[string]string) SimpleGauge
 }

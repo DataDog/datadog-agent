@@ -666,6 +666,115 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 	}
 }
 
+func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
+	logChannel := make(chan *config.ChannelMessage)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	defer demux.Stop(false)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	lc := &LambdaLogsCollector{
+		arn:                    "my-arn",
+		lastRequestID:          "myRequestID",
+		logsEnabled:            true,
+		enhancedMetricsEnabled: true,
+		out:                    logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext:    mockExecutionContext,
+		demux:               demux,
+		invocationStartTime: time.Now(),
+		invocationEndTime:   time.Now().Add(10 * time.Millisecond),
+	}
+
+	reportLogMessage := LambdaLogAPIMessage{
+		objectRecord: platformObjectRecord{
+			requestID: "myRequestID",
+			reportLogItem: reportLogMetrics{
+				durationMs:       100.00,
+				billedDurationMs: 100,
+				memorySizeMB:     128,
+				maxMemoryUsedMB:  128,
+				initDurationMs:   50.00,
+			},
+			status: timeoutStatus,
+		},
+		logType:      logTypePlatformReport,
+		stringRecord: "contents to be overwritten",
+	}
+
+	logMessages := []LambdaLogAPIMessage{
+		reportLogMessage,
+	}
+
+	go lc.processLogMessages(logMessages)
+
+	expectedStringRecord := []string{
+		createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessage),
+		createStringRecordForTimeoutLog(&reportLogMessage),
+	}
+	expectedErrors := []bool{false, true}
+	for i := 0; i < len(expectedStringRecord); i++ {
+		select {
+		case received := <-logChannel:
+			assert.NotNil(t, received)
+			assert.Equal(t, "my-arn", received.Lambda.ARN)
+			assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+			assert.Equal(t, expectedStringRecord[i], string(received.Content))
+			assert.Equal(t, expectedErrors[i], received.IsError)
+		case <-time.After(100 * time.Millisecond):
+			assert.Fail(t, "We should have received logs")
+		}
+	}
+}
+
+func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
+	logChannel := make(chan *config.ChannelMessage)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	defer demux.Stop(false)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	lc := &LambdaLogsCollector{
+		arn:                    "my-arn",
+		lastRequestID:          "myRequestID",
+		logsEnabled:            true,
+		enhancedMetricsEnabled: true,
+		out:                    logChannel,
+		extraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		executionContext: mockExecutionContext,
+		demux:            demux,
+	}
+	outOfMemoryMessage := LambdaLogAPIMessage{
+		objectRecord: platformObjectRecord{
+			requestID: "myRequestID",
+			status:    errorStatus,
+		},
+		logType: logTypeFunction,
+		stringRecord: `Java heap space: java.lang.OutOfMemoryError
+		java.lang.OutOfMemoryError: Java heap space
+			at com.datadog.lambda.sample.java.Handler.handleRequest(Handler.java:39)`,
+	}
+	logMessages := []LambdaLogAPIMessage{
+		outOfMemoryMessage,
+	}
+
+	go lc.processLogMessages(logMessages)
+
+	select {
+	case received := <-logChannel:
+		assert.NotNil(t, received)
+		assert.Equal(t, "my-arn", received.Lambda.ARN)
+		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+		assert.Equal(t, true, received.IsError)
+	case <-time.After(100 * time.Millisecond):
+		assert.Fail(t, "We should have received logs")
+	}
+}
+
 func TestServeHTTPInvalidPayload(t *testing.T) {
 	logChannel := make(chan []LambdaLogAPIMessage)
 

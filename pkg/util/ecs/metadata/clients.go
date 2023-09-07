@@ -38,15 +38,15 @@ type util struct {
 	initV1          sync.Once
 	initV2          sync.Once
 	initV3orV4      sync.Once
-	v1              *v1.Client
-	v2              *v2.Client
-	v3or4           *v3or4.Client
+	v1              v1.Client
+	v2              v2.Client
+	v3or4           v3or4.Client
 }
 
 // V1 returns a client for the ECS metadata API v1, also called introspection
 // endpoint, by detecting the endpoint address. Returns an error if it was not
 // possible to detect the endpoint address.
-func V1() (*v1.Client, error) {
+func V1() (v1.Client, error) {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
@@ -69,7 +69,7 @@ func V1() (*v1.Client, error) {
 
 // V2 returns a client for the ECS metadata API v2 that uses the default
 // endpoint address.
-func V2() (*v2.Client, error) {
+func V2() (v2.Client, error) {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
@@ -95,7 +95,7 @@ func V2() (*v2.Client, error) {
 // the endpoint address from the task the executable is running in. Returns an
 // error if it was not possible to detect the endpoint address.
 // v4 metadata API is preferred over v3 if both are available.
-func V3orV4FromCurrentTask() (*v3or4.Client, error) {
+func V3orV4FromCurrentTask() (v3or4.Client, error) {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
@@ -118,7 +118,7 @@ func V3orV4FromCurrentTask() (*v3or4.Client, error) {
 
 // newAutodetectedClientV1 detects the metadata v1 API endpoint and creates a new
 // client for it. Returns an error if it was not possible to find the endpoint.
-func newAutodetectedClientV1() (*v1.Client, error) {
+func newAutodetectedClientV1() (v1.Client, error) {
 	agentURL, err := detectAgentV1URL()
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func newAutodetectedClientV1() (*v1.Client, error) {
 
 // newClientV3ForCurrentTask detects the metadata API v3 endpoint from the current
 // task and creates a new client for it.
-func newClientV3ForCurrentTask() (*v3or4.Client, error) {
+func newClientV3ForCurrentTask() (v3or4.Client, error) {
 	agentURL, err := getAgentV3URLFromEnv()
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func newClientV3ForCurrentTask() (*v3or4.Client, error) {
 
 // newClientV4ForCurrentTask detects the metadata API v4 endpoint from the current
 // task and creates a new client for it.
-func newClientV4ForCurrentTask() (*v3or4.Client, error) {
+func newClientV4ForCurrentTask() (v3or4.Client, error) {
 	agentURL, err := getAgentV4URLFromEnv()
 	if err != nil {
 		return nil, err

@@ -42,9 +42,10 @@ type Policy struct {
 type PolicyMonitor struct {
 	sync.RWMutex
 
-	statsdClient statsd.ClientInterface
-	policies     map[string]Policy
-	rules        map[string]string
+	statsdClient         statsd.ClientInterface
+	policies             map[string]Policy
+	rules                map[string]string
+	perRuleMetricEnabled bool
 }
 
 // AddPolicies add policies to the monitor
@@ -95,15 +96,17 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 					}
 				}
 
-				for id, status := range p.rules {
-					tags := []string{
-						"rule_id:" + id,
-						fmt.Sprintf("status:%v", status),
-						dogstatsdServer.CardinalityTagPrefix + collectors.LowCardinalityString,
-					}
+				if p.perRuleMetricEnabled {
+					for id, status := range p.rules {
+						tags := []string{
+							"rule_id:" + id,
+							fmt.Sprintf("status:%v", status),
+							dogstatsdServer.CardinalityTagPrefix + collectors.LowCardinalityString,
+						}
 
-					if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {
-						log.Error(fmt.Errorf("failed to send policy metric: %w", err))
+						if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {
+							log.Error(fmt.Errorf("failed to send policy metric: %w", err))
+						}
 					}
 				}
 				p.RUnlock()
@@ -113,11 +116,12 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 }
 
 // NewPolicyMonitor returns a new Policy monitor
-func NewPolicyMonitor(statsdClient statsd.ClientInterface) *PolicyMonitor {
+func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled bool) *PolicyMonitor {
 	return &PolicyMonitor{
-		statsdClient: statsdClient,
-		policies:     make(map[string]Policy),
-		rules:        make(map[string]string),
+		statsdClient:         statsdClient,
+		policies:             make(map[string]Policy),
+		rules:                make(map[string]string),
+		perRuleMetricEnabled: perRuleMetricEnabled,
 	}
 }
 

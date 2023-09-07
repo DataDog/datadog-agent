@@ -66,7 +66,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			// Replace the HTTP protocol with a Mock
-			patchProtocolMock(t, protocols.HTTP, tt.spec)
+			patchProtocolMock(t, tt.spec)
 
 			cfg := networkconfig.New()
 			cfg.EnableHTTPMonitoring = true

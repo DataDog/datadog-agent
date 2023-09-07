@@ -9,34 +9,36 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// selinuxProbes holds the list of probes used to track fs write events
-var selinuxProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_sel_write_disable",
+func getSELinuxProbes(fentry bool) []*manager.Probe {
+	selinuxProbes := []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sel_write_enforce",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_sel_write_enforce",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sel_write_bool",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_sel_write_bool",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sel_commit_bools_write",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_sel_commit_bools_write",
-		},
-	},
-}
+	}
 
-func getSELinuxProbes() []*manager.Probe {
+	if !fentry {
+		selinuxProbes = append(selinuxProbes, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sel_write_disable",
+			},
+		})
+	}
+
 	return selinuxProbes
 }

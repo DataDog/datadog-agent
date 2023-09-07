@@ -34,10 +34,8 @@ func TestHandleProvider(t *testing.T) {
 		))
 
 	r.start()
-
 	// either called receive a value or the test will fail as a timeout
 	<-called
-
 	assert.NoError(t, r.stop())
 }
 

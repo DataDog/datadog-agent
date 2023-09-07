@@ -247,7 +247,7 @@ func TestGetContainers(t *testing.T) {
 			Name:      "foobar-pod7",
 			Namespace: "default",
 			Annotations: map[string]string{
-				fmt.Sprintf("ad.datadoghq.com/container7.exclude"): `true`,
+				"ad.datadoghq.com/container7.exclude": `true`,
 			},
 		},
 		IP: "127.0.0.1",

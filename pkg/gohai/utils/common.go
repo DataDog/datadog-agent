@@ -54,6 +54,11 @@ func getValueMethod(fieldTy reflect.StructField) (reflect.Method, bool) {
 	return valueMethod, true
 }
 
+// Jsonable represents a type which can be converted to a mashallable object
+type Jsonable interface {
+	AsJSON() (interface{}, []string, error)
+}
+
 // AsJSON takes a structure and returns a marshal-able object representing the fields of the struct,
 // the lists of errors for fields for which the collection failed, and an error if it failed.
 //

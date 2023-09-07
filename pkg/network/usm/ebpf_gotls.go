@@ -21,6 +21,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,6 +45,10 @@ const (
 	goTLSReadArgsMap          = "go_tls_read_args"
 	goTLSWriteArgsMap         = "go_tls_write_args"
 	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
+
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
 type uprobeInfo struct {
@@ -107,7 +113,7 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
 }
 
-type pid = int
+type pid = uint32
 
 type binaryID = gotls.TlsBinaryId
 
@@ -159,6 +165,9 @@ type GoTLSProgram struct {
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
 	binAnalysisMetric *libtelemetry.Counter
+
+	// blockCache is a sized limited cache for processes that cannot be hooked (binversion.ErrNotGoExe).
+	blockCache *simplelru.LRU[binaryID, struct{}]
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -179,12 +188,19 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		return nil
 	}
 
+	blockCache, err := simplelru.NewLRU[binaryID, struct{}](1000, nil)
+	if err != nil {
+		log.Warnf("failed creating block cache LRU, running without. Error: %s", err)
+		blockCache = nil
+	}
+
 	p := &GoTLSProgram{
-		done:      make(chan struct{}),
-		cfg:       c,
-		procRoot:  c.ProcRoot,
-		binaries:  make(map[binaryID]*runningBinary),
-		processes: make(map[pid]binaryID),
+		done:       make(chan struct{}),
+		cfg:        c,
+		procRoot:   c.ProcRoot,
+		binaries:   make(map[binaryID]*runningBinary),
+		processes:  make(map[pid]binaryID),
+		blockCache: blockCache,
 	}
 
 	p.binAnalysisMetric = libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd)
@@ -259,16 +275,16 @@ func (p *GoTLSProgram) Start() {
 			case <-p.done:
 				return
 			case <-processSync.C:
-				processSet := make(map[int32]struct{})
+				processSet := make(map[uint32]struct{})
 				p.lock.RLock()
 				for pid := range p.processes {
-					processSet[int32(pid)] = struct{}{}
+					processSet[uint32(pid)] = struct{}{}
 				}
 				p.lock.RUnlock()
 
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					p.unregisterProcess(int(deletedPid))
+					p.unregisterProcess(deletedPid)
 				}
 			}
 		}
@@ -343,6 +359,15 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		Ino:      stat.Ino,
 	}
 
+	if p.blockCache != nil {
+		p.lock.Lock()
+		_, ok := p.blockCache.Get(binID)
+		p.lock.Unlock()
+		if ok {
+			return
+		}
+	}
+
 	oldProcCount, bin, err := p.registerProcess(binID, pid, stat.Mtim)
 	if err != nil {
 		log.Warnf("could not register new process (%d) with binary %q: %s", pid, binPath, err)
@@ -366,7 +391,7 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 		if err != nil {
 			// report hooking issue only if we detect properly a golang binary
 			if !errors.Is(err, binversion.ErrNotGoExe) {
-				log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+				log.Debugf("could not hook new binary (%#v) %q for process %d: %s", binID, binPath, pid, err)
 			}
 			p.unregisterProcess(pid)
 			return
@@ -390,6 +415,11 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 
 	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 	if err != nil {
+		if p.blockCache != nil {
+			p.lock.Lock()
+			p.blockCache.Add(binID, struct{}{})
+			p.lock.Unlock()
+		}
 		err = fmt.Errorf("error reading exe: %w", err)
 		return
 	}
@@ -496,7 +526,7 @@ func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
 }
 
 func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
-	pathID, err := newPathIdentifier(binPath)
+	pathID, err := utils.NewPathIdentifier(binPath)
 	if err != nil {
 		return probeIDs, fmt.Errorf("can't create path identifier for path %s : %s", binPath, err)
 	}

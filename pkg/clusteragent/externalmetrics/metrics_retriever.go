@@ -30,7 +30,7 @@ const (
 // Backoff range for number of retries R:
 // For R < 6 random(2^(R-1) * 30, 2^R * 30)
 // Otherwise 1800sec
-var backoffPolicy backoff.Policy = backoff.NewPolicy(2, 30, 1800, 2, false)
+var backoffPolicy backoff.Policy = backoff.NewExpBackoffPolicy(2, 30, 1800, 2, false)
 
 // MetricsRetriever is responsible for querying and storing external metrics
 type MetricsRetriever struct {

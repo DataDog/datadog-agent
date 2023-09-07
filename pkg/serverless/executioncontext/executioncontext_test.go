@@ -122,3 +122,12 @@ func TestUpdateOutOfMemoryRequestID(t *testing.T) {
 	ecs := ec.GetCurrentState()
 	assert.Equal(t, testRequestID, ecs.LastOOMRequestID)
 }
+
+func TestUpdateRuntime(t *testing.T) {
+	runtime := "dotnet6"
+	ec := ExecutionContext{}
+	ec.UpdateRuntime(runtime)
+
+	ecs := ec.GetCurrentState()
+	assert.Equal(t, ecs.Runtime, runtime)
+}

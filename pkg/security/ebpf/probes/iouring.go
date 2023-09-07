@@ -20,7 +20,7 @@ func getIouringProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kretprobe_io_ring_ctx_alloc",
+				EBPFFuncName: "rethook_io_ring_ctx_alloc",
 			},
 		},
 		{

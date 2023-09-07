@@ -13,6 +13,7 @@ import (
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -69,7 +70,7 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	}
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}

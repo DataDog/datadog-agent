@@ -12,15 +12,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.uber.org/fx"
 )
 
 type MetadataProvider func(context.Context) time.Duration
 
 type runner struct {
-	log       log.Component
-	config    config.Component
-	providers []MetadataProvider
+	log    log.Component
+	config config.Component
+
+	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
+	// configuration
+	providers []util.Optional[MetadataProvider]
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -29,22 +33,31 @@ type runner struct {
 type dependencies struct {
 	fx.In
 
-	Log       log.Component
-	Config    config.Component
-	Providers []MetadataProvider `group:"metadata_provider"`
+	Log    log.Component
+	Config config.Component
+
+	Providers []util.Optional[MetadataProvider] `group:"metadata_provider"`
 }
 
 // Provider represents the callback from a metada provider. This is returned by 'NewProvider' helper.
 type Provider struct {
 	fx.Out
 
-	Callback MetadataProvider `group:"metadata_provider"`
+	Callback util.Optional[MetadataProvider] `group:"metadata_provider"`
+}
+
+// NewEmptyProvider returns a empty provider which is not going to register anything. This is useful for providers that
+// can be enabled/disabled through configuration.
+func NewEmptyProvider() Provider {
+	return Provider{
+		Callback: util.NewNoneOptional[MetadataProvider](),
+	}
 }
 
 // NewProvider registers a new metadata provider by adding a callback to the runner.
 func NewProvider(callback MetadataProvider) Provider {
 	return Provider{
-		Callback: callback,
+		Callback: util.NewOptional[MetadataProvider](callback),
 	}
 }
 
@@ -75,7 +88,7 @@ func newRunner(lc fx.Lifecycle, deps dependencies) Component {
 
 // handleProvider runs a provider at regular interval until the runner is stopped
 func (r *runner) handleProvider(p MetadataProvider) {
-	r.log.Debugf("Starting runner for MetadataProvider %v", p)
+	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
 	r.wg.Add(1)
 
 	intervalChan := make(chan time.Duration)
@@ -84,7 +97,7 @@ func (r *runner) handleProvider(p MetadataProvider) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
-		r.log.Debugf("stopping runner for MetadataProvider %s", p)
+		r.log.Debugf("stopping runner for MetadataProvider %#v", p)
 		r.wg.Done()
 	}()
 
@@ -103,7 +116,6 @@ func (r *runner) handleProvider(p MetadataProvider) {
 		select {
 		case <-time.After(interval):
 		case <-r.stopChan:
-			cancel()
 			return
 		}
 	}
@@ -113,8 +125,10 @@ func (r *runner) handleProvider(p MetadataProvider) {
 // not block here.
 func (r *runner) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
-	for _, p := range r.providers {
-		go r.handleProvider(p)
+	for _, optionaP := range r.providers {
+		if p, isSet := optionaP.Get(); isSet {
+			go r.handleProvider(p)
+		}
 	}
 	return nil
 }

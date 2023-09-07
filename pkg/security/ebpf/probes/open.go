@@ -26,7 +26,7 @@ var openProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_dentry_open",
+			EBPFFuncName: "hook_do_dentry_open",
 		},
 	},
 	{
@@ -44,7 +44,7 @@ var openProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_io_openat2",
+			EBPFFuncName: "rethook_io_openat2",
 		},
 	},
 	{
@@ -55,42 +55,42 @@ var openProbes = []*manager.Probe{
 	},
 }
 
-func getOpenProbes() []*manager.Probe {
+func getOpenProbes(fentry bool) []*manager.Probe {
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "open",
-	}, EntryAndExit, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "creat",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "open_by_handle_at",
-	}, EntryAndExit, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "truncate",
-	}, EntryAndExit, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "openat",
-	}, EntryAndExit, true)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "openat2",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
 	return openProbes
 }

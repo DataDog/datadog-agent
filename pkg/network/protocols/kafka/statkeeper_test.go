@@ -8,6 +8,7 @@
 package kafka
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -29,5 +30,41 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		sk.Process(tx)
+	}
+}
+
+func TestStatKeeper_extractTopicName(t *testing.T) {
+	tests := []struct {
+		name string
+		tx   *EbpfTx
+		want string
+	}{
+		{
+			name: "slice bigger then Topic_name",
+			tx: &EbpfTx{
+				Topic_name:      [80]byte{},
+				Topic_name_size: 85,
+			},
+			want: strings.Repeat("*", 80),
+		},
+		{
+			name: "slice smaller then Topic_name",
+			tx: &EbpfTx{
+				Topic_name:      [80]byte{},
+				Topic_name_size: 60,
+			},
+			want: strings.Repeat("*", 60),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statKeeper := &StatKeeper{
+				topicNames: map[string]string{},
+			}
+			copy(tt.tx.Topic_name[:], strings.Repeat("*", len(tt.tx.Topic_name)))
+			if got := statKeeper.extractTopicName(tt.tx); len(got) != len(tt.want) {
+				t.Errorf("extractTopicName() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

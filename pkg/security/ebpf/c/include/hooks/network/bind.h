@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
+HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
     if (!addr) {
         return 0;
     }
@@ -59,8 +59,8 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(bind) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(bind) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_bind_ret(ctx, retval);
 }
 

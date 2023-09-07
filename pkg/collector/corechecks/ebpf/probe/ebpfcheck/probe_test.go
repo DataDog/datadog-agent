@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/gopsutil/process"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -25,6 +26,9 @@ import (
 )
 
 func TestEBPFPerfBufferLength(t *testing.T) {
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
+
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
 		cpus, err := kernel.PossibleCPUs()

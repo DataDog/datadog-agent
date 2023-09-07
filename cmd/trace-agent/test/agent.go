@@ -159,7 +159,7 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	go func() {
 		ch <- cmd.Wait()
 		if s.verbose {
-			log.Print("agent: killed")
+			log.Printf("agent: killed")
 		}
 	}()
 	return ch

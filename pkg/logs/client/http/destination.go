@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
@@ -111,9 +112,19 @@ func newDestination(endpoint config.Endpoint,
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
 	}
-
+	var policy backoff.Policy
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
-		shouldRetry = false
+		policy = backoff.NewConstantBackoffPolicy(
+			coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"),
+		)
+	} else {
+		policy = backoff.NewExpBackoffPolicy(
+			endpoint.BackoffFactor,
+			endpoint.BackoffBase,
+			endpoint.BackoffMax,
+			endpoint.RecoveryInterval,
+			endpoint.RecoveryReset,
+		)
 	}
 
 	expVars := &expvar.Map{}
@@ -122,14 +133,6 @@ func newDestination(endpoint config.Endpoint,
 	if telemetryName != "" {
 		metrics.DestinationExpVars.Set(telemetryName, expVars)
 	}
-
-	policy := backoff.NewPolicy(
-		endpoint.BackoffFactor,
-		endpoint.BackoffBase,
-		endpoint.BackoffMax,
-		endpoint.RecoveryInterval,
-		endpoint.RecoveryReset,
-	)
 
 	return &Destination{
 		host:                endpoint.Host,

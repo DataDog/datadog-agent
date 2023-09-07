@@ -13,6 +13,6 @@ type Histogram interface {
 	Delete(tagsValue ...string)
 	// WithValues returns SimpleHistogram for this metric with the given tag values.
 	WithValues(tagsValue ...string) SimpleHistogram
-	// WithTags returns SimpleHistogram for this metric with the given tqg values.
+	// WithTags returns SimpleHistogram for this metric with the given tag values.
 	WithTags(tags map[string]string) SimpleHistogram
 }

@@ -23,11 +23,11 @@ def vm_config_exists(stack):
     return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}")
 
 
-def create_stack(ctx, stack=None, branch=False):
+def create_stack(ctx, stack=None):
     if not os.path.exists(f"{KMT_STACKS_DIR}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
-    stack = check_and_get_stack(stack, branch)
+    stack = check_and_get_stack(stack)
 
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
     if os.path.exists(stack_dir):
@@ -76,8 +76,39 @@ def ask_for_ssh():
     )
 
 
-def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
-    stack = check_and_get_stack(stack, branch)
+def kvm_ok(ctx):
+    ctx.run("kvm-ok")
+    info("[+] Kvm available on system")
+
+
+def check_user_in_group(ctx, group):
+    ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)")
+    info(f"[+] User '{os.getlogin()}' in group '{group}'")
+
+
+def check_user_in_kvm(ctx):
+    check_user_in_group(ctx, "kvm")
+
+
+def check_user_in_libvirt(ctx):
+    check_user_in_group(ctx, "libvirt")
+
+
+def check_libvirt_sock_perms():
+    read_libvirt_sock()
+    write_libvirt_sock()
+    info(f"[+] User '{os.getlogin()}' has read/write permissions on libvirt sock")
+
+
+def check_env(ctx):
+    kvm_ok(ctx)
+    check_user_in_kvm(ctx)
+    check_user_in_libvirt(ctx)
+    check_libvirt_sock_perms()
+
+
+def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
@@ -87,6 +118,7 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
 
+    ssh_key.rstrip(".pem")
     if ssh_key != "":
         ssh_key_file = find_ssh_key(ssh_key)
         ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
@@ -113,6 +145,7 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
         prefix = "aws-vault exec sandbox-account-admin --"
 
     if local_vms_in_config(vm_config):
+        check_env(ctx)
         local = "--local"
 
     env_vars = ' '.join(env)
@@ -183,6 +216,10 @@ def destroy_ec2_instances(ctx, stack):
 
         ips.append(o.split(' ')[1])
 
+    if len(ips) == 0:
+        info("[+] No ec2 instance to terminate in stack")
+        return
+
     instance_ids = ec2_instance_ids(ctx, ips)
     if len(instance_ids) == 0:
         return
@@ -201,6 +238,8 @@ def destroy_ec2_instances(ctx, stack):
 
 def destroy_stack_force(ctx, stack):
     conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
     delete_domains(conn, stack)
     delete_volumes(conn, stack)
     delete_pools(conn, stack)
@@ -211,23 +250,28 @@ def destroy_stack_force(ctx, stack):
 
     # Find a better solution for this
     pulumi_stack_name = ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
         warn=True,
         hide=True,
     ).stdout.strip()
 
+    if pulumi_stack_name == "":
+        return
+
     ctx.run(
         f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ../test-infra-definitions -s {pulumi_stack_name}",
         warn=True,
+        hide=True,
     )
     ctx.run(
         f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
         warn=True,
+        hide=True,
     )
 
 
-def destroy_stack(ctx, stack, branch, force, ssh_key):
-    stack = check_and_get_stack(stack, branch)
+def destroy_stack(ctx, stack, force, ssh_key):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
@@ -240,8 +284,8 @@ def destroy_stack(ctx, stack, branch, force, ssh_key):
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
 
 
-def pause_stack(stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
+def pause_stack(stack=None):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     conn = libvirt.open("qemu:///system")
@@ -249,10 +293,49 @@ def pause_stack(stack=None, branch=False):
     conn.close()
 
 
-def resume_stack(stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
+def resume_stack(stack=None):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     conn = libvirt.open("qemu:///system")
     resume_domains(conn, stack)
+    conn.close()
+
+
+def read_libvirt_sock():
+    conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
+    conn.listAllDomains()
+    conn.close()
+
+
+testPoolXML = """
+<pool type="dir">
+  <name>mypool</name>
+  <uuid>8c79f996-cb2a-d24d-9822-ac7547ab2d01</uuid>
+  <capacity unit="bytes">100</capacity>
+  <allocation unit="bytes">100</allocation>
+  <available unit="bytes">100</available>
+  <source>
+  </source>
+  <target>
+    <path>/tmp</path>
+    <permissions>
+      <mode>0755</mode>
+      <owner>-1</owner>
+      <group>-1</group>
+    </permissions>
+  </target>
+</pool>"""
+
+
+def write_libvirt_sock():
+    conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")
+    pool = conn.storagePoolDefineXML(testPoolXML, 0)
+    if not pool:
+        raise Exit("write_libvirt_sock: Failed to create StoragePool object.")
+    pool.undefine()
     conn.close()

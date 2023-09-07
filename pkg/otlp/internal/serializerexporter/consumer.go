@@ -17,11 +17,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
@@ -62,11 +62,11 @@ func (c *serializerConsumer) enrichedTags(dimensions *otlpmetrics.Dimensions) []
 	return enrichedTags
 }
 
-func (c *serializerConsumer) ConsumeAPMStats(ss pb.ClientStatsPayload) {
+func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
 	ss.Tags = append(ss.Tags, c.extraTags...)
 	body := new(bytes.Buffer)
-	if err := msgp.Encode(body, &ss); err != nil {
+	if err := msgp.Encode(body, ss); err != nil {
 		log.Errorf("Error encoding ClientStatsPayload: %v", err)
 		return
 	}

@@ -5,7 +5,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
+HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
     struct policy_t policy = fetch_policy(EVENT_PTRACE);
     if (is_discarded_by_process(policy.mode, EVENT_PTRACE)) {
         return 0;
@@ -61,8 +61,8 @@ int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(ptrace) {
-    return sys_ptrace_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(ptrace) {
+    return sys_ptrace_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 SEC("tracepoint/handle_sys_ptrace_exit")

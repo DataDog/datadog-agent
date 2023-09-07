@@ -8,11 +8,15 @@
 package http
 
 import (
+	"fmt"
+
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Telemetry struct {
+	protocol string
+
 	// metricGroup is used here mostly for building the log message below
 	metricGroup *libtelemetry.MetricGroup
 
@@ -25,10 +29,11 @@ type Telemetry struct {
 	aggregations *libtelemetry.Counter
 }
 
-func NewTelemetry() *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup("usm.http")
+func NewTelemetry(protocol string) *Telemetry {
+	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
 
 	return &Telemetry{
+		protocol:    protocol,
 		metricGroup: metricGroup,
 
 		hits1XX:      metricGroup.NewCounter("hits", "status:1xx", libtelemetry.OptPrometheus),
@@ -64,5 +69,5 @@ func (t *Telemetry) Count(tx Transaction) {
 }
 
 func (t *Telemetry) Log() {
-	log.Debugf("http stats summary: %s", t.metricGroup.Summary())
+	log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
 }

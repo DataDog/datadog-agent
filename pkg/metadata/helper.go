@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,8 +24,6 @@ const (
 	// run the Agent checks metadata collector every 600 seconds (10 minutes). AgentChecksCollector implements the
 	// CollectorWithFirstRun and will send its first payload after a minute.
 	agentChecksMetadataCollectorInterval = 600
-	// run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
-	resourcesMetadataCollectorInterval = 300
 )
 
 type collector struct {
@@ -45,8 +44,6 @@ var (
 			max:      hostMetadataCollectorMaxInterval * time.Second,
 		},
 		"agent_checks": {os: "*", interval: agentChecksMetadataCollectorInterval * time.Second},
-		// We ignore resources error has it's not mandatory
-		"resources": {os: "linux", interval: resourcesMetadataCollectorInterval * time.Second, ignoreError: true},
 	}
 
 	// AllDefaultCollectors the names of all the available default collectors
@@ -102,8 +99,7 @@ func SetupMetadataCollection(sch *Scheduler, additionalCollectors []string) erro
 	}
 
 	collectorAdded := map[string]interface{}{}
-	var C []config.MetadataProviders
-	err := config.Datadog.UnmarshalKey("metadata_providers", &C)
+	C, err := configUtils.GetMetadataProviders(config.Datadog)
 	if err == nil {
 		log.Debugf("Adding configured providers to the metadata collector")
 		for _, c := range C {

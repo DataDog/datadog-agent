@@ -27,7 +27,7 @@ const (
 
 type collector struct {
 	store  workloadmeta.Store
-	metaV2 *v2.Client
+	metaV2 v2.Client
 	seen   map[workloadmeta.EntityID]struct{}
 }
 

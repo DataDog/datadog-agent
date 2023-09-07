@@ -23,6 +23,26 @@ type RuntimeSecurityClient struct {
 	conn      *grpc.ClientConn
 }
 
+type SecurityModuleClientWrapper interface {
+	DumpDiscarders() (string, error)
+	DumpProcessCache(withArgs bool) (string, error)
+	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
+	ListActivityDumps() (*api.ActivityDumpListMessage, error)
+	StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error)
+	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
+	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
+	GetConfig() (*api.SecurityConfigMessage, error)
+	GetStatus() (*api.Status, error)
+	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
+	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
+	GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error)
+	GetEvents() (api.SecurityModule_GetEventsClient, error)
+	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
+	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
+	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
+	Close()
+}
+
 // DumpDiscarders sends a request to dump discarders
 func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
 	response, err := c.apiClient.DumpDiscarders(context.Background(), &api.DumpDiscardersParams{})
@@ -99,6 +119,15 @@ func (c *RuntimeSecurityClient) RunSelfTest() (*api.SecuritySelfTestResultMessag
 // ReloadPolicies instructs the system probe to reload its policies
 func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessage, error) {
 	response, err := c.apiClient.ReloadPolicies(context.Background(), &api.ReloadPoliciesParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+// GetRuleSetReport gets the currently loaded policies from the system probe
+func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
+	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
 	if err != nil {
 		return nil, err
 	}

@@ -232,6 +232,7 @@ func (agg *FlowAggregator) flushLoop() {
 			flushStartTime := time.Now()
 			agg.flush()
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
+			agg.sender.Commit()
 		// refresh rollup trackers
 		case <-rollupTrackersRefresh:
 			agg.rollupTrackersRefresh()

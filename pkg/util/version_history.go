@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -40,7 +41,7 @@ const maxVersionHistoryEntries = 60
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
 	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	installInfoFilePath := filepath.Join(config.FileUsedDir(), "install_info")
+	installInfoFilePath := filepath.Join(configUtils.ConfFileDirectory(config.Datadog), "install_info")
 	logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, version.AgentVersion, time.Now().UTC())
 }
 

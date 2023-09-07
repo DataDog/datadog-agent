@@ -1143,6 +1143,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 	}
 
 	entry = p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
+	entry.IsThread = true
 
 	// update the cache entry
 	if err := p.enrichEventFromProc(entry, proc, filledProc); err != nil {

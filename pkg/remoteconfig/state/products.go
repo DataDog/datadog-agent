@@ -12,6 +12,7 @@ var validProducts = map[string]struct{}{
 	ProductCWSDD:       {},
 	ProductCWSCustom:   {},
 	ProductCWSProfiles: {},
+	ProductASM:         {},
 	ProductASMFeatures: {},
 	ProductASMDD:       {},
 	ProductASMData:     {},
@@ -31,6 +32,8 @@ const (
 	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
+	// ProductASM is the ASM product used by customers to issue rules configurations
+	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
 	ProductASMFeatures = "ASM_FEATURES"
 	// ProductASMDD is the application security monitoring product managed by datadog employees

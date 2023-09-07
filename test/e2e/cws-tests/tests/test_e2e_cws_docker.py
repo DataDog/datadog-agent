@@ -10,6 +10,7 @@ from lib.config import gen_datadog_agent_config, gen_system_probe_config
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
 from lib.cws.app import App
 from lib.cws.policy import PolicyLoader
+from lib.cws.schemas import JsonSchemaValidator
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
@@ -132,6 +133,25 @@ class TestE2EDocker(unittest.TestCase):
             else:
                 self.app.check_policy_found(self, attributes, "file", "default.policy")
             self.app.check_for_ignored_policies(self, attributes)
+
+        with Step(msg="check self_tests", emoji=":test_tube:"):
+            rule_id = "self_test"
+            event = self.app.wait_app_log(f"rule_id:{rule_id}")
+            attributes = event["data"][0]["attributes"]["attributes"]
+            if "date" in attributes:
+                attributes["date"] = attributes["date"].strftime("%Y-%m-%dT%H:%M:%S")
+
+            self.assertEqual(rule_id, attributes["agent"]["rule_id"], "unable to find rule_id tag attribute")
+            self.assertTrue(
+                "failed_tests" not in attributes,
+                f"failed tests: {attributes['failed_tests']}" if "failed_tests" in attributes else "success",
+            )
+
+            jsonSchemaValidator = JsonSchemaValidator()
+            jsonSchemaValidator.validate_json_data("self_test.json", attributes)
+
+        with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
+            time.sleep(3 * 60)
 
         with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=socket.gethostname())

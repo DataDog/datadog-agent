@@ -11,6 +11,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -42,6 +43,8 @@ type RuntimeSecurityConfig struct {
 	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
+	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
+	PolicyMonitorPerRuleEnabled bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
@@ -233,9 +236,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		RemoteConfigurationEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"),
 
 		// policy & ruleset
-		PoliciesDir:          coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:     coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
-		PolicyMonitorEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
+		PoliciesDir:                 coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
+		WatchPoliciesDir:            coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
+		PolicyMonitorEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
+		PolicyMonitorPerRuleEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 
 		LogPatterns: coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_tags"),
@@ -329,7 +333,7 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
-	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
+	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(coreconfig.Datadog, true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}

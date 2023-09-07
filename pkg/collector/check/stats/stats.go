@@ -133,8 +133,8 @@ func NewStats(c StatsCheck) *Stats {
 	// We are interested in a check's run state values even when they are 0 so we
 	// initialize them here explicitly
 	if stats.telemetry && utils.IsTelemetryEnabled() {
-		tlmRuns.Initialize(stats.CheckName, runCheckFailureTag)
-		tlmRuns.Initialize(stats.CheckName, runCheckSuccessTag)
+		tlmRuns.InitializeToZero(stats.CheckName, runCheckFailureTag)
+		tlmRuns.InitializeToZero(stats.CheckName, runCheckSuccessTag)
 	}
 
 	return &stats

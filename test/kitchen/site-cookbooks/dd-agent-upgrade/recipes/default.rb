@@ -95,21 +95,6 @@ if node['dd-agent-upgrade']['add_new_repo']
       ]
     end
   when 'suse'
-    old_key_local_path = ::File.join(Chef::Config[:file_cache_path], 'DATADOG_RPM_KEY.public')
-    remote_file 'DATADOG_RPM_KEY.public' do
-      path old_key_local_path
-      source node['datadog']['yumrepo_gpgkey']
-      # not_if 'rpm -q gpg-pubkey-4172a230' # (key already imported)
-      notifies :run, 'execute[rpm-import datadog key 4172a230]', :immediately
-    end
-
-    # Import key if fingerprint matches
-    execute 'rpm-import datadog key 4172a230' do
-      command "rpm --import #{old_key_local_path}"
-      only_if "gpg --dry-run --quiet --with-fingerprint #{old_key_local_path} | grep '60A3 89A4 4A0C 32BA E3C0  3F0B 069B 56F5 4172 A230'"
-      action :nothing
-    end
-
     zypper_repository 'datadog' do
       name 'datadog'
       description 'datadog'

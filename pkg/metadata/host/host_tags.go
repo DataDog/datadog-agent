@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -82,7 +83,7 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 		return appendAndSplitTags(old, new, splits)
 	}
 
-	rawHostTags := config.GetGlobalConfiguredTags(false)
+	rawHostTags := configUtils.GetConfiguredTags(config.Datadog, false)
 	hostTags := make([]string, 0, len(rawHostTags))
 	gceTags := []string{}
 	hostTags = appendToHostTags(hostTags, rawHostTags)
