@@ -10,7 +10,7 @@ if [ -z "$old_agent_tag" ]; then
     exit 1
 fi
 
-if [ -z "$2" ]; then
+if [ -z "$1" ]; then
     echo "Missing new agent tag"
     exit 1
 fi
@@ -21,16 +21,16 @@ declare -A email_to_slack
 # Initialize changelog variable
 changelog=""
 
-for commit_hash in $(git rev-list "$1".."$2")
+for commit_hash in $(git rev-list "$old_agent_tag".."$1")
 do
   # Get the author's email from Git log
   author_email=$(git log -n 1 --pretty=format:"%ae" "$commit_hash")
 
   # Fetch PR information using 'gh'
-  pr_info=$(gh search prs "$commit_hash" --repo 'DataDog/datadog-agent' --label 'component/system-probe' --merged --json 'title,url,author,number' --template "{{range .}}{{printf \"%v %v %v %v\\n\" .title \"$author_email\" .author.login .url}}{{end}}")
+  pr_info=$(gh search prs "$commit_hash" --repo 'DataDog/datadog-agent' --label 'component/system-probe' --merged --json 'title,url,author,number' --template "{{range .}}{{printf \"%v %v %v %v\" .title \"$author_email\" .author.login .url}}{{end}}")
 
   # Append PR info to changelog
-  changelog+="$pr_info"
+  changelog+="$pr_info\n"
 
   # Convert email to Slack handle and store in the associative array
   if [ -n "$author_email" ]; then
@@ -54,3 +54,4 @@ done
 # Use the 'changelog' variable as needed, e.g., post it to Slack or append it to your message.
 # Append the unique list of Slack handles to the end of the changelog
 postmessage "system-probe-ops" "Changelog:\n$changelog\nUnique Slack Handles: $unique_slack_handles"
+echo -e "$changelog"
