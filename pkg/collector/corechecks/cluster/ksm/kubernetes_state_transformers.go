@@ -218,8 +218,6 @@ func containerTerminatedReasonTransformer(s sender.Sender, name string, metric k
 
 // containerLastTerminatedReasonTransformer validates the container terminated reasons for metric kube_pod_container_status_last_terminated_reason
 func containerLastTerminatedReasonTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	log.Debugf("TEST containerLastTerminatedReasonTransformer '%s'", name)
-	log.Debugf("TEST value '%v', reason '%s', tags '%s'",  metric.Val, metric.Labels["reason"], tags)
 	if reason, found := metric.Labels["reason"]; found {
 		// Filtering according to the reason here is paramount to limit cardinality
 		if _, allowed := allowedTerminatedReasons[strings.ToLower(reason)]; allowed {
