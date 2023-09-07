@@ -126,7 +126,6 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 	}
 
 	go updateStats()
-	go startHeartbeat()
 	return nil
 }
 
