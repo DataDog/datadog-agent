@@ -12,7 +12,7 @@ security:
     sensitive data, the Agent now obfuscates database statements within
     span metadata by default. This includes MongoDB queries,
     ElasticSearch request bodies, and raw commands from Redis and
-    MemCached. This was off by default, previously.
+    MemCached. Previously, this setting was off by default.
     This could have performance implications, or obfuscate data that
     is not sensitive, and can be disabled or configured via the
     obfuscation options within the apm_config, or with the
