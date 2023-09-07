@@ -262,7 +262,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
 	ac.addListenerCandidates(listenerConfigs)
 	remaining := ac.initListenerCandidates()
-	if remaining == false {
+	if !remaining {
 		return
 	}
 

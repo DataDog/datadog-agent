@@ -271,15 +271,32 @@ func newFakeResolver(regoInputPath string) compliance.Resolver {
 }
 
 func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
-	var fixtures map[string]compliance.ResolvedInputs
+	var fixtures map[string]map[string]interface{}
 	data, err := os.ReadFile(r.regoInputPath)
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal([]byte(data), &fixtures); err != nil {
+	if err := json.Unmarshal(data, &fixtures); err != nil {
 		return nil, fmt.Errorf("could not unmarshal faked rego input: %w", err)
 	}
-	return fixtures[rule.ID], nil
+	fixture, ok := fixtures[rule.ID]
+	if !ok {
+		return nil, fmt.Errorf("could not find fixtures for rule %q", rule.ID)
+	}
+	var resolvingContext compliance.ResolvingContext
+	if err := jsonRountrip(fixture["context"], &resolvingContext); err != nil {
+		return nil, err
+	}
+	delete(fixture, "context")
+	return compliance.NewResolvedInputs(resolvingContext, fixture)
+}
+
+func jsonRountrip(i interface{}, v interface{}) error {
+	b, err := json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, &v)
 }
 
 func (r *fakeResolver) Close() {

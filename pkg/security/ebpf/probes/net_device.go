@@ -14,61 +14,61 @@ func getNetDeviceProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_rtnl_create_link",
+				EBPFFuncName: "hook_rtnl_create_link",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_register_netdevice",
+				EBPFFuncName: "hook_register_netdevice",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_dev_get_valid_name",
+				EBPFFuncName: "hook_dev_get_valid_name",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_dev_new_index",
+				EBPFFuncName: "hook_dev_new_index",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kretprobe_dev_new_index",
+				EBPFFuncName: "rethook_dev_new_index",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe___dev_get_by_index",
+				EBPFFuncName: "hook___dev_get_by_index",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe___dev_get_by_name",
+				EBPFFuncName: "hook___dev_get_by_name",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kretprobe_register_netdevice",
+				EBPFFuncName: "rethook_register_netdevice",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_dev_change_net_namespace",
+				EBPFFuncName: "hook_dev_change_net_namespace",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe___dev_change_net_namespace",
+				EBPFFuncName: "hook___dev_change_net_namespace",
 			},
 		},
 	}

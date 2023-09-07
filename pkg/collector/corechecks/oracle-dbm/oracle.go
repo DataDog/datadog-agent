@@ -78,6 +78,7 @@ type Check struct {
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
+	previousAllocationCount                 float64
 }
 
 func handleServiceCheck(c *Check, err error) {
@@ -261,7 +262,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 
 	if c.cdbName == "" {
-		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
+		row := db.QueryRow("SELECT /* DD */ lower(name) FROM v$database")
 		err = row.Scan(&c.cdbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
@@ -398,7 +399,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
-	c.tags = c.config.Tags
+	c.tags = make([]string, len(c.config.Tags))
+	copy(c.tags, c.config.Tags)
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 	c.tags = append(c.tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
 	if c.config.TnsAlias != "" {
@@ -461,19 +463,42 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	if !pdb.Valid {
 		return tags
 	}
-	return append(tags, "pdb:"+pdb.String)
+	return append(tags, "pdb:"+strings.ToLower(pdb.String))
 }
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
 	err := c.db.Select(s, sql, binds...)
-	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "ORA-06413") || strings.Contains(err.Error(), "database is closed")) {
-		db, err := c.Connect()
-		if err != nil {
-			c.Teardown()
-			return err
-		}
-		c.db = db
-	}
-
+	reconnectOnConnectionError(c, &c.db, err)
 	return err
+}
+
+func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
+	if err == nil {
+		return
+	}
+	errors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "database is closed"}
+	var isError bool
+	for _, e := range errors {
+		if strings.Contains(err.Error(), e) {
+			isError = true
+			break
+		}
+	}
+	if !isError {
+		return
+	}
+	log.Tracef("Reconnecting")
+	*db, err = c.Connect()
+	if err != nil {
+		log.Errorf("failed to reconnect %s", err)
+		closeDatabase(c, *db)
+	}
+}
+
+func closeDatabase(c *Check, db *sqlx.DB) {
+	if db != nil {
+		if err := db.Close(); err != nil {
+			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
+		}
+	}
 }

@@ -15,56 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	//"log"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	_ "github.com/godror/godror"
 )
-
-var chk Check
-
-var HOST = "localhost"
-var PORT = 1521
-var USER = "c##datadog"
-var PASSWORD = "datadog"
-var SERVICE_NAME = "XE"
-var TNS_ALIAS = "XE"
-var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
-
-func TestBasic(t *testing.T) {
-	chk = Check{}
-
-	// language=yaml
-	rawInstanceConfig := []byte(fmt.Sprintf(`
-server: %s
-port: %d
-username: %s
-password: %s
-service_name: %s
-tns_alias: %s
-tns_admin: %s
-`, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
-
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
-	require.NoError(t, err)
-
-	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
-	assert.Equal(t, chk.config.InstanceConfig.Port, PORT)
-	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
-	assert.Equal(t, chk.config.InstanceConfig.Password, PASSWORD)
-	assert.Equal(t, chk.config.InstanceConfig.ServiceName, SERVICE_NAME)
-	assert.Equal(t, chk.config.InstanceConfig.TnsAlias, TNS_ALIAS)
-	assert.Equal(t, chk.config.InstanceConfig.TnsAdmin, TNS_ADMIN)
-}
 
 func TestConnectionGoOra(t *testing.T) {
 	databaseUrl := go_ora.BuildUrl(HOST, PORT, SERVICE_NAME, USER, PASSWORD, nil)
@@ -123,27 +84,38 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func initAndStartAgentDemultiplexer() {
-	//deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	//demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
-
-	//aggregator.InitAndStartAgentDemultiplexer(nil, nil, demuxOpts(), "")
-}
-
-func TestChkRun(t *testing.T) {
-	//initAndStartAgentDemultiplexer()
+func initAndStartAgentDemultiplexer(t *testing.T) {
 	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
 
+	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
+}
+
+func getUsedPGA(db *sqlx.DB) (float64, error) {
+	var pga float64
+	err := chk.db.Get(&pga, `SELECT 
+	sum(p.pga_used_mem)
+FROM   v$session s,
+	v$process p
+WHERE  s.paddr = p.addr AND s.username = 'C##DATADOG'`)
+	return pga, err
+}
+
+func getSession(db *sqlx.DB) (string, error) {
+	var r string
+	err := chk.db.Get(&r, `SELECT sid || 'X' || serial# FROM v$session WHERE username = 'C##DATADOG'`)
+	return r, err
+}
+
+func TestChkRun(t *testing.T) {
+	initAndStartAgentDemultiplexer(t)
 	chk.dbmEnabled = true
 	chk.config.InstanceConfig.InstantClient = false
 
 	type RowsStruct struct {
 		N int `db:"N"`
 	}
-	r := RowsStruct{}
 
 	for _, tnsAlias := range []string{"", TNS_ALIAS} {
 		chk.db = nil
@@ -157,11 +129,32 @@ func TestChkRun(t *testing.T) {
 			driver = common.Godror
 		}
 
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 		err := chk.Run()
 		assert.NoError(t, err, "check run with %s driver", driver)
 
-		err = chk.db.Get(&r, "select /* DDTEST */ 1 n from dual")
-		assert.NoError(t, err, "running test statement with %s driver", driver)
+		pgaBefore, err := getUsedPGA(chk.db)
+		assert.NoError(t, err, "get used pga with %s driver", driver)
+
+		sessionBefore, _ := getSession(chk.db)
+		_, err = chk.db.Exec(`begin
+				for i in 1..1000
+				loop
+				  execute immediate 'insert into t values (' || i || ')';
+				end loop;
+			  end ;`)
+		assert.NoError(t, err, "error generating statements with %s driver", driver)
+
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
+		chk.Run()
+		pgaAfter, err := getUsedPGA(chk.db)
+		assert.NoError(t, err, "get used pga with %s driver", driver)
+		growth := math.Round((pgaAfter - pgaBefore) / 1024 / 1024)
+		assert.Less(t, growth, float64(50), "PGA used changed between two consecutive runs")
+
+		sessionAfter, _ := getSession(chk.db)
+		assert.Equal(t, sessionBefore, sessionAfter, "The agent reconnected")
+
 	}
 }
 

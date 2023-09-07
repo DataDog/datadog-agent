@@ -61,10 +61,10 @@ func InitCheckScheduler(collector *Collector, senderManager sender.SenderManager
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog())),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager))),
 	}
 	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog() {
+	for _, loader := range loaders.LoaderCatalog(senderManager) {
 		checkScheduler.AddLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}

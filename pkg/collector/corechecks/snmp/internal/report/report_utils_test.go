@@ -72,7 +72,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 			symbol: profiledefinition.SymbolConfig{
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
-				MatchPatternCompiled: regexp.MustCompile("value\\d"),
+				MatchPatternCompiled: regexp.MustCompile(`value\d`),
 				MatchValue:           "matched-value-with-digit",
 			},
 			expectedValue: valuestore.ResultValue{
@@ -100,7 +100,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				MatchPattern:         "value(\\d)",
-				MatchPatternCompiled: regexp.MustCompile("value(\\d)"),
+				MatchPatternCompiled: regexp.MustCompile(`value(\d)`),
 				MatchValue:           "$2",
 			},
 			expectedValue: valuestore.ResultValue{},
@@ -113,7 +113,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				ExtractValue:         "[a-z]+(\\d)",
-				ExtractValueCompiled: regexp.MustCompile("[a-z]+(\\d)"),
+				ExtractValueCompiled: regexp.MustCompile(`[a-z]+(\d)`),
 			},
 			expectedValue: valuestore.ResultValue{
 				Value: "1",
@@ -127,7 +127,7 @@ func Test_getScalarValueFromSymbol(t *testing.T) {
 				OID:                  "1.2.3.4",
 				Name:                 "mySymbol",
 				ExtractValue:         "[a-z]+\\d",
-				ExtractValueCompiled: regexp.MustCompile("[a-z]+\\d"),
+				ExtractValueCompiled: regexp.MustCompile(`[a-z]+\d`),
 			},
 			expectedValue: valuestore.ResultValue{},
 			expectedError: "extract value pattern des not contain any matching group (extractValuePattern=[a-z]+\\d, srcValue=value1)",

@@ -202,7 +202,7 @@ bulk_max_repetitions: 20
 						OID:  "1.2.3.4.8.1.2",
 					},
 					Match:   "(\\w)(\\w+)",
-					Pattern: regexp.MustCompile("(\\w)(\\w+)"),
+					Pattern: regexp.MustCompile(`(\w)(\w+)`),
 					Tags: map[string]string{
 						"prefix": "\\1",
 						"suffix": "\\2",
@@ -221,7 +221,7 @@ bulk_max_repetitions: 20
 			OID:     "1.2.3",
 			Name:    "mySymbol",
 			Match:   "(\\w)(\\w+)",
-			Pattern: regexp.MustCompile("(\\w)(\\w+)"),
+			Pattern: regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"prefix": "\\1",
 				"suffix": "\\2",
@@ -231,7 +231,7 @@ bulk_max_repetitions: 20
 			OID:     "1.3.6.1.2.1.1.5.0",
 			Name:    "sysName",
 			Match:   "(\\w)(\\w+)",
-			Pattern: regexp.MustCompile("(\\w)(\\w+)"),
+			Pattern: regexp.MustCompile(`(\w)(\w+)`),
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
 				"prefix":   "\\1",

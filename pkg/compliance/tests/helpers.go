@@ -52,7 +52,7 @@ type assertedRule struct {
 	expectErr bool
 }
 
-func NewTestBench(t *testing.T) *suite {
+func newTestBench(t *testing.T) *suite {
 	rootDir := t.TempDir()
 	return &suite{
 		t:       t,
@@ -154,7 +154,7 @@ func (c *assertedRule) WithScope(scope string) *assertedRule {
 }
 
 func (c *assertedRule) WithInput(input string, args ...any) *assertedRule {
-	r := regexp.MustCompile("(?m)^\\t+")
+	r := regexp.MustCompile(`(?m)^\t+`)
 	input = r.ReplaceAllStringFunc(input, func(p string) string { return strings.Repeat("  ", len(p)) })
 	c.input = strings.TrimSpace(fmt.Sprintf(input, args...))
 	return c
