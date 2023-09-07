@@ -1306,7 +1306,7 @@ api_key:
   #
   #     elasticsearch:
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "elasticsearch". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "elasticsearch". Enabled by default.
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
@@ -1327,12 +1327,12 @@ api_key:
   #
   #     memcached:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "memcached". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "memcached". Enabled by default.
   #         enabled: false
   #
   #     mongodb:
   ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "mongodb". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "mongodb". Enabled by default.
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
@@ -1345,7 +1345,7 @@ api_key:
   #
   #     redis:
   ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for spans of type "redis". Disabled by default.
+  ##        Enables obfuscation rules for spans of type "redis". Enabled by default.
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
   ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
