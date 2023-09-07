@@ -104,6 +104,7 @@ var LegacyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// TopologyMetadataConfig represent the metadata needed for topology
 var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	"lldp_remote": {
 		Fields: map[string]profiledefinition.MetadataField{
