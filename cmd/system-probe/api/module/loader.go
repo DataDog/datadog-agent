@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -204,11 +205,18 @@ func updateStats() {
 	then := time.Now()
 	now := time.Now()
 	ticker := time.NewTicker(15 * time.Second)
+	health := health.RegisterLiveness("system-probe")
+
+	log.Info("system probe: health check initialized successfully")
 
 	for {
 		l.Lock()
 		if l.closed {
 			l.Unlock()
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
 			return
 		}
 
@@ -225,6 +233,7 @@ func updateStats() {
 		l.stats["uptime"] = now.Sub(start).String()
 		l.Unlock()
 
+		<-health.C
 		then = now
 		now = <-ticker.C
 	}
