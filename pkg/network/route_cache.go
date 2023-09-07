@@ -287,6 +287,7 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		}
 		log.Warnf("Error getting route via netlink from %s: %s", string(dstIP), err)
 	} else if len(routes) != 1 {
+		log.Warnf("Failed to get route from cache for %s", string(dstIP))
 		routeCacheTelemetry.netlinkMisses.Inc()
 	}
 	if err != nil || len(routes) != 1 {
@@ -326,6 +327,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 		log.Warnf("Error getting route via netlink from %s: %s", string(srcIP), err)
 		return nil
 	} else if len(routes) != 1 {
+		log.Warnf("Failed to get route from cache for %s", string(srcIP))
 		routeCacheTelemetry.netlinkMisses.Inc()
 		return nil
 	}
@@ -342,12 +344,12 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	// get the link flags
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFNAME, ifr); err != nil {
 		routeCacheTelemetry.ifCacheErrors.Inc()
-		log.Tracef("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
+		log.Warnf("error getting interface name for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 	if err = unix.IoctlIfreq(n.ioctlFD, unix.SIOCGIFFLAGS, ifr); err != nil {
 		routeCacheTelemetry.ifCacheErrors.Inc()
-		log.Tracef("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
+		log.Warnf("error getting interface flags for link index %d, src ip %s: %s", routes[0].LinkIndex, srcIP, err)
 		return nil
 	}
 
