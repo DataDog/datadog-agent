@@ -10,11 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStartFlowRoutine_invalidType(t *testing.T) {
-	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow))
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow), logger)
 	assert.EqualError(t, err, "unknown flow type: invalid")
 	assert.Nil(t, state)
 }

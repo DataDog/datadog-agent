@@ -1,6 +1,189 @@
 [
   {
     "container_id": "",
+    "language_name": "",
+    "language_version": null,
+    "tracer_version": null,
+    "runtime_id": "",
+    "chunks": [
+      {
+        "priority": 1,
+        "origin": "lambda",
+        "spans": [
+          {
+            "service": "integration-tests-service",
+            "name": "aws.lambda",
+            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
+            "trace_id": null,
+            "span_id": null,
+            "parent_id": null,
+            "start": null,
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
+              "cold_start": "false",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function.request": "{\"body\":\"testing request payload\"}",
+              "function.response": "{\"statusCode\":200,\"body\":\"ok\"}",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-csharp",
+              "functionname": "integration-tests-extension-XXXXXX-trace-csharp",
+              "http.status_code": "200",
+              "language": "dotnet",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "request_id": "null",
+              "runtime": "dotnet6",
+              "service": "integration-tests-service",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_sampling_priority_rate_v1": 1,
+              "_top_level": 1
+            },
+            "type": "serverless"
+          }
+        ],
+        "tags": null,
+        "dropped_trace": false
+      }
+    ],
+    "tags": null,
+    "env": "integration-tests-env",
+    "hostname": "",
+    "app_version": "integration-tests-version"
+  },
+  {
+    "container_id": "",
+    "language_name": "",
+    "language_version": null,
+    "tracer_version": null,
+    "runtime_id": "",
+    "chunks": [
+      {
+        "priority": 1,
+        "origin": "lambda",
+        "spans": [
+          {
+            "service": "integration-tests-service",
+            "name": "aws.lambda",
+            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
+            "trace_id": null,
+            "span_id": null,
+            "parent_id": null,
+            "start": null,
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
+              "cold_start": "true",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function.request": "{\"body\":null}",
+              "function.response": "{\"statusCode\":200,\"body\":\"ok\"}",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-csharp",
+              "functionname": "integration-tests-extension-XXXXXX-trace-csharp",
+              "http.status_code": "200",
+              "language": "dotnet",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "request_id": "null",
+              "runtime": "dotnet6",
+              "service": "integration-tests-service",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_sampling_priority_rate_v1": 1,
+              "_top_level": 1
+            },
+            "type": "serverless"
+          }
+        ],
+        "tags": null,
+        "dropped_trace": false
+      }
+    ],
+    "tags": null,
+    "env": "integration-tests-env",
+    "hostname": "",
+    "app_version": "integration-tests-version"
+  },
+  {
+    "container_id": "",
+    "language_name": "",
+    "language_version": null,
+    "tracer_version": null,
+    "runtime_id": "",
+    "chunks": [
+      {
+        "priority": 1,
+        "origin": "lambda",
+        "spans": [
+          {
+            "service": "integration-tests-service",
+            "name": "aws.lambda.cold_start",
+            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
+            "trace_id": null,
+            "span_id": null,
+            "parent_id": null,
+            "start": null,
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "_dd.origin": "lambda",
+              "account_id": "425362996713",
+              "architecture": "XXX",
+              "aws_account": "425362996713",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-csharp",
+              "functionname": "integration-tests-extension-XXXXXX-trace-csharp",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "runtime": "dotnet6",
+              "service": "integration-tests-service",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_sampling_priority_rate_v1": 1,
+              "_top_level": 1
+            },
+            "type": "serverless"
+          }
+        ],
+        "tags": null,
+        "dropped_trace": false
+      }
+    ],
+    "tags": null,
+    "env": "integration-tests-env",
+    "hostname": "",
+    "app_version": "integration-tests-version"
+  },
+  {
+    "container_id": "",
     "language_name": ".NET",
     "language_version": null,
     "tracer_version": null,
@@ -23,6 +206,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "-0",
               "account_id": "425362996713",
               "architecture": "XXX",
               "aws_account": "425362996713",
@@ -35,11 +219,13 @@
               "http.status_code": "200",
               "http.url": "https://example.com/",
               "memorysize": "1024",
+              "out.host": "example.com",
               "region": "eu-west-1",
               "runtime": "dotnet6",
               "runtime-id": "null",
               "service": "integration-tests-service",
               "span.kind": "client",
+              "tagA": "valueA tagB:valueB",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
@@ -49,7 +235,6 @@
             "metrics": {
               "_dd.top_level": 1,
               "_dd.tracer_kr": 0,
-              "_sampling_priority_rate_v1": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "process_id": null
@@ -90,6 +275,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "-0",
               "account_id": "425362996713",
               "architecture": "XXX",
               "aws_account": "425362996713",
@@ -102,11 +288,13 @@
               "http.status_code": "200",
               "http.url": "https://example.com/",
               "memorysize": "1024",
+              "out.host": "example.com",
               "region": "eu-west-1",
               "runtime": "dotnet6",
               "runtime-id": "null",
               "service": "integration-tests-service",
               "span.kind": "client",
+              "tagA": "valueA tagB:valueB",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
@@ -116,7 +304,6 @@
             "metrics": {
               "_dd.top_level": 1,
               "_dd.tracer_kr": 1,
-              "_sampling_priority_rate_v1": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "process_id": null

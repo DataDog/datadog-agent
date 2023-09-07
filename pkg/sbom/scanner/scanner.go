@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package scanner holds scanner related files
 package scanner
 
 import (
@@ -35,6 +36,7 @@ type scanRequest struct {
 	ch        chan<- sbom.ScanResult
 }
 
+// Scanner defines the scanner
 type Scanner struct {
 	startOnce sync.Once
 	running   bool
@@ -42,6 +44,7 @@ type Scanner struct {
 	disk      filesystem.Disk
 }
 
+// Scan performs a scan
 func (s *Scanner) Scan(request sbom.ScanRequest, opts sbom.ScanOptions, ch chan<- sbom.ScanResult) error {
 	collectorName := request.Collector()
 	collector := collectors.Collectors[collectorName]
@@ -148,6 +151,7 @@ func (s *Scanner) start(ctx context.Context) {
 	}()
 }
 
+// Start starts the scanner
 func (s *Scanner) Start(ctx context.Context) {
 	s.startOnce.Do(func() {
 		s.start(ctx)

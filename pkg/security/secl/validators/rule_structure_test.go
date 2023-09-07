@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package validators holds validators related files
 package validators
 
 import (

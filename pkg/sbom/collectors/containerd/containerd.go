@@ -5,6 +5,7 @@
 
 //go:build containerd && trivy
 
+// Package containerd holds containerd related files
 package containerd
 
 import (
@@ -27,6 +28,7 @@ const (
 	collectorName = "containerd"
 )
 
+// ScanRequest defines a scan request
 type ScanRequest struct {
 	ImageMeta        *workloadmeta.ContainerImageMetadata
 	Image            containerd.Image
@@ -34,31 +36,36 @@ type ScanRequest struct {
 	FromFilesystem   bool
 }
 
+// Collector returns the collector name
 func (r *ScanRequest) Collector() string {
 	return collectorName
 }
 
+// Type returns the scan request type
 func (r *ScanRequest) Type() string {
 	if r.FromFilesystem {
 		return sbom.ScanFilesystemType
-	} else {
-		return sbom.ScanDaemonType
 	}
+	return sbom.ScanDaemonType
 }
 
+// ID returns the scan request ID
 func (r *ScanRequest) ID() string {
 	return r.ImageMeta.ID
 }
 
-type ContainerdCollector struct {
+// Collector defines a containerd collector
+type Collector struct {
 	trivyCollector *trivy.Collector
 }
 
-func (c *ContainerdCollector) CleanCache() error {
+// CleanCache cleans the cache
+func (c *Collector) CleanCache() error {
 	return c.trivyCollector.GetCacheCleaner().Clean()
 }
 
-func (c *ContainerdCollector) Init(cfg config.Config) error {
+// Init initializes the collector
+func (c *Collector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
@@ -67,7 +74,8 @@ func (c *ContainerdCollector) Init(cfg config.Config) error {
 	return nil
 }
 
-func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
+// Scan performs the scan
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	containerdScanRequest, ok := request.(*ScanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
@@ -106,5 +114,5 @@ func (c *ContainerdCollector) Scan(ctx context.Context, request sbom.ScanRequest
 }
 
 func init() {
-	collectors.RegisterCollector(collectorName, &ContainerdCollector{})
+	collectors.RegisterCollector(collectorName, &Collector{})
 }

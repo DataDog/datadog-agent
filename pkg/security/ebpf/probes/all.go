@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -80,7 +81,6 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, GetTCProbes()...)
 	allProbes = append(allProbes, getBindProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
-	allProbes = append(allProbes, getPipeProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{

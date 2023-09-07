@@ -5,6 +5,7 @@
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
+// Package model holds model related files
 package model
 
 import (
@@ -23,7 +24,7 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var eventZero Event = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
+var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
 var containerContextZero ContainerContext
 
 // NewEvent returns a new Event
@@ -51,6 +52,7 @@ type Releasable struct {
 	onReleaseCallback func() `field:"-" json:"-"`
 }
 
+// CallReleaseCallback calls the on-release callback
 func (r *Releasable) CallReleaseCallback() {
 	if r.onReleaseCallback != nil {
 		r.onReleaseCallback()
@@ -68,7 +70,7 @@ func (r *Releasable) SetReleaseCallback(callback func()) {
 	}
 }
 
-// Release triggers the callback
+// OnRelease triggers the callback
 func (r *Releasable) OnRelease() {
 	r.onReleaseCallback()
 }
@@ -82,6 +84,7 @@ type ContainerContext struct {
 	Resolved  bool     `field:"-"`
 }
 
+// Status defines the possible status of a profile as a bitmask
 type Status uint32
 
 const (
@@ -93,6 +96,7 @@ const (
 	WorkloadHardening
 )
 
+// IsEnabled returns true if enabled
 func (s Status) IsEnabled(option Status) bool {
 	return (s & option) != 0
 }
@@ -169,7 +173,7 @@ type BaseEvent struct {
 	SpanContext            SpanContext            `field:"-" json:"-"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
 	ContainerContext       *ContainerContext      `field:"container" event:"*"`
-	NetworkContext         NetworkContext         `field:"network" event:"*"`
+	NetworkContext         NetworkContext         `field:"network" event:"dns"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -239,7 +243,7 @@ func (e *Event) IsSavedByActivityDumps() bool {
 	return e.Flags&EventFlagsSavedByAD > 0
 }
 
-// IsSavedByActivityDumps return whether AD sample
+// IsActivityDumpSample return whether AD sample
 func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
 }
@@ -314,36 +318,36 @@ func (e *Event) GetWorkloadID() string {
 }
 
 // Retain the event
-func (ev *Event) Retain() Event {
-	if ev.ProcessCacheEntry != nil {
-		ev.ProcessCacheEntry.Retain()
+func (e *Event) Retain() Event {
+	if e.ProcessCacheEntry != nil {
+		e.ProcessCacheEntry.Retain()
 	}
-	return *ev
+	return *e
 }
 
 // Release the event
-func (ev *Event) Release() {
-	if ev.ProcessCacheEntry != nil {
-		ev.ProcessCacheEntry.Release()
+func (e *Event) Release() {
+	if e.ProcessCacheEntry != nil {
+		e.ProcessCacheEntry.Release()
 	}
 }
 
 // ResolveProcessCacheEntry uses the field handler
-func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
-	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
+func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
+	return e.FieldHandlers.ResolveProcessCacheEntry(e)
 }
 
 // ResolveEventTime uses the field handler
-func (ev *Event) ResolveEventTime() time.Time {
-	return ev.FieldHandlers.ResolveEventTime(ev)
+func (e *Event) ResolveEventTime() time.Time {
+	return e.FieldHandlers.ResolveEventTime(e)
 }
 
 // GetProcessService uses the field handler
-func (ev *Event) GetProcessService() string {
-	return ev.FieldHandlers.GetProcessService(ev)
+func (e *Event) GetProcessService() string {
+	return e.FieldHandlers.GetProcessService(e)
 }
 
-// MatchedRules contains the identification of one rule that has match
+// MatchedRule contains the identification of one rule that has match
 type MatchedRule struct {
 	RuleID        string
 	RuleVersion   string
@@ -363,6 +367,7 @@ func NewMatchedRule(ruleID, ruleVersion string, ruleTags map[string]string, poli
 	}
 }
 
+// Match returns true if the rules are equal
 func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
 	if mr2 == nil ||
 		mr.RuleID != mr2.RuleID ||
@@ -374,7 +379,7 @@ func (mr *MatchedRule) Match(mr2 *MatchedRule) bool {
 	return true
 }
 
-// Append two lists, but avoiding duplicates
+// AppendMatchedRule appends two lists, but avoiding duplicates
 func AppendMatchedRule(list []*MatchedRule, toAdd []*MatchedRule) []*MatchedRule {
 	for _, ta := range toAdd {
 		found := false
@@ -538,6 +543,23 @@ type ProcessContext struct {
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
+}
+
+// ExitEvent represents a process exit event
+type ExitEvent struct {
+	*Process
+	Cause uint32 `field:"cause"` // SECLDoc[cause] Definition:`Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)`
+	Code  uint32 `field:"code"`  // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
+}
+
+// DNSEvent represents a DNS event
+type DNSEvent struct {
+	ID    uint16 `field:"id" json:"-"`                                             // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
+	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
 // ExtraFieldHandlers handlers not hold by any field
