@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package security_profile_tests
+// Package securityprofiletests holds securityprofiletests related files
+package securityprofiletests
 
 import (
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
@@ -655,7 +656,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			activity_tree.WorkloadWarmup: nil,
 		},
 	}
-	var at *activity_tree.ActivityTree = nil
+	var at *activity_tree.ActivityTree
 
 	for _, ti := range tests {
 

@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+// Package eventmonitor holds eventmonitor related files
 package eventmonitor
 
 import (

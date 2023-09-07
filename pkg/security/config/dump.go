@@ -5,6 +5,7 @@
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=StorageFormat,StorageType -linecomment -output enum_string.go
 
+// Package config holds config related files
 package config
 
 import (
