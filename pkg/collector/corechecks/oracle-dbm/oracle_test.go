@@ -11,7 +11,9 @@ import (
 	"database/sql"
 	"fmt"
 
-	"math"
+	"testing"
+	"time"
+
 	"testing"
 	"time"
 
@@ -46,7 +48,7 @@ func TestConnection(t *testing.T) {
 	assert.NoError(t, err)
 
 	databaseUrl = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
-	_, err = sqlx.Open("godror", databaseUrl)
+	_, err = sqlx.Open("oracle", databaseUrl)
 	assert.NoError(t, err)
 	err = db.Ping()
 	assert.NoError(t, err)
@@ -109,10 +111,28 @@ func getSession(db *sqlx.DB) (string, error) {
 	return r, err
 }
 
+func getLOBReads(db *sqlx.DB) (float64, error) {
+	var r float64
+	err := chk.db.Get(&r, `SELECT name,value 
+	FROM v$sesstat  m, v$statname n, v$session s 
+	WHERE n.statistic# = m.statistic# AND s.sid = m.sid AND s.username = 'C##DATADOG' AND n.name = 'lob reads'`)
+	return r, err
+}
+
+func getTemporaryLobs(db *sqlx.DB) (int, error) {
+	var r int
+	err := chk.db.Get(&r, `SELECT SUM(cache_lobs) + SUM(nocache_lobs) + SUM(abstract_lobs) 
+	FROM v$temporary_lobs l, v$session s WHERE s.SID = l.SID AND s.username = 'C##DATADOG'`)
+	return r, err
+}
+
 func TestChkRun(t *testing.T) {
 	initAndStartAgentDemultiplexer(t)
 	chk.dbmEnabled = true
 	chk.config.InstanceConfig.InstantClient = false
+
+	// This is to ensure that query samples return rows
+	chk.config.QuerySamples.IncludeAllSessions = true
 
 	type RowsStruct struct {
 		N int `db:"N"`
@@ -134,28 +154,42 @@ func TestChkRun(t *testing.T) {
 		err := chk.Run()
 		assert.NoError(t, err, "check run with %s driver", driver)
 
+		sessionBefore, _ := getSession(chk.db)
+
 		pgaBefore, err := getUsedPGA(chk.db)
 		assert.NoError(t, err, "get used pga with %s driver", driver)
+		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 
-		sessionBefore, _ := getSession(chk.db)
+		tempLobsBefore, _ := getTemporaryLobs(chk.db)
+
 		_, err = chk.db.Exec(`begin
 				for i in 1..1000
 				loop
-				  execute immediate 'insert into t values (' || i || ')';
+					execute immediate 'insert into t values (' || i || ')';
 				end loop;
-			  end ;`)
+				end ;`)
 		assert.NoError(t, err, "error generating statements with %s driver", driver)
+
+		chk.Run()
+
+		pgaAfter1StRun, _ := getUsedPGA(chk.db)
+		diff1 := (pgaAfter1StRun - pgaBefore) / 1024
+		assert.Less(t, diff1, float64(1024), "extreme PGA usage (%f KB) with the %s driver", diff1, driver)
 
 		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 		chk.Run()
-		pgaAfter, err := getUsedPGA(chk.db)
-		assert.NoError(t, err, "get used pga with %s driver", driver)
-		growth := math.Round((pgaAfter - pgaBefore) / 1024 / 1024)
-		assert.Less(t, growth, float64(50), "PGA used changed between two consecutive runs")
+
+		pgaAfter2ndRun, _ := getUsedPGA(chk.db)
+		diff2 := (pgaAfter2ndRun - pgaAfter1StRun) / 1024
+		percGrowth := (diff2 - diff1) * 100 / diff1
+		assert.Less(t, percGrowth, float64(10), "PGA memory leak (%f %% increase between two consecutive runs) with the %s driver", percGrowth, driver)
+
+		tempLobsAfter, _ := getTemporaryLobs(chk.db)
+		diffTempLobs := tempLobsAfter - tempLobsBefore
+		assert.Equal(t, 0, diffTempLobs, "temporary LOB leak (%d) with %s driver", diffTempLobs, driver)
 
 		sessionAfter, _ := getSession(chk.db)
 		assert.Equal(t, sessionBefore, sessionAfter, "The agent reconnected")
-
 	}
 }
 
