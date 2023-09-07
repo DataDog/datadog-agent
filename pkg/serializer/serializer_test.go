@@ -8,7 +8,9 @@
 package serializer
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -27,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -211,18 +214,27 @@ func createJSONBytesPayloadMatcher(prefix string) interface{} {
 func createProtoscopeMatcher(protoscopeDef string) interface{} {
 	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
-			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
+			compressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			z, err := stream.NewZipperWrapper(compressorKind)
+			if err != nil {
 				return false
+			}
+			r, err := z.NewZipperReader(bytes.NewReader(compressedPayload.GetContent()))
+			if err != nil {
+				return false
+			}
+			payload, err := io.ReadAll(r)
+			if err != nil {
+				return false
+			}
+			res, err := protoscope.NewScanner(protoscopeDef).Exec()
+			if err != nil {
+				return false
+			}
+			if reflect.DeepEqual(res, payload) {
+				return true
 			} else {
-				res, err := protoscope.NewScanner(protoscopeDef).Exec()
-				if err != nil {
-					return false
-				}
-				if reflect.DeepEqual(res, payload) {
-					return true
-				} else {
-					fmt.Printf("Did not match. Payload was\n%x and protoscope compilation was\n%x\n", payload, res)
-				}
+				fmt.Printf("Did not match. Payload was\n%x and protoscope compilation was\n%x\n", payload, res)
 			}
 		}
 		return false

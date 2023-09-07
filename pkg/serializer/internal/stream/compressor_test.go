@@ -9,7 +9,6 @@ package stream
 
 import (
 	"bytes"
-	"compress/zlib"
 	"fmt"
 	"io"
 	"strings"
@@ -24,6 +23,7 @@ import (
 
 var (
 	maxPayloadSizeDefault = config.Datadog.GetInt("serializer_max_payload_size")
+	compressorKind        = config.Datadog.GetString("serializer_compressor_kind")
 )
 
 func resetDefaults() {
@@ -31,7 +31,11 @@ func resetDefaults() {
 }
 
 func decompressPayload(payload []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(payload))
+	z, err := NewZipperWrapper(compressorKind)
+	if err != nil {
+		return nil, err
+	}
+	r, err := z.NewZipperReader(bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +62,7 @@ func TestCompressorSimple(t *testing.T) {
 	c, err := NewCompressor(
 		&bytes.Buffer{}, &bytes.Buffer{},
 		maxPayloadSize, maxUncompressedSize,
-		[]byte("{["), []byte("]}"), []byte(","))
+		[]byte("{["), []byte("]}"), []byte(","), compressorKind)
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
@@ -78,7 +82,7 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 		c, err := NewCompressor(
 			&bytes.Buffer{}, &bytes.Buffer{},
 			maxPayloadSize, maxUncompressedSize,
-			[]byte("{["), []byte("]}"), []byte(","))
+			[]byte("{["), []byte("]}"), []byte(","), compressorKind)
 		require.NoError(t, err)
 
 		payload := strings.Repeat("A", dataLen)

@@ -9,7 +9,6 @@ package metrics
 
 import (
 	"bytes"
-	"compress/zlib"
 	"io"
 	"testing"
 
@@ -17,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
@@ -91,7 +91,7 @@ func TestSketchSeriesSplitEmptyPayload(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
-
+	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
 	sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 	payload, _ := sl.Marshal()
 	payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext())
@@ -101,7 +101,10 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	firstPayload := payloads[0]
 	assert.Equal(t, 0, firstPayload.GetPointCount())
 	reader := bytes.NewReader(firstPayload.GetContent())
-	r, _ := zlib.NewReader(reader)
+	z, err := stream.NewZipperWrapper(compressorKind)
+	assert.Nil(t, err)
+	r, err := z.NewZipperReader(reader)
+	assert.Nil(t, err)
 	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
@@ -110,7 +113,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
-
+	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
 	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
@@ -135,9 +138,11 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	firstPayload := payloads[0]
 	require.Equal(t, 0, firstPayload.GetPointCount())
 	reader := bytes.NewReader(firstPayload.GetContent())
-	r, _ := zlib.NewReader(reader)
+	z, err := stream.NewZipperWrapper(compressorKind)
+	assert.Nil(t, err)
+	r, err := z.NewZipperReader(reader)
+	assert.Nil(t, err)
 	decompressed, _ := io.ReadAll(r)
-	r.Close()
 
 	pl := new(gogen.SketchPayload)
 	if err := pl.Unmarshal(decompressed); err != nil {
@@ -165,7 +170,11 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	firstPayload := payloads[0]
 	assert.Equal(t, 11, firstPayload.GetPointCount())
 	reader := bytes.NewReader(firstPayload.GetContent())
-	r, _ := zlib.NewReader(reader)
+	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
+	z, err := stream.NewZipperWrapper(compressorKind)
+	assert.Nil(t, err)
+	r, err := z.NewZipperReader(reader)
+	assert.Nil(t, err)
 	decompressed, _ := io.ReadAll(r)
 	r.Close()
 
@@ -199,6 +208,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
 	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.Set("serializer_max_uncompressed_payload_size", 2000)
+	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
 
 	sl := metrics.NewSketchesSourceTest()
 
@@ -217,7 +227,10 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	pointCount := 0
 	for _, pld := range payloads {
 		reader := bytes.NewReader(pld.GetContent())
-		r, _ := zlib.NewReader(reader)
+		z, err := stream.NewZipperWrapper(compressorKind)
+		assert.Nil(t, err)
+		r, err := z.NewZipperReader(reader)
+		assert.Nil(t, err)
 		decompressed, _ := io.ReadAll(r)
 		r.Close()
 

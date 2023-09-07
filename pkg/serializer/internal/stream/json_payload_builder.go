@@ -108,6 +108,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	// sizes, but prefers small uncompressed payloads.
 	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
 	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
 
 	if b.shareAndLockBuffers {
 		defer b.mu.Unlock()
@@ -154,7 +155,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	compressor, err := NewCompressor(
 		input, output,
 		maxPayloadSize, maxUncompressedSize,
-		header.Bytes(), footer.Bytes(), []byte(","))
+		header.Bytes(), footer.Bytes(), []byte(","), compressorKind)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			compressor, err = NewCompressor(
 				input, output,
 				maxPayloadSize, maxUncompressedSize,
-				header.Bytes(), footer.Bytes(), []byte(","))
+				header.Bytes(), footer.Bytes(), []byte(","), compressorKind)
 			if err != nil {
 				return nil, err
 			}
