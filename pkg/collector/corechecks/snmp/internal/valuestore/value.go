@@ -7,9 +7,10 @@ package valuestore
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )

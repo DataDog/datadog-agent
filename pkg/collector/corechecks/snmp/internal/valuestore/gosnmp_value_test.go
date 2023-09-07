@@ -7,11 +7,12 @@ package valuestore
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func Test_getValueFromPDU(t *testing.T) {

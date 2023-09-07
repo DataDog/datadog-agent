@@ -6,11 +6,12 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 // SetConfdPathAndCleanProfiles is used for testing only

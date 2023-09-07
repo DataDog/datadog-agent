@@ -6,10 +6,11 @@
 package valuestore
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func TestToFloat64FromString(t *testing.T) {

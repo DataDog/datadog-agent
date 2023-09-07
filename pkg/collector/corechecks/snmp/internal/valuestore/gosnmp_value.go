@@ -6,14 +6,15 @@
 package valuestore
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"math"
 	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // GetResultValueFromPDU converts gosnmp.SnmpPDU to ResultValue

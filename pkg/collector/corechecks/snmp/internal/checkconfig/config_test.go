@@ -6,17 +6,17 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"regexp"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
 func TestConfigurations(t *testing.T) {
