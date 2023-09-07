@@ -497,11 +497,6 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.Se
 		return
 	}
 
-	// No diagnosis to report
-	if len(diagnoses) == 0 {
-		return
-	}
-
 	// Serizalize diagnoses (and implicitly write result to the response)
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(diagnoses)

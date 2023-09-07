@@ -81,6 +81,11 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
+// RegisterGRPC register to system probe gRPC server
+func (m *EventMonitor) RegisterGRPC(_ *grpc.Server) error {
+	return nil
+}
+
 // AddEventTypeHandler registers an event handler
 func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
 	if !slices.Contains(allowedEventTypes, eventType) {
@@ -139,15 +144,15 @@ func (m *EventMonitor) Start() error {
 		return err
 	}
 
-	if err := m.Probe.Start(); err != nil {
-		return err
-	}
-
 	// start event consumers
 	for _, em := range m.eventConsumers {
 		if err := em.Start(); err != nil {
 			log.Errorf("unable to start %s event consumer: %v", em.ID(), err)
 		}
+	}
+
+	if err := m.Probe.Start(); err != nil {
+		return err
 	}
 
 	m.wg.Add(1)

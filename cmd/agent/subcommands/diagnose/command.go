@@ -9,7 +9,6 @@ package diagnose
 import (
 	"fmt"
 	"os"
-	"regexp"
 
 	"go.uber.org/fx"
 
@@ -148,37 +147,15 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
-	if len(patterns) > 0 {
-		res := make([]*regexp.Regexp, 0)
-		for _, pattern := range patterns {
-			re, err := regexp.Compile(pattern)
-			if err != nil {
-				return nil, fmt.Errorf("failed to compile regex pattern %s: %s", pattern, err.Error())
-			}
-			res = append(res, re)
-		}
-		return res, nil
-	}
-	return nil, nil
-}
-
 func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParams) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
+		Include:  cliParams.include,
+		Exclude:  cliParams.exclude,
 	}
 
-	// prepare include/exclude
-	var err error
-	if diagCfg.Include, err = strToRegexList(cliParams.include); err != nil {
-		return err
-	}
-	if diagCfg.Exclude, err = strToRegexList(cliParams.exclude); err != nil {
-		return err
-	}
-
-	// List command
+	// Is it List command
 	if cliParams.listSuites {
 		pkgdiagnose.ListStdOut(color.Output, diagCfg)
 		return nil

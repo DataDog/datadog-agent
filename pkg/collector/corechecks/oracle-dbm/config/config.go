@@ -145,6 +145,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
+
+	instance.ExecutionPlans.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {

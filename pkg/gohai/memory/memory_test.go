@@ -39,5 +39,5 @@ func TestMemoryAsJSON(t *testing.T) {
 	utils.RequireMarshallJSON(t, memInfo, &decodedMem)
 
 	utils.AssertDecodedValue(t, decodedMem.Total, &memInfo.TotalBytes, "")
-	utils.AssertDecodedValue(t, decodedMem.SwapTotal, &memInfo.SwapTotalKb, "kb")
+	utils.AssertDecodedValue(t, decodedMem.SwapTotal, &memInfo.SwapTotalKb, "kB")
 }
