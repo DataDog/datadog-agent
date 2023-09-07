@@ -57,13 +57,13 @@ func TestReportDeviceDiagnosesReset(t *testing.T) {
 	expectedResetedMetadata := []metadata.DiagnosisMetadata{{
 		ResourceType: "device",
 		ResourceID:   "default:1.2.3.4.5",
-		Diagnoses:    []metadata.Diagnosis{},
+		Diagnoses:    nil,
 	}}
 
 	assert.Equal(t, expectedResetedMetadata, diagnosisResetedMetadata)
 }
 
-func TestReportCLIDiagnoses(t *testing.T) {
+func TestReportAsAgentDiagnoses(t *testing.T) {
 	diagnoses := NewDeviceDiagnoses("default:1.2.3.4.5")
 
 	diagnoses.Add("error", "TEST_ERROR_DIAG", "This is a test error diagnosis")
