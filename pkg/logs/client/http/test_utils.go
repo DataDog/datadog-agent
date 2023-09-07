@@ -12,9 +12,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -82,7 +82,7 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		BackoffMax:       10,
 		RecoveryInterval: 1,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test")
+	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", coreConfig.Datadog)
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket"
@@ -33,14 +34,16 @@ type UDPListener struct {
 	source           *sources.LogSource
 	frameSize        int
 	tailer           *tailer.Tailer
+	cfg              conf.Config
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *UDPListener {
+func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int, cfg conf.Config) *UDPListener {
 	return &UDPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
 		frameSize:        frameSize,
+		cfg:              cfg,
 	}
 }
 
@@ -70,7 +73,7 @@ func (l *UDPListener) startNewTailer() error {
 	if err != nil {
 		return err
 	}
-	l.tailer = tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
+	l.tailer = tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read, l.cfg)
 	l.tailer.Start()
 	return nil
 }

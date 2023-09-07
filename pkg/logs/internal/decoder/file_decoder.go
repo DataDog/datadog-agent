@@ -9,7 +9,7 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -21,12 +21,12 @@ import (
 )
 
 // NewDecoderFromSource creates a new decoder from a log source
-func NewDecoderFromSource(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry) *Decoder {
-	return NewDecoderFromSourceWithPattern(source, nil, tailerInfo)
+func NewDecoderFromSource(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry, cfg conf.Config) *Decoder {
+	return NewDecoderFromSourceWithPattern(source, nil, tailerInfo, cfg)
 }
 
 // NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
-func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
+func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, cfg conf.Config) *Decoder {
 
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var lineParser parsers.Parser
@@ -35,7 +35,7 @@ func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLin
 	case sources.KubernetesSourceType:
 		lineParser = kubernetes.New()
 	case sources.DockerSourceType:
-		if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		if cfg.GetBool("logs_config.use_podman_logs") {
 			// podman's on-disk logs are in kubernetes format
 			lineParser = kubernetes.New()
 		} else {
@@ -64,5 +64,5 @@ func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLin
 		tailerInfo.Register(encodingInfo)
 	}
 
-	return NewDecoderWithFraming(source, lineParser, framing, multiLinePattern, tailerInfo)
+	return NewDecoderWithFraming(source, lineParser, framing, multiLinePattern, tailerInfo, cfg)
 }

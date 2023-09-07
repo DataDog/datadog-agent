@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket"
@@ -29,10 +30,11 @@ type TCPListener struct {
 	tailers          []*tailer.Tailer
 	mu               sync.Mutex
 	stop             chan struct{}
+	cfg              conf.Config
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *TCPListener {
+func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int, cfg conf.Config) *TCPListener {
 	var idleTimeout time.Duration
 	if source.Config.IdleTimeout != "" {
 		var err error
@@ -50,6 +52,7 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		frameSize:        frameSize,
 		tailers:          []*tailer.Tailer{},
 		stop:             make(chan struct{}, 1),
+		cfg:              cfg,
 	}
 }
 
@@ -145,7 +148,7 @@ func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, error) {
 func (l *TCPListener) startTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer := tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
+	tailer := tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read, l.cfg)
 	l.tailers = append(l.tailers, tailer)
 	tailer.Start()
 }

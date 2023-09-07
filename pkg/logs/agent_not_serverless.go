@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -31,31 +31,32 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, cfg conf.Config) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
-	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
-	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
+	auditorTTL := time.Duration(cfg.GetInt("logs_config.auditor_ttl")) * time.Hour
+	auditor := auditor.New(cfg.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx, cfg)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
-		coreConfig.Datadog.GetInt("logs_config.open_files_limit"),
+		cfg.GetInt("logs_config.open_files_limit"),
 		filelauncher.DefaultSleepDuration,
-		coreConfig.Datadog.GetBool("logs_config.validate_pod_container_id"),
-		time.Duration(coreConfig.Datadog.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		coreConfig.Datadog.GetString("logs_config.file_wildcard_selection_mode")))
-	lnchrs.AddLauncher(listener.NewLauncher(coreConfig.Datadog.GetInt("logs_config.frame_size")))
+		cfg.GetBool("logs_config.validate_pod_container_id"),
+		time.Duration(cfg.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
+		cfg.GetString("logs_config.file_wildcard_selection_mode"),
+		cfg))
+	lnchrs.AddLauncher(listener.NewLauncher(cfg.GetInt("logs_config.frame_size"), cfg))
 	lnchrs.AddLauncher(journald.NewLauncher())
-	lnchrs.AddLauncher(windowsevent.NewLauncher())
+	lnchrs.AddLauncher(windowsevent.NewLauncher(cfg))
 	lnchrs.AddLauncher(container.NewLauncher(sources))
 
 	return &Agent{
@@ -72,10 +73,10 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints() (*config.Endpoints, error) {
+func buildEndpoints(cfg conf.Config) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(cfg, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+		httpConnectivity = http.CheckConnectivity(endpoints.Main, cfg)
 	}
-	return config.BuildEndpointsWithVectorOverride(coreConfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverride(cfg, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }

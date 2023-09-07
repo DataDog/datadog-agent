@@ -12,7 +12,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,16 +33,16 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider.
-func NewProvider(entityID string) Provider {
-	return newProviderWithClock(entityID, clock.New())
+func NewProvider(entityID string, cfg conf.Config) Provider {
+	return newProviderWithClock(entityID, clock.New(), cfg)
 }
 
 // newProviderWithClock returns a new provider using the given clock.
-func newProviderWithClock(entityID string, clock clock.Clock) Provider {
+func newProviderWithClock(entityID string, clock clock.Clock, cfg conf.Config) Provider {
 	p := &provider{
 		entityID:             entityID,
-		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog),
-		localTagProvider:     newLocalProviderWithClock([]string{}, clock),
+		taggerWarmupDuration: config.TaggerWarmupDuration(cfg),
+		localTagProvider:     newLocalProviderWithClock([]string{}, clock, cfg),
 		clock:                clock,
 	}
 

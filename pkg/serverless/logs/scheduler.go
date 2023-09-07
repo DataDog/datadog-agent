@@ -7,6 +7,7 @@ package logs
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/channel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -18,7 +19,7 @@ var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
 func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string) {
-	agent, err := logs.StartServerless()
+	agent, err := logs.StartServerless(coreConfig.Datadog)
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
 		return

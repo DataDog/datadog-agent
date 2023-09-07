@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -40,6 +40,8 @@ type Agent struct {
 
 	// started is true if the agent has ever been started
 	started bool
+
+	config conf.Config
 }
 
 // Start starts all the elements of the data pipeline
@@ -88,7 +90,7 @@ func (a *Agent) Stop() {
 		stopper.Stop()
 		close(c)
 	}()
-	timeout := time.Duration(coreConfig.Datadog.GetInt("logs_config.stop_grace_period")) * time.Second
+	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
 	select {
 	case <-c:
 	case <-time.After(timeout):

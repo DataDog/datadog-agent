@@ -13,7 +13,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -42,11 +42,11 @@ var (
 )
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless() (*Agent, error) {
-	return CreateAgent()
+func StartServerless(cfg conf.Config) (*Agent, error) {
+	return CreateAgent(cfg)
 }
 
-func CreateAgent() (*Agent, error) {
+func CreateAgent(cfg conf.Config) (*Agent, error) {
 	if IsAgentRunning() {
 		return agent, nil
 	}
@@ -57,7 +57,7 @@ func CreateAgent() (*Agent, error) {
 	tracker := tailers.NewTailerTracker()
 
 	// setup the server config
-	endpoints, err := buildEndpoints()
+	endpoints, err := buildEndpoints(cfg)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -74,7 +74,7 @@ func CreateAgent() (*Agent, error) {
 	status.Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars)
 
 	// setup global processing rules
-	processingRules, err := config.GlobalProcessingRules(coreConfig.Datadog)
+	processingRules, err := config.GlobalProcessingRules(cfg)
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
@@ -88,7 +88,7 @@ func CreateAgent() (*Agent, error) {
 
 	// setup and start the logs agent
 	log.Info("Starting logs-agent...")
-	agent = NewAgent(sources, services, tracker, processingRules, endpoints)
+	agent = NewAgent(sources, services, tracker, processingRules, endpoints, cfg)
 
 	agent.Start()
 	isRunning.Store(true)

@@ -6,6 +6,7 @@
 package windowsevent
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -24,13 +25,15 @@ type Launcher struct {
 	pipelineProvider pipeline.Provider
 	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
+	cfg              conf.Config
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher() *Launcher {
+func NewLauncher(cfg conf.Config) *Launcher {
 	return &Launcher{
 		tailers: make(map[string]*tailer.Tailer),
 		stop:    make(chan struct{}),
+		cfg:     cfg,
 	}
 }
 
@@ -99,7 +102,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 		ChannelPath: sanitizedConfig.ChannelPath,
 		Query:       sanitizedConfig.Query,
 	}
-	tailer := tailer.NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
+	tailer := tailer.NewTailer(source, config, l.pipelineProvider.NextPipelineChan(), l.cfg)
 	tailer.Start()
 	return tailer, nil
 }

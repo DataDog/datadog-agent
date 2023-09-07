@@ -10,6 +10,7 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -55,7 +56,7 @@ func newLogsAgent(deps dependencies) util.Optional[Component] {
 
 func (l *logsAgent) start(context.Context) error {
 
-	logsAgent, err := logs.CreateAgent()
+	logsAgent, err := logs.CreateAgent(config.Datadog)
 	if err != nil {
 		l.log.Error("Could not start logs-agent: ", err)
 		return err

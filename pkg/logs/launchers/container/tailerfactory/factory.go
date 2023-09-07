@@ -10,6 +10,7 @@
 package tailerfactory
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -49,18 +50,21 @@ type factory struct {
 
 	// dockerutil memoizes a DockerUtil instance; fetch this with getDockerUtil().
 	dockerutil *dockerutilPkg.DockerUtil
+
+	cfg conf.Config
 }
 
 var _ Factory = (*factory)(nil)
 
 // New creates a new Factory.
-func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore workloadmeta.Store) Factory {
+func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore workloadmeta.Store, cfg conf.Config) Factory {
 	return &factory{
 		sources:           sources,
 		pipelineProvider:  pipelineProvider,
 		registry:          registry,
 		workloadmetaStore: workloadmetaStore,
 		cop:               containersorpods.NewChooser(),
+		cfg:               cfg,
 	}
 }
 

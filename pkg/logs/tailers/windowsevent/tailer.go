@@ -16,6 +16,7 @@ import (
 
 	"github.com/clbanning/mxj"
 
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/windowsevent"
@@ -68,11 +69,11 @@ type Tailer struct {
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *sources.LogSource, config *Config, outputChan chan *message.Message, cfg conf.Config) *Tailer {
 	return &Tailer{
 		source:     source,
 		config:     config,
-		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), windowsevent.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), windowsevent.New(), framer.NoFraming, nil, status.NewInfoRegistry(), cfg),
 		outputChan: outputChan,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),

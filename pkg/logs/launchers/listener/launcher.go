@@ -7,6 +7,7 @@ package listener
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -23,13 +24,15 @@ type Launcher struct {
 	udpSources       chan *sources.LogSource
 	listeners        []startstop.StartStoppable
 	stop             chan struct{}
+	cfg              conf.Config
 }
 
 // NewLauncher returns an initialized Launcher
-func NewLauncher(frameSize int) *Launcher {
+func NewLauncher(frameSize int, cfg conf.Config) *Launcher {
 	return &Launcher{
 		frameSize: frameSize,
 		stop:      make(chan struct{}),
+		cfg:       cfg,
 	}
 }
 
@@ -46,11 +49,11 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.tcpSources:
-			listener := NewTCPListener(l.pipelineProvider, source, l.frameSize)
+			listener := NewTCPListener(l.pipelineProvider, source, l.frameSize, l.cfg)
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case source := <-l.udpSources:
-			listener := NewUDPListener(l.pipelineProvider, source, l.frameSize)
+			listener := NewUDPListener(l.pipelineProvider, source, l.frameSize, l.cfg)
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case <-l.stop:

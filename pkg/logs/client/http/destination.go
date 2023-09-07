@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -90,7 +90,8 @@ func NewDestination(endpoint config.Endpoint,
 	destinationsContext *client.DestinationsContext,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string) *Destination {
+	telemetryName string,
+	cfg conf.Config) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -98,7 +99,8 @@ func NewDestination(endpoint config.Endpoint,
 		time.Second*10,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
-		telemetryName)
+		telemetryName,
+		cfg)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -107,7 +109,8 @@ func newDestination(endpoint config.Endpoint,
 	timeout time.Duration,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string) *Destination {
+	telemetryName string,
+	cfg conf.Config) *Destination {
 
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
@@ -115,7 +118,7 @@ func newDestination(endpoint config.Endpoint,
 	var policy backoff.Policy
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
 		policy = backoff.NewConstantBackoffPolicy(
-			coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"),
+			cfg.GetDuration("serverless.constant_backoff_interval"),
 		)
 	} else {
 		policy = backoff.NewExpBackoffPolicy(
@@ -385,10 +388,10 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
-func prepareCheckConnectivity(endpoint config.Endpoint) (*client.DestinationsContext, *Destination) {
+func prepareCheckConnectivity(endpoint config.Endpoint, cfg conf.Config) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
 	return ctx, destination
 }
 
@@ -399,9 +402,9 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 }
 
 // CheckConnectivity check if sending logs through HTTP works
-func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
+func CheckConnectivity(endpoint config.Endpoint, cfg conf.Config) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
-	ctx, destination := prepareCheckConnectivity(endpoint)
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
@@ -412,8 +415,8 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	return err == nil
 }
 
-func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
-	ctx, destination := prepareCheckConnectivity(endpoint)
+func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg conf.Config) (url string, err error) {
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 

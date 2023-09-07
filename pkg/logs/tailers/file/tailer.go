@@ -17,7 +17,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/benbjohnson/clock"
@@ -138,17 +138,17 @@ type TailerOptions struct {
 //
 // The Tailer must poll for content in the file.  The `sleepDuration` parameter
 // specifies how long the tailer should wait between polls.
-func NewTailer(opts *TailerOptions) *Tailer {
+func NewTailer(opts *TailerOptions, cfg conf.Config) *Tailer {
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier))
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier), cfg)
 	} else {
-		tagProvider = tag.NewLocalProvider([]string{})
+		tagProvider = tag.NewLocalProvider([]string{}, cfg)
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
-	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
-	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
+	closeTimeout := cfg.GetDuration("logs_config.close_timeout") * time.Second
+	windowsOpenFileTimeout := cfg.GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
 	fileRotated := opts.Rotated
@@ -197,7 +197,7 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
+func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry, cfg conf.Config) *Tailer {
 	options := &TailerOptions{
 		OutputChan:    t.outputChan,
 		File:          file,
@@ -207,7 +207,7 @@ func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *st
 		Rotated:       true,
 	}
 
-	return NewTailer(options)
+	return NewTailer(options, cfg)
 }
 
 // Identifier returns a string that identifies this tailer in the registry.

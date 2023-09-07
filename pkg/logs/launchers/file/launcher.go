@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
@@ -47,10 +48,11 @@ type Launcher struct {
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerID bool
 	scanPeriod             time.Duration
+	cfg                    conf.Config
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, cfg conf.Config) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
@@ -71,6 +73,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
 		scanPeriod:             scanPeriod,
+		cfg:                    cfg,
 	}
 }
 
@@ -343,16 +346,16 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		OutputChan:    outputChan,
 		File:          file,
 		SleepDuration: s.tailerSleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo, s.cfg),
 		Info:          tailerInfo,
 	}
 
-	return tailer.NewTailer(tailerOptions)
+	return tailer.NewTailer(tailerOptions, s.cfg)
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
-	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
+	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo, s.cfg), tailerInfo, s.cfg)
 }
 
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {

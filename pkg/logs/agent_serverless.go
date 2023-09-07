@@ -9,7 +9,7 @@ package logs
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -30,7 +30,7 @@ import (
 // NewAgent returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
-func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, cfg conf.Config) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
@@ -40,7 +40,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx, cfg)
 
 	// setup the sole launcher for this agent
 	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tracker)
@@ -60,6 +60,6 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints() (*config.Endpoints, error) {
-	return config.BuildServerlessEndpoints(coreConfig.Datadog, intakeTrackType, config.DefaultIntakeProtocol)
+func buildEndpoints(cfg conf.Config) (*config.Endpoints, error) {
+	return config.BuildServerlessEndpoints(cfg, intakeTrackType, config.DefaultIntakeProtocol)
 }

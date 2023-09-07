@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -124,7 +125,7 @@ var (
 // Variables to initialize at start time
 var (
 	// StartTime is the agent startup time
-	StartTime = time.Now()
+	StartTime = conf.StartTime
 
 	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
 	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
@@ -199,10 +200,7 @@ type Endpoint struct {
 }
 
 // Warnings represent the warnings in the config
-type Warnings struct {
-	TraceMallocEnabledWithPy2 bool
-	Err                       error
-}
+type Warnings = conf.Warnings
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
 type DataType string
