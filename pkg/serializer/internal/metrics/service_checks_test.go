@@ -9,7 +9,6 @@ package metrics
 
 import (
 	"bytes"
-	"compress/zlib"
 	"fmt"
 	"io"
 	"strings"
@@ -154,7 +153,12 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 }
 
 func decompressPayload(payload []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(payload))
+	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
+	z, err := stream.NewZipperWrapper(compressorKind)
+	if err != nil {
+		return nil, err
+	}
+	r, err := z.NewZipperReader(bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
