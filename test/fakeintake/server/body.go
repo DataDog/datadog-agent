@@ -5,6 +5,12 @@
 
 package server
 
+import (
+	"net/http"
+
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
+)
+
 type errorResponseBody struct {
 	Errors []string `json:"errors"`
 }
@@ -15,15 +21,45 @@ type flareResponseBody struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// getResponseBodyFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
-func getResponseBodyFromURLPath(urlPath string) interface{} {
-	var body interface{}
+func getConnectionsResponse() []byte {
+	clStatus := &agentmodel.CollectorStatus{
+		ActiveClients: 1,
+		Interval:      30,
+	}
+	response := &agentmodel.ResCollector{
+		Message: "",
+		Status:  clStatus,
+	}
+	out, err := agentmodel.EncodeMessage(agentmodel.Message{
+		Header: agentmodel.MessageHeader{
+			Version:        agentmodel.MessageV3,
+			Encoding:       agentmodel.MessageEncodingProtobuf,
+			Type:           agentmodel.TypeResCollector,
+			OrgID:          503,
+			SubscriptionID: 2,
+		}, Body: response})
+	if err != nil {
+		panic(err) // will happen when new Message version exist and mark encodeV3 as retired
+	}
+	return out
+}
 
-	if urlPath == "/support/flare" {
-		body = flareResponseBody{CaseID: 0, Error: ""}
-	} else {
-		body = errorResponseBody{Errors: []string{}}
+// getResponseFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
+func getResponseFromURLPath(urlPath string) httpResponse {
+	var response httpResponse
+
+	switch urlPath {
+	case "/support/flare":
+		response = buildSuccessResponse(flareResponseBody{CaseID: 0, Error: ""})
+	case "/api/v1/connections":
+		response = httpResponse{
+			statusCode:  http.StatusOK,
+			contentType: "application/x-protobuf",
+			body:        getConnectionsResponse(),
+		}
+	default:
+		response = buildSuccessResponse(errorResponseBody{Errors: []string{}})
 	}
 
-	return body
+	return response
 }
