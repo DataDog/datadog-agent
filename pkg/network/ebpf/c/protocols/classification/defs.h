@@ -135,6 +135,7 @@ typedef enum {
     PROG_HTTP,
     PROG_HTTP2,
     PROG_HTTP2_FRAME_PARSER,
+    PROG_HTTP2_TLS_ENTRY,
     PROG_KAFKA,
     PROG_GRPC,
     // Add before this value.

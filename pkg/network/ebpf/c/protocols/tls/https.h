@@ -3,10 +3,10 @@
 
 #ifdef COMPILE_CORE
 #include "ktypes.h"
-#define MINORBITS	20
-#define MINORMASK	((1U << MINORBITS) - 1)
-#define MAJOR(dev)	((unsigned int) ((dev) >> MINORBITS))
-#define MINOR(dev)	((unsigned int) ((dev) & MINORMASK))
+#define MINORBITS  20
+#define MINORMASK  ((1U << MINORBITS) - 1)
+#define MAJOR(dev) ((unsigned int)((dev) >> MINORBITS))
+#define MINOR(dev) ((unsigned int)((dev)&MINORMASK))
 #else
 #include <linux/dcache.h>
 #include <linux/fs.h>
@@ -21,11 +21,11 @@
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
-#include "protocols/http/types.h"
-#include "protocols/http/maps.h"
 #include "protocols/http/http.h"
-#include "protocols/tls/tags-types.h"
+#include "protocols/http/maps.h"
+#include "protocols/http/types.h"
 #include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/tags-types.h"
 
 #define HTTPS_PORT 443
 
@@ -51,11 +51,12 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
     set_protocol(stack, proto);
 }
 
-static __always_inline void tls_process(conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
+static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
     protocol_stack_t *stack = get_protocol_stack(t);
     if (!stack) {
         return;
     }
+    log_debug("tls process entry");
 
     char request_fragment[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(request_fragment, 0, sizeof(CLASSIFICATION_MAX_BUFFER));
@@ -71,6 +72,15 @@ static __always_inline void tls_process(conn_tuple_t *t, void *buffer_ptr, size_
         bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
         read_into_buffer(http.request_fragment, buffer_ptr, len);
         http_process(&http, NULL, tags);
+        break;
+    case PROTOCOL_HTTP2:
+        log_debug("tls_process: http2 case (before tail call)");
+        /* bpf_memset(&http, 0, sizeof(http)); */
+        /* bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t)); */
+        /* read_into_buffer(http.request_fragment, buffer_ptr, len); */
+        /* http2_process(&) */
+
+        bpf_tail_call_compat(ctx, &protocols_progs, PROG_HTTP2_TLS_ENTRY);
         break;
     default:
         return;
@@ -90,7 +100,7 @@ static __always_inline void tls_finish(conn_tuple_t *t) {
         bpf_memset(&http, 0, sizeof(http));
         bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t));
 
-        skb_info_t skb_info = {0};
+        skb_info_t skb_info = { 0 };
         skb_info.tcp_flags |= TCPHDR_FIN;
         http_process(&http, &skb_info, NO_TAGS);
         break;
@@ -102,7 +112,7 @@ static __always_inline void tls_finish(conn_tuple_t *t) {
     }
 }
 
-static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
+static __always_inline conn_tuple_t *tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
     if (ssl_sock == NULL) {
         // Best-effort fallback mechanism to guess the socket address without
@@ -131,7 +141,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
     };
 
     struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
-    if (sock == NULL)  {
+    if (sock == NULL) {
         return NULL;
     }
 
@@ -189,8 +199,8 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
  * get_offsets_data retrieves the result of binary analysis for the
  * current task binary's inode number.
  */
-static __always_inline tls_offsets_data_t* get_offsets_data() {
-    struct task_struct *t = (struct task_struct *) bpf_get_current_task();
+static __always_inline tls_offsets_data_t *get_offsets_data() {
+    struct task_struct *t = (struct task_struct *)bpf_get_current_task();
     struct inode *inode;
     go_tls_offsets_data_key_t key;
     dev_t dev_id;

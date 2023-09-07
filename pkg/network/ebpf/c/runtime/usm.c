@@ -52,7 +52,7 @@ int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
 }
 
 SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
+int tracepoint__net__netif_receive_skb(struct pt_regs *ctx) {
     log_debug("tracepoint/net/netif_receive_skb\n");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
@@ -69,14 +69,14 @@ SEC("uprobe/crypto/tls.(*Conn).Write")
 int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
-    tls_offsets_data_t* od = get_offsets_data();
+    tls_offsets_data_t *od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-write] no offsets data in map for pid %d\n", pid);
         return 0;
     }
 
     // Read the PID and goroutine ID to make the partial call key
-    go_tls_function_args_key_t call_key = {0};
+    go_tls_function_args_key_t call_key = { 0 };
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-write] failed reading go routine id for pid %d\n", pid);
@@ -85,7 +85,7 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
 
     // Read the parameters to make the partial call data
     // (since the parameters might not be live by the time the return probe is hit).
-    go_tls_write_args_data_t call_data = {0};
+    go_tls_write_args_data_t call_data = { 0 };
     if (read_location(ctx, &od->write_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
         log_debug("[go-tls-write] failed reading conn pointer for pid %d\n", pid);
         return 0;
@@ -110,14 +110,14 @@ SEC("uprobe/crypto/tls.(*Conn).Write/return")
 int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
-    tls_offsets_data_t* od = get_offsets_data();
+    tls_offsets_data_t *od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-write-return] no offsets data in map for pid %d\n", pid);
         return 0;
     }
 
     // Read the PID and goroutine ID to make the partial call key
-    go_tls_function_args_key_t call_key = {0};
+    go_tls_function_args_key_t call_key = { 0 };
     call_key.pid = pid;
 
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
@@ -159,14 +159,14 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         return 0;
     }
 
-    conn_tuple_t *t = conn_tup_from_tls_conn(od, (void*)call_data_ptr->conn_pointer, pid_tgid);
+    conn_tuple_t *t = conn_tup_from_tls_conn(od, (void *)call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
         return 0;
     }
 
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
-    tls_process(t, (void*) call_data_ptr->b_data, bytes_written, GO);
+    tls_process(ctx, t, (void *)call_data_ptr->b_data, bytes_written, GO);
     http_batch_flush(ctx);
 
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
@@ -178,14 +178,14 @@ SEC("uprobe/crypto/tls.(*Conn).Read")
 int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
-    tls_offsets_data_t* od = get_offsets_data();
+    tls_offsets_data_t *od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-read] no offsets data in map for pid %d\n", pid_tgid >> 32);
         return 0;
     }
 
     // Read the PID and goroutine ID to make the partial call key
-    go_tls_function_args_key_t call_key = {0};
+    go_tls_function_args_key_t call_key = { 0 };
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read] failed reading go routine id for pid %d\n", pid_tgid >> 32);
@@ -194,7 +194,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
 
     // Read the parameters to make the partial call data
     // (since the parameters might not be live by the time the return probe is hit).
-    go_tls_read_args_data_t call_data = {0};
+    go_tls_read_args_data_t call_data = { 0 };
     if (read_location(ctx, &od->read_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
         log_debug("[go-tls-read] failed reading conn pointer for pid %d\n", pid_tgid >> 32);
         return 0;
@@ -213,21 +213,21 @@ SEC("uprobe/crypto/tls.(*Conn).Read/return")
 int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
-    tls_offsets_data_t* od = get_offsets_data();
+    tls_offsets_data_t *od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-read-return] no offsets data in map for pid %d\n", pid);
         return 0;
     }
 
     // Read the PID and goroutine ID to make the partial call key
-    go_tls_function_args_key_t call_key = {0};
+    go_tls_function_args_key_t call_key = { 0 };
     call_key.pid = pid;
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id)) {
         log_debug("[go-tls-read-return] failed reading go routine id for pid %d\n", pid);
         return 0;
     }
 
-    go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
+    go_tls_read_args_data_t *call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
     if (call_data_ptr == NULL) {
         log_debug("[go-tls-read-return] no read information in read-return for pid %d\n", pid);
         return 0;
@@ -250,14 +250,14 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 0;
     }
 
-    conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
+    conn_tuple_t *t = conn_tup_from_tls_conn(od, (void *)call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
         bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 0;
     }
 
     log_debug("[go-tls-read] processing %s\n", call_data_ptr->b_data);
-    tls_process(t, (void*) call_data_ptr->b_data, bytes_read, GO);
+    tls_process(ctx, t, (void *)call_data_ptr->b_data, bytes_read, GO);
     http_batch_flush(ctx);
 
     bpf_map_delete_elem(&go_tls_read_args, &call_key);
@@ -268,27 +268,27 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 SEC("uprobe/crypto/tls.(*Conn).Close")
 int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    tls_offsets_data_t* od = get_offsets_data();
+    tls_offsets_data_t *od = get_offsets_data();
     if (od == NULL) {
         log_debug("[go-tls-close] no offsets data in map for pid %d\n", pid_tgid >> 32);
         return 0;
     }
 
     // Read the PID and goroutine ID to make the partial call key
-    go_tls_function_args_key_t call_key = {0};
+    go_tls_function_args_key_t call_key = { 0 };
     call_key.pid = pid_tgid >> 32;
     if (read_goroutine_id(ctx, &od->goroutine_id, &call_key.goroutine_id) == 0) {
         bpf_map_delete_elem(&go_tls_read_args, &call_key);
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
     }
 
-    void* conn_pointer = NULL;
+    void *conn_pointer = NULL;
     if (read_location(ctx, &od->close_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
         log_debug("[go-tls-close] failed reading close conn pointer for pid %d\n", pid_tgid >> 32);
         return 0;
     }
 
-    conn_tuple_t* t = conn_tup_from_tls_conn(od, conn_pointer, pid_tgid);
+    conn_tuple_t *t = conn_tup_from_tls_conn(od, conn_pointer, pid_tgid);
     if (t == NULL) {
         log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %d\n", pid_tgid >> 32);
         return 0;
@@ -303,7 +303,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     return 0;
 }
 
-static __always_inline void* get_tls_base(struct task_struct* task) {
+static __always_inline void *get_tls_base(struct task_struct *task) {
 #if defined(__TARGET_ARCH_x86)
     // X86 (RUNTIME & CO-RE)
     return (void *)BPF_CORE_READ(task, thread.fsbase);
@@ -329,7 +329,7 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
     }
 #endif
 #else
-    #error "Unsupported platform"
+#error "Unsupported platform"
 #endif
 }
 
