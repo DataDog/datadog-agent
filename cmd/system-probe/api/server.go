@@ -82,7 +82,7 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 
 	go func() {
 		err = srv.Serve(conn.GetListener())
-		if errors.Is(err, http.ErrServerClosed) {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Errorf("error creating HTTP server: %s", err)
 		}
 	}()
