@@ -39,12 +39,14 @@ func getProbeWithPermission(options ...Option) *probe {
 }
 
 func TestGetActivePIDs(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc")
 	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc"))
 	defer probe.Close()
 
 	actual, err := probe.getActivePIDs()
 	assert.NoError(t, err)
 
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc") // Used by gopsutil
 	expect, err := process.Pids()
 	assert.NoError(t, err)
 
@@ -103,6 +105,7 @@ func TestTrimAndSplitBytes(t *testing.T) {
 }
 
 func TestGetCmdlineTestFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc") // For gopsutil
 	testGetCmdline(t, WithCustomProcFSRoot("resources/test_procfs/proc"))
 }
 
@@ -141,6 +144,7 @@ func TestGetCommandName(t *testing.T) {
 }
 
 func TestProcessesByPIDTestFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testProcessesByPID(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
 }
 
@@ -230,6 +234,7 @@ func compareStats(t *testing.T, st1, st2 *Stats) {
 }
 
 func TestStatsForPIDsTestFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testStatsForPIDs(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
 }
 
@@ -475,6 +480,7 @@ func TestParseStatusLine(t *testing.T) {
 }
 
 func TestParseStatusTestFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testParseStatus(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
 }
 
@@ -730,6 +736,7 @@ func TestParseStatContent(t *testing.T) {
 }
 
 func TestParseStatTestFS(t *testing.T) {
+	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testParseStat(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
 }
 
