@@ -7,55 +7,59 @@ package server
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-type PayloadParser struct {
-	payloadJsonStore map[string][]api.ParsedPayload
+// PayloadParsedStore contains parsers and a store of parsed payloads
+type PayloadParsedStore struct {
+	payloadJSONStore map[string][]api.ParsedPayload
 	parserMap        map[string]func(api.Payload) (interface{}, error)
 }
 
-func NewPayloadParser() PayloadParser {
-	parser := PayloadParser{
-		payloadJsonStore: map[string][]api.ParsedPayload{},
+// NewPayloadParsedStore creates a new empty Datadog payload parser
+func NewPayloadParsedStore() PayloadParsedStore {
+	parser := PayloadParsedStore{
+		payloadJSONStore: map[string][]api.ParsedPayload{},
 		parserMap:        map[string]func(api.Payload) (interface{}, error){},
 	}
-	parser.parserMap["/api/v2/logs"] = parser.getLogPayLoadJson
-	parser.parserMap["/api/v2/series"] = parser.getMetricPayLoadJson
-	parser.parserMap["/api/v1/check_run"] = parser.getCheckRunPayLoadJson
-	parser.payloadJsonStore["/api/v2/logs"] = []api.ParsedPayload{}
-	parser.payloadJsonStore["/api/v2/series"] = []api.ParsedPayload{}
-	parser.payloadJsonStore["/api/v1/check_run"] = []api.ParsedPayload{}
+	parser.parserMap["/api/v2/logs"] = parser.getLogPayLoadJSON
+	parser.parserMap["/api/v2/series"] = parser.getMetricPayLoadJSON
+	parser.parserMap["/api/v1/check_run"] = parser.getCheckRunPayLoadJSON
+	parser.payloadJSONStore["/api/v2/logs"] = []api.ParsedPayload{}
+	parser.payloadJSONStore["/api/v2/series"] = []api.ParsedPayload{}
+	parser.payloadJSONStore["/api/v1/check_run"] = []api.ParsedPayload{}
 	return parser
 }
 
-func (fi *PayloadParser) getJsonPayload(route string) ([]api.ParsedPayload, error) {
-	payload, ok := fi.payloadJsonStore[route]
+func (fi *PayloadParsedStore) getJSONPayload(route string) ([]api.ParsedPayload, error) {
+	payload, ok := fi.payloadJSONStore[route]
 	if ok {
 		return payload, nil
 	}
 	return nil, fmt.Errorf("route %s isn't supported", route)
 }
 
-func (fi *PayloadParser) IsRouteHandled(route string) bool {
+// IsRouteHandled checks if a route is handled by the Datadog parsed store
+func (fi *PayloadParsedStore) IsRouteHandled(route string) bool {
 	_, ok := fi.parserMap[route]
 	return ok
 }
 
-func (fi *PayloadParser) getLogPayLoadJson(payload api.Payload) (interface{}, error) {
+func (fi *PayloadParsedStore) getLogPayLoadJSON(payload api.Payload) (interface{}, error) {
 	return aggregator.ParseLogPayload(payload)
 }
 
-func (fi *PayloadParser) getMetricPayLoadJson(payload api.Payload) (interface{}, error) {
+func (fi *PayloadParsedStore) getMetricPayLoadJSON(payload api.Payload) (interface{}, error) {
 	return aggregator.ParseMetricSeries(payload)
 }
 
-func (fi *PayloadParser) getCheckRunPayLoadJson(payload api.Payload) (interface{}, error) {
+func (fi *PayloadParsedStore) getCheckRunPayLoadJSON(payload api.Payload) (interface{}, error) {
 	return aggregator.ParseCheckRunPayload(payload)
 }
 
-func (fi *PayloadParser) parse(payload api.Payload, route string) error {
+func (fi *PayloadParsedStore) parseAndAppend(payload api.Payload, route string) error {
 
 	parsedPayload := api.ParsedPayload{
 		Timestamp: payload.Timestamp,
@@ -69,7 +73,15 @@ func (fi *PayloadParser) parse(payload api.Payload, route string) error {
 		if err != nil {
 			return err
 		}
-		fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], parsedPayload)
+
+		fi.payloadJSONStore[route] = append(fi.payloadJSONStore[route], parsedPayload)
 	}
 	return nil
+}
+
+// Clean delete any stored data
+func (fi *PayloadParsedStore) Clean() {
+	for k := range fi.payloadJSONStore {
+		delete(fi.payloadJSONStore, k)
+	}
 }

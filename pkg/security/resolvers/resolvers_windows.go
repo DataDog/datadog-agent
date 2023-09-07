@@ -6,6 +6,7 @@
 package resolvers
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -21,9 +22,9 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface) (*Resolvers, error) {
+func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber) (*Resolvers, error) {
 
-	processResolver, err := process.NewResolver(config, statsdClient, process.NewResolverOpts())
+	processResolver, err := process.NewResolver(config, statsdClient, scrubber, process.NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}

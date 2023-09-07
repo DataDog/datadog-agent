@@ -164,8 +164,8 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18868373-918b265
-  DATADOG_AGENT_BUILDERS: v18823563-572898a
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 521dba064c2b
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 713eba6ee3fe
+  DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -268,6 +268,9 @@ variables:
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
+
+.if_not_e2e: &if_not_e2e
+  if: $RUN_KITCHEN_TESTS == "false"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -909,3 +912,9 @@ workflow:
     when: always
   - when: manual
     allow_failure: true
+
+.on_main_and_no_skip_e2e:
+  - <<: *if_not_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success

@@ -1,5 +1,6 @@
 import hashlib
 import unittest
+from types import SimpleNamespace
 from typing import OrderedDict
 from unittest import mock
 
@@ -10,64 +11,52 @@ from ..libs.version import Version
 
 
 def mocked_github_requests_get(*args, **_kwargs):
-    class MockResponse:
-        def __init__(self, json_data, status_code):
-            self.json_data = json_data
-            self.status_code = status_code
-
-        def json(self):
-            return self.json_data
+    def fake_tag(value):
+        return SimpleNamespace(name=value)
 
     if args[0][-1] == "6":
-        return MockResponse(
-            [
-                {"ref": "6.28.0-rc.1"},
-                {"ref": "6.28.0"},
-                {"ref": "6.28.1-rc.1"},
-                {"ref": "6.28.1"},
-                {"ref": "6.29.0-rc.1"},
-                {"ref": "6.29.0"},
-            ],
-            200,
-        )
+        return [
+            fake_tag("6.28.0-rc.1"),
+            fake_tag("6.28.0"),
+            fake_tag("6.28.1-rc.1"),
+            fake_tag("6.28.1"),
+            fake_tag("6.29.0-rc.1"),
+            fake_tag("6.29.0"),
+        ]
 
     if args[0][-1] == "7":
-        return MockResponse(
-            [
-                {"ref": "7.28.0-rc.1"},
-                {"ref": "7.28.0"},
-                {"ref": "7.28.1-rc.1"},
-                {"ref": "7.28.1"},
-                {"ref": "7.29.0-rc.1"},
-                {"ref": "7.29.0"},
-            ],
-            200,
-        )
+        return [
+            fake_tag("7.28.0-rc.1"),
+            fake_tag("7.28.0"),
+            fake_tag("7.28.1-rc.1"),
+            fake_tag("7.28.1"),
+            fake_tag("7.29.0-rc.1"),
+            fake_tag("7.29.0"),
+        ]
 
-    return MockResponse(
-        [
-            {"ref": "6.28.0-rc.1"},
-            {"ref": "6.28.0"},
-            {"ref": "7.28.0-rc.1"},
-            {"ref": "7.28.0"},
-            {"ref": "6.28.1-rc.1"},
-            {"ref": "6.28.1"},
-            {"ref": "7.28.1-rc.1"},
-            {"ref": "7.28.1"},
-            {"ref": "6.29.0-rc.1"},
-            {"ref": "6.29.0"},
-            {"ref": "7.29.0-rc.1"},
-            {"ref": "7.29.0"},
-        ],
-        200,
-    )
+    return [
+        fake_tag("6.28.0-rc.1"),
+        fake_tag("6.28.0"),
+        fake_tag("7.28.0-rc.1"),
+        fake_tag("7.28.0"),
+        fake_tag("6.28.1-rc.1"),
+        fake_tag("6.28.1"),
+        fake_tag("7.28.1-rc.1"),
+        fake_tag("7.28.1"),
+        fake_tag("6.29.0-rc.1"),
+        fake_tag("6.29.0"),
+        fake_tag("7.29.0-rc.1"),
+        fake_tag("7.29.0"),
+    ]
 
 
 class TestGetHighestRepoVersion(unittest.TestCase):
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_one_allowed_major_multiple_entries(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_one_allowed_major_multiple_entries(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 28),
@@ -75,10 +64,12 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=7, minor=28, patch=1))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_one_allowed_major_one_entry(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_one_allowed_major_one_entry(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 29),
@@ -86,10 +77,12 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=7, minor=29, patch=0))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_multiple_allowed_majors_multiple_entries(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_multiple_allowed_majors_multiple_entries(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[6], 28),
@@ -97,10 +90,12 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=6, minor=28, patch=1))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_multiple_allowed_majors_one_entry(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_multiple_allowed_majors_one_entry(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         version = release._get_highest_repo_version(
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[6], 29),
@@ -108,12 +103,14 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=6, minor=29, patch=0))
 
-    @mock.patch('requests.get', side_effect=mocked_github_requests_get)
-    def test_nonexistant_minor(self, _):
+    @mock.patch('tasks.release.GithubAPI')
+    def test_nonexistant_minor(self, gh_mock):
+        gh_instance = mock.MagicMock()
+        gh_instance.get_tags.side_effect = mocked_github_requests_get
+        gh_mock.return_value = gh_instance
         self.assertRaises(
             Exit,
             release._get_highest_repo_version,
-            "FAKE_TOKEN",
             "target-repo",
             "",
             release.build_compatible_version_re(release.COMPATIBLE_MAJOR_VERSIONS[7], 30),

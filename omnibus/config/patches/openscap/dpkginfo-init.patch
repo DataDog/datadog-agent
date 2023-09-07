@@ -1,183 +1,48 @@
 --- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
 +++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
-@@ -21,12 +21,7 @@
- 
- using namespace std;
- 
--static int _init_done = 0;
--static pkgCacheFile *cgCache = NULL;
--
--static MMap *dpkg_mmap = NULL;
--
--static int opencache (void) {
-+static int opencache (struct dpkginfo_cache *cache) {
-         if (pkgInitConfig (*_config) == false) return 0;
- 
-         const char* root = getenv("OSCAP_PROBE_ROOT");
-@@ -48,7 +43,7 @@ static int opencache (void) {
+@@ -48,8 +48,6 @@ static int opencache (void) {
  
          if (pkgInitSystem (*_config, _system) == false) return 0;
  
 -        if (!cgCache->ReadOnlyOpen(NULL)) return 0;
-+        if (!((pkgCacheFile*)(cache->cgCache))->ReadOnlyOpen(NULL)) return 0;
- 
+-
          if (_error->PendingError () == true) {
                  _error->DumpErrors ();
-@@ -58,9 +53,9 @@ static int opencache (void) {
-         return 1;
- }
- 
--struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
-+struct dpkginfo_reply_t * dpkginfo_get_by_name(struct dpkginfo_cache *c, const char *name, int *err)
- {
--        pkgCache &cache = *cgCache->GetPkgCache();
-+        pkgCache &cache = *((pkgCacheFile*)(c->cgCache))->GetPkgCache();
+                 return 0;
+@@ -64,6 +62,8 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
          pkgRecords Recs (cache);
          struct dpkginfo_reply_t *reply = NULL;
  
-@@ -136,29 +131,29 @@ void dpkginfo_free_reply(struct dpkginfo_reply_t *reply)
-         }
- }
++        if (!cgCache->ReadOnlyOpen(NULL)) return 0;
++
+         // Locate the package
+         pkgCache::PkgIterator Pkg = cache.FindPkg(name);
+         if (Pkg.end() == true) {
+@@ -138,11 +138,15 @@ void dpkginfo_free_reply(struct dpkginfo_reply_t *reply)
  
--int dpkginfo_init()
-+int dpkginfo_init(struct dpkginfo_cache *cache)
+ int dpkginfo_init()
  {
 -        cgCache = new pkgCacheFile;
 -        if (_init_done == 0)
--                if (opencache() != 1) {
-+        if (cache->init_done == 0) {
-+                cache->cgCache = new pkgCacheFile;
-+                if (opencache(cache) != 1) {
-+                        delete (pkgCacheFile*)(cache->cgCache);
-+                        cache->cgCache = NULL;
++        if (_init_done == 0) {
++                cgCache = new pkgCacheFile;
+                 if (opencache() != 1) {
++                        delete cgCache;
++                        cgCache = NULL;
                          return -1;
                  }
-+                cache->init_done = 1;
++                _init_done = 1;
 +        }
  
          return 0;
  }
- 
--int dpkginfo_fini()
-+int dpkginfo_fini(struct dpkginfo_cache *cache)
- {
--        if (cgCache != NULL) {
--                cgCache->Close();
-+        if (cache->cgCache != NULL) {
-+                ((pkgCacheFile*)(cache->cgCache))->Close();
+@@ -153,9 +157,6 @@ int dpkginfo_fini()
+                 cgCache->Close();
          }
  
 -        delete cgCache;
 -        cgCache = NULL;
 -
--        delete dpkg_mmap;
--        dpkg_mmap = NULL;
-+        delete (pkgCacheFile*)(cache->cgCache);
-+        cache->cgCache = NULL;
+         delete dpkg_mmap;
+         dpkg_mmap = NULL;
  
-         return 0;
- }
--
---- a/src/OVAL/probes/unix/linux/dpkginfo-helper.h
-+++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.h
-@@ -26,6 +26,11 @@
- extern "C" {
- #endif
- 
-+struct dpkginfo_cache {
-+        int init_done;
-+        void *cgCache; // pkgCacheFile
-+};
-+
- struct dpkginfo_reply_t {
-         char *name;
-         char *arch;
-@@ -35,10 +40,10 @@ struct dpkginfo_reply_t {
-         char *evr;
- };
- 
--int dpkginfo_init();
--int dpkginfo_fini();
-+int dpkginfo_init(struct dpkginfo_cache *cache);
-+int dpkginfo_fini(struct dpkginfo_cache *cache);
- 
--struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err);
-+struct dpkginfo_reply_t * dpkginfo_get_by_name(struct dpkginfo_cache *cache, const char *name, int *err);
- 
- void dpkginfo_free_reply(struct dpkginfo_reply_t *reply);
- 
---- a/src/OVAL/probes/unix/linux/dpkginfo_probe.c
-+++ b/src/OVAL/probes/unix/linux/dpkginfo_probe.c
-@@ -65,35 +65,39 @@
- 
- struct dpkginfo_global {
-         int init_done;
-+        struct dpkginfo_cache cache;
-         pthread_mutex_t mutex;
- };
- 
--static struct dpkginfo_global g_dpkg = {
--        .init_done = -1,
--};
--
- int dpkginfo_probe_offline_mode_supported(void) {
-         return PROBE_OFFLINE_OWN;
- }
- 
- void *dpkginfo_probe_init(void)
- {
--        pthread_mutex_init (&(g_dpkg.mutex), NULL);
-+        struct dpkginfo_global *d;
-+        d = malloc(sizeof(*d));
-+        if (d == NULL)
-+                return NULL;
-+        memset(d, 0, sizeof(*d));
- 
--        g_dpkg.init_done = dpkginfo_init();
--        if (g_dpkg.init_done < 0) {
-+        pthread_mutex_init (&(d->mutex), NULL);
-+
-+        d->init_done = dpkginfo_init(&d->cache);
-+        if (d->init_done < 0) {
-                 dE("dpkginfo_init has failed.");
-         }
- 
--        return ((void *)&g_dpkg);
-+        return ((void *)d);
- }
- 
- void dpkginfo_probe_fini (void *ptr)
- {
-         struct dpkginfo_global *d = (struct dpkginfo_global *)ptr;
- 
--        dpkginfo_fini();
-+        dpkginfo_fini(&d->cache);
-         pthread_mutex_destroy (&(d->mutex));
-+        free(d);
- 
-         return;
- }
-@@ -109,7 +113,9 @@ int dpkginfo_probe_main (probe_ctx *ctx, void *arg)
- 		return PROBE_EINIT;
- 	}
- 
--        if (g_dpkg.init_done < 0) {
-+        struct dpkginfo_global *d = (struct dpkginfo_global *)arg;
-+
-+        if (d->init_done < 0) {
-                 probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_UNKNOWN);
-                 return 0;
-         }
-@@ -148,9 +154,9 @@ int dpkginfo_probe_main (probe_ctx *ctx, void *arg)
-         }
- 
-         /* get info from debian apt cache */
--        pthread_mutex_lock (&(g_dpkg.mutex));
--        dpkginfo_reply = dpkginfo_get_by_name(request_st, &errflag);
--        pthread_mutex_unlock (&(g_dpkg.mutex));
-+        pthread_mutex_lock (&(d->mutex));
-+        dpkginfo_reply = dpkginfo_get_by_name(&d->cache, request_st, &errflag);
-+        pthread_mutex_unlock (&(d->mutex));
- 
-         if (dpkginfo_reply == NULL) {
-                 switch (errflag) {

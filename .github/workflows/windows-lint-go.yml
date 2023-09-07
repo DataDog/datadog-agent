@@ -23,7 +23,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: '3.9.5'
 
       - name: Install go
         uses: actions/setup-go@v3
@@ -34,8 +34,6 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop';
           # install dependencies
-          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
-          # python -m pip install codecov
           python -m pip install -r requirements.txt
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           inv -e install-tools
@@ -50,4 +48,4 @@ jobs:
           echo $PATH
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           inv -e rtloader.format --raise-if-changed
-          inv -e lint-go
+          inv -e lint-go --timeout 30
