@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/zstd"
 )
 
 var (
@@ -30,13 +31,19 @@ func resetDefaults() {
 	config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSizeDefault)
 }
 
-func decompressPayload(payload []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(payload))
+func decompressPayload(payload []byte, kind string) ([]byte, error) {
+	var r io.ReadCloser
+	var err error
+	switch kind {
+	case "zlib":
+		r, err = zlib.NewReader(bytes.NewReader(payload))
+	case "zstd":
+		r = zstd.NewReader(bytes.NewReader(payload))
+	}
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-
 	dst, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -44,8 +51,8 @@ func decompressPayload(payload []byte) ([]byte, error) {
 	return dst, nil
 }
 
-func payloadToString(payload []byte) string {
-	p, err := decompressPayload(payload)
+func payloadToString(payload []byte, kind string) string {
+	p, err := decompressPayload(payload, kind)
 	if err != nil {
 		return err.Error()
 	}
@@ -53,32 +60,44 @@ func payloadToString(payload []byte) string {
 }
 
 func TestCompressorSimple(t *testing.T) {
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
-	c, err := NewCompressor(
-		&bytes.Buffer{}, &bytes.Buffer{},
-		maxPayloadSize, maxUncompressedSize,
-		[]byte("{["), []byte("]}"), []byte(","))
-	require.NoError(t, err)
-
-	for i := 0; i < 5; i++ {
-		c.AddItem([]byte("A"))
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: "zlib"},
+		"zstd": {kind: "zstd"},
 	}
 
-	p, err := c.Close()
-	require.NoError(t, err)
-	require.Equal(t, "{[A,A,A,A,A]}", payloadToString(p))
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+			maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+			c, err := NewCompressor(
+				&bytes.Buffer{}, &bytes.Buffer{},
+				maxPayloadSize, maxUncompressedSize,
+				[]byte("{["), []byte("]}"), []byte(","), tc.kind)
+
+			require.NoError(t, err)
+
+			for i := 0; i < 5; i++ {
+				c.AddItem([]byte("A"))
+			}
+
+			p, err := c.Close()
+			require.NoError(t, err)
+			require.Equal(t, "{[A,A,A,A,A]}", payloadToString(p, tc.kind))
+		})
+	}
 }
 
 // With an empty payload, AddItem should never return "ErrPayloadFull"
 // ErrItemTooBig is a more appropriate error code if the item cannot
 // be added to an empty compressor
 func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
-	checkAddItemErrCode := func(maxPayloadSize, maxUncompressedSize, dataLen int) {
+	checkAddItemErrCode := func(maxPayloadSize, maxUncompressedSize, dataLen int, kind string) {
 		c, err := NewCompressor(
 			&bytes.Buffer{}, &bytes.Buffer{},
 			maxPayloadSize, maxUncompressedSize,
-			[]byte("{["), []byte("]}"), []byte(","))
+			[]byte("{["), []byte("]}"), []byte(","), kind)
 		require.NoError(t, err)
 
 		payload := strings.Repeat("A", dataLen)
@@ -90,110 +109,187 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 		}
 	}
 
-	// While some of these values may look like they should fit, they currently don't due to a combination
-	// of due to overhead in the payload (header and footer) and the CompressBound calculation
-	t.Run("Edge Case from real world", func(t *testing.T) {
-		checkAddItemErrCode(2_621_440, 4_194_304, 2_620_896)
-	})
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {
+			kind: "zlib"},
+		"zstd": {
+			kind: "zstd"},
+	}
 
-	t.Run("Other values from iterative testing", func(t *testing.T) {
-		checkAddItemErrCode(17, 32, 1)
-		checkAddItemErrCode(19, 35, 4)
-		checkAddItemErrCode(23, 43, 12)
-		checkAddItemErrCode(44, 71, 39)
-		checkAddItemErrCode(1110, 1129, 1098)
-		checkAddItemErrCode(11100, 11119, 11085)
-	})
+	for name, tc := range tests {
+		oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+		defer config.Datadog.SetWithoutSource("serializer_compressor_kind", oldCompressorKind)
+		config.Datadog.SetWithoutSource("serializer_compressor_kind", tc.kind)
+
+		// While some of these values may look like they should fit, they currently don't due to a combination
+		// of due to overhead in the payload (header and footer) and the CompressBound calculation
+		t.Run("Edge Case from real world"+name, func(t *testing.T) {
+			checkAddItemErrCode(2_621_440, 4_194_304, 2_620_896, tc.kind)
+		})
+
+		t.Run("Other values from iterative testing"+name, func(t *testing.T) {
+			checkAddItemErrCode(17, 32, 1, tc.kind)
+			checkAddItemErrCode(19, 35, 4, tc.kind)
+			checkAddItemErrCode(23, 43, 12, tc.kind)
+			checkAddItemErrCode(44, 71, 39, tc.kind)
+			checkAddItemErrCode(1110, 1129, 1098, tc.kind)
+			checkAddItemErrCode(11100, 11119, 11085, tc.kind)
+		})
+	}
+
 }
 
 func TestOnePayloadSimple(t *testing.T) {
-	m := &marshaler.DummyMarshaller{
-		Items:  []string{"A", "B", "C"},
-		Header: "{[",
-		Footer: "]}",
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {
+			kind: "zlib"},
+		"zstd": {
+			kind: "zstd"},
 	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			defer config.Datadog.SetWithoutSource("serializer_compressor_kind", oldCompressorKind)
+			config.Datadog.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			m := &marshaler.DummyMarshaller{
+				Items:  []string{"A", "B", "C"},
+				Header: "{[",
+				Footer: "]}",
+			}
 
-	builder := NewJSONPayloadBuilder(true)
-	payloads, err := BuildJSONPayload(builder, m)
-	require.NoError(t, err)
-	require.Len(t, payloads, 1)
-
-	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
+			builder := NewJSONPayloadBuilder(true)
+			payloads, err := BuildJSONPayload(builder, m)
+			require.NoError(t, err)
+			require.Len(t, payloads, 1)
+			require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent(), tc.kind))
+		})
+	}
 }
 
 func TestMaxCompressedSizePayload(t *testing.T) {
-	m := &marshaler.DummyMarshaller{
-		Items:  []string{"A", "B", "C"},
-		Header: "{[",
-		Footer: "]}",
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: "zlib"},
+		"zstd": {kind: "zstd"},
 	}
-	config.Datadog.SetDefault("serializer_max_payload_size", 22)
-	defer resetDefaults()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			defer config.Datadog.SetWithoutSource("serializer_compressor_kind", oldCompressorKind)
+			config.Datadog.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			m := &marshaler.DummyMarshaller{
+				Items:  []string{"A", "B", "C"},
+				Header: "{[",
+				Footer: "]}",
+			}
+			config.Datadog.SetDefault("serializer_max_payload_size", 22)
+			defer resetDefaults()
 
-	builder := NewJSONPayloadBuilder(true)
-	payloads, err := BuildJSONPayload(builder, m)
-	require.NoError(t, err)
-	require.Len(t, payloads, 1)
-
-	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
+			builder := NewJSONPayloadBuilder(true)
+			payloads, err := BuildJSONPayload(builder, m)
+			require.NoError(t, err)
+			require.Len(t, payloads, 1)
+			require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent(), tc.kind))
+		})
+	}
 }
 
 func TestTwoPayload(t *testing.T) {
-	m := &marshaler.DummyMarshaller{
-		Items:  []string{"A", "B", "C", "D", "E", "F"},
-		Header: "{[",
-		Footer: "]}",
+	tests := map[string]struct {
+		kind           string
+		maxPayloadSize int
+	}{
+		"zlib": {kind: "zlib", maxPayloadSize: 22},
+		"zstd": {kind: "zstd", maxPayloadSize: 20}, // zstd more efficient
 	}
-	config.Datadog.SetDefault("serializer_max_payload_size", 22)
-	defer resetDefaults()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			defer config.Datadog.SetWithoutSource("serializer_compressor_kind", oldCompressorKind)
+			config.Datadog.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			m := &marshaler.DummyMarshaller{
+				Items:  []string{"A", "B", "C", "D", "E", "F"},
+				Header: "{[",
+				Footer: "]}",
+			}
+			config.Datadog.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
+			defer resetDefaults()
 
-	builder := NewJSONPayloadBuilder(true)
-	payloads, err := BuildJSONPayload(builder, m)
-	require.NoError(t, err)
-	require.Len(t, payloads, 2)
-
-	require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent()))
-	require.Equal(t, "{[D,E,F]}", payloadToString(payloads[1].GetContent()))
+			builder := NewJSONPayloadBuilder(true)
+			payloads, err := BuildJSONPayload(builder, m)
+			require.NoError(t, err)
+			require.Len(t, payloads, 2)
+			require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent(), tc.kind))
+			require.Equal(t, "{[D,E,F]}", payloadToString(payloads[1].GetContent(), tc.kind))
+		})
+	}
 }
 
 func TestLockedCompressorProducesSamePayloads(t *testing.T) {
-	m := &marshaler.DummyMarshaller{
-		Items:  []string{"A", "B", "C", "D", "E", "F"},
-		Header: "{[",
-		Footer: "]}",
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: "zlib"},
+		"zstd": {kind: "zstd"},
 	}
-	defer resetDefaults()
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			m := &marshaler.DummyMarshaller{
+				Items:  []string{"A", "B", "C", "D", "E", "F"},
+				Header: "{[",
+				Footer: "]}",
+			}
+			defer resetDefaults()
 
-	builderLocked := NewJSONPayloadBuilder(true)
-	builderUnLocked := NewJSONPayloadBuilder(false)
-	payloads1, err := BuildJSONPayload(builderLocked, m)
-	require.NoError(t, err)
-	payloads2, err := BuildJSONPayload(builderUnLocked, m)
-	require.NoError(t, err)
-
-	require.Equal(t, payloadToString(payloads1[0].GetContent()), payloadToString(payloads2[0].GetContent()))
+			builderLocked := NewJSONPayloadBuilder(true)
+			builderUnLocked := NewJSONPayloadBuilder(false)
+			payloads1, err := BuildJSONPayload(builderLocked, m)
+			require.NoError(t, err)
+			payloads2, err := BuildJSONPayload(builderUnLocked, m)
+			require.NoError(t, err)
+			require.Equal(t, payloadToString(payloads1[0].GetContent(), tc.kind), payloadToString(payloads2[0].GetContent(), tc.kind))
+		})
+	}
 }
 
 func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
-	config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 40)
-	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", nil)
-	marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
-	builder := NewJSONPayloadBuilder(false)
-	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
-		marshaler,
-		DropItemOnErrItemTooBig)
-	r := require.New(t)
-	r.NoError(err)
-
-	// Make sure there are at least few payloads
-	r.Greater(len(payloads), 3)
-
-	pointCount := 0
-	for _, payload := range payloads {
-		pointCount += payload.GetPointCount()
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: "zlib"},
+		"zstd": {kind: "zstd"},
 	}
-	maxValue := marshaler.maxIndex - 1
-	r.Equal((maxValue*(maxValue+1))/2, pointCount)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 40)
+			defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", nil)
+			oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			defer config.Datadog.SetWithoutSource("serializer_compressor_kind", oldCompressorKind)
+			config.Datadog.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mshr := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
+			builder := NewJSONPayloadBuilder(false)
+			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
+				mshr,
+				DropItemOnErrItemTooBig)
+			r := require.New(t)
+			r.NoError(err)
+
+			// Make sure there are at least few payloads
+			r.Greater(len(payloads), 3)
+
+			pointCount := 0
+			for _, payload := range payloads {
+				pointCount += payload.GetPointCount()
+			}
+			maxValue := mshr.maxIndex - 1
+			r.Equal((maxValue*(maxValue+1))/2, pointCount)
+		})
+	}
 }
 
 type IterableStreamJSONMarshalerMock struct {

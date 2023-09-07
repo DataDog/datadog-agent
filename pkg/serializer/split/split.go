@@ -9,7 +9,10 @@ package split
 import (
 	"expvar"
 
+	"github.com/DataDog/zstd"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -169,7 +172,13 @@ func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFc
 		return nil, nil, err
 	}
 	if compress {
-		compressedPayload, err = compression.Compress(payload)
+		kind := config.Datadog.GetString("serializer_compressor_kind")
+		switch kind {
+		case "zstd":
+			compressedPayload, err = zstd.Compress(nil, payload)
+		case "zlib":
+			compressedPayload, err = compression.Compress(payload)
+		}
 		if err != nil {
 			return nil, nil, err
 		}

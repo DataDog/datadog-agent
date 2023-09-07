@@ -115,6 +115,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	// sizes, but prefers small uncompressed payloads.
 	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
 	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
 
 	// Generate a footer containing an empty Metadata field.  The gogoproto
 	// generated serialization code includes this when marshaling the struct,
@@ -141,7 +142,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		compressor, err = stream.NewCompressor(
 			bufferContext.CompressorInput, bufferContext.CompressorOutput,
 			maxPayloadSize, maxUncompressedSize,
-			[]byte{}, footer, []byte{})
+			[]byte{}, footer, []byte{}, compressorKind)
 		if err != nil {
 			return err
 		}
