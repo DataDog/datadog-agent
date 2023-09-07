@@ -63,8 +63,13 @@ var _ module.Module = &EventMonitor{}
 
 // EventConsumer defines an event consumer
 type EventConsumer interface {
+	// ID returns the ID of the event consumer
 	ID() string
+	// Start starts the event consumer
 	Start() error
+	// PostStart is called after the event stream is started
+	PostStart() error
+	// Stop stops the event consumer
 	Stop()
 }
 
@@ -154,6 +159,12 @@ func (m *EventMonitor) Start() error {
 
 	if err := m.Probe.Start(); err != nil {
 		return err
+	}
+
+	for _, em := range m.eventConsumers {
+		if err := em.PostStart(); err != nil {
+			log.Errorf("after probe start callback of %s failed: %v", em.ID(), err)
+		}
 	}
 
 	m.wg.Add(1)

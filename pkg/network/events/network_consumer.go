@@ -15,10 +15,17 @@ import (
 // NetworkConsumer describes a process monitoring object
 type NetworkConsumer struct{}
 
+// Start starts the event consumer
 func (n *NetworkConsumer) Start() error {
 	return nil
 }
 
+// PostStart is called after the event stream is started
+func (n *NetworkConsumer) PostStart() error {
+	return nil
+}
+
+// Stop stops the event consumer
 func (n *NetworkConsumer) Stop() {
 }
 
