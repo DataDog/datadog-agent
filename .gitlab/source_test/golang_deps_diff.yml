@@ -5,6 +5,8 @@ golang_deps_diff:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  rules: # this should only run on dev branches
+    - !reference [ .except_main_or_release_branch ]
   needs: ["go_deps"]
   before_script:
     - source /root/.bashrc
@@ -20,6 +22,8 @@ golang_deps_commenter:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
   tags: ["arch:amd64"]
+  rules: # this should only run on dev branches
+    - !reference [ .except_main_or_release_branch ]
   needs: ["golang_deps_diff"]
   script:
     - echo "${CI_COMMIT_REF_NAME}"

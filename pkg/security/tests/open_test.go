@@ -373,6 +373,42 @@ func TestOpenMetadata(t *testing.T) {
 	})
 }
 
+func TestOpenDiscarded(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_open_pipefs",
+			Expression: `open.file.mode & S_IFMT == S_IFIFO && process.comm == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("pipefs", func(t *testing.T) {
+		var pipeFDs [2]int
+		if err := unix.Pipe(pipeFDs[:]); err != nil {
+			t.Fatal(err)
+		}
+		defer unix.Close(pipeFDs[0])
+		defer unix.Close(pipeFDs[1])
+
+		path := fmt.Sprintf("/proc/self/fd/%d", pipeFDs[1])
+
+		test.GetSignal(t, func() error {
+			fd, err := unix.Open(path, unix.O_WRONLY, 0o0)
+			if err != nil {
+				return err
+			}
+			return unix.Close(fd)
+		}, func(e *model.Event, r *rules.Rule) {
+			t.Error("shouldn't have received an event")
+		})
+	})
+}
+
 func openMountByID(mountID int) (f *os.File, err error) {
 	mi, err := os.Open("/proc/self/mountinfo")
 	if err != nil {

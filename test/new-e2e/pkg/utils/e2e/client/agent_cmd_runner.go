@@ -70,6 +70,11 @@ func (agent *AgentCommandRunner) Hostname(commandArgs ...AgentArgsOption) string
 	return strings.Trim(output, "\n")
 }
 
+// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
+func (agent *AgentCommandRunner) Flare(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("flare", commandArgs...)
+}
+
 // Health runs health command and returns the runtime agent health
 func (agent *AgentCommandRunner) Health() (string, error) {
 	output, err := agent.executeCommand("health")

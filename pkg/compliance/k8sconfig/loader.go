@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package k8sconfig is a compliance submodule that is able to parse the
+// Kubernetes components configurations and export it as a log.
 package k8sconfig
 
 import (
