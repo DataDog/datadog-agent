@@ -115,6 +115,9 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 		}
 	}
 
+	if config.LabelsMapper == nil {
+		config.LabelsMapper = make(map[string]string)
+	}
 	// Rename bucket "le" label to "upper_bound"
 	config.LabelsMapper["le"] = "upper_bound"
 
