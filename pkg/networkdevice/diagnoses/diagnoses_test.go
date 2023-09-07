@@ -52,8 +52,6 @@ func TestReportDeviceDiagnosesReset(t *testing.T) {
 
 	assert.Equal(t, expectedMetadata, diagnosisMetadata)
 
-	diagnoses.Reset()
-
 	diagnosisResetedMetadata := diagnoses.Report()
 
 	expectedResetedMetadata := []metadata.DiagnosisMetadata{{
@@ -71,7 +69,7 @@ func TestReportCLIDiagnoses(t *testing.T) {
 	diagnoses.Add("error", "TEST_ERROR_DIAG", "This is a test error diagnosis")
 	diagnoses.Report()
 
-	diagnosesCLI := diagnoses.ConvertToCLI()
+	diagnosesCLI := diagnoses.ReportAsAgentDiagnoses()
 
 	expected := []diagnosis.Diagnosis{{
 		Result:    diagnosis.DiagnosisFail,

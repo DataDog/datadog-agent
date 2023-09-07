@@ -109,8 +109,6 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
-	d.diagnoses.Reset()
-
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
@@ -345,5 +343,5 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 
 // GetDiagnoses collects diagnoses for diagnose CLI
 func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
-	return d.diagnoses.ConvertToCLI()
+	return d.diagnoses.ReportAsAgentDiagnoses()
 }

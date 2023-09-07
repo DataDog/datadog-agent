@@ -14,9 +14,10 @@ import (
 
 // Diagnoses hold diagnoses for a NDM resource
 type Diagnoses struct {
-	resourceType string
-	resourceID   string
-	diagnoses    []metadata.Diagnosis
+	resourceType         string
+	resourceID           string
+	diagnoses            []metadata.Diagnosis
+	lastFlushedDiagnoses []metadata.Diagnosis
 }
 
 var severityMap = map[string]diagnosis.Result{
@@ -44,24 +45,17 @@ func (d *Diagnoses) Add(result string, code string, message string) {
 
 // Report returns diagnosis metadata
 func (d *Diagnoses) Report() []metadata.DiagnosisMetadata {
-
-	if d.diagnoses == nil {
-		return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: []metadata.Diagnosis{}}}
-	}
-
-	return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: d.diagnoses}}
-}
-
-// Reset clears current diagnoses
-func (d *Diagnoses) Reset() {
+	d.lastFlushedDiagnoses = d.diagnoses
 	d.diagnoses = nil
+
+	return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: d.lastFlushedDiagnoses}}
 }
 
-// ConvertToCLI converts diagnoses to diagnose CLI format
-func (d *Diagnoses) ConvertToCLI() []diagnosis.Diagnosis {
+// ReportAsAgentDiagnoses converts diagnoses to Agent diagnose CLI format
+func (d *Diagnoses) ReportAsAgentDiagnoses() []diagnosis.Diagnosis {
 	var cliDiagnoses []diagnosis.Diagnosis
 
-	for _, diag := range d.diagnoses {
+	for _, diag := range d.lastFlushedDiagnoses {
 		cliDiagnoses = append(cliDiagnoses, diagnosis.Diagnosis{
 			Result:    severityMap[diag.Severity],
 			Name:      fmt.Sprintf("NDM %s - %s - %s", d.resourceType, d.resourceID, diag.Code),
