@@ -8,11 +8,11 @@ package profiledefinition
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
 type DeviceMeta struct {
-	// deprecated in favour of new `AgentProfileDefinition.Metadata` syntax
+	// deprecated in favour of new `ProfileDefinition.Metadata` syntax
 	Vendor string `yaml:"vendor" json:"vendor"`
 }
 
-type AgentProfileDefinition struct {
+type ProfileDefinition struct {
 	Name         string            `yaml:"name" json:"name"`
 	SysObjectIds StringArray       `yaml:"sysobjectid" json:"sysobjectid"`
 	Device       DeviceMeta        `yaml:"device" json:"device"` // DEPRECATED
@@ -25,11 +25,11 @@ type AgentProfileDefinition struct {
 
 // DeviceProfileRcConfig represent the profile stored in remote config.
 type DeviceProfileRcConfig struct {
-	Profile AgentProfileDefinition `json:"profile_definition"`
+	Profile ProfileDefinition `json:"profile_definition"`
 }
 
-func NewProfileDefinition() *AgentProfileDefinition {
-	p := &AgentProfileDefinition{}
+func NewProfileDefinition() *ProfileDefinition {
+	p := &ProfileDefinition{}
 	p.Metadata = make(MetadataConfig)
 	return p
 }
