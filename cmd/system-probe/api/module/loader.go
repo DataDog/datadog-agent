@@ -6,8 +6,10 @@
 package module
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -52,13 +54,18 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 		log.Warnf("Failed to load driver subsystem %v", err)
 	}
 
+	ctx := context.Background()
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
 			continue
 		}
 
-		module, err := factory.Fn(cfg)
+		var err error
+		var module Module
+		pprof.Do(ctx, pprof.Labels("module", string(factory.Name)), func(_ context.Context) {
+			module, err = factory.Fn(cfg)
+		})
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
 		// Let `system-probe` run the other modules.
@@ -117,7 +124,7 @@ func makeSubrouter(r *mux.Router, namespace string) (*Router, error) {
 	if namespace == "" {
 		return nil, errors.New("module name not set")
 	}
-	return NewRouter(r.PathPrefix("/" + namespace).Subrouter()), nil
+	return NewRouter(namespace, r), nil
 }
 
 // GetStats returns the stats from all modules, namespaced by their names
