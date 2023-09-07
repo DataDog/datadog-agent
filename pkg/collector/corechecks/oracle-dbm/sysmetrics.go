@@ -20,7 +20,6 @@ const SYSMETRICS_QUERY = `SELECT
 	metric_name,
 	value, 
 	metric_unit, 
-	--(end_time - begin_time)*24*3600 interval_length,
 	name pdb_name 
   FROM %s s, v$containers c 
   WHERE s.con_id = c.con_id(+)`
@@ -155,6 +154,17 @@ func (c *Check) SysMetrics() error {
 			}
 		}
 	}
+
+	var overAllocationCount float64
+	err = c.db.Get(&overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
+	if err != nil {
+		return fmt.Errorf("failed to get PGA over allocation count: %w", err)
+	}
+	if c.previousAllocationCount != 0 {
+		v := overAllocationCount - c.previousAllocationCount
+		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v, "", c.tags)
+	}
+	c.previousAllocationCount = overAllocationCount
 
 	sender.Commit()
 	return nil
