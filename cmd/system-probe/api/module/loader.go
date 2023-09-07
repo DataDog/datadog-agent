@@ -47,6 +47,20 @@ type loader struct {
 	closed  bool
 }
 
+func (l *loader) forEachModule(fn func(name string, mod Module)) {
+	for name, mod := range l.modules {
+		withModule(name, func() {
+			fn(string(name), mod)
+		})
+	}
+}
+
+func withModule(name config.ModuleName, fn func()) {
+	pprof.Do(context.Background(), pprof.Labels("module", string(name)), func(_ context.Context) {
+		fn()
+	})
+}
+
 // Register a set of modules, which involves:
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
@@ -56,7 +70,6 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 		log.Warnf("Failed to load driver subsystem %v", err)
 	}
 
-	ctx := context.Background()
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
@@ -65,7 +78,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 
 		var err error
 		var module Module
-		pprof.Do(ctx, pprof.Labels("module", string(factory.Name)), func(_ context.Context) {
+		withModule(factory.Name, func() {
 			module, err = factory.Fn(cfg)
 		})
 
@@ -149,9 +162,13 @@ func RestartModule(factory Factory) error {
 	if currentModule == nil {
 		return fmt.Errorf("module %s is not running", factory.Name)
 	}
-	currentModule.Close()
 
-	newModule, err := factory.Fn(l.cfg)
+	var newModule Module
+	var err error
+	withModule(factory.Name, func() {
+		currentModule.Close()
+		newModule, err = factory.Fn(l.cfg)
+	})
 	if err != nil {
 		l.errors[factory.Name] = err
 		return err
@@ -183,9 +200,9 @@ func Close() {
 	}
 
 	l.closed = true
-	for _, module := range l.modules {
-		module.Close()
-	}
+	l.forEachModule(func(_ string, mod Module) {
+		mod.Close()
+	})
 }
 
 func updateStats() {
@@ -202,9 +219,9 @@ func updateStats() {
 		}
 
 		l.stats = make(map[string]interface{})
-		for name, module := range l.modules {
-			l.stats[string(name)] = module.GetStats()
-		}
+		l.forEachModule(func(name string, mod Module) {
+			l.stats[name] = mod.GetStats()
+		})
 		for name, err := range l.errors {
 			l.stats[string(name)] = map[string]string{"Error": err.Error()}
 		}
