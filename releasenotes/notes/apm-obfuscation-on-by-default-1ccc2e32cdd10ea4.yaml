@@ -8,9 +8,11 @@
 ---
 security:
   - |
-    APM: By default, the Agent will now obfuscate MongoDB queries,
+    APM: In order to improve the default customer experience regarding
+    sensitive data, the Agent now obfusates database statements within
+    span metadata by default. This includes MongoDB queries,
     ElasticSearch request bodies, and raw commands from Redis and
-    MemCached in traces. Previously, this was off by default.
+    MemCached. This was off by default, previously.
     This could have performance implications, or obfuscate data that
     is not sensitive, and can be disabled or configured via the
     obfuscation options within the apm_config, or with the
