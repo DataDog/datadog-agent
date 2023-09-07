@@ -117,6 +117,7 @@ func newDestination(endpoint config.Endpoint,
 		policy = backoff.NewConstantBackoffPolicy(
 			coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"),
 		)
+		shouldRetry = false
 	} else {
 		policy = backoff.NewExpBackoffPolicy(
 			endpoint.BackoffFactor,
