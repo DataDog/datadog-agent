@@ -72,6 +72,7 @@ func WithReturnZeroPermStats(enabled bool) Option {
 	}
 }
 
+// WithCustomProcFSRoot confiugres the procfs directory that the probe reads from
 func WithCustomProcFSRoot(path string) Option {
 	return func(p Probe) {
 		if linuxProbe, ok := p.(*probe); ok {
