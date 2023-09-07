@@ -32,12 +32,12 @@ type SymbolConfig struct {
 	OID  string `yaml:"OID" json:"OID"`
 	Name string `yaml:"name" json:"name"`
 
-	ExtractValue         string `yaml:"extract_value" json:"extract_value"`
-	ExtractValueCompiled *regexp.Regexp
+	ExtractValue         string         `yaml:"extract_value" json:"extract_value"`
+	ExtractValueCompiled *regexp.Regexp // TODO: ADD `-` yaml/json annotation?
 
-	MatchPattern         string `yaml:"match_pattern" json:"match_pattern"`
-	MatchValue           string `yaml:"match_value" json:"match_value"`
-	MatchPatternCompiled *regexp.Regexp
+	MatchPattern         string         `yaml:"match_pattern" json:"match_pattern"`
+	MatchValue           string         `yaml:"match_value" json:"match_value"`
+	MatchPatternCompiled *regexp.Regexp // TODO: ADD `-` yaml/json annotation?
 
 	ScaleFactor      float64 `yaml:"scale_factor" json:"scale_factor"`
 	Format           string  `yaml:"format" json:"format"`
@@ -72,6 +72,7 @@ type MetricTagConfig struct {
 	Match string            `yaml:"match" json:"match"`
 	Tags  map[string]string `yaml:"tags" json:"tags"`
 
+	// TODO: ADD `-` yaml/json annotation?
 	SymbolTag string
 	Pattern   *regexp.Regexp
 }
