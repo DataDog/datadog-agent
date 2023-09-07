@@ -173,7 +173,7 @@ type BaseEvent struct {
 	SpanContext            SpanContext            `field:"-" json:"-"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
 	ContainerContext       *ContainerContext      `field:"container" event:"*"`
-	NetworkContext         NetworkContext         `field:"network" event:"*"`
+	NetworkContext         NetworkContext         `field:"network" event:"dns"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
