@@ -9,7 +9,7 @@
 security:
   - |
     APM: In order to improve the default customer experience regarding
-    sensitive data, the Agent now obfusates database statements within
+    sensitive data, the Agent now obfuscates database statements within
     span metadata by default. This includes MongoDB queries,
     ElasticSearch request bodies, and raw commands from Redis and
     MemCached. This was off by default, previously.
