@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	go_ora "github.com/sijms/go-ora/v2"
 )
@@ -16,11 +17,12 @@ import (
 func getFullSQLText(c *Check, SQLStatement *string, key string, value string) error {
 	var err error
 	var sql string
-	if c.driver == "godror" {
+	switch c.driver {
+	case common.Godror:
 		sql = fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
 		err = c.db.Get(SQLStatement, sql, value)
 		reconnectOnConnectionError(c, &c.db, err)
-	} else {
+	case common.GoOra:
 		var sqlFullText go_ora.Clob
 		sql = fmt.Sprintf("BEGIN SELECT /* DD */ sql_fulltext INTO :sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1; END;", key)
 		_, err = c.connection.Exec(sql, go_ora.Out{Dest: &sqlFullText, Size: 8000}, value)

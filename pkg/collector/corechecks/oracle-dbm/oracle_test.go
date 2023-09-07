@@ -189,10 +189,6 @@ func TestChkRun(t *testing.T) {
 	}
 }
 
-func TestGoOraMemorLeaky(t *testing.T) {
-
-}
-
 func TestLicense(t *testing.T) {
 	oracleDriver := "oracle"
 	connStr := go_ora.BuildUrl(HOST, PORT, SERVICE_NAME, USER, PASSWORD, map[string]string{})
