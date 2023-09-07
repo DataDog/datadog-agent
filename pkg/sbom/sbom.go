@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package sbom holds sbom related files
 package sbom
 
 import (
@@ -14,14 +15,16 @@ import (
 )
 
 const (
-	ScanFilesystemType = "filesystem"
-	ScanDaemonType     = "daemon"
+	ScanFilesystemType = "filesystem" // ScanFilesystemType defines the type for file-system scan
+	ScanDaemonType     = "daemon"     // ScanDaemonType defines the type for daemon scan
 )
 
+// Report defines the report interface
 type Report interface {
 	ToCycloneDX() (*cyclonedxgo.BOM, error)
 }
 
+// ScanOptions defines the scan options
 type ScanOptions struct {
 	Analyzers        []string
 	CheckDiskUsage   bool
@@ -49,12 +52,14 @@ func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOpt
 	return
 }
 
+// ScanRequest defines the scan request interface
 type ScanRequest interface {
 	Collector() string
 	Type() string
 	ID() string
 }
 
+// ScanResult defines the scan result
 type ScanResult struct {
 	Error     error
 	Report    Report

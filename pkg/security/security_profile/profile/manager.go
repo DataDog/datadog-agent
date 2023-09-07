@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package profile holds profile related files
 package profile
 
 import (
@@ -31,7 +32,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -80,7 +81,7 @@ func (efr EventFilteringProfileState) toTag() string {
 type EventFilteringResult uint8
 
 const (
-	// Not applicable, for profil NoProfile and ProfileAtMaxSize state
+	// NA not applicable for profil NoProfile and ProfileAtMaxSize state
 	NA EventFilteringResult = iota
 	// InProfile is used to count the events that matched a profile
 	InProfile
@@ -524,7 +525,7 @@ func (m *SecurityProfileManager) SendStats() error {
 		if profileStats[profile.Status] == nil {
 			profileStats[profile.Status] = make(map[bool]float64)
 		}
-		profileStats[profile.Status][profile.loadedInKernel] += 1
+		profileStats[profile.Status][profile.loadedInKernel]++
 	}
 
 	for status, counts := range profileStats {
@@ -630,6 +631,7 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
+// LookupEventInProfiles lookups event in profiles
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
 	if event.Error != nil {

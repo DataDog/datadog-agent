@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package profile holds profile related files
 package profile
 
 import (
