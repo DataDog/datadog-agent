@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package containerutils holds multiple utils functions around Container IDs and their patterns
-
 package containerutils
 
 import (
