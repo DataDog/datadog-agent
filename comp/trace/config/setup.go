@@ -355,6 +355,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 	{
+		// Obfuscation of database statements will be ON by default. Any new obfuscators should likely be
+		// enabled by default as well. This can be explicitly disabled with the agent config. Any changes
+		// to obfuscation options or defaults must be reflected in the public docs.
+		c.Obfuscation.ES.Enabled = true
+		c.Obfuscation.Mongo.Enabled = true
+		c.Obfuscation.Memcached.Enabled = true
+		c.Obfuscation.Redis.Enabled = true
+
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
 		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
