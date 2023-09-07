@@ -198,7 +198,7 @@ instances:
     ## 3. tags (optional) - A list of tags to apply to each metric.
     ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
                            The parameter can be defined on a self-managed instance, which
-                           connects to CDB. The agent needs to have `set container` privilege
+                           connects to CDB. The Agent needs to have `set container` privilege
                            on the PDB where the custom query is running.
 
     ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
