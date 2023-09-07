@@ -19,18 +19,18 @@ generator:
           tags_per_msg_maximum: 50
           multivalue_count_minimum: 2
           multivalue_count_maximum: 32
-          multivalue_pack_probability: 0.08
+          multivalue_pack_probability: 0.0
           kind_weights:
             metric: 100
             event: 0
             service_check: 0
           metric_weights:
-            count: 45
-            gauge: 45
+            count: 100
+            gauge: 10
             timer: 0
-            distribution: 0
+            distribution: 50
             set: 0
-            histogram: 0
+            histogram: 1
       bytes_per_second: "1000 Mb"
       block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
