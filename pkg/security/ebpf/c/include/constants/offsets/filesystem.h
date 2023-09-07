@@ -217,7 +217,7 @@ static __attribute__((always_inline)) int get_sb_flags(struct super_block *sb) {
 
 static __attribute__((always_inline)) int is_non_mountable_dentry(struct dentry *dentry) {
     struct super_block *sb = get_dentry_sb(dentry);
-    return get_sb_flags(sb) & SB_NOUSER;
+    return get_sb_flags(sb) & MS_NOUSER;
 }
 
 static __attribute__((always_inline)) int is_tmpfs(struct dentry *dentry) {

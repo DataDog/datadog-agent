@@ -210,13 +210,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 }
 
 func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 {
-	offset := uint64(80)
-
-	if kv.IsRH7Kernel() {
-		offset = 72
-	}
-
-	return offset
+	return uint64(80)
 }
 
 func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
