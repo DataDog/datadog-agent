@@ -115,6 +115,9 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 		}
 	}
 
+	// Rename bucket "le" label to "upper_bound"
+	config.LabelsMapper["le"] = "upper_bound"
+
 	return Provider{
 		Config:              config,
 		ScraperConfig:       scraperConfig,

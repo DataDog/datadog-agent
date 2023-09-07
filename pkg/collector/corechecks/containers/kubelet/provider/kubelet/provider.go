@@ -146,7 +146,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 
 func (p *Provider) sendAlwaysCounter(metric *model.Sample, sender sender.Sender) {
 	metricName := string(metric.Metric["__name__"])
-	nameWithNamespace := p.Config.Namespace + "." + COUNTER_METRICS[metricName]
+	nameWithNamespace := common.KubeletMetricsPrefix + COUNTER_METRICS[metricName]
 
 	tags := p.MetricTags(metric)
 	sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)

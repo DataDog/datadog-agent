@@ -43,18 +43,9 @@ type KubeletCheck struct {
 
 // NewKubeletCheck returns a new KubeletCheck
 func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig) *KubeletCheck {
-	filter, err := containers.GetSharedMetricFilter()
-	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
-	}
-
-	providers := initProviders(filter, instance)
-
 	return &KubeletCheck{
 		CheckBase: base,
 		instance:  instance,
-		filter:    filter,
-		providers: providers,
 	}
 }
 
@@ -90,10 +81,24 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integration
 		return err
 	}
 
+	filter, err := containers.GetSharedMetricFilter()
+	if err != nil {
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
+	}
+	k.filter = filter
+
 	err = k.instance.Parse(config)
 	if err != nil {
 		return err
 	}
+
+	k.instance.Namespace = common.KubeletMetricsPrefix
+	if k.instance.SendHistogramBuckets == nil {
+		sendBuckets := true
+		k.instance.SendHistogramBuckets = &sendBuckets
+	}
+
+	k.providers = initProviders(filter, k.instance)
 
 	return nil
 }

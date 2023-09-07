@@ -19,8 +19,8 @@ const (
 
 // KubeletConfig is the config of the Kubelet.
 type KubeletConfig struct {
-	ProbesMetricsEndpoint *string `yaml:"probes_metrics_endpoint,omitempty"`
-	types.OpenmetricsInstance
+	ProbesMetricsEndpoint     *string `yaml:"probes_metrics_endpoint,omitempty"`
+	types.OpenmetricsInstance `yaml:",inline"`
 }
 
 func (c *KubeletConfig) Parse(data []byte) error {
