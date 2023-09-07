@@ -37,7 +37,7 @@ var (
 		[]string{"mutation_type", "injected", "language"}, "Number of pod mutation attempts by mutation type (agent config, standard tags).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
-		[]string{"mutation_type", "reason"}, "Number of mutation failures by mutation type (agent config, standard tags).",
+		[]string{"mutation_type", "reason", "language"}, "Number of mutation failures by mutation type (agent config, standard tags).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{}, "Number of mutation webhook requests received.",
