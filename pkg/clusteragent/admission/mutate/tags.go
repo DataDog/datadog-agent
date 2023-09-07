@@ -59,7 +59,7 @@ func InjectTags(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) 
 func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected))
+		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected), "")
 	}()
 
 	if pod == nil {

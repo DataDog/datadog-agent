@@ -85,7 +85,7 @@ func InjectConfig(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error
 func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	var injectedConfig, injectedEntity bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity))
+		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "")
 	}()
 
 	if pod == nil {
