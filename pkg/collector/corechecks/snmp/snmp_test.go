@@ -923,9 +923,7 @@ profiles:
     {
       "resource_type": "device",
       "resource_id": "default:1.2.3.4",
-      "diagnoses": [
-
-      ]
+      "diagnoses": null
     }
   ],
   "collect_timestamp":946684800
@@ -2024,9 +2022,7 @@ metric_tags:
     {
       "resource_type": "device",
       "resource_id": "%s",
-      "diagnoses": [
-
-      ]
+      "diagnoses": null
     }
   ],
   "collect_timestamp":946684800
