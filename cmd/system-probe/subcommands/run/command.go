@@ -297,9 +297,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	if healthPort > 0 {
 		err := healthprobe.Serve(ctx, healthPort)
 		if err != nil {
-			return log.Errorf("Error starting health port, exiting: %v", err)
+			return log.Errorf("Error starting health port, exiting: %s", err)
 		}
-		log.Debugf("Health check listening on port %d", healthPort)
+		log.Infof("Health check listening on port %d", healthPort)
 	}
 
 	if err = api.StartServer(cfg, telemetry); err != nil {
