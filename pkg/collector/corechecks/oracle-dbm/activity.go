@@ -331,13 +331,13 @@ func (c *Check) SampleSession() error {
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	var maxSqlTextLength int
+	var maxSQLTextLength int
 	if c.isRDS || c.isOracleCloud {
 		activityQuery = ACTIVITY_QUERY_DIRECT
-		maxSqlTextLength = 4000
+		maxSQLTextLength = MaxSQLFullTextVSQL
 	} else {
 		activityQuery = ACTIVITY_QUERY
-		maxSqlTextLength = 1000
+		maxSSQLTextLength = MaxSQLFulltextVSQLStats
 	}
 
 	if c.config.QuerySamples.IncludeAllSessions {
@@ -479,7 +479,7 @@ func (c *Check) SampleSession() error {
 		} else if previousSQL {
 			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
 				statement = sample.PrevSQLFullText.String
-				if len(statement) == maxSqlTextLength {
+				if len(statement) == maxSQLTextLength {
 					var fetchedStatement string
 					err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlPrevSQL.SQLID)
 					if err != nil {
