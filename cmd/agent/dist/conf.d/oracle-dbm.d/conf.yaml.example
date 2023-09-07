@@ -214,8 +214,8 @@ instances:
     #     - test:tag_value_1
     #     pdb: <MYPDB>
 
-  ## Start SQL trace for agent queries. The feature is only meant for the agent troubleshooting, and 
-  ## should be normally switched off.
+  ## Start an SQL trace for Agent queries. This feature is only meant for Agent troubleshooting, and 
+  ## should normally be switched off.
   ## Requires execute the execute privilege on `dbms_monitor` to datadog user
   #
   # agent_sql_trace:
