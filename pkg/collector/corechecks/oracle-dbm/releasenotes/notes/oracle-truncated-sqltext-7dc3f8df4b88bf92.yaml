@@ -1,0 +1,8 @@
+---
+prelude: >
+    Fix the bug that was responsible for truncated large SQL text in query
+    samples.
+fixes:
+  - |
+    Fix the bug that was responsible for truncated large SQL text in query
+    samples.

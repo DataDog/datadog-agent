@@ -1,6 +1,0 @@
----
-prelude: >
-    Fix truncated SQL text in query samples.
-fixes:
-  - |
-    Fix truncated SQL text in query samples.
