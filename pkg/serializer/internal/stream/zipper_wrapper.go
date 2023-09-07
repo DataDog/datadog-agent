@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/DataDog/zstd"
@@ -37,10 +36,8 @@ var _ Zipper = &ZipperWrapper{}
 func NewZipperWrapper(kind string) (*ZipperWrapper, error) {
 	switch kind {
 	case "zlib":
-		fmt.Println("using zlib")
 		return &ZipperWrapper{kind: kind}, nil
 	case "zstd":
-		fmt.Println("using zstd")
 		return &ZipperWrapper{kind: kind}, nil
 	}
 	return nil, errors.New("invalid zipper kind. choose 'zlib' or 'zstd'")
