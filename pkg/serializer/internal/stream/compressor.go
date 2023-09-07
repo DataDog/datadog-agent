@@ -3,23 +3,48 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-//go:build zlib
+//go:build zlib || zstd
 
 package stream
 
 import (
 	"bytes"
+	"compress/zlib"
 	"errors"
 	"expvar"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/zstd"
 )
 
 const (
 	// Available is true if the code is compiled in
 	Available = true
 )
+
+// Flusher is the interface that requires the Flush function
+type flusher interface {
+	Flush() error
+}
+
+// zipper is the interface that zlib and zstd should implement
+type zipper interface {
+	io.WriteCloser
+	flusher
+}
+
+// NewZipper returns a zipper of either zstd or zlib depending on the kind param
+func NewZipper(kind string, output *bytes.Buffer) (zipper, error) {
+	switch kind {
+	case "zlib":
+		return zlib.NewWriter(output), nil
+	case "zstd":
+		return zstd.NewWriter(output), nil
+	}
+	return nil, errors.New("invalid zipper kind. choose 'zlib' or 'zstd'")
+}
 
 var (
 	compressorExpvars    = expvar.NewMap("compressor")
@@ -59,14 +84,14 @@ func init() {
 
 // Compressor is in charge of compressing items for a single payload
 type Compressor struct {
-	input               *bytes.Buffer  // temporary buffer for data that has not been compressed yet
-	compressed          *bytes.Buffer  // output buffer containing the compressed payload
-	zipper              *ZipperWrapper // wrapper for zlib/zstd
-	header              []byte         // json header to print at the beginning of the payload
-	footer              []byte         // json footer to append at the end of the payload
-	uncompressedWritten int            // uncompressed bytes written
-	firstItem           bool           // tells if the first item has been written
-	repacks             int            // numbers of time we had to pack this payload
+	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
+	compressed          *bytes.Buffer // output buffer containing the compressed payload
+	zipper              zipper        // either zlib or zstd
+	header              []byte        // json header to print at the beginning of the payload
+	footer              []byte        // json footer to append at the end of the payload
+	uncompressedWritten int           // uncompressed bytes written
+	firstItem           bool          // tells if the first item has been written
+	repacks             int           // numbers of time we had to pack this payload
 	maxUnzippedItemSize int
 	maxZippedItemSize   int
 	maxPayloadSize      int
@@ -90,8 +115,7 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 	}
 
 	var err error
-	c.zipper, err = NewZipperWrapper(compressorKind)
-	c.zipper.SetWriter(c.compressed)
+	c.zipper, err = NewZipper(compressorKind, c.compressed)
 	if err != nil {
 		return nil, err
 	}
