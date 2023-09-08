@@ -114,6 +114,46 @@ func TestProcess(t *testing.T) {
 		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
 	})
 
+	t.Run("ReplacerMetrics", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = []*config.ReplaceRule{
+			{
+				Name: "request.zipcode",
+				Re:   regexp.MustCompile(".*"),
+				Repl: "...",
+			},
+			{
+				Name: "*",
+				Re:   regexp.MustCompile("1337"),
+				Repl: "5555",
+			},
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "resource",
+			Type:     "web",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"request.zipcode": 12345, "request.secret": 1337},
+			Meta:     map[string]string{},
+		}
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		})
+
+		assert.Equal(t, 5555.0, span.Metrics["request.secret"])
+		assert.Equal(t, "...", span.Meta["request.zipcode"])
+
+	})
+
 	t.Run("Blacklister", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"

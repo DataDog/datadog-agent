@@ -33,17 +33,35 @@ func (f Replacer) Replace(trace pb.Trace) {
 				for k := range s.Meta {
 					s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 				}
+				for k := range s.Metrics {
+					replacedValue := re.ReplaceAllString(strconv.FormatFloat(s.Metrics[k], 'f', -1, 64), str)
+					if rf, err := strconv.ParseFloat(replacedValue, 64); err == nil {
+						s.Metrics[k] = rf
+					} else {
+						s.Meta[k] = replacedValue
+						delete(s.Metrics, k)
+					}
+				}
 				s.Resource = re.ReplaceAllString(s.Resource, str)
 			case "resource.name":
 				s.Resource = re.ReplaceAllString(s.Resource, str)
 			default:
-				if s.Meta == nil {
-					continue
+				if s.Meta != nil {
+					if _, ok := s.Meta[key]; ok {
+						s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
+					}
 				}
-				if _, ok := s.Meta[key]; !ok {
-					continue
+				if s.Metrics != nil {
+					if _, ok := s.Metrics[key]; ok {
+						replacedValue := re.ReplaceAllString(strconv.FormatFloat(s.Metrics[key], 'f', -1, 64), str)
+						if rf, err := strconv.ParseFloat(replacedValue, 64); err == nil {
+							s.Metrics[key] = rf
+						} else {
+							s.Meta[key] = replacedValue
+							delete(s.Metrics, key)
+						}
+					}
 				}
-				s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
 			}
 		}
 	}
