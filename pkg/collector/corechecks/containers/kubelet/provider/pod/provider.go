@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,8 +39,6 @@ var (
 		},
 		"terminated": {"oomkilled", "containercannotrun", "error"},
 	}
-
-	VOLUME_TAG_KEYS_TO_EXCLUDE = []string{"persistentvolumeclaim", "pod_phase"}
 )
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
@@ -73,7 +70,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(pods.ExpiredCount), "", p.config.Tags)
 
 	for _, pod := range pods.Items {
-		p.cachePodTagsByPVC(pod)
+		common.CachePodTagsByPVC(pod)
 		for _, cStatus := range pod.Status.Containers {
 			if cStatus.ID == "" {
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
@@ -154,50 +151,6 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 		if state.Waiting != nil && slices.Contains(includeContainerStateReason["waiting"], strings.ToLower(state.Waiting.Reason)) {
 			waitTags := utils.ConcatenateStringTags(tags, "reason:"+strings.ToLower(state.Waiting.Reason))
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".waiting", 1, "", waitTags)
-		}
-	}
-}
-
-func (p *Provider) cachePodTagsByPVC(pod *kubelet.Pod) {
-	// TODO
-	podUid, err := kubelet.KubePodUIDToTaggerEntityID(pod.Metadata.UID)
-	if err != nil {
-		return
-	}
-	tags, _ := tagger.Tag(podUid, collectors.OrchestratorCardinality)
-	if len(tags) == 0 {
-		return
-	}
-
-	filteredTags := make([]string, len(tags))
-	for t := range tags {
-		omitTag := false
-		for i := range VOLUME_TAG_KEYS_TO_EXCLUDE {
-			if strings.HasPrefix(tags[t], VOLUME_TAG_KEYS_TO_EXCLUDE[i]+":") {
-				omitTag = true
-				break
-			}
-		}
-		if !omitTag {
-			filteredTags = append(filteredTags, tags[t])
-		}
-	}
-
-	for _, v := range pod.Spec.Volumes {
-		pvcName := v.PersistentVolumeClaim.ClaimName
-		if pvcName != "" {
-			// TODO nil checks
-			// TODO cache key prefix
-			cache.Cache.Set(fmt.Sprintf("check/kubelet/pvc/%s/%s", pod.Metadata.Namespace, pvcName), filteredTags, 0)
-		}
-
-		// get standalone PVC associated to potential EVC
-		// when a generic ephemeral volume is created, an associated pvc named <pod_name>-<volume_name>
-		// is created (https://docs.openshift.com/container-platform/4.11/storage/generic-ephemeral-vols.html).
-		ephemeral := v.Ephemeral.VolumeClaimTemplate
-		volumeName := v.Name
-		if ephemeral != nil && volumeName != "" {
-			cache.Cache.Set(fmt.Sprintf("check/kubelet/pvc/%s/%s-%s", pod.Metadata.Namespace, pod.Metadata.Name, volumeName), filteredTags, 0)
 		}
 	}
 }

@@ -8,12 +8,68 @@
 package common
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/prometheus/common/model"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+var (
+	VOLUME_TAG_KEYS_TO_EXCLUDE = []string{"persistentvolumeclaim", "pod_phase"}
+)
+
+func CachePodTagsByPVC(pod *kubelet.Pod) {
+	// TODO
+	podUid := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
+	tags, _ := tagger.Tag(podUid, collectors.OrchestratorCardinality)
+	if len(tags) == 0 {
+		return
+	}
+
+	var filteredTags []string
+	for t := range tags {
+		omitTag := false
+		for i := range VOLUME_TAG_KEYS_TO_EXCLUDE {
+			if strings.HasPrefix(tags[t], VOLUME_TAG_KEYS_TO_EXCLUDE[i]+":") {
+				omitTag = true
+				break
+			}
+		}
+		if !omitTag {
+			filteredTags = append(filteredTags, tags[t])
+		}
+	}
+
+	for _, v := range pod.Spec.Volumes {
+		if v.PersistentVolumeClaim != nil {
+			pvcName := v.PersistentVolumeClaim.ClaimName
+			if pvcName != "" {
+				// TODO nil checks
+				// TODO cache key prefix
+				cache.Cache.Set(fmt.Sprintf("check/kubelet/pvc/%s/%s", pod.Metadata.Namespace, pvcName), filteredTags, 0)
+			}
+		}
+
+		// get standalone PVC associated to potential EVC
+		// when a generic ephemeral volume is created, an associated pvc named <pod_name>-<volume_name>
+		// is created (https://docs.openshift.com/container-platform/4.11/storage/generic-ephemeral-vols.html).
+		if v.Ephemeral != nil {
+			ephemeral := v.Ephemeral.VolumeClaimTemplate
+			volumeName := v.Name
+			if ephemeral != nil && volumeName != "" {
+				cache.Cache.Set(fmt.Sprintf("check/kubelet/pvc/%s/%s-%s", pod.Metadata.Namespace, pod.Metadata.Name, volumeName), filteredTags, 0)
+			}
+		}
+	}
+}
 
 // GetContainerId returns the container ID from the workloadmeta.Store for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be

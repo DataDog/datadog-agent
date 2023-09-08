@@ -77,6 +77,10 @@ func NewProvider(config *common.KubeletConfig, transformers Transformers, scrape
 			if strings.Contains(val, "*") {
 				wildcardMetrics = append(wildcardMetrics, val)
 			}
+		case map[string]string:
+			for k1, v1 := range val {
+				metricMappings[k1] = v1
+			}
 		case map[interface{}]interface{}:
 			for k1, v1 := range val {
 				if _, ok := k1.(string); !ok {
