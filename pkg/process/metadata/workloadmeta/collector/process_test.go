@@ -15,11 +15,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -27,6 +31,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const testCid = "containersAreAwesome"
@@ -37,7 +42,7 @@ type collectorTest struct {
 	collector *Collector
 	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
 	//                    component.
-	store  *workloadmeta.MockStore
+	store  workloadmeta.Mock
 	stream pbgo.ProcessEntityStream_StreamEntitiesClient
 }
 
@@ -69,26 +74,33 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 
 	setFlavor(t, flavor.ProcessAgent)
 
-	cfg := config.Mock(t)
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
-	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
-	cfg.SetWithoutSource("language_detection.enabled", true)
 
-	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(cfg)
-	grpcServer := workloadmetaExtractor.NewGRPCServer(cfg, wlmExtractor)
+	overrides := map[string]interface{}{
+		"process_config.language_detection.grpc_port":   port,
+		"workloadmeta.remote_process_collector.enabled": true,
+	}
+
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Replace(corecomp.MockParams{Overrides: overrides}),
+		fx.Supply(context.Background()),
+		collectors.GetCatalog(),
+		workloadmeta.MockModuleV2,
+	))
+
+	// pass actual config component
+	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(store.GetConfig())
+	grpcServer := workloadmetaExtractor.NewGRPCServer(store.GetConfig(), wlmExtractor)
 
 	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
 
-	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
-	//                    component.
-	store := workloadmeta.NewMockStore()
-
 	mockClock := clock.NewMock()
 
 	c := &Collector{
-		ddConfig:        cfg,
+		ddConfig:        store.GetConfig(),
 		processData:     mockProcessData,
 		wlmExtractor:    wlmExtractor,
 		grpcServer:      grpcServer,
@@ -121,7 +133,7 @@ func (c *collectorTest) setupProcs() {
 func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.Container) {
 	t.Helper()
 
-	c.store.SetEntity(cont)
+	c.store.Set(cont)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assert.Contains(t, c.collector.pidToCid, cont.PID)
 	}, 5*time.Second, 1*time.Second)
@@ -129,7 +141,7 @@ func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.
 
 // Tick sets up the collector to collect processes by advancing the clock
 func (c *collectorTest) tick() {
-	c.clock.Add(config.DefaultLocalProcessCollectorInterval)
+	c.clock.Add(pkgconfig.DefaultLocalProcessCollectorInterval)
 }
 
 func TestProcessCollector(t *testing.T) {
@@ -207,7 +219,7 @@ func TestEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			setFlavor(t, tc.flavor)
 
-			cfg := config.Mock(t)
+			cfg := pkgconfig.Mock(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", tc.processCollectionEnabled)
 			cfg.SetWithoutSource("language_detection.enabled", tc.remoteProcessCollectorEnabled)
 

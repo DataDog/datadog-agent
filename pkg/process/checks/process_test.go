@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"testing"
@@ -16,8 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
@@ -27,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
@@ -69,7 +73,12 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	// Workload meta + tagger
 	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
 	//                    component.
-	metadataProvider := workloadmeta.NewMockStore()
+	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(context.Background()),
+		workloadmeta.MockModule,
+	))
+
 	fakeTagger := local.NewFakeTagger()
 	tagger.SetDefaultTagger(fakeTagger)
 	defer tagger.SetDefaultTagger(nil)
