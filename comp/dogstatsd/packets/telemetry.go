@@ -28,6 +28,8 @@ var (
 		nil, "Count of get done in the packet pool")
 	tlmPoolPut = telemetry.NewCounter("dogstatsd", "packet_pool_put",
 		nil, "Count of put done in the packet pool")
+	tlmPoolDrops = telemetry.NewCounter("dogstatsd", "packet_pool_drop",
+		nil, "Count of packets dropped in the packet pool")
 	tlmPool = telemetry.NewGauge("dogstatsd", "packet_pool",
 		nil, "Usage of the packet pool in dogstatsd")
 )

@@ -25,6 +25,8 @@ type Pool struct {
 	pool sync.Pool
 	// telemetry
 	tlmEnabled bool
+	// packet size for this buffer
+	bufferSize int
 }
 
 // NewPool creates a new pool with a specified buffer size
@@ -42,6 +44,7 @@ func NewPool(bufferSize int) *Pool {
 		},
 		// telemetry
 		tlmEnabled: utils.IsTelemetryEnabled(),
+		bufferSize: bufferSize,
 	}
 }
 
@@ -68,6 +71,11 @@ func (p *Pool) Put(x interface{}) {
 	if p.tlmEnabled {
 		tlmPoolPut.Inc()
 		tlmPool.Dec()
+	}
+	if len(packet.Buffer) > p.bufferSize {
+		tlmPoolDrops.Inc()
+		// free packet if the buffer has been increased
+		return
 	}
 	p.pool.Put(packet)
 }
