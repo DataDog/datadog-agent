@@ -14,7 +14,7 @@ import (
 
 	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
