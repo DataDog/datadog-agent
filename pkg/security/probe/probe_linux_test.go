@@ -24,13 +24,21 @@ import (
 type MockEventHandler struct{}
 
 func (MockEventHandler) HandleEvent(incomingEvent interface{}) {
-	_, ok := incomingEvent.(*model.Event)
+	event, ok := incomingEvent.(*model.Event)
 	if !ok {
 		seclog.Errorf("Event is not a security model event")
 		return
 	}
 
-	return
+	// event already marked with an error, skip it
+	if event.Error != nil {
+		return
+	}
+
+	// if the event should have been discarded in kernel space, we don't need to evaluate it
+	if event.IsSavedByActivityDumps() {
+		return
+	}
 }
 
 func (MockEventHandler) Copy(incomingEvent *model.Event) interface{} {
@@ -41,8 +49,7 @@ func BenchmarkSendSpecificEvent(b *testing.B) {
 	eventHandler := MockEventHandler{}
 
 	type fields struct {
-		Opts Opts
-		//Config               *config.Config
+		Opts                 Opts
 		StatsdClient         statsd.ClientInterface
 		startTime            time.Time
 		ctx                  context.Context
@@ -72,8 +79,7 @@ func BenchmarkSendSpecificEvent(b *testing.B) {
 
 	for _, tt := range tests {
 		p := &Probe{
-			Opts: tt.fields.Opts,
-			//Config:               tt.fields.Config,
+			Opts:                 tt.fields.Opts,
 			StatsdClient:         tt.fields.StatsdClient,
 			startTime:            tt.fields.startTime,
 			ctx:                  tt.fields.ctx,
@@ -87,7 +93,9 @@ func BenchmarkSendSpecificEvent(b *testing.B) {
 			event:                tt.fields.event,
 		}
 
-		p.AddEventHandler(model.ExecEventType, eventHandler)
+		for i := 0; i < 10; i++ {
+			p.AddEventHandler(model.ExecEventType, eventHandler)
+		}
 
 		for i := 0; i < b.N; i++ {
 			p.sendSpecificEvent(tt.args.event)

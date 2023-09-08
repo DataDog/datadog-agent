@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/hashicorp/go-multierror"
 	easyjson "github.com/mailru/easyjson"
@@ -27,8 +28,6 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
