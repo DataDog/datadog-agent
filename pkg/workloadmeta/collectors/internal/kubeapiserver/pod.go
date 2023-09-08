@@ -24,9 +24,6 @@ import (
 )
 
 func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
-	if !config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
-		return nil, nil
-	}
 	podListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
