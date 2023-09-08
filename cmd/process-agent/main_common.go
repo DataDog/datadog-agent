@@ -23,6 +23,8 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -32,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -130,6 +131,20 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		// Provide remote config client module
 		rcclient.Module,
+
+		// Provide the corresponding workloadmeta Params to configure the catalog
+		collectors.GetCatalog(),
+		fx.Provide(func() workloadmeta.Params {
+			var catalog workloadmeta.AgentType
+			if flavor.GetFlavor() == flavor.ClusterAgent {
+				catalog = workloadmeta.ClusterAgent
+			} else {
+				catalog = workloadmeta.NodeAgent
+			}
+
+			return workloadmeta.Params{AgentType: catalog}
+		}),
+		fx.Supply(context.Background()),
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
@@ -235,20 +250,6 @@ func initMisc(deps miscDeps) error {
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
-
-	// Setup workloadmeta
-	//
-	// TODO(components): the code commented below can probably be removed soon once
-	//                   initialization and registration of workload collectors is
-	//                   handled as expected in the workloadmeta component.
-	//
-	// var workloadmetaCollectors workloadmeta.CollectorCatalog
-	// if deps.Config.GetBool("process_config.remote_workloadmeta") {
-	// 	workloadmetaCollectors = workloadmeta.RemoteCatalog
-	// } else {
-	// 	workloadmetaCollectors = workloadmeta.NodeAgentCatalog
-	// }
-	// store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
 
 	// Setup remote tagger
 	var t tagger.Tagger

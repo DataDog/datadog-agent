@@ -24,11 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -91,6 +92,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle,
+				// Provide the corresponding workloadmeta Params to configure the catalog
+				collectors.GetCatalog(),
+				fx.Provide(func(config config.Component) workloadmeta.Params {
+
+					var catalog workloadmeta.AgentType
+					if config.GetBool("process_config.remote_workloadmeta") {
+						catalog = workloadmeta.Remote
+					} else {
+						catalog = workloadmeta.NodeAgent
+					}
+
+					return workloadmeta.Params{AgentType: catalog}
+				}),
 				processComponent.Bundle,
 			)
 		},
@@ -112,20 +126,6 @@ func runCheckCmd(deps dependencies) error {
 	deps.Log.Infof("running on platform: %s", hostMetadataUtils.GetPlatformName())
 	agentVersion, _ := version.Agent()
 	deps.Log.Infof("running version: %s", agentVersion.GetNumberAndPre())
-
-	// Start workload metadata store before tagger (used for containerCollection)
-	// TODO: (Components) Add to dependencies once workloadmeta is migrated to components
-	//       WIP (Components) the code commented below should be tackled in
-	//                        the workoadmeta Init.
-	//
-	// var workloadmetaCollectors workloadmeta.CollectorCatalog
-	// if deps.Config.GetBool("process_config.remote_workloadmeta") {
-	// 	workloadmetaCollectors = workloadmeta.RemoteCatalog
-	// } else {
-	// 	workloadmetaCollectors = workloadmeta.NodeAgentCatalog
-	// }
-	// store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
-	// store.Start(ctx)
 
 	// Tagger must be initialized after agent config has been setup
 	// TODO: (Components) Add to dependencies once tagger is migrated to components
