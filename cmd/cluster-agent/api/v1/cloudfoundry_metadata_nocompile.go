@@ -8,7 +8,7 @@
 package v1
 
 import (
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/gorilla/mux"
 )
 
