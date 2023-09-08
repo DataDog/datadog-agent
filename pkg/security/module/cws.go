@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package module holds module related files
 package module
 
 import (
@@ -48,7 +49,7 @@ type CWSConsumer struct {
 	reloader      ReloaderInterface
 }
 
-// Init initializes the module with options
+// NewCWSConsumer initializes the module with options
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
@@ -199,7 +200,7 @@ func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterfa
 	sender.SendEvent(rule, event, nil, "")
 }
 
-// Close the module
+// Stop closes the module
 func (c *CWSConsumer) Stop() {
 	c.reloader.Stop()
 

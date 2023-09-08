@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -32,10 +33,13 @@ import (
 )
 
 const (
+	// ProbeEvaluationRuleSetTagValue defines the probe evaluation rule-set tag value
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
-	ThreatScoreRuleSetTagValue     = "threat_score"
+	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
+	ThreatScoreRuleSetTagValue = "threat_score"
 )
 
+// RuleEngine defines a rule engine
 type RuleEngine struct {
 	sync.RWMutex
 	config                    *config.RuntimeSecurityConfig
@@ -56,10 +60,12 @@ type RuleEngine struct {
 	rulesetListeners          []rules.RuleSetListener
 }
 
+// APIServer defines the API server
 type APIServer interface {
 	Apply([]string)
 }
 
+// NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:                     probe,
@@ -341,6 +347,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	return true
 }
 
+// Stop stops the rule engine
 func (e *RuleEngine) Stop() {
 	for _, provider := range e.policyProviders {
 		_ = provider.Close()
@@ -446,6 +453,7 @@ func (e *RuleEngine) Copy(incomingEvent *model.Event) interface{} {
 	return incomingEvent
 }
 
+// StopEventCollector stops the event collector
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 	return e.GetRuleSet().StopEventCollector()
 }

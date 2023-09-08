@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -101,6 +102,7 @@ func (p *Probe) zeroEvent() *model.Event {
 	return p.event
 }
 
+// StatsPollingInterval returns the stats polling interval
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval
 }

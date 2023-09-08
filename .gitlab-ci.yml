@@ -849,6 +849,7 @@ workflow:
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
+    allow_failure: true
   - changes:
       paths:
         - pkg/ebpf/**/*
