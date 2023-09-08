@@ -19,9 +19,10 @@ type ContainerApp struct {
 }
 
 const (
-	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
-	ContainerAppDNSSuffix  = "CONTAINER_APP_ENV_DNS_SUFFIX"
-	ContainerAppRevision   = "CONTAINER_APP_REVISION"
+	ContainerAppNameEnvVar        = "CONTAINER_APP_NAME"
+	ContainerAppReplicaNameEnvVar = "CONTAINER_APP_REPLICA_NAME"
+	ContainerAppDNSSuffix         = "CONTAINER_APP_ENV_DNS_SUFFIX"
+	ContainerAppRevision          = "CONTAINER_APP_REVISION"
 
 	AzureSubscriptionIdEnvVar = "DD_AZURE_SUBSCRIPTION_ID"
 	AzureResourceGroupEnvVar  = "DD_AZURE_RESOURCE_GROUP"
@@ -30,6 +31,7 @@ const (
 // GetTags returns a map of Azure-related tags
 func (c *ContainerApp) GetTags() map[string]string {
 	appName := os.Getenv(ContainerAppNameEnvVar)
+	replicaName := os.Getenv(ContainerAppReplicaNameEnvVar)
 	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
 
 	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
@@ -38,11 +40,12 @@ func (c *ContainerApp) GetTags() map[string]string {
 	revision := os.Getenv(ContainerAppRevision)
 
 	tags := map[string]string{
-		"app_name":   appName,
-		"region":     region,
-		"revision":   revision,
-		"origin":     c.GetOrigin(),
-		"_dd.origin": c.GetOrigin(),
+		"app_name":     appName,
+		"replica_name": replicaName,
+		"region":       region,
+		"revision":     revision,
+		"origin":       c.GetOrigin(),
+		"_dd.origin":   c.GetOrigin(),
 	}
 
 	if c.SubscriptionId != "" {

@@ -17,6 +17,7 @@ func TestGetContainerAppTags(t *testing.T) {
 	service := &ContainerApp{}
 
 	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test_app_name--klc9ksi-dd757dc46-zwqk8")
 	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
 
@@ -26,11 +27,12 @@ func TestGetContainerAppTags(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"app_name":   "test_app_name",
-		"origin":     "containerapp",
-		"region":     "eastus",
-		"revision":   "test_revision",
-		"_dd.origin": "containerapp",
+		"app_name":     "test_app_name",
+		"replica_name": "test_app_name--klc9ksi-dd757dc46-zwqk8",
+		"origin":       "containerapp",
+		"region":       "eastus",
+		"revision":     "test_revision",
+		"_dd.origin":   "containerapp",
 	}, tags)
 }
 
@@ -38,6 +40,7 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	service := NewContainerApp()
 
 	t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+	t.Setenv("CONTAINER_APP_REPLICA_NAME", "test_app_name--klc9ksi-dd757dc46-zwqk8")
 	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 	t.Setenv("CONTAINER_APP_REVISION", "test_revision")
 
@@ -51,6 +54,7 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 
 	assert.Equal(t, map[string]string{
 		"app_name":        "test_app_name",
+		"replica_name":    "test_app_name--klc9ksi-dd757dc46-zwqk8",
 		"origin":          "containerapp",
 		"region":          "eastus",
 		"revision":        "test_revision",
@@ -67,6 +71,7 @@ func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 	service := NewContainerApp()
 	if os.Getenv("SERVERLESS_TEST") == "true" {
 		t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+		t.Setenv("CONTAINER_APP_REPLICA_NAME", "test_app_name--klc9ksi-dd757dc46-zwqk8")
 		t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 		t.Setenv("CONTAINER_APP_REVISION", "test_revision")
 
@@ -91,6 +96,7 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	service := NewContainerApp()
 	if os.Getenv("SERVERLESS_TEST") == "true" {
 		t.Setenv("CONTAINER_APP_NAME", "test_app_name")
+		t.Setenv("CONTAINER_APP_REPLICA_NAME", "test_app_name--klc9ksi-dd757dc46-zwqk8")
 		t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
 		t.Setenv("CONTAINER_APP_REVISION", "test_revision")
 
