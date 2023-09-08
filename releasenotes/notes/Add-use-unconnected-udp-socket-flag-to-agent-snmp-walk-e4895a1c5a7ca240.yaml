@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add --use-unconnected-usp-socket to agent snmp walk command.
+    Add --use-unconnected-udp-socket flag to agent snmp walk command.
