@@ -17,17 +17,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-const nodeStoreName = "node-store"
-
-func init() {
-	resourceSpecificGenerator[nodeStoreName] = newNodeStore
-}
-
-func newNodeStore(ctx context.Context, _ config.Config, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
+func newNodeStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	nodeListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Nodes().List(ctx, options)
@@ -45,7 +39,8 @@ func newNodeStore(ctx context.Context, _ config.Config, wlm workloadmeta.Store, 
 		nodeStore,
 		noResync,
 	)
-	return nodeReflector, nodeStore, nil
+	log.Debug("node reflector enabled")
+	return nodeReflector, nodeStore
 }
 
 func newNodeReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {

@@ -11,7 +11,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/kubernetes/fake"
@@ -19,15 +18,7 @@ import (
 
 const dummySubscriber = "dummy-subscriber"
 
-func TestNewResourceStore(t *testing.T, newStore storeGenerator, cfg config.Config) error {
-	mockClient := fake.NewSimpleClientset()
-	ctx := context.Background()
-	wlm := workloadmeta.NewMockStore()
-	_, _, err := newStore(ctx, cfg, wlm, mockClient)
-	return err
-}
-
-func TestFakeHelper(t *testing.T, cfg config.Config, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
+func TestFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected []workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
 
@@ -38,7 +29,7 @@ func TestFakeHelper(t *testing.T, cfg config.Config, createResource func(*fake.C
 	// Use the fake client in kubeapiserver context.
 	wlm := workloadmeta.NewMockStore()
 	ctx := context.Background()
-	store, _, err := newStore(ctx, cfg, wlm, client)
+	store, _ := newStore(ctx, wlm, client)
 	assert.NoError(t, err)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)

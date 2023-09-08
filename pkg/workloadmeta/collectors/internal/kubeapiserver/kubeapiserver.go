@@ -31,10 +31,21 @@ const (
 type collector struct{}
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, config.Config, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, *reflectorStore, error)
+type storeGenerator func(context.Context, workloadmeta.Store, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
-// resourceSpecificGenerator contains a list of stores and functions to create this store
-var resourceSpecificGenerator = make(map[string]storeGenerator)
+func storeGenerators(cfg config.Config) []storeGenerator {
+	generators := []storeGenerator{newNodeStore}
+
+	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") {
+		generators = append(generators, newPodStore)
+	}
+
+	if cfg.GetBool("language_detection.enabled") {
+		generators = append(generators, newDeploymentStore)
+	}
+
+	return generators
+}
 
 func init() {
 	workloadmeta.RegisterClusterCollector(collectorID, func() workloadmeta.Collector {
@@ -51,12 +62,8 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 	}
 	client := apiserverClient.Cl
 
-	for _, storeBuilder := range resourceSpecificGenerator {
-		reflector, store, err := storeBuilder(ctx, config.Datadog, wlmetaStore, client)
-		if err != nil {
-			log.Warnf("failed to start reflector: %s", err)
-			continue
-		}
+	for _, storeBuilder := range storeGenerators(config.Datadog) {
+		reflector, store := storeBuilder(ctx, wlmetaStore, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}

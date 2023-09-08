@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,16 +17,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
-
-const deploymentStoreName = "deployments-store"
-
-func init() {
-	resourceSpecificGenerator[deploymentStoreName] = newDeploymentStore
-}
 
 // deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
 type deploymentFilter struct{}
@@ -54,10 +46,7 @@ func (f *deploymentFilter) filteredOut(obj metav1.Object) bool {
 	return true
 }
 
-func newDeploymentStore(ctx context.Context, cfg config.Config, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
-	if !cfg.GetBool("language_detection.enabled") {
-		return nil, nil, fmt.Errorf("language detection is enabled") // we might remove this if we want to use deployments info in unified service tagging
-	}
+func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	deploymentListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
@@ -75,7 +64,7 @@ func newDeploymentStore(ctx context.Context, cfg config.Config, wlm workloadmeta
 		deploymentStore,
 		noResync,
 	)
-	return deploymentReflector, deploymentStore, nil
+	return deploymentReflector, deploymentStore
 }
 
 func newDeploymentReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {

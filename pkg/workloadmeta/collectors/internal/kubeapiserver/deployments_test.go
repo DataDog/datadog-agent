@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,54 +16,10 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNewDeploymentStore(t *testing.T) {
-	tests := []struct {
-		name       string
-		configFunc func() config.Config
-		expectErr  bool
-	}{
-		{
-			name: "New deployment store Test",
-			configFunc: func() config.Config {
-				cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-				cfg.SetDefault("language_detection.enabled", true)
-				return cfg
-			},
-			expectErr: false,
-		},
-		{
-			name: "Fail new deployment store with error",
-			configFunc: func() config.Config {
-				return config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			},
-			expectErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := TestNewResourceStore(t, newDeploymentStore, tt.configFunc())
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestNewDeploymentReflectorStore(t *testing.T) {
-	wlmetaStore := workloadmeta.NewMockStore()
-	store := newDeploymentReflectorStore(wlmetaStore)
-	assert.NotNil(t, store)
-	assert.NotNil(t, store.seen)
-	assert.NotNil(t, store.parser)
-}
 
 func TestDeploymentParser_Parse(t *testing.T) {
 	parser := newdeploymentParser()
@@ -86,9 +41,6 @@ func TestDeploymentParser_Parse(t *testing.T) {
 }
 
 func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.SetDefault("language_detection.enabled", true)
-
 	objectMeta := metav1.ObjectMeta{
 		Name:      "test-deployment",
 		Namespace: "test-namespace",
@@ -114,13 +66,10 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 			},
 		},
 	}
-	TestFakeHelper(t, cfg, createResource, newDeploymentStore, expected)
+	TestFakeHelper(t, createResource, newDeploymentStore, expected)
 }
 
 func Test_Deployment_FilteredOut(t *testing.T) {
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.SetDefault("language_detection.enabled", true)
-
 	filteredOutObjectMeta := metav1.ObjectMeta{
 		Name:      "test-deployment-filtered-out",
 		Namespace: "test-namespace",
@@ -153,5 +102,5 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 			},
 		},
 	}
-	TestFakeHelper(t, cfg, createResource, newDeploymentStore, expected)
+	TestFakeHelper(t, createResource, newDeploymentStore, expected)
 }

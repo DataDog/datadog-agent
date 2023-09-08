@@ -21,18 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewNodeStore(t *testing.T) {
-	TestNewResourceStore(t, newNodeStore, nil)
-}
-
-func TestNewNodeReflectorStore(t *testing.T) {
-	wlmetaStore := workloadmeta.NewMockStore()
-	store := newNodeReflectorStore(wlmetaStore)
-	assert.NotNil(t, store)
-	assert.NotNil(t, store.seen)
-	assert.NotNil(t, store.parser)
-}
-
 func TestNodeParser_Parse(t *testing.T) {
 	parser := newNodeParser()
 	Node := &corev1.Node{
@@ -78,5 +66,5 @@ func Test_NodesFakeKubernetesClient(t *testing.T) {
 			},
 		},
 	}
-	TestFakeHelper(t, nil, createResource, newNodeStore, expected)
+	TestFakeHelper(t, createResource, newNodeStore, expected)
 }

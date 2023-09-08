@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
@@ -24,16 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-const podStoreName = "pod-store"
-
-func init() {
-	resourceSpecificGenerator[podStoreName] = newPodStore
-}
-
-func newPodStore(ctx context.Context, cfg config.Config, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore, error) {
-	if !cfg.GetBool("cluster_agent.collect_kubernetes_tags") {
-		return nil, nil, fmt.Errorf("cluster_agent.collect_kubernetes_tags is not enabled")
-	}
+func newPodStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	podListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
@@ -51,7 +41,8 @@ func newPodStore(ctx context.Context, cfg config.Config, wlm workloadmeta.Store,
 		podStore,
 		noResync,
 	)
-	return podReflector, podStore, nil
+	log.Debug("pod reflector enabled")
+	return podReflector, podStore
 }
 
 func newPodReflectorStore(wlmetaStore workloadmeta.Store) *reflectorStore {

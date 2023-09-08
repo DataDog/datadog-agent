@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,53 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestNewPodStore(t *testing.T) {
-	tests := []struct {
-		name       string
-		configFunc func() config.Config
-		expectErr  bool
-	}{
-		{
-			name: "new pod store valid",
-			configFunc: func() config.Config {
-				cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-				cfg.SetDefault("cluster_agent.collect_kubernetes_tags", true)
-				return cfg
-			},
-			expectErr: false,
-		},
-		{
-			name: "fail new pod store",
-			configFunc: func() config.Config {
-				return config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			},
-			expectErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := TestNewResourceStore(t, newPodStore, tt.configFunc())
-			if tt.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestNewPodReflectorStore(t *testing.T) {
-	wlmetaStore := workloadmeta.NewMockStore()
-	store := newPodReflectorStore(wlmetaStore)
-	assert.NotNil(t, store)
-	assert.NotNil(t, store.seen)
-	assert.NotNil(t, store.parser)
-}
 
 func TestPodParser_Parse(t *testing.T) {
 	filterAnnotations := []string{"ignoreAnnotation"}
@@ -152,8 +107,6 @@ func TestPodParser_Parse(t *testing.T) {
 }
 
 func Test_PodsFakeKubernetesClient(t *testing.T) {
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.SetDefault("cluster_agent.collect_kubernetes_tags", true)
 	objectMeta := metav1.ObjectMeta{
 		Name:   "test-pod",
 		Labels: map[string]string{"test-label": "test-value"},
@@ -184,5 +137,5 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 			},
 		},
 	}
-	TestFakeHelper(t, cfg, createResource, newPodStore, expected)
+	TestFakeHelper(t, createResource, newPodStore, expected)
 }
