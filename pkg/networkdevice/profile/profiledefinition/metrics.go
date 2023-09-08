@@ -87,29 +87,29 @@ type MetricIndexTransform struct {
 
 // MetricsConfigOption holds config for metrics options
 type MetricsConfigOption struct {
-	Placement    uint   `yaml:"placement" json:"placement"`
-	MetricSuffix string `yaml:"metric_suffix" json:"metric_suffix"`
+	Placement    uint   `yaml:"placement,omitempty" json:"placement,omitempty"`
+	MetricSuffix string `yaml:"metric_suffix,omitempty" json:"metric_suffix,omitempty"`
 }
 
 // MetricsConfig holds configs for a metric
 type MetricsConfig struct {
 	// Symbol configs
-	Symbol SymbolConfig `yaml:"symbol" json:"symbol"`
+	Symbol SymbolConfig `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	// Legacy Symbol configs syntax
-	OID  string `yaml:"OID" json:"OID"`
-	Name string `yaml:"name" json:"name"`
+	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 
 	// Table configs
-	Symbols []SymbolConfig `yaml:"symbols" json:"symbols"`
+	Symbols []SymbolConfig `yaml:"symbols,omitempty" json:"symbols,omitempty"`
 
-	StaticTags []string            `yaml:"static_tags" json:"static_tags"`
-	MetricTags MetricTagConfigList `yaml:"metric_tags" json:"metric_tags"`
+	StaticTags []string            `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
+	MetricTags MetricTagConfigList `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
 
-	ForcedType ProfileMetricType `yaml:"forced_type" json:"forced_type"` // deprecated in favour of metric_type
-	MetricType ProfileMetricType `yaml:"metric_type" json:"metric_type"`
+	ForcedType ProfileMetricType `yaml:"forced_type,omitempty" json:"forced_type,omitempty"` // deprecated in favour of metric_type
+	MetricType ProfileMetricType `yaml:"metric_type,omitempty" json:"metric_type,omitempty"`
 
-	Options MetricsConfigOption `yaml:"options" json:"options"`
+	Options MetricsConfigOption `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
 // GetSymbolTags returns symbol tags
