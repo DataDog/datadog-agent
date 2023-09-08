@@ -37,12 +37,10 @@ const (
 	// MaxSQLFullTextVSQL is SQL_FULLTEXT size in V$SQL
 	MaxSQLFullTextVSQL = 4000
 
-	/*
-	 * MaxSQLFulltextVSQLStats is SQL_FULLTEXT size in V$SQLSTATS. The column is defined as VARCHAR2(4000)
-	 * but due to the Oracle bug "27760729 : V$SQLSTAT.SQL_FULLTEXT DOES NOT SHOW COMPLETE SQL STMT"
-	 * it contains only the first 1000 characters
-	 */
-	MaxSQLFulltextVSQLStats = 1000
+	// MaxSQLFullTextVSQLStats is SQL_FULLTEXT size in V$SQLSTATS. The column is defined as VARCHAR2(4000)
+	// but due to the Oracle bug "27760729 : V$SQLSTAT.SQL_FULLTEXT DOES NOT SHOW COMPLETE SQL STMT";
+	// it contains only the first 1000 characters
+	MaxSQLFullTextVSQLStats = 1000
 )
 
 // The structure is filled by activity sampling and serves as a filter for query metrics

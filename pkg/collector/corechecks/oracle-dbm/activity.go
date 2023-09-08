@@ -337,7 +337,7 @@ func (c *Check) SampleSession() error {
 		maxSQLTextLength = MaxSQLFullTextVSQL
 	} else {
 		activityQuery = ACTIVITY_QUERY
-		maxSQLTextLength = MaxSQLFulltextVSQLStats
+		maxSQLTextLength = MaxSQLFullTextVSQLStats
 	}
 
 	if c.config.QuerySamples.IncludeAllSessions {
