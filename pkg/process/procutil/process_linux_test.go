@@ -40,7 +40,7 @@ func getProbeWithPermission(options ...Option) *probe {
 
 func TestGetActivePIDs(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc")
-	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc"))
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
 	defer probe.Close()
 
 	actual, err := probe.getActivePIDs()
@@ -106,7 +106,7 @@ func TestTrimAndSplitBytes(t *testing.T) {
 
 func TestGetCmdlineTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc") // For gopsutil
-	testGetCmdline(t, WithCustomProcFSRoot("resources/test_procfs/proc"))
+	testGetCmdline(t, WithProcFSRoot("resources/test_procfs/proc"))
 }
 
 func TestGetCmdlineLocalFS(t *testing.T) {
@@ -134,7 +134,7 @@ func testGetCmdline(t *testing.T, probeOptions ...Option) {
 }
 
 func TestGetCommandName(t *testing.T) {
-	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe.Close()
 
 	// Hardcode pid that has `comm` file set
@@ -145,7 +145,7 @@ func TestGetCommandName(t *testing.T) {
 
 func TestProcessesByPIDTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	testProcessesByPID(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	testProcessesByPID(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestProcessesByPIDLocalFS(t *testing.T) {
@@ -235,7 +235,7 @@ func compareStats(t *testing.T, st1, st2 *Stats) {
 
 func TestStatsForPIDsTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	testStatsForPIDs(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	testStatsForPIDs(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestStatsForPIDsLocalFS(t *testing.T) {
@@ -276,10 +276,10 @@ func testStatsForPIDs(t *testing.T, probeOptions ...Option) {
 }
 
 func TestMultipleProbes(t *testing.T) {
-	probe1 := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	probe1 := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe1.Close()
 
-	probe2 := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	probe2 := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe2.Close()
 
 	now := time.Now()
@@ -306,7 +306,7 @@ func TestMultipleProbes(t *testing.T) {
 }
 
 func TestProcfsChange(t *testing.T) {
-	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc"))
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
 	defer probe.Close()
 
 	now := time.Now()
@@ -481,7 +481,7 @@ func TestParseStatusLine(t *testing.T) {
 
 func TestParseStatusTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	testParseStatus(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	testParseStatus(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseStatusLocalFS(t *testing.T) {
@@ -532,7 +532,7 @@ func testParseStatus(t *testing.T, probeOptions ...Option) {
 }
 
 func TestFillNsPidFromStatus(t *testing.T) {
-	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe.Close()
 
 	t.Run("Linux versions 4.1+", func(t *testing.T) {
@@ -611,7 +611,7 @@ func TestParseIOLine(t *testing.T) {
 
 func TestParseIOTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	testParseIO(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	testParseIO(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseIOLocalFS(t *testing.T) {
@@ -738,7 +738,7 @@ func TestParseStatContent(t *testing.T) {
 
 func TestParseStatTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	testParseStat(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	testParseStat(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 // TestParseStatLocalFS has to run on its own because gopsutil caches boot time,
@@ -793,7 +793,7 @@ func TestBootTimeLocalFS(t *testing.T) {
 }
 
 func TestBootTimeRefresh(t *testing.T) {
-	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500*time.Millisecond), WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500*time.Millisecond), WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe.Close()
 
 	assert.Equal(t, uint64(1606127264), probe.bootTime.Load())
@@ -812,7 +812,7 @@ func TestBootTimeRefresh(t *testing.T) {
 
 func TestParseStatmTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
-	testParseStatm(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	testParseStatm(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseStatmLocalFS(t *testing.T) {
@@ -847,7 +847,7 @@ func testParseStatm(t *testing.T, probeOptions ...Option) {
 }
 
 func TestParseStatmStatusMatchTestFS(t *testing.T) {
-	testParseStatmStatusMatch(t, WithCustomProcFSRoot("resources/test_procfs/proc/"))
+	testParseStatmStatusMatch(t, WithProcFSRoot("resources/test_procfs/proc/"))
 }
 
 func TestParseStatmStatusMatchLocalFS(t *testing.T) {
@@ -932,7 +932,7 @@ func TestStatsWithPermByPID(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove("resources/zero_io/3/fd") })
 	require.NoError(t, err)
 
-	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/zero_io"))
+	probe := getProbeWithPermission(WithProcFSRoot("resources/zero_io"))
 	defer probe.Close()
 
 	WithReturnZeroPermStats(true)(probe)
@@ -949,7 +949,7 @@ func TestStatsWithPermByPID(t *testing.T) {
 }
 
 func TestStatsForPIDsAndPerm(t *testing.T) {
-	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc"))
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
 	defer probe.Close()
 	stats, err := probe.StatsForPIDs([]int32{1}, time.Now())
 	require.NoError(t, err)
@@ -969,7 +969,7 @@ func TestStatsForPIDsAndPerm(t *testing.T) {
 }
 
 func TestProcessesByPIDsAndPerm(t *testing.T) {
-	probe := getProbeWithPermission(WithCustomProcFSRoot("resources/test_procfs/proc"))
+	probe := getProbeWithPermission(WithProcFSRoot("resources/test_procfs/proc"))
 	probe.procRootLoc = "resources/test_procfs/proc"
 	defer probe.Close()
 	procs, err := probe.ProcessesByPID(time.Now(), true)
