@@ -699,7 +699,7 @@ network_address: 10.0.0.0/xx
 func Test_getProfileForSysObjectID(t *testing.T) {
 	mockProfiles := profileConfigMap{
 		"profile1": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -707,7 +707,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 		},
 		"profile2": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -715,7 +715,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 		},
 		"profile3": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -725,7 +725,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	mockProfilesWithPatternError := profileConfigMap{
 		"profile1": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -735,7 +735,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	mockProfilesWithInvalidPatternError := profileConfigMap{
 		"profile1": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -745,7 +745,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	mockProfilesWithDefaultDuplicateSysobjectid := profileConfigMap{
 		"profile1": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -753,7 +753,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 		},
 		"profile2": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -761,7 +761,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 		},
 		"profile3": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -771,7 +771,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	mockProfilesWithUserProfilePrecedenceWithUserProfileFirstInList := profileConfigMap{
 		"user-profile": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
@@ -780,7 +780,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			isUserProfile: true,
 		},
 		"default-profile": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
@@ -790,7 +790,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	mockProfilesWithUserProfilePrecedenceWithDefaultProfileFirstInList := profileConfigMap{
 		"default-profile": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
@@ -798,7 +798,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 		},
 		"user-profile": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
@@ -809,7 +809,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	mockProfilesWithUserProfileMatchAllAndMorePreciseDefaultProfile := profileConfigMap{
 		"default-profile": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
@@ -817,7 +817,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 		},
 		"user-profile": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
@@ -828,7 +828,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	mockProfilesWithUserDuplicateSysobjectid := profileConfigMap{
 		"profile1": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -837,7 +837,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			isUserProfile: true,
 		},
 		"profile2": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
@@ -1064,7 +1064,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 			},
 		},
 	}
-	profile1 := profiledefinition.AgentProfileDefinition{
+	profile1 := profiledefinition.ProfileDefinition{
 		Device: profiledefinition.DeviceMeta{
 			Vendor: "a-vendor",
 		},
@@ -1117,7 +1117,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 		},
 		SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
-	profile2 := profiledefinition.AgentProfileDefinition{
+	profile2 := profiledefinition.ProfileDefinition{
 		Device:  profiledefinition.DeviceMeta{Vendor: "b-vendor"},
 		Metrics: []profiledefinition.MetricsConfig{{Symbol: profiledefinition.SymbolConfig{OID: "2.3.4.5.6.1", Name: "b-metric"}}},
 		MetricTags: []profiledefinition.MetricTagConfig{
@@ -2182,13 +2182,13 @@ func TestCheckConfig_Copy(t *testing.T) {
 		OidBatchSize:       10,
 		BulkMaxRepetitions: 10,
 		Profiles: profileConfigMap{"f5-big-ip": profileConfig{
-			Definition: profiledefinition.AgentProfileDefinition{
+			Definition: profiledefinition.ProfileDefinition{
 				Device: profiledefinition.DeviceMeta{Vendor: "f5"},
 			},
 		}},
 		ProfileTags: []string{"profile_tag:atag"},
 		Profile:     "f5",
-		ProfileDef: &profiledefinition.AgentProfileDefinition{
+		ProfileDef: &profiledefinition.ProfileDefinition{
 			Device: profiledefinition.DeviceMeta{Vendor: "f5"},
 		},
 		ExtraTags:             []string{"ExtraTags:tag"},

@@ -12,8 +12,8 @@ import (
 type profileConfigMap map[string]profileConfig
 
 type profileConfig struct {
-	DefinitionFile string                                   `yaml:"definition_file"`
-	Definition     profiledefinition.AgentProfileDefinition `yaml:"definition"`
+	DefinitionFile string                              `yaml:"definition_file"`
+	Definition     profiledefinition.ProfileDefinition `yaml:"definition"`
 
 	isUserProfile bool `yaml:"-"`
 }
