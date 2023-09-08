@@ -59,7 +59,7 @@ func (c *ServiceCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ServiceCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Services()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Services()
 	c.lister = c.informer.Lister()
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -208,7 +209,7 @@ func main() {
 	agg = aggregator.NewBufferedAggregator(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
 
 	aggregator.SetDefaultAggregator(agg)
-	sender, err := aggregator.GetSender(check.ID("benchmark check"))
+	sender, err := aggregator.GetSender(checkid.ID("benchmark check"))
 	if err != nil {
 		log.Criticalf("could not get sender: %s", err)
 		return

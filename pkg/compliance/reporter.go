@@ -12,10 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+// LogReporter is responsible for sending compliance logs to DataDog backends.
 type LogReporter struct {
 	logSource *sources.LogSource
 	logChan   chan *message.Message
@@ -64,12 +66,12 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	logChan := pipelineProvider.NextPipelineChan()
 
 	tags := []string{
-		common.QueryAccountIdTag(),
+		common.QueryAccountIDTag(),
 		fmt.Sprintf("host:%s", hostname),
 	}
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -84,10 +86,12 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 	}, nil
 }
 
+// Endpoints returns the endpoints associated with the log reporter.
 func (r *LogReporter) Endpoints() *config.Endpoints {
 	return r.endpoints
 }
 
+// ReportEvent should be used to send an event to the backend.
 func (r *LogReporter) ReportEvent(event interface{}) {
 	buf, err := json.Marshal(event)
 	if err != nil {

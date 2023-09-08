@@ -1,5 +1,7 @@
 using System;
 using System.ComponentModel;
+using System.ComponentModel.Design;
+using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
@@ -30,6 +32,7 @@ namespace Datadog.CustomActions.Native
         ComputerNamePhysicalDnsDomain,
         ComputerNamePhysicalDnsFullyQualified
     }
+
     public enum SID_NAME_USE
     {
         SidTypeUser = 1,
@@ -46,6 +49,7 @@ namespace Datadog.CustomActions.Native
     public class Win32NativeMethods : INativeMethods
     {
         #region Native methods
+
         private enum ReturnCodes
         {
             NO_ERROR = 0,
@@ -56,6 +60,7 @@ namespace Datadog.CustomActions.Native
             ERROR_INVALID_FLAGS = 1004,
             ERROR_NOT_FOUND = 1168,
             ERROR_CANCELLED = 1223,
+            ERROR_NOT_ALL_ASSIGNED = 1300,
             ERROR_NO_SUCH_LOGON_SESSION = 1312,
 
             ERROR_INVALID_ACCOUNT_NAME = 1315,
@@ -63,6 +68,7 @@ namespace Datadog.CustomActions.Native
 
             // One or more of the members specified were already members of the local group. No new members were added.
             ERROR_MEMBER_IN_ALIAS = 1378,
+            ERROR_MEMBER_IN_GROUP = 1320,
 
             // One or more of the members specified do not exist. Therefore, no new members were added.
             ERROR_NO_SUCH_MEMBER = 1387,
@@ -209,17 +215,57 @@ namespace Datadog.CustomActions.Native
         public struct SERVER_INFO_101
         {
             public ServerPlatform PlatformId;
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string Name;
+            [MarshalAs(UnmanagedType.LPWStr)] public string Name;
             public int VersionMajor;
             public int VersionMinor;
             public ServerTypes Type;
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string Comment;
+            [MarshalAs(UnmanagedType.LPWStr)] public string Comment;
         }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool AdjustTokenPrivileges(IntPtr TokenHandle,
+            bool DisableAllPrivileges,
+            ref TOKEN_PRIVILEGES NewState,
+            UInt32 Zero,
+            IntPtr Null1,
+            IntPtr Null2);
+
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static extern bool LookupPrivilegeValue(string lpSystemName, string lpName,
+            out LUID lpLuid);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool OpenProcessToken(IntPtr ProcessHandle,
+            UInt32 DesiredAccess, out IntPtr TokenHandle);
+
+        private struct TOKEN_PRIVILEGES
+        {
+            public int PrivilegeCount;
+            [MarshalAs(UnmanagedType.ByValArray)] public LUID_AND_ATTRIBUTES[] Privileges;
+        }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        private struct LUID_AND_ATTRIBUTES
+        {
+            public LUID Luid;
+            public UInt32 Attributes;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LUID
+        {
+            public uint LowPart;
+            public uint HighPart;
+        }
+
+        private const uint SE_PRIVILEGE_ENABLED = 0x00000002;
 
         [DllImport("Netapi32", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern int NetServerGetInfo(string serverName, int level, out IntPtr pSERVER_INFO_XXX);
+
         [DllImport("Netapi32", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern int NetApiBufferFree(IntPtr Buffer);
 
@@ -238,6 +284,7 @@ namespace Datadog.CustomActions.Native
                 {
                     throw new System.ComponentModel.Win32Exception(ret);
                 }
+
                 return (T)Marshal.PtrToStructure(ptr, typeof(T));
             }
             finally
@@ -349,6 +396,52 @@ namespace Datadog.CustomActions.Native
         string lpdwTagId, string lpDependencies, string lpServiceStartName, string lpPassword,
         string lpDisplayName);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public class GuidClass
+        {
+            public Guid TheGuid;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct DOMAIN_CONTROLLER_INFO
+        {
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainControllerAddress;
+            public uint DomainControllerAddressType;
+            public Guid DomainGuid;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DomainName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DnsForestName;
+            public DS_FLAG Flags;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string DcSiteName;
+            [MarshalAs(UnmanagedType.LPTStr)]
+            public string ClientSiteName;
+        }
+
+        [Flags]
+        public enum DS_FLAG : uint
+        {
+            DS_WRITABLE_FLAG = 0x00000100,
+        }
+
+        [DllImport("Netapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern int DsGetDcName
+        (
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string ComputerName,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string DomainName,
+            [In] GuidClass DomainGuid,
+            [MarshalAs(UnmanagedType.LPTStr)]
+            string SiteName,
+            int Flags,
+            out IntPtr pDOMAIN_CONTROLLER_INFO
+        );
+
         #endregion
         #region Public interface
 
@@ -383,12 +476,14 @@ namespace Datadog.CustomActions.Native
                     name.EnsureCapacity((int)cchName);
                     referencedDomainName.EnsureCapacity((int)cchReferencedDomainName);
                     err = ReturnCodes.NO_ERROR;
-                    if (!LookupAccountSid(null, groupSid, name, ref cchName, referencedDomainName, ref cchReferencedDomainName, out _))
+                    if (!LookupAccountSid(null, groupSid, name, ref cchName, referencedDomainName,
+                            ref cchReferencedDomainName, out _))
                     {
                         err = (ReturnCodes)Marshal.GetLastWin32Error();
                     }
                 }
             }
+
             if (err == ReturnCodes.NO_ERROR)
             {
                 AddToGroup(securityIdentifier, name.ToString());
@@ -413,7 +508,9 @@ namespace Datadog.CustomActions.Native
                 Marshal.Copy(sid, 0, info.pSID, sid.Length);
 
                 err = (ReturnCodes)NetLocalGroupAddMembers(null, groupName, 0, ref info, 1);
-                if (err == ReturnCodes.NO_ERROR || err == ReturnCodes.ERROR_MEMBER_IN_ALIAS)
+                if (err == ReturnCodes.NO_ERROR ||
+                    err == ReturnCodes.ERROR_MEMBER_IN_ALIAS ||
+                    err == ReturnCodes.ERROR_MEMBER_IN_GROUP)
                 {
                     return;
                 }
@@ -422,6 +519,7 @@ namespace Datadog.CustomActions.Native
             {
                 Marshal.FreeHGlobal(info.pSID);
             }
+
             throw new Exception($"Could not add user to group {groupName}: {err}");
         }
 
@@ -451,7 +549,6 @@ namespace Datadog.CustomActions.Native
             var pSid = Marshal.AllocHGlobal(sid.Length);
             try
             {
-
                 Marshal.Copy(sid, 0, pSid, sid.Length);
                 status = LsaAddAccountRights(policyHandle, pSid, userRights, userRights.Length);
                 winErrorCode = LsaNtStatusToWinError(status);
@@ -491,7 +588,38 @@ namespace Datadog.CustomActions.Native
                 // Computer is a DC
                 return true;
             }
+
             return false;
+        }
+
+        public bool IsReadOnlyDomainController()
+        {
+            if (!IsDomainController())
+            {
+                return false;
+            }
+
+            IntPtr pDCI = IntPtr.Zero;
+            try
+            {
+                var result = DsGetDcName(null, null, null, null, 0, out pDCI);
+                if (result != 0)
+                {
+                    throw new Exception("unexpected error getting domain controller information",
+                        new Win32Exception((int)result));
+                }
+
+                var domainInfo = (DOMAIN_CONTROLLER_INFO)Marshal.PtrToStructure(pDCI, typeof(DOMAIN_CONTROLLER_INFO));
+                var isWritable = domainInfo.Flags.HasFlag(DS_FLAG.DS_WRITABLE_FLAG);
+                return !isWritable;
+            }
+            finally
+            {
+                if (pDCI != IntPtr.Zero)
+                {
+                    NetApiBufferFree(pDCI);
+                }
+            }
         }
 
         public string GetComputerDomain()
@@ -499,7 +627,6 @@ namespace Datadog.CustomActions.Native
             // Computer is a DC, default to domain name
             return Domain.GetComputerDomain().Name;
         }
-
 
         /// <summary>
         /// Checks whether or not a user account belongs to a domain or is a local account.
@@ -519,6 +646,7 @@ namespace Datadog.CustomActions.Native
                 // This will fail if the SID is not a domain SID (i.e. a local account)
                 return false;
             }
+
             var domainBinSid = new byte[sz];
             if (GetWindowsAccountDomainSid(userBinSid, domainBinSid, ref sz))
             {
@@ -614,7 +742,7 @@ namespace Datadog.CustomActions.Native
                 return false;
             }
 
-            throw new Exception("unexpected error while looking account name");
+            throw new Exception("unexpected error while looking account name", new Win32Exception((int)err));
         }
 
         public bool GetComputerName(COMPUTER_NAME_FORMAT format, out string name)
@@ -625,6 +753,69 @@ namespace Datadog.CustomActions.Native
             var result = GetComputerNameEx(format, nameBuilder, ref nSize);
             name = nameBuilder.ToString();
             return result;
+        }
+
+        /// <summary>
+        /// Enable privilege on current token
+        /// https://learn.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
+        /// </summary>
+        public void EnablePrivilege(string privilegeName)
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            if (identity == null)
+            {
+                throw new Exception("Unable to get current user");
+            }
+
+            var token = IntPtr.Zero;
+            try
+            {
+                if (!OpenProcessToken(Process.GetCurrentProcess().Handle,
+                        (uint)(TokenAccessLevels.AdjustPrivileges | TokenAccessLevels.Query), out token))
+                {
+                    throw new Exception("Failed to obtain process token",
+                        new Win32Exception((int)Marshal.GetLastWin32Error()));
+                }
+
+                if (!LookupPrivilegeValue(null, privilegeName, out var luid))
+                {
+                    throw new Exception($"LookupPrivilegeValue failed: {privilegeName}",
+                        new Win32Exception((int)Marshal.GetLastWin32Error()));
+                }
+
+                var privs = new TOKEN_PRIVILEGES
+                {
+                    PrivilegeCount = 1,
+                    Privileges = new LUID_AND_ATTRIBUTES[]
+                    {
+                        new LUID_AND_ATTRIBUTES()
+                        {
+                            Luid = luid,
+                            Attributes = SE_PRIVILEGE_ENABLED
+                        }
+                    }
+                };
+
+                if (!AdjustTokenPrivileges(token, false, ref privs, 0, IntPtr.Zero, IntPtr.Zero))
+                {
+                    throw new Exception($"Failed to enable privilege: {privilegeName}",
+                        new Win32Exception((int)Marshal.GetLastWin32Error()));
+                }
+
+                var result = (ReturnCodes)Marshal.GetLastWin32Error();
+                if (result == ReturnCodes.ERROR_NOT_ALL_ASSIGNED)
+                {
+                    throw new Exception("The token does not have the specified privilege",
+                        new Win32Exception((int)result));
+                }
+            }
+            finally
+            {
+                if (token != IntPtr.Zero)
+                {
+                    CloseHandle(token);
+                }
+            }
         }
 
         #endregion

@@ -10,14 +10,15 @@ package customresources
 // This file has most of its logic copied from the KSM hpa metric family
 // generators available at
 // https://github.com/kubernetes/kube-state-metrics/blob/release-2.4/internal/store/horizontalpodautoscaler.go
-// It exists here to provide backwards compatibility with k8s >1.25, as KSM 2.4
-// uses API v2beta2 instead of v2.
+// It exists here to provide backwards compatibility with kubernetes versions
+// that use autoscaling/v2beta2, as the KSM version that we depend on uses API
+// v2 instead of v2beta2.
 
 import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	autoscaling "k8s.io/api/autoscaling/v2"
+	autoscaling "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -54,9 +55,9 @@ var (
 	targetMetricLabels = []string{"metric_name", "metric_target_type"}
 )
 
-// NewHorizontalPodAutoscalerV2Factory returns a new HorizontalPodAutoscaler
-// metric family generator factory.
-func NewHorizontalPodAutoscalerV2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
+// NewHorizontalPodAutoscalerV2Beta2Factory returns a new
+// HorizontalPodAutoscaler metric family generator factory.
+func NewHorizontalPodAutoscalerV2Beta2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &hpav2Factory{
 		client: client.Cl,
 	}
@@ -363,11 +364,11 @@ func (f *hpav2Factory) ListWatch(customResourceClient interface{}, ns string, fi
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AutoscalingV2().HorizontalPodAutoscalers(ns).List(context.TODO(), opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).List(context.TODO(), opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AutoscalingV2().HorizontalPodAutoscalers(ns).Watch(context.TODO(), opts)
+			return client.AutoscalingV2beta2().HorizontalPodAutoscalers(ns).Watch(context.TODO(), opts)
 		},
 	}
 }

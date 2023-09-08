@@ -3,6 +3,8 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
+require "./lib/project_extension.rb"
+
 if ENV["WINDOWS_BUILD_32_BIT"]
     windows_arch :x86
 else
@@ -10,6 +12,11 @@ else
 end
 # Don't append a timestamp to the package version
 append_timestamp false
+
+
+if ENV["OMNIBUS_WORKERS_OVERRIDE"]
+  workers ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+end
 
 # Do not set this environment variable if building locally.
 # This cache is only necessary because Datadog is building

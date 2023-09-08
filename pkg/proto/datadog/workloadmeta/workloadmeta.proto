@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.workloadmeta;
 
-option go_package = "pkg/proto/pbgo"; // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 enum WorkloadmetaKind {
   CONTAINER = 0;

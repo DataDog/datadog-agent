@@ -119,7 +119,7 @@ func requestFlare(log log.Component, config config.Component, params *cliParams)
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, params.caseID, params.customerEmail)
+	response, e := flare.SendFlare(filePath, params.caseID, params.customerEmail, "local")
 	fmt.Println(response)
 	if e != nil {
 		return e

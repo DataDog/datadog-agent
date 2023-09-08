@@ -13,18 +13,22 @@ import (
 	"syscall"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
 	maxErrno    = 64
 	maxErrnoStr = "other"
+
+	EBPFMapTelemetryNS    = "ebpf_maps"
+	EBPFHelperTelemetryNS = "ebpf_helpers"
 )
 
 const (
@@ -35,8 +39,8 @@ const (
 	perfEventOutput
 )
 
-var ebpfMapOpsErrorsGauge = telemetry.NewGauge("ebpf_map_ops", "errors", []string{"map_name", "error"}, "Failures of map operations for a specific ebpf map reported per error.")
-var ebpfHelperErrorsGauge = telemetry.NewGauge("ebpf_helpers", "errors", []string{"helper", "probe_name", "error"}, "Failures of bpf helper operations reported per helper per error for each probe.")
+var ebpfMapOpsErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
+var ebpfHelperErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
 
 var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
@@ -73,8 +77,24 @@ func (b *EBPFTelemetry) RegisterEBPFTelemetry(m *manager.Manager) error {
 	return nil
 }
 
+// Describe returns all descriptions of the collector
+func (b *EBPFTelemetry) Describe(ch chan<- *prometheus.Desc) {
+	ch <- ebpfMapOpsErrorsGauge
+	ch <- ebpfHelperErrorsGauge
+}
+
+// Collect returns the current state of all metrics of the collector
+func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
+	b.getHelpersTelemetry(ch)
+	b.getMapsTelemetry(ch)
+}
+
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
 func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
+	return b.getMapsTelemetry(nil)
+}
+
+func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
 	if b == nil {
 		return nil
 	}
@@ -91,7 +111,10 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 		if count := getMapErrCount(&val); len(count) > 0 {
 			t[m] = count
 			for errStr, errCount := range count {
-				ebpfMapOpsErrorsGauge.Set(float64(errCount), m, errStr)
+				select {
+				case ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr):
+				default:
+				}
 			}
 		}
 	}
@@ -100,7 +123,11 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 }
 
 // GetHelperTelemetry returns a map of error telemetry for each ebpf program
-func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
+func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
+	return b.getHelpersTelemetry(nil)
+}
+
+func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
 	if b == nil {
 		return nil
 	}
@@ -115,7 +142,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 			continue
 		}
 
-		if t := getHelperTelemetry(&val, probeName, ebpfHelperErrorsGauge); len(t) > 0 {
+		if t := getHelpersTelemetryForProbe(&val, probeName, ebpfHelperErrorsGauge, ch); len(t) > 0 {
 			helperTelemMap[probeName] = t
 		}
 	}
@@ -123,7 +150,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 	return helperTelemMap
 }
 
-func getHelperTelemetry(v *HelperErrTelemetry, probeName string, gauge telemetry.Gauge) map[string]interface{} {
+func getHelpersTelemetryForProbe(v *HelperErrTelemetry, probeName string, desc *prometheus.Desc, ch chan<- prometheus.Metric) map[string]interface{} {
 	helper := make(map[string]interface{})
 
 	for indx, helperName := range helperNames {
@@ -131,7 +158,11 @@ func getHelperTelemetry(v *HelperErrTelemetry, probeName string, gauge telemetry
 			helper[helperName] = count
 
 			for errStr, errCount := range count {
-				gauge.Set(float64(errCount), helperName, probeName, errStr)
+				// Do not block when nil channel is provided
+				select {
+				case ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr):
+				default:
+				}
 			}
 		}
 	}
@@ -149,7 +180,11 @@ func getErrCount(v *HelperErrTelemetry, indx int) map[string]uint64 {
 				continue
 			}
 
-			errCount[syscall.Errno(i).Error()] = count
+			if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+				errCount[name] = count
+			} else {
+				errCount[syscall.Errno(i).Error()] = count
+			}
 		}
 	}
 
@@ -168,7 +203,11 @@ func getMapErrCount(v *MapErrTelemetry) map[string]uint64 {
 			errCount[maxErrnoStr] = count
 			continue
 		}
-		errCount[syscall.Errno(i).Error()] = count
+		if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+			errCount[name] = count
+		} else {
+			errCount[syscall.Errno(i).Error()] = count
+		}
 	}
 
 	return errCount
@@ -206,6 +245,9 @@ func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor 
 		keys = append(keys, manager.ConstantEditor{
 			Name:  "telemetry_program_id_key",
 			Value: h.Sum64(),
+			ProbeIdentificationPairs: []manager.ProbeIdentificationPair{
+				p.ProbeIdentificationPair,
+			},
 		})
 		h.Reset()
 	}
@@ -341,4 +383,16 @@ func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIde
 	}
 
 	return nil
+}
+
+// EBPFTelemetrySupported returns whether eBPF telemetry is supported.
+// eBPF telemetry depends on the verifier in 4.14+
+func EBPFTelemetrySupported() bool {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. EBPF telemetry disabled.")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(4, 14, 0)
 }

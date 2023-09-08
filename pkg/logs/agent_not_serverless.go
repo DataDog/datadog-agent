@@ -10,25 +10,23 @@ package logs
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container"
-	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
+	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -42,7 +40,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
@@ -73,27 +71,11 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 	}
 }
 
-// Start starts logs-agent
-// getAC is a func returning the prepared AutoConfig. It is nil until
-// the AutoConfig is ready, please consider using BlockUntilAutoConfigRanOnce
-// instead of directly using it.
-func Start(ac *autodiscovery.AutoConfig) (*Agent, error) {
-	agent, err := start()
-	if err != nil {
-		return nil, err
-	}
-	if ac == nil {
-		panic("AutoConfig must be initialized before logs-agent")
-	}
-	agent.AddScheduler(adScheduler.New(ac))
-	return agent, nil
-}
-
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints() (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	return config.BuildEndpointsWithVectorOverride(httpConnectivity, intakeTrackType, AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsWithVectorOverride(coreConfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }

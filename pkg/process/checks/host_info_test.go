@@ -19,8 +19,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -38,7 +38,7 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := mocks.NewMockAgentClient(ctrl)
+	mockClient := pbmocks.NewMockAgentClient(ctrl)
 
 	mockClient.EXPECT().GetHostname(
 		gomock.Any(),

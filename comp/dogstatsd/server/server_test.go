@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -40,46 +40,35 @@ type serverDeps struct {
 	Log    log.Component
 }
 
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (int, error) {
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	portInt, err := strconv.Atoi(portString)
-	if err != nil {
-		return -1, fmt.Errorf("can't convert udp port: %s", err)
-	}
-
-	return portInt, nil
-}
-
 func fulfillDeps(t testing.TB) serverDeps {
 	return fulfillDepsWithConfigOverride(t, map[string]interface{}{})
 }
 
-func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
+func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
 		serverDebug.MockModule,
-		fx.Replace(configComponent.MockParams{Overrides: overrides}),
+		fx.Replace(configComponent.MockParams{
+			Overrides: overrides,
+			Features:  features,
+		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
 		Module,
 	))
 }
 
+func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
+	return fulfillDepsWithConfigOverrideAndFeatures(t, overrides, nil)
+}
+
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
 		serverDebug.MockModule,
-		fx.Replace(configComponent.MockParams{ConfigYaml: yaml}),
+		fx.Replace(configComponent.MockParams{
+			Params: configComponent.Params{ConfFilePath: yaml},
+		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
 		Module,
@@ -89,9 +78,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 func TestNewServer(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
@@ -106,9 +93,7 @@ func TestNewServer(t *testing.T) {
 func TestStopServer(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
@@ -119,7 +104,7 @@ func TestStopServer(t *testing.T) {
 	deps.Server.Stop()
 
 	// check that the port can be bound, try for 100 ms
-	address, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	address, err := net.ResolveUDPAddr("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot resolve address")
 	for i := 0; i < 10; i++ {
 		var conn net.Conn
@@ -160,9 +145,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 func TestUDPReceive(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
@@ -178,8 +161,7 @@ func TestUDPReceive(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -440,23 +422,20 @@ func TestUDPReceive(t *testing.T) {
 func TestUDPForward(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	fport, err := getAvailableUDPPort()
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	pcHost, pcPort, err := net.SplitHostPort(pc.LocalAddr().String())
 	require.NoError(t, err)
 
 	// Setup UDP server to forward to
-	cfg["statsd_forward_port"] = fport
-	cfg["statsd_forward_host"] = "127.0.0.1"
+	cfg["statsd_forward_port"] = pcPort
+	cfg["statsd_forward_host"] = pcHost
 
 	// Setup dogstatsd server
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-
-	addr := fmt.Sprintf("127.0.0.1:%d", fport)
-	pc, err := net.ListenPacket("udp", addr)
-	require.NoError(t, err)
 
 	defer pc.Close()
 
@@ -465,8 +444,7 @@ func TestUDPForward(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -487,9 +465,7 @@ func TestUDPForward(t *testing.T) {
 func TestHistToDist(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["histogram_copy_to_distribution"] = true
 	cfg["histogram_copy_to_distribution_prefix"] = "dist."
 
@@ -501,8 +477,7 @@ func TestHistToDist(t *testing.T) {
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -581,17 +556,14 @@ func TestEOLParsing(t *testing.T) {
 func TestE2EParsing(t *testing.T) {
 	cfg := make(map[string]interface{})
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
-	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -611,8 +583,7 @@ func TestE2EParsing(t *testing.T) {
 	demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(deps.Log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
-	url = fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err = net.Dial("udp", url)
+	conn, err = net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -627,24 +598,18 @@ func TestE2EParsing(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
-	config.SetFeatures(t, config.EKSFargate)
-
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-
 	cfg := make(map[string]interface{})
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 
-	deps := fulfillDepsWithConfigOverride(t, cfg)
+	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -663,23 +628,18 @@ func TestExtraTags(t *testing.T) {
 
 func TestStaticTags(t *testing.T) {
 	cfg := make(map[string]interface{})
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 	cfg["tags"] = []string{"from:dd_tags"}
 
-	config.SetFeatures(t, config.EKSFargate)
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
+	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
-	conn, err := net.Dial("udp", url)
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
@@ -704,13 +664,10 @@ func TestStaticTags(t *testing.T) {
 func TestNoMappingsConfig(t *testing.T) {
 	datadogYaml := ``
 
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-
 	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
 	s := deps.Server.(*server)
 	cw := deps.Config.(config.ConfigWriter)
-	cw.Set("dogstatsd_port", port)
+	cw.Set("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
 
@@ -721,7 +678,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(deps.Config, newFloat64ListPool())
-	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -819,15 +776,12 @@ dogstatsd_mapper_profiles:
 	samples := []metrics.MetricSample{}
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			port, err := getAvailableUDPPort()
-			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
-
 			deps := fulfillDepsWithConfigYaml(t, scenario.config)
 
 			s := deps.Server.(*server)
 			cw := deps.Config.(config.ConfigReaderWriter)
 
-			cw.Set("dogstatsd_port", port)
+			cw.Set("dogstatsd_port", listeners.RandomPortName)
 
 			demux := mockDemultiplexer(deps.Config, deps.Log)
 			defer demux.Stop(false)
@@ -860,9 +814,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg := make(map[string]interface{})
 
 	require := require.New(t)
-	port, err := getAvailableUDPPort()
-	require.NoError(err)
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)

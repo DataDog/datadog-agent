@@ -91,7 +91,8 @@ if ($installMethod -eq "online") {
 Write-Host "Generated nupsec file:"
 Write-Host (Get-Content $installScript | Out-String)
 
-choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
+Write-Host choco pack --out=$outputDirectory $nuspecFile --version $agentVersion release_notes=$releaseNotes copyright=$copyright
+choco pack --out=$outputDirectory $nuspecFile --version $agentVersion release_notes=$releaseNotes copyright=$copyright
 
 # restore installScript (useful for local testing/deployment)
 git checkout $installScript

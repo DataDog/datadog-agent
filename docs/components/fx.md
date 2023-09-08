@@ -130,7 +130,7 @@ Use it in your component's constructor like this:
 ```go
 func newScrubber(lc fx.Lifecycle) Component {
     sc := &scrubber{..}
-    lc.Append(fx.StartStopHook(sc.start, sc.stop))
+    lc.Append(fx.Hook{OnStart: sc.start, OnStop: sc.stop})
     return sc
 }
 

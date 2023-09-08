@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package reporter holds reporter related files
 package reporter
 
 import (
 	"time"
 
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -21,11 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
+// RuntimeReporter represents a CWS reporter, used to send events to the intake
 type RuntimeReporter struct {
 	logSource *sources.LogSource
 	logChan   chan *message.Message
 }
 
+// ReportRaw reports raw (bytes) events to the intake
 func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...string) {
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(tags)
@@ -34,6 +37,7 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 	r.logChan <- msg
 }
 
+// NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake
 func NewCWSReporter(runPath string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
 	return newReporter(runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
 }

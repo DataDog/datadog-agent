@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package resolvers holds resolvers related files
 package resolvers
 
 import (
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -38,10 +40,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ResolversOpts defines common options
-type ResolversOpts struct {
+// Opts defines common options
+type Opts struct {
 	PathResolutionEnabled bool
 	TagsResolver          tags.Resolver
+	UseRingBuffer         bool
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -59,10 +62,11 @@ type Resolvers struct {
 	TCResolver        *tc.Resolver
 	PathResolver      path.ResolverInterface
 	SBOMResolver      *sbom.Resolver
+	HashResolver      *hash.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts ResolversOpts) (*Resolvers, error) {
+func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*Resolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -110,7 +114,9 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		_ = cgroupsResolver.RegisterListener(cgroup.WorkloadSelectorResolved, sbomResolver.OnWorkloadSelectorResolvedEvent)
 	}
 
-	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
+	// This means that we can remove mount entries that are still in use.
+	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true, UseRedemption: true})
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +137,10 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 	if err != nil {
 		return nil, err
 	}
+	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
+	if err != nil {
+		return nil, err
+	}
 
 	resolvers := &Resolvers{
 		manager:           manager,
@@ -146,6 +156,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		ProcessResolver:   processResolver,
 		PathResolver:      pathResolver,
 		SBOMResolver:      sbomResolver,
+		HashResolver:      hashResolver,
 	}
 
 	return resolvers, nil
@@ -156,7 +167,6 @@ func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
 		return err
 	}
-	r.MountResolver.Start(ctx)
 
 	if err := r.TagsResolver.Start(ctx); err != nil {
 		return err

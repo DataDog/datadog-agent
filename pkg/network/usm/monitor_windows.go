@@ -28,9 +28,9 @@ type Monitor interface {
 // batches of HTTP transactions received from the driver interface
 type WindowsMonitor struct {
 	di         *http.HttpDriverInterface
-	hei        *http.HttpEtwInterface
+	hei        *http.EtwInterface
 	telemetry  *http.Telemetry
-	statkeeper *http.HttpStatKeeper
+	statkeeper *http.StatKeeper
 
 	mux         sync.Mutex
 	eventLoopWG sync.WaitGroup
@@ -42,19 +42,19 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	if err != nil {
 		return nil, err
 	}
-	hei := http.NewHttpEtwInterface(c)
+	hei := http.NewEtwInterface(c)
 
 	hei.SetMaxFlows(uint64(c.MaxTrackedConnections))
 	hei.SetMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
 	hei.SetCapturedProtocols(c.EnableHTTPMonitoring, c.EnableHTTPSMonitoring)
 
-	telemetry := http.NewTelemetry()
+	telemetry := http.NewTelemetry("http")
 
 	return &WindowsMonitor{
 		di:         di,
 		hei:        hei,
 		telemetry:  telemetry,
-		statkeeper: http.NewHTTPStatkeeper(c, telemetry),
+		statkeeper: http.NewStatkeeper(c, telemetry),
 	}, nil
 }
 
@@ -101,7 +101,7 @@ func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
 	defer m.mux.Unlock()
 
 	for i := range transactionBatch {
-		tx := http.HttpTX(&transactionBatch[i])
+		tx := http.Transaction(&transactionBatch[i])
 		m.telemetry.Count(tx)
 		m.statkeeper.Process(tx)
 	}

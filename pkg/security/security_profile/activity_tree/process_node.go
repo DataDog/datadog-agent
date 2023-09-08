@@ -5,13 +5,16 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -41,11 +44,24 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	if len(pn.Process.FileEvent.PkgName) != 0 {
 		label += fmt.Sprintf(" \\{%s %s\\}", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion)
 	}
+	// add hashes
+	if len(pn.Process.FileEvent.Hashes) > 0 {
+		label += fmt.Sprintf("|%v", strings.Join(pn.Process.FileEvent.Hashes, "|"))
+	} else {
+		label += fmt.Sprintf("|(%s)", pn.Process.FileEvent.HashState)
+	}
 	return label
 }
 
 // NewProcessNode returns a new ProcessNode instance
-func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessNode {
+func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
+	// call the callback to resolve additional fields before copying them
+	if resolvers != nil {
+		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
+		if entry.ProcessContext.HasInterpreter() {
+			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
+		}
+	}
 	return &ProcessNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
@@ -56,7 +72,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 
 // nolint: unused
 func (pn *ProcessNode) debug(w io.Writer, prefix string) {
-	fmt.Fprintf(w, "%s- process: %s\n", prefix, pn.Process.FileEvent.PathnameStr)
+	fmt.Fprintf(w, "%s- process: %s (is_exec_child:%v)\n", prefix, pn.Process.FileEvent.PathnameStr, pn.Process.IsExecChild)
 	if len(pn.Files) > 0 {
 		fmt.Fprintf(w, "%s  files:\n", prefix)
 		sortedFiles := make([]*FileNode, 0, len(pn.Files))
@@ -147,7 +163,7 @@ newSyscallLoop:
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducer *PathsReducer) bool {
+func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.Resolvers) bool {
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -166,22 +182,22 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 
 	child, ok := pn.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], generationType, stats, dryRun, filePath)
+		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], generationType, stats, dryRun, filePath, resolvers)
 	}
 
 	if !dryRun {
 		// create new child
-		if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
+		if len(filePath) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
-			node := NewFileNode(fileEvent, event, parent, generationType, filePath)
+			node := NewFileNode(fileEvent, event, parent, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
 			// fileEvent context.
-			newChild := NewFileNode(nil, nil, parent, generationType, filePath)
-			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun, filePath)
+			newChild := NewFileNode(nil, nil, parent, generationType, filePath, resolvers)
+			newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], generationType, stats, dryRun, filePath, resolvers)
 			stats.FileNodes++
 			pn.Files[parent] = newChild
 		}
@@ -209,7 +225,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 }
 
 // InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *Stats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
 	if dryRun {
 		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
 		return !pn.findDNSNode(evt.DNS.Name, dnsMatchMaxDepth, evt.DNS.Type)
@@ -239,7 +255,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGener
 }
 
 // InsertBindEvent inserts a bind event in a process node
-func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool) bool {
+func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false
 	}

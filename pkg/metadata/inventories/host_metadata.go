@@ -17,10 +17,10 @@ import (
 
 // for testing purpose
 var (
-	cpuGet      = cpu.Get
-	memoryGet   = memory.Get
-	networkGet  = network.Get
-	platformGet = platform.Get
+	cpuGet      = cpu.CollectInfo
+	memoryGet   = memory.CollectInfo
+	networkGet  = network.CollectInfo
+	platformGet = platform.CollectInfo
 )
 
 // HostMetadata contains metadata about the host
@@ -74,7 +74,7 @@ func logWarnings(warnings []string) {
 	}
 }
 
-func fetchFromMetadata(key string, metadata AgentMetadata) string {
+func fetchFromMetadata(key AgentMetadataName, metadata AgentMetadata) string {
 	if value, ok := metadata[key]; ok {
 		if stringValue, ok := value.(string); ok {
 			return stringValue
@@ -90,65 +90,73 @@ func fetchFromMetadata(key string, metadata AgentMetadata) string {
 func getHostMetadata() *HostMetadata {
 	metadata := &HostMetadata{}
 
-	cpuInfo, warnings, err := cpuGet()
+	cpuInfo := cpuGet()
+	_, warnings, err := cpuInfo.AsJSON()
 	if err != nil {
 		logErrorf("Failed to retrieve cpu metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.CPUCores = cpuInfo.CpuCores
-		metadata.CPULogicalProcessors = cpuInfo.CpuLogicalProcessors
-		metadata.CPUVendor = cpuInfo.VendorId
-		metadata.CPUModel = cpuInfo.ModelName
-		metadata.CPUModelID = cpuInfo.Model
-		metadata.CPUFamily = cpuInfo.Family
-		metadata.CPUStepping = cpuInfo.Stepping
-		metadata.CPUFrequency = cpuInfo.Mhz
-		metadata.CPUCacheSize = cpuInfo.CacheSizeBytes
+		metadata.CPUCores = cpuInfo.CPUCores.ValueOrDefault()
+		metadata.CPULogicalProcessors = cpuInfo.CPULogicalProcessors.ValueOrDefault()
+		metadata.CPUVendor = cpuInfo.VendorID.ValueOrDefault()
+		metadata.CPUModel = cpuInfo.ModelName.ValueOrDefault()
+		metadata.CPUModelID = cpuInfo.Model.ValueOrDefault()
+		metadata.CPUFamily = cpuInfo.Family.ValueOrDefault()
+		metadata.CPUStepping = cpuInfo.Stepping.ValueOrDefault()
+		metadata.CPUFrequency = cpuInfo.Mhz.ValueOrDefault()
+		cpuCacheSize := cpuInfo.CacheSizeKB.ValueOrDefault()
+		metadata.CPUCacheSize = cpuCacheSize * 1024
 	}
 
-	platformInfo, warnings, err := platformGet()
+	platformInfo := platformGet()
+	_, warnings, err = platformInfo.AsJSON()
 	if err != nil {
 		logErrorf("failed to retrieve host platform metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.KernelName = platformInfo.KernelName
-		metadata.KernelRelease = platformInfo.KernelRelease
-		metadata.KernelVersion = platformInfo.KernelVersion
-		metadata.OS = platformInfo.OS
-		metadata.CPUArchitecture = platformInfo.HardwarePlatform
+		metadata.KernelName = platformInfo.KernelName.ValueOrDefault()
+		metadata.KernelRelease = platformInfo.KernelRelease.ValueOrDefault()
+		metadata.KernelVersion = platformInfo.KernelVersion.ValueOrDefault()
+		metadata.OS = platformInfo.OS.ValueOrDefault()
+		metadata.CPUArchitecture = platformInfo.HardwarePlatform.ValueOrDefault()
 	}
 
-	memoryInfo, warnings, err := memoryGet()
+	memoryInfo := memoryGet()
+	_, warnings, err = memoryInfo.AsJSON()
 	if err != nil {
 		logErrorf("failed to retrieve host memory metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.MemoryTotalKb = memoryInfo.TotalBytes / 1024
-		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalBytes / 1024
+		memoryTotalKb := memoryInfo.TotalBytes.ValueOrDefault()
+		metadata.MemoryTotalKb = memoryTotalKb / 1024
+		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalKb.ValueOrDefault()
 	}
 
-	networkInfo, warnings, err := networkGet()
+	networkInfo, err := networkGet()
+	if err == nil {
+		_, warnings, err = networkInfo.AsJSON()
+	}
 	if err != nil {
 		logErrorf("failed to retrieve host network metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.IPAddress = networkInfo.IpAddress
-		metadata.IPv6Address = networkInfo.IpAddressv6
+		metadata.IPAddress = networkInfo.IPAddress
+		metadata.IPv6Address = networkInfo.IPAddressV6.ValueOrDefault()
 		metadata.MacAddress = networkInfo.MacAddress
 	}
 
 	metadata.AgentVersion = version.AgentVersion
 
-	metadata.CloudProvider = fetchFromMetadata(string(HostCloudProvider), agentMetadata)
-	metadata.CloudProviderSource = fetchFromMetadata(string(HostCloudProviderSource), hostMetadata)
-	metadata.CloudProviderHostID = fetchFromMetadata(string(HostCloudProviderHostID), hostMetadata)
-	metadata.OsVersion = fetchFromMetadata(string(HostOSVersion), hostMetadata)
+	metadata.CloudProvider = fetchFromMetadata(HostCloudProvider, agentMetadata)
+	metadata.CloudProviderSource = fetchFromMetadata(HostCloudProviderSource, hostMetadata)
+	metadata.CloudProviderHostID = fetchFromMetadata(HostCloudProviderHostID, hostMetadata)
+	metadata.OsVersion = fetchFromMetadata(HostOSVersion, hostMetadata)
 
-	metadata.CloudProviderAccountID = fetchFromMetadata(string(HostCloudProviderAccountID), hostMetadata)
+	metadata.CloudProviderAccountID = fetchFromMetadata(HostCloudProviderAccountID, hostMetadata)
 
 	metadata.HypervisorGuestUUID = dmi.GetHypervisorUUID()
 	metadata.DmiProductUUID = dmi.GetProductUUID()

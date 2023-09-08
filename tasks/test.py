@@ -32,7 +32,7 @@ from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
-PROFILE_COV = "profile.cov"
+PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
@@ -97,6 +97,7 @@ TOOL_LIST_PROTO = [
     'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
+    'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',
 ]
 
@@ -118,6 +119,21 @@ def download_tools(ctx):
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
+    if os.path.isfile("go.work") or os.path.isfile("go.work.sum"):
+        # Someone reported issues with this command when using a go.work but other people
+        # use a go.work and don't have any issue, so the root cause is unclear.
+        # Printing a warning because it might help someone but not enforcing anything.
+
+        # The issue which was reported was that `go install` would fail with the following error:
+        ### no required module provides package <package>; to add it:
+        ### go get <package>
+        print(
+            color_message(
+                "WARNING: In case of issue, you might want to try disabling go workspaces by setting the environment variable GOWORK=off, or even deleting go.work and go.work.sum",
+                "orange",
+            )
+        )
+
     with environ({'GO111MODULE': 'on'}):
         for path, tools in TOOLS.items():
             with ctx.cd(path):
@@ -133,7 +149,7 @@ def invoke_unit_tests(ctx):
     for _, _, files in os.walk("tasks/unit-tests/"):
         for file in files:
             if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
-                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
+                ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
 
 
 def test_core(
@@ -279,20 +295,24 @@ def lint_flavor(
     arch: str,
     rtloader_root: bool,
     concurrency: int,
+    timeout=None,
+    golangci_lint_kwargs: str = "",
 ):
     """
     Runs linters for given flavor, build tags, and modules.
     """
 
-    def command(module_results, module, module_result):
+    def command(module_results, module: GoModule, module_result):
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
                 ctx,
-                targets=module.targets,
+                targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,
                 arch=arch,
                 concurrency=concurrency,
+                timeout=timeout,
+                golangci_lint_kwargs=golangci_lint_kwargs,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -301,6 +321,31 @@ def lint_flavor(
         module_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
+
+
+def build_stdlib(
+    ctx,
+    build_tags: List[str],
+    cmd: str,
+    env: Dict[str, str],
+    args: Dict[str, str],
+    test_profiler: TestProfiler,
+):
+    """
+    Builds the stdlib with the same build flags as the tests.
+
+    Since Go 1.20, standard library is not pre-compiled anymore but is built as needed and cached in the build cache.
+    To avoid a perfomance overhead when running tests, we pre-compile the standard library and cache it.
+    We must use the same build flags as the one we are using when compiling tests to not invalidate the cache.
+    """
+    args["go_build_tags"] = " ".join(build_tags)
+
+    ctx.run(
+        cmd.format(**args),
+        env=env,
+        out_stream=test_profiler,
+        warn=True,
+    )
 
 
 def test_flavor(
@@ -341,6 +386,14 @@ def test_flavor(
 
         if res.exited is None or res.exited > 0:
             module_result.failed = True
+        else:
+            lines = res.stdout.splitlines()
+            if lines is not None and 'DONE 0 tests' in lines[-1]:
+                print(color_message("No tests were run, skipping coverage report", "orange"))
+                cov_path = os.path.join(module.full_path(), PROFILE_COV)
+                if os.path.exists(cov_path):
+                    os.remove(cov_path)
+                return
 
         if save_result_json:
             with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
@@ -474,6 +527,7 @@ def test(
     timeout=180,
     arch="x64",
     cache=True,
+    test_run_name="",
     skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
@@ -517,15 +571,15 @@ def test(
 
     if not skip_linters:
         modules_results_per_phase["lint"] = run_lint_go(
-            ctx,
-            module,
-            targets,
-            flavors,
-            build_include,
-            build_exclude,
-            rtloader_root,
-            arch,
-            cpus,
+            ctx=ctx,
+            module=module,
+            targets=targets,
+            flavors=flavors,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            rtloader_root=rtloader_root,
+            arch=arch,
+            cpus=cpus,
         )
 
     # Process input arguments
@@ -596,8 +650,14 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
+    test_run_arg = ""
+    if test_run_name != "":
+        test_run_arg = f"-run {test_run_name}"
+
+    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -606,6 +666,7 @@ def test(
         "build_cpus": build_cpus_opt,
         "covermode_opt": covermode_opt,
         "coverprofile": coverprofile,
+        "test_run_arg": test_run_arg,
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
@@ -616,6 +677,14 @@ def test(
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
+        build_stdlib(
+            ctx,
+            build_tags=build_tags,
+            cmd=stdlib_build_cmd,
+            env=env,
+            args=args,
+            test_profiler=test_profiler,
+        )
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -666,17 +735,22 @@ def run_lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
     cpus=None,
+    timeout=None,
+    golangci_lint_kwargs="",
 ):
     modules, flavors = process_input_args(module, targets, flavors)
 
     linter_tags = {
-        f: compute_build_tags_for_flavor(
-            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
+        f: build_tags
+        or compute_build_tags_for_flavor(
+            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
     }
@@ -694,6 +768,8 @@ def run_lint_go(
             arch=arch,
             rtloader_root=rtloader_root,
             concurrency=cpus,
+            timeout=timeout,
+            golangci_lint_kwargs=golangci_lint_kwargs,
         )
 
     return modules_lint_results_per_flavor
@@ -705,11 +781,15 @@ def lint_go(
     module=None,
     targets=None,
     flavors=None,
+    build="lint",
+    build_tags=None,
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
     cpus=None,
+    timeout: int = None,
+    golangci_lint_kwargs="",
 ):
     """
     Run go linters on the given module and targets.
@@ -720,6 +800,8 @@ def lint_go(
     If targets are provided but no module is set, the main module (".") is used.
 
     If no module or target is set the tests are run against all modules and targets.
+
+    --timeout is the number of minutes after which the linter should time out.
 
     Example invokation:
         inv lint-go --targets=./pkg/collector/check,./pkg/aggregator
@@ -736,15 +818,19 @@ def lint_go(
     modules_results_per_phase = defaultdict(dict)
 
     modules_results_per_phase["lint"] = run_lint_go(
-        ctx,
-        module,
-        targets,
-        flavors,
-        build_include,
-        build_exclude,
-        rtloader_root,
-        arch,
-        cpus,
+        ctx=ctx,
+        module=module,
+        targets=targets,
+        flavors=flavors,
+        build=build,
+        build_tags=build_tags,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        rtloader_root=rtloader_root,
+        arch=arch,
+        cpus=cpus,
+        timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
     )
 
     success = process_module_results(modules_results_per_phase)
@@ -919,7 +1005,9 @@ def lint_filenames(ctx):
     max_length = 255
     for file in files:
         if (
-            not file.startswith(('test/kitchen/', 'tools/windows/DatadogAgentInstaller'))
+            not file.startswith(
+                ('test/kitchen/', 'tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression')
+            )
             and prefix_length + len(file) > max_length
         ):
             print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")

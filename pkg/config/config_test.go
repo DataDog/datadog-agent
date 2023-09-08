@@ -7,7 +7,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -497,7 +496,7 @@ func TestProxy(t *testing.T) {
 			// config file is never set.
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			ioutil.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
 			if c.setup != nil {
@@ -956,4 +955,28 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
 	testConfig = SetupConfFromYAML("")
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
+}
+
+func TestIsRemoteConfigEnabled(t *testing.T) {
+	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+	testConfig := SetupConfFromYAML("")
+	require.True(t, IsRemoteConfigEnabled(testConfig))
+
+	t.Setenv("DD_FIPS_ENABLED", "true")
+	testConfig = SetupConfFromYAML("")
+	require.False(t, IsRemoteConfigEnabled(testConfig))
+
+	t.Setenv("DD_FIPS_ENABLED", "false")
+	t.Setenv("DD_SITE", "ddog-gov.com")
+	testConfig = SetupConfFromYAML("")
+	require.False(t, IsRemoteConfigEnabled(testConfig))
+}
+
+func TestLanguageDetectionSettings(t *testing.T) {
+	testConfig := SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("language_detection.enabled"))
+
+	t.Setenv("DD_LANGUAGE_DETECTION_ENABLED", "true")
+	testConfig = SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("language_detection.enabled"))
 }

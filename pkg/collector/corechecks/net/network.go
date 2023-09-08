@@ -19,7 +19,7 @@ import (
 	"github.com/shirou/gopsutil/v3/net"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -195,7 +195,7 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 	return false
 }
 
-func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCountersStat) {
+func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
 	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name), fmt.Sprintf("device_name:%s", interfaceIO.Name)}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
@@ -207,7 +207,7 @@ func submitInterfaceMetrics(sender aggregator.Sender, interfaceIO net.IOCounters
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func submitProtocolMetrics(sender aggregator.Sender, protocolStats net.ProtoCountersStat) {
+func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
 	if protocolMapping, ok := protocolsMetricsMapping[protocolStats.Protocol]; ok {
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {
@@ -218,7 +218,7 @@ func submitProtocolMetrics(sender aggregator.Sender, protocolStats net.ProtoCoun
 	}
 }
 
-func submitConnectionsMetrics(sender aggregator.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat) {
+func submitConnectionsMetrics(sender sender.Sender, protocolName string, stateMetricSuffixMapping map[string]string, connectionsStats []net.ConnectionStat) {
 	metricCount := map[string]float64{}
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
@@ -278,8 +278,8 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, rawInitConfig, rawInstance, source)
+func (c *NetworkCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

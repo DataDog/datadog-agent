@@ -8,7 +8,7 @@ package packets
 import (
 	"sync"
 
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // Pool wraps the sync.Pool class for *Packet type.
@@ -41,7 +41,7 @@ func NewPool(bufferSize int) *Pool {
 			},
 		},
 		// telemetry
-		tlmEnabled: telemetry_utils.IsEnabled(),
+		tlmEnabled: utils.IsTelemetryEnabled(),
 	}
 }
 

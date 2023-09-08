@@ -3,10 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+// +build !windows
+
 package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -25,15 +29,28 @@ func init() {
 	color.NoColor = false
 }
 
+type TestConfig struct {
+	retryCount      int
+	includePackages []string
+	excludePackages []string
+	runTests        string
+}
+
 const (
 	Testsuite   = "testsuite"
 	TestDirRoot = "/opt/system-probe-tests"
 	GoTestSum   = "/go/bin/gotestsum"
+
+	XMLDir       = "junit"
+	JSONDir      = "pkgjson"
+	JSONOutDir   = "testjson"
+	CIVisibility = "/ci-visibility"
 )
 
 var BaseEnv = map[string]interface{}{
+	"GITLAB_CI":                "true", // force color output support to be detected
 	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
-	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/java"),
+	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/protocols/tls/java"),
 }
 
 var timeouts = map[*regexp.Regexp]time.Duration{
@@ -91,7 +108,12 @@ func generatePackageName(file string) string {
 	return pkg
 }
 
-func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
+func pathToPackage(path string) string {
+	dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
+	return dir
+}
+
+func buildCommandArgs(junitPath string, jsonPath string, file string, testConfig *TestConfig) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
@@ -102,12 +124,19 @@ func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
 		jsonPath,
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
+
 	args := []string{
 		"--format", "dots",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
+		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
+		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
+	}
+
+	if testConfig.runTests != "" {
+		args = append(args, "-test.run", testConfig.runTests)
 	}
 
 	return args
@@ -133,7 +162,7 @@ func concatenateJsons(indir, outdir string) error {
 		return fmt.Errorf("json glob: %s", err)
 	}
 
-	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
 		return fmt.Errorf("open %s: %s", testJsonFile, err)
 	}
@@ -154,32 +183,64 @@ func concatenateJsons(indir, outdir string) error {
 	return nil
 }
 
-func testPass() error {
+func getCIVisibilityDir(dir string) string {
+	return filepath.Join(CIVisibility, dir)
+}
+
+func buildCIVisibilityDirs() error {
+	dirs := []string{
+		getCIVisibilityDir(XMLDir),
+		getCIVisibilityDir(JSONDir),
+		getCIVisibilityDir(JSONOutDir),
+	}
+
+	for _, d := range dirs {
+		if err := os.RemoveAll(d); err != nil {
+			return fmt.Errorf("failed to remove contents of %s: %w", d, err)
+		}
+		if err := os.MkdirAll(d, 0o777); err != nil {
+			return fmt.Errorf("failed to create directory %s", d)
+		}
+	}
+
+	return nil
+}
+
+func testPass(testConfig *TestConfig) error {
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
+		dir := pathToPackage(path)
+		for _, p := range testConfig.excludePackages {
+			if dir == p {
+				return false
+			}
+		}
+		if len(testConfig.includePackages) != 0 {
+			for _, p := range testConfig.includePackages {
+				if dir == p {
+					return true
+				}
+			}
+
+			return false
+		}
+
 		return true
 	})
 	if err != nil {
 		return fmt.Errorf("test glob: %s", err)
 	}
 
-	xmlPath := "/junit"
-	jsonPath := "/pkgjson"
-	jsonOutPath := "/testjson"
-
-	dirs := []string{xmlPath, jsonPath, jsonOutPath}
-	for _, d := range dirs {
-		if err := os.RemoveAll(d); err != nil {
-			return fmt.Errorf("failed to remove contents of %s: %w", d, err)
-		}
-		if _, err := os.Stat(d); errors.Is(err, os.ErrNotExist) {
-			if err := os.MkdirAll(d, 0777); err != nil {
-				return fmt.Errorf("failed to create directory %s", d)
-			}
-		}
+	if err := buildCIVisibilityDirs(); err != nil {
+		return err
 	}
 
 	for _, file := range matches {
-		args := buildCommandArgs(xmlPath, jsonPath, file)
+		args := buildCommandArgs(
+			getCIVisibilityDir(XMLDir),
+			getCIVisibilityDir(JSONDir),
+			file,
+			testConfig,
+		)
 		cmd := exec.Command(GoTestSum, args...)
 
 		cmd.Env = append(cmd.Environ(), mergeEnv(BaseEnv)...)
@@ -193,7 +254,10 @@ func testPass() error {
 		}
 	}
 
-	if err := concatenateJsons(jsonPath, jsonOutPath); err != nil {
+	if err := concatenateJsons(
+		getCIVisibilityDir(JSONDir),
+		getCIVisibilityDir(JSONOutDir),
+	); err != nil {
 		return fmt.Errorf("concat json: %s", err)
 	}
 	return nil
@@ -223,8 +287,36 @@ func main() {
 	}
 }
 
+func buildTestConfiguration() *TestConfig {
+	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
+	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
+	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
+	runTestsPtr := flag.String("run-tests", "", "Regex for running specific tests")
+
+	flag.Parse()
+
+	packagesLs := []string{}
+	excludeLs := []string{}
+
+	if *packagesPtr != "" {
+		packagesLs = strings.Split(*packagesPtr, ",")
+	}
+	if *excludePackagesPtr != "" {
+		excludeLs = strings.Split(*excludePackagesPtr, ",")
+	}
+
+	return &TestConfig{
+		retryCount:      *retryPtr,
+		includePackages: packagesLs,
+		excludePackages: excludeLs,
+		runTests:        *runTestsPtr,
+	}
+}
+
 func run() error {
 	var uname unix.Utsname
+
+	testConfig := buildTestConfiguration()
 	if err := unix.Uname(&uname); err != nil {
 		return fmt.Errorf("error calling uname: %w", err)
 	}
@@ -232,5 +324,15 @@ func run() error {
 	if err := fixAssetPermissions(); err != nil {
 		return err
 	}
-	return testPass()
+
+	if err := os.RemoveAll(CIVisibility); err != nil {
+		return fmt.Errorf("failed to remove contents of %s: %w", CIVisibility, err)
+	}
+	if _, err := os.Stat(CIVisibility); errors.Is(err, fs.ErrNotExist) {
+		if err := os.MkdirAll(CIVisibility, 0o777); err != nil {
+			return fmt.Errorf("failed to create directory %s", CIVisibility)
+		}
+	}
+
+	return testPass(testConfig)
 }

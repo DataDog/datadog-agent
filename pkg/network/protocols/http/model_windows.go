@@ -17,11 +17,12 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
-	return nsTimestampToFloat(uint64(responseLastSeen - requestStarted))
+	return protocols.NSTimestampToFloat(uint64(responseLastSeen - requestStarted))
 }
 
 func isIPV4(tup *driver.ConnTupleType) bool {
@@ -166,18 +167,4 @@ func (tx *WinHttpTransaction) RequestStarted() uint64 {
 
 func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
 	tx.Txn.RequestMethod = uint32(m)
-}
-
-// below is copied from pkg/trace/stats/statsraw.go
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask uint64 = 1 << 10
-
-// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
-func nsTimestampToFloat(ns uint64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
 }

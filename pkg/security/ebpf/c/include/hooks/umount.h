@@ -6,16 +6,12 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE0(umount) {
-    return 0;
-}
-
-SEC("kprobe/security_sb_umount")
-int kprobe_security_sb_umount(struct pt_regs *ctx) {
+HOOK_ENTRY("security_sb_umount")
+int hook_security_sb_umount(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UMOUNT,
         .umount = {
-            .vfs = (struct vfsmount *)PT_REGS_PARM1(ctx),
+            .vfs = (struct vfsmount *)CTX_PARM1(ctx),
         }
     };
 
@@ -51,8 +47,8 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(umount) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(umount) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_umount_ret(ctx, retval);
 }
 

@@ -3,6 +3,7 @@
 
 #include "constants/custom.h"
 #include "constants/enums.h"
+#include "constants/fentry_macro.h"
 #include "maps.h"
 #include "perf_ring.h"
 
@@ -80,8 +81,8 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 }
 #endif
 
-int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
-    u32 cmd = PT_REGS_PARM3(ctx);
+int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
+    u32 cmd = CTX_PARM3(ctx);
     if (cmd != RPC_CMD) {
         return 0;
     }
@@ -89,8 +90,8 @@ int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
     return 1;
 }
 
-int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
-    void *req = (void *)PT_REGS_PARM4(ctx);
+int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
+    void *req = (void *)CTX_PARM4(ctx);
 
     u8 op = 0;
     int ret = bpf_probe_read(&op, sizeof(op), req);

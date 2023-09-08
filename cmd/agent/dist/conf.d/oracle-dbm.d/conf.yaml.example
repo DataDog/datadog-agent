@@ -182,6 +182,34 @@ instances:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
 
+    ## @param custom_queries - list of mappings - optional
+    ## Each query must have 2 fields, and can have a third optional field:
+    ##
+    ## 1. query - The SQL to execute. It can be a simple statement or a multi-line script.
+    ##            Use the pipe `|` if you require a multi-line script.
+    ## 2. columns - The list representing each column, ordered sequentially from left to right.
+    ##              The number of columns must equal the number of columns returned in the query.
+    ##              There are 2 required pieces of data:
+    ##                a. name - The suffix to append to `<INTEGRATION>.` to form
+    ##                          the full metric name. If `type` is a `tag` type, this column is
+    ##                          considered a tag and applied to every
+    ##                          metric collected by this particular query.
+    ##                b. type - The submission method (gauge, monotonic_count, etc.) or tag.
+    ## 3. tags (optional) - A list of tags to apply to each metric.
+    ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
+                           The parameter can be defined on a self-managed instance, which
+                           connects to CDB.
+    # custom_queries:
+    #   - query: SELECT foo, COUNT(*) FROM table.events GROUP BY foo
+    #     columns:
+    #     - name: foo
+    #       type: tag
+    #     - name: event.total
+    #       type: gauge
+    #     tags:
+    #     - test:<INTEGRATION>
+    #     pdb: <MYPDB>
+
   ## Start SQL trace for agent queries
   ## Requires execute the execute privilege on `dbms_monitor` to datadog user
   #

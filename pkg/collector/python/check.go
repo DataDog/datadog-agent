@@ -8,6 +8,7 @@
 package python
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
@@ -16,12 +17,14 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,7 +40,8 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
-	id             check.ID
+	senderManager  sender.SenderManager
+	id             checkid.ID
 	version        string
 	instance       *C.rtloader_pyobject_t
 	class          *C.rtloader_pyobject_t
@@ -51,7 +55,7 @@ type PythonCheck struct {
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -61,11 +65,12 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, er
 	glock.unlock()
 
 	pyCheck := &PythonCheck{
-		ModuleName:   name,
-		class:        class,
-		interval:     defaults.DefaultCheckInterval,
-		lastWarnings: []error{},
-		telemetry:    telemetry_utils.IsCheckEnabled(name),
+		senderManager: senderManager,
+		ModuleName:    name,
+		class:         class,
+		interval:      defaults.DefaultCheckInterval,
+		lastWarnings:  []error{},
+		telemetry:     utils.IsCheckTelemetryEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -92,7 +97,7 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
 	if commitMetrics {
-		s, err := aggregator.GetSender(c.ID())
+		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
 			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 		}
@@ -206,9 +211,9 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
-	c.id = check.BuildID(c.String(), integrationConfigDigest, data, initConfig)
+	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {
@@ -218,7 +223,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 
 	// Set service for this check
 	if len(commonGlobalOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -239,7 +244,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 
 	// Disable default hostname if specified
 	if commonOptions.EmptyDefaultHostname {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -249,7 +254,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 
 	// Set configured service for this check, overriding the one possibly defined globally
 	if len(commonOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
+		s, err := c.senderManager.GetSender(c.id)
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -296,7 +301,7 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 	c.source = source
 
 	// Add the possibly configured service as a tag for this check
-	s, err := aggregator.GetSender(c.id)
+	s, err := c.senderManager.GetSender(c.id)
 	if err != nil {
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {
@@ -313,10 +318,10 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 }
 
 // GetSenderStats returns the stats from the last run of the check
-func (c *PythonCheck) GetSenderStats() (check.SenderStats, error) {
-	sender, err := aggregator.GetSender(c.ID())
+func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
+	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
-		return check.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
 	return sender.GetSenderStats(), nil
 }
@@ -327,8 +332,40 @@ func (c *PythonCheck) Interval() time.Duration {
 }
 
 // ID returns the ID of the check
-func (c *PythonCheck) ID() check.ID {
+func (c *PythonCheck) ID() checkid.ID {
 	return c.id
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	// Lock the GIL and release it at the end of the run (will crash otherwise)
+	gstate, err := newStickyLock()
+	if err != nil {
+		log.Warnf("failed to get lock for check %s: %s", c.id, err)
+		return nil, err
+	}
+	defer gstate.unlock()
+
+	// Get JSON serialized diagnoses. Handcrafted and significantly more complicated
+	// manual serialization was only 2-2.5 times faster and hence not worth it for
+	// low-rate calls like this
+	pyDiagnoses := C.get_check_diagnoses(rtloader, c.instance)
+	if pyDiagnoses == nil {
+		// When no actual diagnoses to report python check normally returns "[]"
+		log.Warnf("check diagnose failed to collect diagnoses JSON for %s", c.id)
+		return nil, nil
+	}
+	defer C.rtloader_free(rtloader, unsafe.Pointer(pyDiagnoses))
+
+	// Deserialize it
+	strDiagnoses := C.GoString(pyDiagnoses)
+	var diagnoses []diagnosis.Diagnosis
+	err = json.Unmarshal([]byte(strDiagnoses), &diagnoses)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
+	}
+
+	return diagnoses, nil
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned

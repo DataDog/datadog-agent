@@ -24,4 +24,17 @@ const (
 
 	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
 	SamplingPriorityHeader = "x-datadog-sampling-priority"
+
+	// Lambda function trigger span tag values
+	apiGateway              = "api-gateway"
+	applicationLoadBalancer = "application-load-balancer"
+	cloudwatchEvents        = "cloudwatch-events"
+	cloudwatchLogs          = "cloudwatch-logs"
+	dynamoDB                = "dynamodb"
+	eventBridge             = "eventbridge"
+	kinesis                 = "kinesis"
+	s3                      = "s3"
+	sns                     = "sns"
+	sqs                     = "sqs"
+	functionURL             = "lambda-function-url"
 )

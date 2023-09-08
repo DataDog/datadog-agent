@@ -78,6 +78,14 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
     log_debug("[protocol_dispatcher_classifier]: Classified protocol as %d %d; %s\n", *protocol, size, buf);
 }
 
+static __always_inline void dispatcher_delete_protocol_stack(conn_tuple_t *tuple, protocol_stack_t *stack) {
+    bool flipped = normalize_tuple(tuple);
+    delete_protocol_stack(tuple, stack, FLAG_SOCKET_FILTER_DELETION);
+    if (flipped) {
+        flip_tuple(tuple);
+    }
+}
+
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
 static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
@@ -88,8 +96,9 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets, nor ACK only packets.
-    if (!is_tcp(&skb_tup) || is_tcp_ack(&skb_info) || (is_payload_empty(skb, &skb_info) && !is_tcp_termination(&skb_info))) {
+    bool tcp_termination = is_tcp_termination(&skb_info);
+    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
+    if (!is_tcp(&skb_tup) || (is_payload_empty(&skb_info) && !tcp_termination)) {
         return;
     }
 
@@ -99,20 +108,34 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
+    if (tcp_termination) {
+        bpf_map_delete_elem(&connection_states, &skb_tup);
+    }
+
     protocol_stack_t *stack = get_protocol_stack(&skb_tup);
     if (!stack) {
         // should never happen, but it is required by the eBPF verifier
         return;
     }
+
+    // This is used to signal the tracer program that this protocol stack
+    // is also shared with our USM program for the purposes of deletion.
+    // For more context refer to the comments in `delete_protocol_stack`
+    stack->flags |= FLAG_USM_ENABLED;
+
     // TODO: consider adding early return if `is_layer_known(stack, LAYER_ENCRYPTION)`
 
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+    if (tcp_termination) {
+        dispatcher_delete_protocol_stack(&skb_tup, stack);
+    }
+
     if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
         log_debug("[protocol_dispatcher_entrypoint]: %p was not classified\n", skb);
         char request_fragment[CLASSIFICATION_MAX_BUFFER];
         bpf_memset(request_fragment, 0, sizeof(request_fragment));
         read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
-        const size_t payload_length = skb->len - skb_info.data_off;
+        const size_t payload_length = skb_info.data_end - skb_info.data_off;
         const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
         classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
         if (is_kafka_monitoring_enabled() && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
@@ -153,7 +176,7 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     char request_fragment[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
     read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
-    const size_t payload_length = skb->len - skb_info.data_off;
+    const size_t payload_length = skb_info.data_end - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
     if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {

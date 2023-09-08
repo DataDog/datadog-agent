@@ -5,64 +5,60 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"regexp"
 	"strconv"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // PathsReducer is used to reduce the paths in an activity tree according to predefined heuristics
 type PathsReducer struct {
-	patterns        *regexp.Regexp
-	callbackFuncs   map[int]func(ctx *callbackContext)
-	callbackIndexes []int
+	patterns []PatternReducer
 }
 
 // PatternReducer is used to reduce the paths in an activity tree according to a given pattern
 type PatternReducer struct {
-	Pattern            string
-	GroupIndexCallback int
-	GroupCount         int
-	Callback           func(ctx *callbackContext)
+	Pattern  *regexp.Regexp
+	Hint     string
+	PreCheck func(fileEvent *model.FileEvent) bool
+	Callback func(ctx *callbackContext)
 }
 
 // callbackContext is the input struct for the callback function
 type callbackContext struct {
-	start       int
-	end         int
+	groups      []int
 	path        string
 	fileEvent   *model.FileEvent
 	processNode *ProcessNode
 }
 
+func (cc *callbackContext) getGroup(index int) (int, int) {
+	return cc.groups[index*2], cc.groups[index*2+1]
+}
+
+func (cc *callbackContext) replaceBy(start, end int, replaceBy string) {
+	left := cc.path[:start]
+	right := cc.path[end:]
+
+	var b strings.Builder
+	b.Grow(len(left) + len(replaceBy) + len(right))
+	b.WriteString(left)
+	b.WriteString(replaceBy)
+	b.WriteString(right)
+	cc.path = b.String()
+}
+
 // NewPathsReducer returns a new PathsReducer
 func NewPathsReducer() *PathsReducer {
-	patterns := getPathsReducerPatterns()
-	patternsCount := len(patterns)
-
-	r := &PathsReducer{
-		callbackFuncs:   make(map[int]func(ctx *callbackContext), patternsCount),
-		callbackIndexes: make([]int, patternsCount),
+	return &PathsReducer{
+		patterns: getPathsReducerPatterns(),
 	}
-
-	var fullPattern string
-	var groupCount int
-	for i, pattern := range patterns {
-		if i > 0 {
-			fullPattern += "|"
-		}
-		fullPattern += pattern.Pattern
-
-		r.callbackFuncs[groupCount+pattern.GroupIndexCallback] = pattern.Callback
-		r.callbackIndexes[patternsCount-1-i] = pattern.GroupIndexCallback + groupCount
-		groupCount += pattern.GroupCount
-	}
-
-	r.patterns = regexp.MustCompile(fullPattern)
-	return r
 }
 
 // ReducePath reduces a path according to the predefined heuristics
@@ -73,17 +69,25 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 		processNode: node,
 	}
 
-	allMatches := r.patterns.FindAllStringSubmatchIndex(path, -1)
-	for matchSet := len(allMatches) - 1; matchSet >= 0; matchSet-- {
-		matches := allMatches[matchSet]
-		for _, i := range r.callbackIndexes {
-			if r.callbackFuncs[i] != nil && matches[2*i] != -1 && matches[2*i+1] != -1 {
-				ctx.start = matches[2*i]
-				ctx.end = matches[2*i+1]
-				r.callbackFuncs[i](ctx)
+	for _, pattern := range r.patterns {
+		if pattern.PreCheck != nil && fileEvent != nil && !pattern.PreCheck(fileEvent) {
+			continue
+		}
+
+		if pattern.Hint != "" && !strings.Contains(ctx.path, pattern.Hint) {
+			continue
+		}
+
+		allMatches := pattern.Pattern.FindAllStringSubmatchIndex(ctx.path, -1)
+
+		for matchSet := len(allMatches) - 1; matchSet >= 0; matchSet-- {
+			if pattern.Callback != nil {
+				ctx.groups = allMatches[matchSet]
+				pattern.Callback(ctx)
 			}
 		}
 	}
+
 	return ctx.path
 }
 
@@ -91,65 +95,77 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 func getPathsReducerPatterns() []PatternReducer {
 	return []PatternReducer{
 		{
-			Pattern:            "(/proc/(\\d+))", // process PID
-			GroupIndexCallback: 2,
-			GroupCount:         2,
+			Pattern: regexp.MustCompile(`/proc/(\d+)/`), // process PID
+			Hint:    "proc",
 			Callback: func(ctx *callbackContext) {
+				start, end := ctx.getGroup(1)
 				// compute pid from path
-				pid, err := strconv.Atoi(ctx.path[ctx.start:ctx.end])
+				pid, err := strconv.Atoi(ctx.path[start:end])
 				if err != nil {
 					return
 				}
 				// replace the pid in the path between start and end with a * only if the replaced pid is not the pid of the process node
 				if ctx.processNode.Process.Pid == uint32(pid) {
-					ctx.path = ctx.path[:ctx.start] + "self" + ctx.path[ctx.end:]
+					ctx.replaceBy(start, end, "self")
 				} else {
-					ctx.path = ctx.path[:ctx.start] + "*" + ctx.path[ctx.end:]
+					ctx.replaceBy(start, end, "*")
 				}
 			},
 		},
 		{
-			Pattern:            "(/task/(\\d+))", // process TID
-			GroupIndexCallback: 2,
-			GroupCount:         2,
+			Pattern: regexp.MustCompile(`/task/(\d+)/`), // process TID
+			Hint:    "task",
 			Callback: func(ctx *callbackContext) {
-				ctx.path = ctx.path[:ctx.start] + "*" + ctx.path[ctx.end:]
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
-			Pattern:            "((kubepods-|cri-containerd-)([^/]*)\\.(slice|scope))", // kubernetes cgroup
-			GroupIndexCallback: 3,
-			GroupCount:         4,
+			Pattern: regexp.MustCompile(`kubepods-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
+			Hint:    "kubepods",
+			PreCheck: func(fileEvent *model.FileEvent) bool {
+				return fileEvent.Filesystem == "sysfs"
+			},
 			Callback: func(ctx *callbackContext) {
-				if ctx.fileEvent.Filesystem == "sysfs" {
-					ctx.path = ctx.path[:ctx.start] + "*" + ctx.path[ctx.end:]
-				}
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
-			Pattern:            model.ContainerIDPatternStr, // container ID
-			GroupIndexCallback: 1,
-			GroupCount:         1,
+			Pattern: regexp.MustCompile(`cri-containerd-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
+			Hint:    "cri-containerd",
+			PreCheck: func(fileEvent *model.FileEvent) bool {
+				return fileEvent.Filesystem == "sysfs"
+			},
 			Callback: func(ctx *callbackContext) {
-				ctx.path = ctx.path[:ctx.start] + "*" + ctx.path[ctx.end:]
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
-			Pattern:            "(/sys/devices/virtual/block/(dm-|loop)([0-9]+))", // block devices
-			GroupIndexCallback: 3,
-			GroupCount:         3,
+			Pattern: regexp.MustCompile(containerutils.ContainerIDPatternStr), // container ID
 			Callback: func(ctx *callbackContext) {
-				if ctx.fileEvent.Filesystem == "sysfs" {
-					ctx.path = ctx.path[:ctx.start] + "*" + ctx.path[ctx.end:]
-				}
+				start, end := ctx.getGroup(0)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
-			Pattern:            "(secrets/kubernetes.io/serviceaccount/([0-9._]+))", // service account token date
-			GroupIndexCallback: 2,
-			GroupCount:         2,
+			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`), // block devices
+			Hint:    "devices",
+			PreCheck: func(fileEvent *model.FileEvent) bool {
+				return fileEvent.Filesystem == "sysfs"
+			},
 			Callback: func(ctx *callbackContext) {
-				ctx.path = ctx.path[:ctx.start] + "*" + ctx.path[ctx.end:]
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
+			},
+		},
+		{
+			Pattern: regexp.MustCompile(`secrets/kubernetes.io/serviceaccount/([0-9._]+)`), // service account token date
+			Hint:    "serviceaccount",
+			Callback: func(ctx *callbackContext) {
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 	}

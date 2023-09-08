@@ -23,6 +23,7 @@ suites:
 
   - name: win-upgrade-rollback
     run_list:
+      - "recipe[dd-agent-system-files-check::list-files-before-install]"
       - "recipe[dd-agent-install]"
       - "recipe[dd-agent-upgrade]"
     attributes:
@@ -45,11 +46,18 @@ suites:
       dd-agent-upgrade-rspec:
         # Used by the rspec test to know the version to which the agent should be upgraded
         agent_expected_version: "<%= ENV['LAST_STABLE_VERSION'] %>"
+
+        ## for the rollback test, always skip the signature test.  Whatever the previous version
+        ## is would have been tested for signature at the time it was released.  And checking
+        ## for signature here gets us caught inbetween if the test is run across certificate
+        ## renewal boundary (the old binary signed with old cert, the new with new)
+        skip_windows_signing_test: &skip_windows_signing_test true
       dd-agent-rspec:
-        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+        skip_windows_signing_test: &skip_windows_signing_test true
 
   - name: win-installopts
     run_list:
+      - "recipe[dd-agent-system-files-check::list-files-before-install]"
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
@@ -83,6 +91,7 @@ suites:
 
   - name: win-all-subservices
     run_list:
+      - "recipe[dd-agent-system-files-check::list-files-before-install]"
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
@@ -158,7 +167,7 @@ suites:
 
   - name: win-install-fail
     run_list:
-        - "recipe[dd-agent-install::_install_windows_base]"
+      - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
         <% dd_agent_config.each do |key, value| %>
@@ -184,7 +193,8 @@ suites:
 
   - name: win-alt-dir
     run_list:
-        - "recipe[dd-agent-install::_install_windows_base]"
+      - "recipe[dd-agent-system-files-check::list-files-before-install]"
+      - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
       datadog:
         <% dd_agent_config.each do |key, value| %>

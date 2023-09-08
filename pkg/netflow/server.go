@@ -12,11 +12,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
@@ -30,24 +31,25 @@ type Server struct {
 	config    *config.NetflowConfig
 	listeners []*netflowListener
 	flowAgg   *flowaggregator.FlowAggregator
+	logger    log.Component
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder) (*Server, error) {
+func NewNetflowServer(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder, ddconf ddconfig.ConfigReader, logger log.Component) (*Server, error) {
 	var listeners []*netflowListener
 
-	mainConfig, err := config.ReadConfig()
+	mainConfig, err := config.ReadConfig(ddconf)
 	if err != nil {
 		return nil, err
 	}
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		log.Warnf("Error getting the hostname: %v", err)
+		logger.Warnf("Error getting the hostname: %v", err)
 		hostnameDetected = ""
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, epForwarder, mainConfig, hostnameDetected)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, epForwarder, mainConfig, hostnameDetected, logger)
 	go flowAgg.Start()
 
 	if mainConfig.PrometheusListenerEnabled {
@@ -56,17 +58,17 @@ func NewNetflowServer(sender aggregator.Sender, epForwarder epforwarder.EventPla
 			serverMux.Handle("/metrics", promhttp.Handler())
 			err := http.ListenAndServe(mainConfig.PrometheusListenerAddress, serverMux)
 			if err != nil {
-				log.Errorf("error starting prometheus server `%s`", mainConfig.PrometheusListenerAddress)
+				logger.Errorf("error starting prometheus server `%s`", mainConfig.PrometheusListenerAddress)
 			}
 		}()
 	}
 
-	log.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", mainConfig.AggregatorBufferSize, mainConfig.AggregatorFlushInterval, mainConfig.AggregatorFlowContextTTL)
+	logger.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", mainConfig.AggregatorBufferSize, mainConfig.AggregatorFlushInterval, mainConfig.AggregatorFlowContextTTL)
 	for _, listenerConfig := range mainConfig.Listeners {
-		log.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
-		listener, err := startFlowListener(listenerConfig, flowAgg)
+		logger.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
+		listener, err := startFlowListener(listenerConfig, flowAgg, logger)
 		if err != nil {
-			log.Warnf("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d): %s", listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, err)
+			logger.Warnf("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d): %s", listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, err)
 			continue
 		}
 		listeners = append(listeners, listener)
@@ -76,12 +78,13 @@ func NewNetflowServer(sender aggregator.Sender, epForwarder epforwarder.EventPla
 		listeners: listeners,
 		config:    mainConfig,
 		flowAgg:   flowAgg,
+		logger:    logger,
 	}, nil
 }
 
 // Stop stops the Server.
 func (s *Server) stop() {
-	log.Infof("Stop NetFlow Server")
+	s.logger.Infof("Stop NetFlow Server")
 
 	s.flowAgg.Stop()
 
@@ -89,22 +92,22 @@ func (s *Server) stop() {
 		stopped := make(chan interface{})
 
 		go func() {
-			log.Infof("Listener `%s` shutting down", listener.config.Addr())
+			s.logger.Infof("Listener `%s` shutting down", listener.config.Addr())
 			listener.shutdown()
 			close(stopped)
 		}()
 
 		select {
 		case <-stopped:
-			log.Infof("Listener `%s` stopped", listener.config.Addr())
+			s.logger.Infof("Listener `%s` stopped", listener.config.Addr())
 		case <-time.After(time.Duration(s.config.StopTimeout) * time.Second):
-			log.Errorf("Stopping listener `%s`. Timeout after %d seconds", listener.config.Addr(), s.config.StopTimeout)
+			s.logger.Errorf("Stopping listener `%s`. Timeout after %d seconds", listener.config.Addr(), s.config.StopTimeout)
 		}
 	}
 }
 
 // StartServer starts the global NetFlow collector.
-func StartServer(demux aggregator.DemultiplexerWithAggregator) error {
+func StartServer(demux aggregator.DemultiplexerWithAggregator, ddconf ddconfig.ConfigReader, logger log.Component) error {
 	epForwarder, err := demux.GetEventPlatformForwarder()
 	if err != nil {
 		return err
@@ -114,7 +117,7 @@ func StartServer(demux aggregator.DemultiplexerWithAggregator) error {
 	if err != nil {
 		return err
 	}
-	server, err := NewNetflowServer(sender, epForwarder)
+	server, err := NewNetflowServer(sender, epForwarder, ddconf, logger)
 	if err != nil {
 		return err
 	}
@@ -131,6 +134,6 @@ func StopServer() {
 }
 
 // IsEnabled returns whether NetFlow collection is enabled in the Agent configuration.
-func IsEnabled() bool {
-	return coreconfig.Datadog.GetBool("network_devices.netflow.enabled")
+func IsEnabled(ddconf ddconfig.ConfigReader) bool {
+	return ddconf.GetBool("network_devices.netflow.enabled")
 }

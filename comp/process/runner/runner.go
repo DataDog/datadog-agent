@@ -39,7 +39,7 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.Object(), deps.HostInfo.Object(), filterEnabledChecks(deps.Checks), deps.RTNotifier)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(deps.Checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,11 @@ func newRunner(deps dependencies) (Component, error) {
 		providedChecks: deps.Checks,
 	}
 
-	deps.Lc.Append(fx.StartStopHook(runner.Run, runner.Stop))
+	deps.Lc.Append(fx.Hook{
+		OnStart: runner.Run,
+		OnStop:  runner.Stop,
+	})
+
 	return runner, nil
 }
 

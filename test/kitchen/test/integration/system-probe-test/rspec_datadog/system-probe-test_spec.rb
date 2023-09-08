@@ -68,8 +68,10 @@ describe "system-probe" do
     pkg = f.delete_prefix("#{tests_dir}/").delete_suffix('/testsuite')
     final_env = {
       "DD_SYSTEM_PROBE_BPF_DIR"=>"#{tests_dir}/pkg/ebpf/bytecode/build",
-      "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/java",
-      "GOVERSION"=>"unknown"
+      "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/protocols/tls/java",
+      "GOVERSION"=>"unknown",
+      # force color support to be detected
+      "GITLAB_CI"=>"true",
     }
     junitfile = pkg.gsub("/","-") + ".xml"
 
@@ -81,6 +83,8 @@ describe "system-probe" do
           "--format", "dots",
           "--junitfile", xmlpath,
           "--jsonfile", "/tmp/pkgjson/#{pkg.gsub("/","-")}.json",
+          "--rerun-fails=2",
+          "--rerun-fails-max-failures=100",
           "--raw-command", "--",
           "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1", "-test.timeout=#{get_timeout(pkg)}"
         ]

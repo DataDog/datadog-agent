@@ -5,6 +5,7 @@
 
 //go:build stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -54,7 +55,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 
 	eventStreamMonitor := test.probe.GetMonitor().GetEventStreamMonitor()
 	eventStreamMonitor.GetAndResetLostCount("events", -1)
-	eventStreamMonitor.GetKernelLostCount("events", -1)
+	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 
 	fnc := func() error {
 		f, err := os.Create(testFile)
@@ -94,7 +95,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	report.AddMetric("lost", float64(eventStreamMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(eventStreamMonitor.GetKernelLostCount("events", -1)), "kernel lost")
+	report.AddMetric("kernel_lost", float64(eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -196,7 +197,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	eventStreamMonitor := test.probe.GetMonitor().GetEventStreamMonitor()
 	eventStreamMonitor.GetAndResetLostCount("events", -1)
-	eventStreamMonitor.GetKernelLostCount("events", -1)
+	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
@@ -232,7 +233,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	time.Sleep(2 * time.Second)
 
 	report.AddMetric("lost", float64(eventStreamMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(eventStreamMonitor.GetKernelLostCount("events", -1)), "kernel lost")
+	report.AddMetric("kernel_lost", float64(eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)), "kernel lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 	report.AddMetric("kevents", float64(kevents), "kevents")

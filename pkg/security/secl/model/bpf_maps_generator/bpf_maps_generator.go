@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main holds main related files
 package main
 
 import (
@@ -31,7 +32,8 @@ type tmplContext struct {
 	Entries     []mapEntry
 }
 
-const BPF_MAX_OBJ_SIZE = 15 // 16 - 1 for the \0
+// BpfMaxObjSize defines the BPF max object size
+const BpfMaxObjSize = 15 // 16 - 1 for the \0
 
 func main() {
 	var (
@@ -45,7 +47,7 @@ func main() {
 	flag.StringVar(&packageName, "pkg-name", "", "Package name to use in the output")
 	flag.Parse()
 
-	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP\(\s*(.*?)\s*,.*?\)`)
+	mapMatcher := regexp.MustCompile(`BPF_(.*?)_MAP(?:_FLAGS)?\(\s*(.*?)\s*,.*?\)`)
 	defineMatcher := regexp.MustCompile(`\s*#define BPF`)
 
 	f, err := os.Open(runtimePath)
@@ -69,8 +71,8 @@ func main() {
 			name := submatch[2]
 
 			trimmed := name
-			if len(name) > BPF_MAX_OBJ_SIZE {
-				trimmed = name[:BPF_MAX_OBJ_SIZE]
+			if len(name) > BpfMaxObjSize {
+				trimmed = name[:BpfMaxObjSize]
 			}
 
 			entries = append(entries, mapEntry{

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.config;
 
-option go_package = "pkg/proto/pbgo";  // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 // Backend definitions
 
@@ -64,6 +64,11 @@ message LatestConfigsResponse {
 
 message OrgDataResponse {
   string uuid = 1;
+}
+
+message OrgStatusResponse {
+  bool enabled = 1;
+  bool authorized = 2;
 }
 
 // Client definitions

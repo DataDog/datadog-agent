@@ -58,3 +58,26 @@ service:
       processors: [batch]
       exporters: [serializer]
 `
+
+// defaultLogsConfig is the logs OTLP pipeline configuration.
+const defaultLogsConfig string = `
+receivers:
+  otlp:
+
+processors:
+  batch:
+    timeout: 10s
+
+exporters:
+  logsagent:
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logsagent]
+`

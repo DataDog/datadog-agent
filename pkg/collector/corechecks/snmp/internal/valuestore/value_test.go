@@ -6,6 +6,7 @@
 package valuestore
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ import (
 
 func TestToFloat64FromString(t *testing.T) {
 	snmpValue := &ResultValue{
-		SubmissionType: "gauge",
+		SubmissionType: checkconfig.ProfileMetricTypeGauge,
 		Value:          "255.745",
 	}
 	value, err := snmpValue.ToFloat64()
@@ -23,7 +24,7 @@ func TestToFloat64FromString(t *testing.T) {
 
 func TestToFloat64FromFloat(t *testing.T) {
 	snmpValue := &ResultValue{
-		SubmissionType: "gauge",
+		SubmissionType: checkconfig.ProfileMetricTypeGauge,
 		Value:          float64(255.745),
 	}
 	value, err := snmpValue.ToFloat64()
@@ -33,7 +34,7 @@ func TestToFloat64FromFloat(t *testing.T) {
 
 func TestToFloat64FromInvalidType(t *testing.T) {
 	snmpValue := &ResultValue{
-		SubmissionType: "gauge",
+		SubmissionType: checkconfig.ProfileMetricTypeGauge,
 		Value:          int64(255),
 	}
 	_, err := snmpValue.ToFloat64()

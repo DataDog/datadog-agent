@@ -115,7 +115,7 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 		supported     bool
 	}{
 		{metrics.GaugeType, metrics.APIGaugeType, true},
-		{metrics.CounterType, metrics.APICountType, true},
+		{metrics.CounterType, metrics.APIRateType, true},
 		{metrics.RateType, metrics.APIRateType, true},
 		{metrics.MonotonicCountType, metrics.APIGaugeType, false},
 		{metrics.CountType, metrics.APIGaugeType, false},

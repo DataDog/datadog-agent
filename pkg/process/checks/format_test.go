@@ -29,7 +29,8 @@ func TestHumanFormatProcess(t *testing.T) {
 					NsPid:       1002,
 					ContainerId: "foo-container",
 					Command: &model.Command{
-						Exe: "foo.exe",
+						Exe:  "foo.exe",
+						Comm: "foo",
 						Args: []string{
 							"1", "2", "3",
 						},
@@ -119,6 +120,7 @@ Processes
 > PID: 2 NSPID: 1002 PPID: 1
   Container ID: foo-container
   Exe: foo.exe
+  Command Name: foo
   Args: '1' '2' '3'
   Cwd: /home/puppy
   User: root Uid: 0 Gid: 1 Euid: 2 Egid: 3 Suid: 4 Sgid: 5

@@ -7,6 +7,7 @@ package valuestore
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -128,7 +129,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint(10),
 			},
 			"1.2.3",
-			ResultValue{SubmissionType: "counter", Value: float64(10)},
+			ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			nil,
 		},
 		{
@@ -161,7 +162,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint64(10),
 			},
 			"1.2.3",
-			ResultValue{SubmissionType: "counter", Value: float64(10)},
+			ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			nil,
 		},
 		{
@@ -455,7 +456,7 @@ func Test_resultToScalarValues(t *testing.T) {
 					Value: float64(142),
 				},
 				"1.3.6.1.2.1.2.2.1.14.2": {
-					SubmissionType: "counter",
+					SubmissionType: checkconfig.ProfileMetricTypeCounter,
 					Value:          float64(142),
 				},
 			},

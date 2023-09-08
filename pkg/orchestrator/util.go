@@ -17,6 +17,9 @@ type NodeType int
 // CheckName is the cluster check name of the orchestrator check
 var CheckName = "orchestrator"
 
+// ExtraLogContext is used to add check name into log context
+var ExtraLogContext = []interface{}{"check", CheckName}
+
 const (
 	// K8sUnsetType represents a Kubernetes unset type
 	K8sUnsetType NodeType = iota
@@ -64,6 +67,8 @@ const (
 	K8sCR
 	// K8sVerticalPodAutoscaler represents a Kubernetes VerticalPod Autoscaler
 	K8sVerticalPodAutoscaler
+	// K8sHorizontalPodAutoscaler represents a Kubernetes Horizontal Pod Autoscaler
+	K8sHorizontalPodAutoscaler
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -91,6 +96,7 @@ func NodeTypes() []NodeType {
 		K8sCR,
 		K8sCRD,
 		K8sVerticalPodAutoscaler,
+		K8sHorizontalPodAutoscaler,
 	}
 }
 
@@ -140,6 +146,8 @@ func (n NodeType) String() string {
 		return "CustomResource"
 	case K8sVerticalPodAutoscaler:
 		return "VerticalPodAutoscaler"
+	case K8sHorizontalPodAutoscaler:
+		return "HorizontalPodAutoscaler"
 	case K8sUnsetType:
 		return "UnsetType"
 	default:
@@ -173,6 +181,7 @@ func (n NodeType) Orchestrator() string {
 		K8sCR,
 		K8sNamespace,
 		K8sVerticalPodAutoscaler,
+		K8sHorizontalPodAutoscaler,
 		K8sUnsetType:
 		return "k8s"
 	default:

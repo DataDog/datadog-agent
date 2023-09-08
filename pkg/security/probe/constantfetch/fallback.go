@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
@@ -40,6 +41,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 	switch id {
 	case SizeOfInode:
 		value = getSizeOfStructInode(f.kernelVersion)
+	case OffsetNameSuperBlockStructSFlags:
+		value = getSuperBlockFlagsOffset(f.kernelVersion)
 	case OffsetNameSuperBlockStructSMagic:
 		value = getSuperBlockMagicOffset(f.kernelVersion)
 	case OffsetNameSignalStructStructTTY:
@@ -124,8 +127,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
 	case OffsetNameLinuxBinprmEnvc:
 		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
-	case OffsetNameVmAreaStructFlags:
-		value = getVmAreaStructFlagsOffset(f.kernelVersion)
+	case OffsetNameVMAreaStructFlags:
+		value = getVMAreaStructFlagsOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -162,7 +165,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
 		sizeOf = 584
-	case kv.IsRH8Kernel():
+	case kv.IsRH8Kernel() || kv.IsRH9Kernel():
 		sizeOf = 648
 	case kv.IsSuse12Kernel():
 		sizeOf = 560
@@ -207,14 +210,18 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
+func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 {
+	return uint64(80)
+}
+
 func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
-	sizeOf := uint64(96)
+	offset := uint64(96)
 
 	if kv.IsRH7Kernel() {
-		sizeOf = 88
+		offset = 88
 	}
 
-	return sizeOf
+	return offset
 }
 
 // Depending on the value CONFIG_NO_HZ_FULL, a field can be added before the `tty` field.
@@ -232,6 +239,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		return 416
 	case kv.IsRH8Kernel():
 		return 392
+	case kv.IsRH9Kernel():
+		return 424
 	case kv.IsSuse12Kernel():
 		return 376
 	case kv.IsSuse15Kernel():
@@ -303,7 +312,7 @@ func getBpfMapIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		return 52
-	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19) || kv.IsRH9Kernel():
 		return 60
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
 		return 68
@@ -322,6 +331,8 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 112
 	case kv.IsRH8Kernel():
 		nameOffset = 80
+	case kv.IsRH9Kernel():
+		nameOffset = 96
 	case kv.IsSuse15Kernel():
 		nameOffset = 88
 	case kv.IsSuse12Kernel():
@@ -437,6 +448,8 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 144
 	case kv.IsRH8Kernel():
 		nameOffset = 520
+	case kv.IsRH9Kernel():
+		nameOffset = 544
 	case kv.IsSuse15Kernel():
 		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
 			nameOffset = 424
@@ -740,6 +753,8 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 		return 168
 	case kv.IsRH7Kernel():
 		return 240
+	case kv.IsRH9Kernel():
+		fallthrough
 	case kv.Code >= kernel.Kernel5_19:
 		return 136
 	default:
@@ -899,9 +914,11 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 	return offset
 }
 
-func getVmAreaStructFlagsOffset(kv *kernel.Version) uint64 {
+func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
+		return 32
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_2, kernel.Kernel6_3):
 		return 32
 	}
 	return 80

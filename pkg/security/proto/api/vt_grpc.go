@@ -12,6 +12,7 @@
 // This implementation is based on
 // https://github.com/vitessio/vitess/blob/main/go/vt/servenv/grpc_codec.go
 
+// Package api holds api related files
 package api
 
 import (
@@ -22,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// VTProtoCodecName represents the name of the vtproto codec, using vtproto instead of the default marshalling functions
 const VTProtoCodecName = "vtproto"
 
 // maybeVTCodec represents a codec able to encode and decode vt enabled proto messages

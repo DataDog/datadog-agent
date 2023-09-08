@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"path/filepath"
 
@@ -80,7 +80,7 @@ func QueryDCAMetrics() ([]byte, error) {
 		return nil, err
 	}
 	defer r.Body.Close()
-	return ioutil.ReadAll(r.Body)
+	return io.ReadAll(r.Body)
 }
 
 func getMetadataMap(fb flarehelpers.FlareBuilder) error {

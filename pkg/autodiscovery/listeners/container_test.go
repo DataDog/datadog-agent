@@ -99,6 +99,10 @@ func TestCreateContainerService(t *testing.T) {
 			Running: true,
 		},
 		Runtime: workloadmeta.ContainerRuntimeDocker,
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
 	}
 
 	kubernetesExcludedContainer := &workloadmeta.Container{
@@ -274,6 +278,10 @@ func TestCreateContainerService(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newContainerListener(t)
+
+			if tt.container != nil {
+				listener.Store().(*workloadmetatesting.Store).Set(tt.container)
+			}
 			if tt.pod != nil {
 				listener.Store().(*workloadmetatesting.Store).Set(tt.pod)
 			}

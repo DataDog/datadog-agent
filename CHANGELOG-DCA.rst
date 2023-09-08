@@ -2,6 +2,86 @@
 Release Notes
 =============
 
+.. _Release Notes_7.47.0:
+
+7.47.0 / 6.47.0
+======
+
+.. _Release Notes_7.47.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Add support for leases in leader election which can be enabled by setting 
+  ``leader_election_default_resource`` to ``leases``, available since Kubernetes version 1.14. 
+  If this parameter is empty, leader election automatically detects if leases
+  are available and uses them.
+  Set ``leader_election_default_resource`` to ``configmap`` on clusters running
+  Kubernetes versions previous to 1.14.
+
+
+.. _Release Notes_7.47.0_New Features:
+
+New Features
+------------
+
+- Auto-instrumentation admission controller now automatically activates crash tracking for Java applications
+
+
+.. _Release Notes_7.47.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Expose to cluster-agent HistogramBuckets and Events check stats.
+  It should help the cluster-agent to define a better cluster-checks
+  dispatching.
+
+
+.. _Release Notes_7.47.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The Cluster Agent Admission Controller now injects DD_DOGSTATSD_URL when used in `socket` mode (default), allowing DogStatsD clients to work without configuration.
+
+- Fix persistent volume type for local volumes.
+
+
+.. _Release Notes_7.46.0:
+
+7.46.0 / 6.46.0
+======
+
+.. _Release Notes_7.46.0_New Features:
+
+New Features
+------------
+
+- Enable collection of Vertical Pod Autoscalers by default in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect conditions for a variety of Kubernetes resources.
+
+- Collect persistent volume source in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the timeout for idle HTTP connections.
+
+- When the cluster-agent is started with ``hostNetwork: true``, the leader election mechanism was using a node name instead of the pod name. This was breaking the “follower to leader” forwarding mechanism.
+  This change introduce the ``DD_POD_NAME`` environment variable as a more reliable way to set the cluster-agent pod name. It is supposed to be filled by the Kubernetes downward API.
+
+
 .. _Release Notes_7.45.0:
 
 7.45.0 / 6.45.0

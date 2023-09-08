@@ -47,7 +47,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true)),
-					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfig.WithConfigLoadSecrets(true)),
+					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
 					LogParams:            log.LogForOneShot("SYS-PROBE", "off", false),
 				}),
 				// no need to provide sysprobe logger since LogForOneShot ignores config values
@@ -60,7 +60,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
-	cfg := sysprobeconfig.Object()
+	cfg := sysprobeconfig.SysProbeObject()
 	client := api.GetClient(cfg.SocketAddress)
 
 	var path string

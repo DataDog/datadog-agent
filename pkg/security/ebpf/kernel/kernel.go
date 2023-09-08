@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package kernel holds kernel related files
 package kernel
 
 import (
@@ -17,10 +18,9 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -93,6 +93,8 @@ var (
 	Kernel6_1 = kernel.VersionCode(6, 1, 0)
 	// Kernel6_2 is the KernelVersion representation of kernel version 6.2
 	Kernel6_2 = kernel.VersionCode(6, 2, 0)
+	// Kernel6_3 is the KernelVersion representation of kernel version 6.3
+	Kernel6_3 = kernel.VersionCode(6, 3, 0)
 )
 
 // Version defines a kernel version helper
@@ -145,7 +147,7 @@ func newKernelVersion() (*Version, error) {
 
 	// Then look if `/host` is mounted in the container
 	// since this can be done without the env variable being set
-	if config.IsContainerized() && util.PathExists("/host") {
+	if config.IsContainerized() && filesystem.FileExists("/host") {
 		osReleasePaths = append(
 			osReleasePaths,
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
@@ -168,11 +170,10 @@ func newKernelVersion() (*Version, error) {
 		return nil, fmt.Errorf("failed to detect kernel version: %w", err)
 	}
 
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return nil, fmt.Errorf("error calling uname: %w", err)
+	unameRelease, err := kernel.Release()
+	if err != nil {
+		return nil, err
 	}
-	unameRelease := unix.ByteSliceToString(uname.Release[:])
 
 	var release map[string]string
 	for _, osReleasePath := range osReleasePaths {
@@ -221,6 +222,11 @@ func (k *Version) IsRH7Kernel() bool {
 // IsRH8Kernel returns whether the kernel is a rh8 kernel
 func (k *Version) IsRH8Kernel() bool {
 	return k.OsRelease["PLATFORM_ID"] == "platform:el8"
+}
+
+// IsRH9Kernel returns whether the kernel is a rh9 kernel
+func (k *Version) IsRH9Kernel() bool {
+	return k.OsRelease["PLATFORM_ID"] == "platform:el9"
 }
 
 // IsSuseKernel returns whether the kernel is a suse kernel

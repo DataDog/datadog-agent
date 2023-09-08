@@ -8,7 +8,7 @@ import "datadog/workloadmeta/workloadmeta.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
-option go_package = "pkg/proto/pbgo"; // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 
 // The greeting service definition.

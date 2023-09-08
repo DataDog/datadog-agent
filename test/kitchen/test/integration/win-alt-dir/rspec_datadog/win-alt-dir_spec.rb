@@ -1,5 +1,5 @@
 require 'spec_helper'
-  
+
 
 def check_user_exists(name)
   selectstatement = "powershell -command \"get-wmiobject -query \\\"Select * from Win32_UserAccount where Name='#{name}'\\\"\""
@@ -45,26 +45,24 @@ shared_examples_for 'an Agent with valid permissions' do
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('PROJECTLOCATION')
   }
   dd_user_sid = get_user_sid('ddagentuser')
-  #datadog_yaml_sddl = get_sddl_for_object("c:\\programdata\\datadog\\datadog.yaml")
   it 'has proper permissions on programdata\datadog' do
-    expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
-    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    # og+ng installers set protected explicit ACE on the config root
+    expected_sddl_ng = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;#{dd_user_sid})"
+    expected_sddl =    "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object(configuration_path)
+
     expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
-                       .or have_sddl_equal_to(expected_sddl_2016)
+                       .or have_sddl_equal_to(expected_sddl_ng)
   end
   it 'has proper permissions on datadog.yaml' do
-    # should have a sddl like so 
-    # O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;<sid>)
-
-    # on server 2016, it doesn't have the assigned system right, only the inherited.
-    # allow either
-    #expected_sddl =   "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
-    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    # ng installer sets inherited ACE
+    expected_sddl_ng = "O:SYG:SYD:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;FA;;;#{dd_user_sid})"
+    # og installer sets protected explicit ACE
+    expected_sddl =    "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{configuration_path}\\datadog.yaml")
+
     expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
-                       .or have_sddl_equal_to(expected_sddl_2016)
+                       .or have_sddl_equal_to(expected_sddl_ng)
   end
   it 'has proper permissions on the conf.d directory' do
     # A,OICI;FA;;;SY = Allows Object Inheritance (OI) container inherit (CI); File All Access to LocalSystem
@@ -73,10 +71,14 @@ shared_examples_for 'an Agent with valid permissions' do
     # A,OICIID;FA;;;SY = Inherited right of OI, CI, (FA) to LocalSystem
     # A,OICIID;FA;;;dd_user_sid = explicit right assignment of OI, CI, FA to the dd-agent user, inherited from the parent
 
-    expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
+    # ng installer sets inherited ACE
+    expected_sddl_ng = "O:SYG:SYD:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICIID;FA;;;#{dd_user_sid})"
+    # og installer sets protected explicit ACE
+    expected_sddl =    "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{configuration_path}\\conf.d")
 
     expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_ng)
   end
 
   it 'has the proper permissions on the DataDog registry key' do
@@ -106,7 +108,7 @@ shared_examples_for 'an Agent with valid permissions' do
     expected_sddl_with_edge =     "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;OICIIO;CCDCLCSWRPWPSDRCWDWOGA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
     expected_sddl_ng =            "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)"
     expected_sddl_ng_with_edge =  "O:SYG:SYD:AI(A;;KA;;;SY)(A;;KA;;;BA)(A;;KA;;;#{dd_user_sid})(A;CIID;KR;;;BU)(A;CIID;KA;;;BA)(A;CIID;KA;;;SY)(A;CIIOID;KA;;;CO)(A;CIID;KR;;;AC)(A;CIID;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)"
-    
+
     ## sigh.  M$ added a mystery sid some time back, that Edge/IE use for sandboxing,
     ## and it's an inherited ace.  Allow that one, too
 
@@ -120,7 +122,6 @@ shared_examples_for 'an Agent with valid permissions' do
   end
 
   it 'has agent.exe running as ddagentuser' do
-    uname = get_username_from_tasklist("agent.exe")
     expect(get_username_from_tasklist("agent.exe")).to eq("ddagentuser")
   end
   secdata = get_security_settings
@@ -139,4 +140,4 @@ describe 'dd-agent-install-alternate-dir' do
   it_behaves_like 'a correctly created binary root'
   it_behaves_like 'an Agent with valid permissions'
 end
-  
+

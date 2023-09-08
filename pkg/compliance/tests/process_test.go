@@ -29,7 +29,7 @@ func TestProcessInput(t *testing.T) {
 	}
 	self = filepath.Base(self)
 
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.AddRule("Self").
@@ -228,7 +228,7 @@ findings[f] {
 }
 
 func TestEtcGroup(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.AddRule("EtcRootGroup").

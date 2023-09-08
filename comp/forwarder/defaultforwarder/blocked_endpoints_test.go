@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -28,19 +29,25 @@ func TestMinBackoffFactorValid(t *testing.T) {
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	e := newBlockedEndpoints(mockConfig, log)
 
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
 	// Verify default
-	defaultValue := e.backoffPolicy.MinBackoffFactor
+	defaultValue := policy.MinBackoffFactor
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_factor", 4)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, float64(4), e.backoffPolicy.MinBackoffFactor)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, float64(4), policy.MinBackoffFactor)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_factor", 1.5)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, defaultValue, e.backoffPolicy.MinBackoffFactor)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, defaultValue, policy.MinBackoffFactor)
 }
 
 func TestBaseBackoffTimeValid(t *testing.T) {
@@ -48,19 +55,26 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	e := newBlockedEndpoints(mockConfig, log)
 
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+
 	// Verify default
-	defaultValue := e.backoffPolicy.BaseBackoffTime
+	defaultValue := policy.BaseBackoffTime
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_base", 4)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, float64(4), e.backoffPolicy.BaseBackoffTime)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, float64(4), policy.BaseBackoffTime)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_base", 0)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, defaultValue, e.backoffPolicy.BaseBackoffTime)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, defaultValue, policy.BaseBackoffTime)
 }
 
 func TestMaxBackoffTimeValid(t *testing.T) {
@@ -68,19 +82,26 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	e := newBlockedEndpoints(mockConfig, log)
 
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+
 	// Verify default
-	defaultValue := e.backoffPolicy.MaxBackoffTime
+	defaultValue := policy.MaxBackoffTime
 	assert.Equal(t, float64(64), defaultValue)
 
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_max", 128)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, float64(128), e.backoffPolicy.MaxBackoffTime)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, float64(128), policy.MaxBackoffTime)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_max", 0)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, defaultValue, e.backoffPolicy.MaxBackoffTime)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, defaultValue, policy.MaxBackoffTime)
 }
 
 func TestRecoveryIntervalValid(t *testing.T) {
@@ -88,8 +109,11 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	e := newBlockedEndpoints(mockConfig, log)
 
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+
 	// Verify default
-	defaultValue := e.backoffPolicy.RecoveryInterval
+	defaultValue := policy.RecoveryInterval
 	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
 	assert.Equal(t, 2, defaultValue)
 	assert.Equal(t, false, recoveryReset)
@@ -97,17 +121,23 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_recovery_interval", 1)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, 1, e.backoffPolicy.RecoveryInterval)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, 1, policy.RecoveryInterval)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_recovery_interval", 0)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, defaultValue, e.backoffPolicy.RecoveryInterval)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, defaultValue, policy.RecoveryInterval)
 
 	// Verify reset error count
 	mockConfig.Set("forwarder_recovery_reset", true)
 	e = newBlockedEndpoints(mockConfig, log)
-	assert.Equal(t, e.backoffPolicy.MaxErrors, e.backoffPolicy.RecoveryInterval)
+	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+	assert.Equal(t, policy.MaxErrors, policy.RecoveryInterval)
 }
 
 // Test we increase delay on average
@@ -145,7 +175,10 @@ func TestMaxGetBackoffDuration(t *testing.T) {
 	e := newBlockedEndpoints(mockConfig, log)
 	backoffDuration := e.getBackoffDuration(100)
 
-	assert.Equal(t, time.Duration(e.backoffPolicy.MaxBackoffTime)*time.Second, backoffDuration)
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+
+	assert.Equal(t, time.Duration(policy.MaxBackoffTime)*time.Second, backoffDuration)
 }
 
 func TestMaxErrors(t *testing.T) {
@@ -168,7 +201,10 @@ func TestMaxErrors(t *testing.T) {
 		previousBackoffDuration = backoffDuration
 	}
 
-	assert.Equal(t, e.backoffPolicy.MaxErrors, attempts)
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+
+	assert.Equal(t, policy.MaxErrors, attempts)
 }
 
 func TestBlock(t *testing.T) {
@@ -193,10 +229,13 @@ func TestMaxBlock(t *testing.T) {
 	e.close("test")
 	now := time.Now()
 
-	maxBackoffDuration := time.Duration(e.backoffPolicy.MaxBackoffTime) * time.Second
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+
+	maxBackoffDuration := time.Duration(policy.MaxBackoffTime) * time.Second
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.Equal(t, e.backoffPolicy.MaxErrors, e.errorPerEndpoint["test"].nbError)
+	assert.Equal(t, policy.MaxErrors, e.errorPerEndpoint["test"].nbError)
 	assert.True(t, now.Add(maxBackoffDuration).After(e.errorPerEndpoint["test"].until) ||
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
@@ -214,7 +253,11 @@ func TestUnblock(t *testing.T) {
 	e.close("test")
 
 	e.recover("test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-e.backoffPolicy.RecoveryInterval))))
+
+	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
+	assert.True(t, ok)
+
+	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-policy.RecoveryInterval))))
 }
 
 func TestMaxUnblock(t *testing.T) {

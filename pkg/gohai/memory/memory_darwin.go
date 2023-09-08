@@ -7,53 +7,43 @@ package memory
 
 import (
 	"fmt"
-	"os/exec"
-	"regexp"
-	"strconv"
-	"strings"
+	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"golang.org/x/sys/unix"
 )
 
-func getMemoryInfo() (memoryInfo map[string]string, err error) {
-	memoryInfo = make(map[string]string)
-
-	out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
-	if err == nil {
-		memoryInfo["total"] = strings.Trim(string(out), "\n")
-	}
-
-	out, err = exec.Command("sysctl", "-n", "vm.swapusage").Output()
-	if err == nil {
-		swap := regexp.MustCompile("total = ").Split(string(out), 2)[1]
-		memoryInfo["swap_total"] = strings.Split(swap, " ")[0]
-	}
-
-	return
+func getTotalBytes() (uint64, error) {
+	return unix.SysctlUint64("hw.memsize")
 }
 
-func getMemoryInfoByte() (uint64, uint64, []string, error) {
-	memInfo, err := getMemoryInfo()
-	var mem, swap uint64
-	warnings := []string{}
-
-	// mem is already in bytes but `swap_total` use the format "5120,00M"
-	if v, ok := memInfo["swap_total"]; ok {
-		idx := strings.IndexAny(v, ",.") // depending on the locale either a comma or dot is used
-		swapTotal, e := strconv.ParseUint(v[0:idx], 10, 64)
-		if e == nil {
-			swap = swapTotal * 1024 * 1024 // swapTotal is in mb
-		} else {
-			warnings = append(warnings, fmt.Sprintf("could not parse swap size: %s", e))
-		}
+func getTotalSwapKb() (uint64, error) {
+	// see struct xsw_usage defined in sys/sysctl.h
+	type xswUsage struct {
+		xsuTotal     uint64
+		xsuAvail     uint64
+		xsuUsed      uint64
+		xsuPagesize  uint32
+		xsuEncrypted bool
 	}
 
-	if v, ok := memInfo["total"]; ok {
-		t, e := strconv.ParseUint(v, 10, 64)
-		if e == nil {
-			mem = t // mem is returned in bytes
-		} else {
-			warnings = append(warnings, fmt.Sprintf("could not parse memory size: %s", e))
-		}
+	// sysctl returns an xsw_usage struct, so we use the raw variant
+	// and then cast the result
+	value, err := unix.SysctlRaw("vm.swapusage")
+	if err != nil {
+		return 0, err
 	}
 
-	return mem, swap, warnings, err
+	xswSize := unsafe.Sizeof(xswUsage{})
+	if uintptr(len(value)) != xswSize {
+		return 0, fmt.Errorf("sysctl should return %d bytes but returned %d", xswSize, len(value))
+	}
+
+	xsw := (*xswUsage)(unsafe.Pointer(&value[0]))
+	return xsw.xsuTotal / 1024, nil // xsuTotal is in bytes
+}
+
+func (info *Info) fillMemoryInfo() {
+	info.TotalBytes = utils.NewValueFrom(getTotalBytes())
+	info.SwapTotalKb = utils.NewValueFrom(getTotalSwapKb())
 }

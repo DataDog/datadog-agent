@@ -11,12 +11,14 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 )
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType string      `json:"sub_type,omitempty"` // used when sending the metric
-	Value          interface{} `json:"value"`              // might be a `string`, `[]byte` or `float64` type
+	SubmissionType checkconfig.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
+	Value          interface{}                   `json:"value"`              // might be a `string`, `[]byte` or `float64` type
 }
 
 // ToFloat64 converts value to float64
@@ -60,11 +62,11 @@ func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (Re
 }
 
 func bytesOrStringToString(value interface{}) string {
-	switch value.(type) {
+	switch value := value.(type) {
 	case string:
-		return value.(string)
+		return value
 	case []byte:
-		return string(value.([]byte))
+		return string(value)
 	}
 	return ""
 }

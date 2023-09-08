@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
+
+import "errors"
 
 // Field name
 type Field = string
@@ -21,6 +24,37 @@ const (
 	VariableValueType FieldValueType = 1 << 5
 	IPNetValueType    FieldValueType = 1 << 6
 )
+
+// MarshalJSON returns the JSON encoding of the FieldValueType
+func (t FieldValueType) MarshalJSON() ([]byte, error) {
+	s := t.String()
+	if s == "" {
+		return nil, errors.New("invalid field value type")
+	}
+
+	return []byte(`"` + s + `"`), nil
+}
+
+func (t FieldValueType) String() string {
+	switch t {
+	case ScalarValueType:
+		return "scalar"
+	case GlobValueType:
+		return "glob"
+	case PatternValueType:
+		return "pattern"
+	case RegexpValueType:
+		return "regex"
+	case BitmaskValueType:
+		return "bitmask"
+	case VariableValueType:
+		return "variable"
+	case IPNetValueType:
+		return "ip"
+	}
+
+	return ""
+}
 
 // FieldValue describes a field value with its type
 type FieldValue struct {

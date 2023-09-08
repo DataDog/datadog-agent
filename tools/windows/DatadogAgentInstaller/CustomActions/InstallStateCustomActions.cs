@@ -79,6 +79,10 @@ namespace Datadog.CustomActions
         /// </summary>
         /// <remarks>
         /// Custom Action that runs (only once) in either the InstallUISequence or the InstallExecuteSequence.
+        ///
+        /// During removing-for-upgrade the installer being removed does not receive any properties from the
+        /// installer being installed, only UPGRADINGPRODUCTCODE is set. Thus the state for the installer being
+        /// removed will come from the registry values only.
         /// </remarks>
         public ActionResult ReadInstallState()
         {

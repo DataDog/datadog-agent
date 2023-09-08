@@ -34,6 +34,10 @@ type dependencies struct {
 	Params Params
 }
 
+func setupConfig(deps dependencies) (*sysconfig.Config, error) {
+	return sysconfig.New(deps.Params.sysProbeConfFilePath)
+}
+
 func newConfig(deps dependencies) (Component, error) {
 	syscfg, err := setupConfig(deps)
 	if err != nil {
@@ -47,7 +51,11 @@ func (c *cfg) Warnings() *config.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() *sysconfig.Config {
+func (c *cfg) Object() config.ConfigReader {
+	return c
+}
+
+func (c *cfg) SysProbeObject() *sysconfig.Config {
 	return c.syscfg
 }
 

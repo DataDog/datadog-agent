@@ -3,15 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
 	"errors"
 	"fmt"
-	"github.com/spf13/cast"
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/spf13/cast"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -157,7 +159,7 @@ type Rule struct {
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *Rule, event eval.Event)
+	RuleMatch(rule *Rule, event eval.Event) bool
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -180,6 +182,9 @@ type RuleSet struct {
 	fields []string
 	logger log.Logger
 	pool   *eval.ContextPool
+
+	// event collector, used for tests
+	eventCollector EventCollector
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -487,7 +492,9 @@ func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
 	defer rs.listenersLock.RUnlock()
 
 	for _, listener := range rs.listeners {
-		listener.RuleMatch(rule, event)
+		if !listener.RuleMatch(rule, event) {
+			break
+		}
 	}
 }
 
@@ -643,6 +650,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
+
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return false
@@ -670,6 +678,10 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 			}
 		}
 	}
+
+	// no-op in the general case, only used to collect events in functional tests
+	// for debugging purposes
+	rs.eventCollector.CollectEvent(rs, event, result)
 
 	return result
 }
@@ -737,6 +749,11 @@ func (rs *RuleSet) generatePartials() error {
 		}
 	}
 	return nil
+}
+
+// StopEventCollector stops the event collector
+func (rs *RuleSet) StopEventCollector() []CollectedEvent {
+	return rs.eventCollector.Stop()
 }
 
 // NewEvent returns a new event using the embedded constructor

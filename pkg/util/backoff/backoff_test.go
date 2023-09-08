@@ -37,14 +37,14 @@ func TestRandomBetween(t *testing.T) {
 }
 
 func TestEmpty(t *testing.T) {
-	b := Policy{}
+	b := ExpBackoffPolicy{}
 	assert.Equal(t, 0, b.IncError(0))
 	assert.Equal(t, 0, b.DecError(0))
 	assert.Equal(t, time.Duration(0), b.GetBackoffDuration(0))
 }
 
 func TestBackoff(t *testing.T) {
-	b := NewPolicy(1, 1, 9, 2, false)
+	b := NewExpBackoffPolicy(1, 1, 9, 2, false)
 
 	assert.Equal(t, 1, b.IncError(0))
 	assert.Equal(t, 2, b.IncError(1))
@@ -63,4 +63,18 @@ func TestBackoff(t *testing.T) {
 	assert.Equal(t, 4*time.Second, b.GetBackoffDuration(2))
 	assert.Equal(t, 8*time.Second, b.GetBackoffDuration(3))
 	assert.Equal(t, 9*time.Second, b.GetBackoffDuration(4))
+}
+
+func TestNewConstantBackoffPolicy(t *testing.T) {
+	testDuration := 10 * time.Second
+	b := NewConstantBackoffPolicy(testDuration)
+
+	assert.Equal(t, 2, b.IncError(1))
+	assert.Equal(t, 101, b.IncError(100))
+
+	assert.Equal(t, 0, b.DecError(1))
+	assert.Equal(t, 99, b.DecError(100))
+
+	assert.Equal(t, testDuration, b.GetBackoffDuration(1))
+	assert.Equal(t, testDuration, b.GetBackoffDuration(100))
 }

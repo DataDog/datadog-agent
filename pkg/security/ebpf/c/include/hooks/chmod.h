@@ -25,15 +25,15 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE2(chmod, const char*, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(chmod, const char*, filename, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(fchmod, int, fd, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
@@ -44,10 +44,6 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
-    }
-
-    if (is_pipefs_mount_id(syscall->setattr.file.path_key.mount_id)) {
         return 0;
     }
 
@@ -68,21 +64,19 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
     return 0;
 }
 
-int __attribute__((always_inline)) kprobe_sys_chmod_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(chmod) {
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_chmod_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(chmod) {
-    return kprobe_sys_chmod_ret(ctx);
+HOOK_SYSCALL_EXIT(fchmod) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chmod_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(fchmod) {
-    return kprobe_sys_chmod_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(fchmodat) {
-    return kprobe_sys_chmod_ret(ctx);
+HOOK_SYSCALL_EXIT(fchmodat) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chmod_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_chmod_exit")

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package tags holds tags related files
 package tags
 
 import (
@@ -45,6 +46,7 @@ type Resolver interface {
 	GetValue(id string, tag string) string
 }
 
+// DefaultResolver represents a default resolver based directly on the underlying tagger
 type DefaultResolver struct {
 	tagger Tagger
 }

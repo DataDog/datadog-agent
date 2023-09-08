@@ -75,7 +75,8 @@ func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLeng
 
 	globalStats := TCPQueueLengthStatsValue{}
 
-	for _, cgroupStats := range stats {
+	for cgroup, cgroupStats := range stats {
+		t.Logf("%s: read=%d write=%d", cgroup, cgroupStats.ReadBufferMaxUsage, cgroupStats.WriteBufferMaxUsage)
 		if cgroupStats.ReadBufferMaxUsage > globalStats.ReadBufferMaxUsage {
 			globalStats.ReadBufferMaxUsage = cgroupStats.ReadBufferMaxUsage
 		}

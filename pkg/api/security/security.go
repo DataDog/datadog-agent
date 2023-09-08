@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -190,7 +191,7 @@ func getClusterAgentAuthToken(tokenCreationAllowed bool) (string, error) {
 	}
 
 	// load the cluster agent auth token from filesystem
-	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
+	tokenAbsPath := filepath.Join(configUtils.ConfFileDirectory(config.Datadog), clusterAgentAuthTokenFilename)
 	log.Debugf("Empty cluster_agent.auth_token, loading from %s", tokenAbsPath)
 
 	// Create a new token if it doesn't exist

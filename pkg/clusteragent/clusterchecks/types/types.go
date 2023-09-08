@@ -84,6 +84,17 @@ type CLCRunnersStats map[string]CLCRunnerStats
 type CLCRunnerStats struct {
 	AverageExecutionTime int  `json:"AverageExecutionTime"`
 	MetricSamples        int  `json:"MetricSamples"`
+	HistogramBuckets     int  `json:"HistogramBuckets"`
+	Events               int  `json:"Events"`
 	IsClusterCheck       bool `json:"IsClusterCheck"`
 	LastExecFailed       bool `json:"LastExecFailed"`
+}
+
+type Workers struct {
+	Count     int                   `json:"Count"`
+	Instances map[string]WorkerInfo `json:"Instances"`
+}
+
+type WorkerInfo struct {
+	Utilization float64 `json:"Utilization"`
 }

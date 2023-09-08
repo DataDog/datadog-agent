@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -31,7 +31,7 @@ type processor struct {
 	queue chan *model.ContainerImage
 }
 
-func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
+func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
 			encoded, err := proto.Marshal(&model.ContainerImagePayload{

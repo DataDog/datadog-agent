@@ -11,10 +11,17 @@
  */
 BPF_HASH_MAP(conn_stats, conn_tuple_t, conn_stats_ts_t, 0)
 
-/* This is a key/value store with the keys being a conn_tuple_t (but without the PID being used)
+/* This is a key/value store with the keys being a conn_tuple_t
  * and the values being a tcp_stats_t *.
  */
 BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
+
+/*
+ * Hash map to store conn_tuple_t to retransmits. We use a separate map
+ * for retransmits from tcp_stats above since we don't normally
+ * have the pid in the tcp_retransmit_skb kprobe
+*/
+BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 
 /* Will hold the PIDs initiating TCP connections */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)

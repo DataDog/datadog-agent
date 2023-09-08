@@ -50,7 +50,7 @@ func TestSecrets(t *testing.T) {
 
 	// run the trace-agent
 	var buf safeWriter
-	cmd = exec.Command(binTraceAgent, "-config", filepath.Join(tmpDir, "datadog.yaml"))
+	cmd = exec.Command(binTraceAgent, "--config", filepath.Join(tmpDir, "datadog.yaml"))
 	cmd.Env = []string{
 		"DD_SECRET_BACKEND_COMMAND=" + binSecrets,
 		"DD_HOSTNAME=ENC[secret1]",

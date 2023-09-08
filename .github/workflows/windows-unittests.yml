@@ -23,7 +23,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: '3.9.5'
 
       - name: Install go
         uses: actions/setup-go@v3
@@ -34,8 +34,6 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop';
           # install dependencies
-          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
-          # python -m pip install codecov
           python -m pip install -r requirements.txt
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           inv -e install-tools
@@ -51,11 +49,13 @@ jobs:
         run: |
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
           echo $PATH
-          inv -e rtloader.make
-          inv -e rtloader.format --raise-if-changed
-          inv -e rtloader.install
+          powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
           inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
-          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
-          # inv -e codecov
+
+      - name: Upload Codecov results
+        uses: codecov/codecov-action@v3
+        with:
+          flags: windows
+          name: codecov-windows

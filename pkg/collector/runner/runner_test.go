@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -27,7 +29,7 @@ type testCheck struct {
 	runCount *atomic.Uint64
 	stopped  *atomic.Bool
 
-	check.StubCheck
+	stub.StubCheck
 	RunLock   sync.Mutex
 	StartLock sync.Mutex
 	StopLock  sync.Mutex
@@ -36,12 +38,12 @@ type testCheck struct {
 	doWarn      bool
 	id          string
 	t           *testing.T
-	runFunc     func(id check.ID)
+	runFunc     func(id checkid.ID)
 	startedChan chan struct{}
 }
 
-func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
-func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
+func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
+func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
 func (c *testCheck) Stop() {
 	c.StopLock.Lock()
@@ -91,7 +93,7 @@ func (c *testCheck) Run() error {
 
 // Helpers
 
-func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *testCheck {
+func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *testCheck {
 	return &testCheck{
 		runCount: atomic.NewUint64(0),
 		stopped:  atomic.NewBool(false),
@@ -150,7 +152,7 @@ func TestNewRunner(t *testing.T) {
 	testSetUp(t)
 	config.Datadog.Set("check_runners", "3")
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -164,7 +166,7 @@ func TestRunnerAddWorker(t *testing.T) {
 	testSetUp(t)
 	config.Datadog.Set("check_runners", "1")
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -179,7 +181,7 @@ func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 	testSetUp(t)
 	config.Datadog.Set("check_runners", "2")
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -210,7 +212,7 @@ func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 		assertAsyncWorkerCount(t, 0)
 		min, max, expectedWorkers := testCase[0], testCase[1], testCase[2]
 
-		r := NewRunner()
+		r := NewRunner(aggregator.GetSenderManager())
 		require.NotNil(t, r)
 
 		for checks := min; checks <= max; checks++ {
@@ -232,7 +234,7 @@ func TestRunner(t *testing.T) {
 		checks[idx] = newCheck(t, fmt.Sprintf("mycheck_%d:123", idx), false, nil)
 	}
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -260,7 +262,7 @@ func TestRunnerStop(t *testing.T) {
 		checks[idx].RunLock.Lock()
 	}
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -318,7 +320,7 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -367,7 +369,7 @@ func TestRunnerStopCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -383,7 +385,7 @@ func TestRunnerStopCheck(t *testing.T) {
 	require.False(t, testCheck.IsStopped())
 	require.False(t, blockedCheck.IsStopped())
 
-	err := r.StopCheck(check.ID("missingid"))
+	err := r.StopCheck(checkid.ID("missingid"))
 	require.Nil(t, err)
 
 	err = r.StopCheck(testCheck.ID())
@@ -411,7 +413,7 @@ func TestRunnerScheduler(t *testing.T) {
 	sched1 := newScheduler()
 	sched2 := newScheduler()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -431,7 +433,7 @@ func TestRunnerShouldAddCheckStats(t *testing.T) {
 	testCheck := newCheck(t, "test", false, nil)
 	sched := newScheduler()
 
-	r := NewRunner()
+	r := NewRunner(aggregator.GetSenderManager())
 	require.NotNil(t, r)
 	defer r.Stop()
 

@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -84,7 +84,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		_ = <-sigs
+		<-sigs
 		done <- true
 	}()
 

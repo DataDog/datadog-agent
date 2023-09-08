@@ -1,2 +1,2 @@
-invoke==1.7.1
+invoke==2.2.0
 datadog-api-client==2.3.0

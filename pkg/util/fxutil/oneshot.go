@@ -38,6 +38,12 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 		delayedCall.option(),
 		FxLoggingOption(),
 	)
+	// Temporarily increase timeout for all fxutil.OneShot calls until we can better characterize our
+	// start time requirements. Prepend to opts so individual calls can override the timeout.
+	opts = append(
+		[]fx.Option{TemporaryAppTimeouts()},
+		opts...,
+	)
 	app := fx.New(opts...)
 
 	// start the app

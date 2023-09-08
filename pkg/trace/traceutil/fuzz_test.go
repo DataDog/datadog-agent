@@ -12,16 +12,22 @@ import (
 	"unicode/utf8"
 )
 
+var normalizationSeedCorpus = []string{
+	"key:val",
+	"Data🐨dog🐶 繋がっ⛰てて",
+	"Test Conversion Of Weird !@#$%^&**() Characters",
+	"test\x99\x8faaa",
+	"A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 000000000000",
+}
+
 func FuzzNormalizeTag(f *testing.F) {
-	seedCorpus := []string{
-		"key:val",
-		"Data🐨dog🐶 繋がっ⛰てて",
-		"Test Conversion Of Weird !@#$%^&**() Characters",
-		"test\x99\x8faaa",
-		"A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 000000000000",
-	}
 	normalize := func(in, _ string) (string, error) { return NormalizeTag(in), nil }
-	fuzzNormalization(f, seedCorpus, maxTagLength, normalize)
+	fuzzNormalization(f, normalizationSeedCorpus, maxTagLength, normalize)
+}
+
+func FuzzNormalizeTagValue(f *testing.F) {
+	normalize := func(in, _ string) (string, error) { return NormalizeTagValue(in), nil }
+	fuzzNormalization(f, normalizationSeedCorpus, maxTagLength, normalize)
 }
 
 func FuzzNormalizeName(f *testing.F) {
@@ -34,13 +40,22 @@ func FuzzNormalizeName(f *testing.F) {
 	fuzzNormalization(f, seedCorpus, MaxNameLen, normalize)
 }
 
+var svcNormalizationSeedCorpus = []string{
+	"good",
+	"bad$",
+	"Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.",
+	"127.0.0.1",
+	":4500",
+	"120.site.platform.com-db.replica1",
+}
+
 func FuzzNormalizeService(f *testing.F) {
-	seedCorpus := []string{
-		"good",
-		"bad$",
-		"Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.",
-	}
-	fuzzNormalization(f, seedCorpus, MaxServiceLen, NormalizeService)
+	fuzzNormalization(f, svcNormalizationSeedCorpus, MaxServiceLen, NormalizeService)
+}
+
+func FuzzNormalizePeerService(f *testing.F) {
+	normalize := func(in, _ string) (string, error) { return NormalizePeerService(in) }
+	fuzzNormalization(f, svcNormalizationSeedCorpus, MaxServiceLen, normalize)
 }
 
 func fuzzNormalization(f *testing.F, seedCorpus []string, maxLen int, normalize func(in, lang string) (string, error)) {

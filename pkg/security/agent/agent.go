@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agent holds agent related files
 package agent
 
 import (
@@ -19,7 +20,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
@@ -44,19 +46,25 @@ type RuntimeSecurityAgent struct {
 	storage *dump.ActivityDumpStorageManager
 }
 
+// RSAOptions represents the runtime security agent options
+type RSAOptions struct {
+	LogProfiledWorkloads    bool
+	IgnoreDDAgentContainers bool
+}
+
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(hostname string, logProfiledWorkloads bool) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(senderManager sender.SenderManager, hostname string, opts RSAOptions) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry, err := newTelemetry(logProfiledWorkloads)
+	telemetry, err := newTelemetry(senderManager, opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 
-	storage, err := dump.NewSecurityAgentStorageManager()
+	storage, err := dump.NewSecurityAgentStorageManager(senderManager)
 	if err != nil {
 		return nil, err
 	}

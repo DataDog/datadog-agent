@@ -11,17 +11,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/require"
 )
 
 type vmSuiteEx5 struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx5{}, e2e.AgentStackDef(nil))
+	e2e.Run(t, &vmSuiteEx5{}, e2e.FakeIntakeStackDef(nil))
 }
 
 func (v *vmSuiteEx5) Test1_FakeIntakeReceivesMetrics() {

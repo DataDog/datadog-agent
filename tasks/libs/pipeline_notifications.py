@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 from collections import defaultdict
 
@@ -7,6 +8,8 @@ from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
+DEFAULT_JIRA_PROJECT = "AGENTR"
+DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = {
     "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
@@ -37,6 +40,39 @@ GITHUB_SLACK_MAP = {
     "@datadog/debugger": "#debugger-ops-prod",
     "@datadog/database-monitoring": "#database-monitoring",
     "@datadog/agent-cspm": "#k9-cspm-ops",
+    "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
+}
+
+GITHUB_JIRA_MAP = {
+    "@datadog/agent-platform": "AP",
+    "@datadog/documentation": "DOCS",
+    "@datadog/container-integrations": "CONT",
+    "@datadog/platform-integrations": "PINT",
+    "@datadog/agent-security": "SEC",
+    "@datadog/agent-apm": "AIT",
+    "@datadog/network-device-monitoring": "NDM",
+    "@datadog/processes": "PROC",
+    "@datadog/agent-metrics-logs": "AML",
+    "@datadog/agent-shared-components": "ASC",
+    "@datadog/container-app": "CAP",
+    "@datadog/metrics-aggregation": "AGGR",
+    "@datadog/serverless": "SLS",
+    "@datadog/remote-config": "RCM",
+    "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
+    "@datadog/ebpf-platform": "EBPF",
+    "@datadog/networks": "NPM",
+    "@datadog/universal-service-monitoring": "USMO",
+    "@datadog/windows-agent": "WA",
+    "@datadog/windows-kernel-integrations": "WKIT",
+    "@datadog/opentelemetry": "OTEL",
+    "@datadog/agent-e2e-testing": "AETT",
+    "@datadog/software-integrity-and-trust": "SINT",
+    "@datadog/single-machine-performance": "SMP",
+    "@datadog/agent-integrations": "AIT",
+    "@datadog/debugger": "DEBUG",
+    "@datadog/database-monitoring": "DBM",
+    "@datadog/agent-cspm": "SEC",
+    "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
 }
 
 
@@ -47,7 +83,7 @@ def read_owners(owners_file):
         return CodeOwners(f.read())
 
 
-def check_for_missing_owners_slack(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
+def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
     error = False
     for path in owners.paths:
@@ -57,6 +93,10 @@ def check_for_missing_owners_slack(print_missing_teams=True, owners_file=".githu
             error = True
             if print_missing_teams:
                 print(f"The team {path[2][0][1]} doesn't have a slack team assigned !!")
+        if path[2][0][1].lower() not in GITHUB_JIRA_MAP:
+            error = True
+            if print_missing_teams:
+                print(f"The team {path[2][0][1]} doesn't have a jira project assigned !!")
     return error
 
 
@@ -109,20 +149,26 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
 
 
 def base_message(header, state):
-    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
-{commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
-        header=header,
-        pipeline_url=os.getenv("CI_PIPELINE_URL"),
-        pipeline_id=os.getenv("CI_PIPELINE_ID"),
-        commit_ref_name=os.getenv("CI_COMMIT_REF_NAME"),
-        commit_title=os.getenv("CI_COMMIT_TITLE"),
-        commit_url="{project_url}/commit/{commit_sha}".format(  # noqa: FS002
-            project_url=os.getenv("CI_PROJECT_URL"), commit_sha=os.getenv("CI_COMMIT_SHA")
-        ),
-        commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
-        author=get_git_author(),
-        state=state,
-    )
+    project_title = os.getenv("CI_PROJECT_TITLE")
+    commit_title = os.getenv("CI_COMMIT_TITLE")
+    pipeline_url = os.getenv("CI_PIPELINE_URL")
+    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    commit_ref_name = os.getenv("CI_COMMIT_REF_NAME")
+    commit_url_gitlab = f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}"
+    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/commit/{os.getenv('CI_COMMIT_SHA')}"
+    commit_short_sha = os.getenv("CI_COMMIT_SHORT_SHA")
+    author = get_git_author()
+
+    # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
+    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    enhanced_commit_title = commit_title
+    if parsed_pr_id_found:
+        parsed_pr_id = parsed_pr_id_found.group(1)
+        pr_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+        enhanced_commit_title = enhanced_commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>")
+
+    return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
+{enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
 
 
 def get_git_author():

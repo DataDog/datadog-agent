@@ -59,7 +59,7 @@ func (c *IngressCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *IngressCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Networking().V1().Ingresses()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Networking().V1().Ingresses()
 	c.lister = c.informer.Lister()
 }
 

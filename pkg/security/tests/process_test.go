@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -1843,7 +1844,6 @@ func TestProcessInterpreter(t *testing.T) {
 	if whichPythonErr != nil {
 		python = which(t, "python3")
 	}
-	perl := which(t, "perl")
 
 	tests := []struct {
 		name            string
@@ -1880,7 +1880,7 @@ echo "Back to bash"`, python, python),
 			name: "regular exec without interpreter rule",
 			rule: &rules.RuleDefinition{
 				ID:         "test_regular_exec_without_interpreter_rule",
-				Expression: `exec.file.name == "perl" && exec.interpreter.file.name == ""`,
+				Expression: `exec.file.name == ~"*python*" && exec.interpreter.file.name == ""`,
 			},
 			scriptName: "regularExecWithInterpreterRule.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
@@ -1890,10 +1890,10 @@ echo "Executing echo inside a bash script"
 %s <<__HERE__
 #!%s
 
-print "Executing print inside a perl (%s) script inside a bash script\n";
+print('Executing print inside a python (%s) script inside a bash script')
 __HERE__
 
-echo "Back to bash"`, perl, perl, perl),
+echo "Back to bash"`, python, python, python),
 			check: func(event *model.Event) {
 				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
@@ -1972,6 +1972,7 @@ chmod 755 pyscript.py
 
 	var ruleList []*rules.RuleDefinition
 	for _, test := range tests {
+		test.rule.Expression += "  && process.parent.file.name == \"" + test.scriptName + "\""
 		ruleList = append(ruleList, test.rule)
 	}
 

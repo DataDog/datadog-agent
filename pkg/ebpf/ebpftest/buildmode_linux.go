@@ -6,6 +6,7 @@
 package ebpftest
 
 import (
+	"os"
 	"runtime"
 	"testing"
 
@@ -15,16 +16,15 @@ import (
 )
 
 var hostinfo *host.InfoStat
-var kv kernel.Version
+var kv = kernel.MustHostVersion()
 
 func init() {
-	kv, _ = kernel.HostVersion()
 	hostinfo, _ = host.Info()
 }
 
 func SupportedBuildModes() []BuildMode {
 	modes := []BuildMode{Prebuilt, RuntimeCompiled, CORE}
-	if runtime.GOARCH == "amd64" && (hostinfo.Platform == "amazon" || hostinfo.Platform == "amzn") && kv.Major() == 5 && kv.Minor() == 10 {
+	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" || (runtime.GOARCH == "amd64" && (hostinfo.Platform == "amazon" || hostinfo.Platform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
 		modes = append(modes, Fentry)
 	}
 	return modes

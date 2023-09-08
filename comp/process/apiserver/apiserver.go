@@ -59,8 +59,8 @@ func newApiServer(deps dependencies) Component {
 		},
 	}
 
-	deps.Lc.Append(fx.StartStopHook(
-		func(ctx context.Context) error {
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
 			go func() {
 				err := apiserver.server.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -70,7 +70,7 @@ func newApiServer(deps dependencies) Component {
 
 			return nil
 		},
-		func(ctx context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			err := apiserver.server.Shutdown(ctx)
 			if err != nil {
 				_ = deps.Log.Error("Failed to properly shutdown api server:", err)
@@ -78,7 +78,7 @@ func newApiServer(deps dependencies) Component {
 
 			return nil
 		},
-	))
+	})
 
 	return apiserver
 }
@@ -87,11 +87,11 @@ func newApiServer(deps dependencies) Component {
 func initRuntimeSettings(logger log.Component) {
 	// NOTE: Any settings you want to register should simply be added here
 	processRuntimeSettings := []settings.RuntimeSetting{
-		settings.LogLevelRuntimeSetting{},
-		settings.RuntimeMutexProfileFraction{},
-		settings.RuntimeBlockProfileRate{},
-		settings.ProfilingGoroutines{},
-		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
+		settings.NewLogLevelRuntimeSetting(),
+		settings.NewRuntimeMutexProfileFraction(),
+		settings.NewRuntimeBlockProfileRate(),
+		settings.NewProfilingGoroutines(),
+		settings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
 	}
 
 	// Before we begin listening, register runtime settings

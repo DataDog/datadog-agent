@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -52,6 +53,10 @@ func (c *ContainerApp) GetTags() map[string]string {
 		tags["resource_group"] = c.ResourceGroup
 	}
 
+	if c.SubscriptionId != "" && c.ResourceGroup != "" {
+		tags["resource_id"] = fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+	}
+
 	return tags
 }
 
@@ -80,17 +85,17 @@ func (c *ContainerApp) Init() error {
 	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
-	// return `false` if these are not set.
+	// return an error if these are not set.
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {
-		return fmt.Errorf("must set %v", AzureSubscriptionIdEnvVar)
+		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
 
 	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
 		c.ResourceGroup = resourceGroup
 	} else {
-		return fmt.Errorf("must set %v", AzureResourceGroupEnvVar)
+		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
 	}
 
 	return nil

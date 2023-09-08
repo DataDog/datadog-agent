@@ -5,12 +5,13 @@
 
 //go:build linux
 
+// Package utils holds utils related files
 package utils
 
 import (
 	"fmt"
 
-	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // GetEndpointURL returns the formatted URL of the provided endpoint

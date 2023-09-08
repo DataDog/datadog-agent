@@ -54,11 +54,13 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 		lister: servicesInformer.Lister(),
 	}
 
-	servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
 		UpdateFunc: p.invalidateIfChanged,
 		DeleteFunc: p.invalidate,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
+	}
 
 	return p, nil
 }

@@ -11,5 +11,5 @@ to install the correct version of required tools
 
 From the repository root run the following:
 ```
-inv -e generate-cws-proto
+inv -e security-agent.generate-cws-proto
 ```

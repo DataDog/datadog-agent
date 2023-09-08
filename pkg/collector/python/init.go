@@ -227,9 +227,7 @@ func expvarPythonInitErrors() interface{} {
 	defer pyInitLock.RUnlock()
 
 	pyInitErrorsCopy := []string{}
-	for i := range pyInitErrors {
-		pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors[i])
-	}
+	pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors...)
 
 	return pyInitErrorsCopy
 }
@@ -455,8 +453,7 @@ func Initialize(paths ...string) error {
 	if pyInfo != nil {
 		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
 		// Set python version in the cache
-		key := cache.BuildAgentKey("pythonVersion")
-		cache.Cache.Set(key, PythonVersion, cache.NoExpiration)
+		cache.Cache.Set(pythonInfoCacheKey, PythonVersion, cache.NoExpiration)
 
 		PythonPath = C.GoString(pyInfo.path)
 		C.free_py_info(rtloader, pyInfo)

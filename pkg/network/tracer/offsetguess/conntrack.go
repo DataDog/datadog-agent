@@ -21,9 +21,10 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -85,6 +86,7 @@ func (c *conntrackOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (c *conntrackOffsetGuesser) Close() {
+	ebpfcheck.RemoveNameMappings(c.m)
 	if err := c.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping conntrack offset guesser: %s", err)
 	}
@@ -238,7 +240,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	defer currentNs.Close()
 	nss = append(nss, currentNs)
 
-	rootNs, err := util.GetRootNetNamespace(util.GetProcRoot())
+	rootNs, err := kernel.GetRootNetNamespace(kernel.ProcFSRoot())
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +318,7 @@ func newConntrackEventGenerator(ns netns.NsHandle) (*conntrackEventGenerator, er
 	// port 0 means we let the kernel choose a free port
 	var err error
 	addr := fmt.Sprintf("%s:0", listenIPv4)
-	err = util.WithNS(eg.ns, func() error {
+	err = kernel.WithNS(eg.ns, func() error {
 		eg.udpAddr, eg.udpDone, err = newUDPServer(addr)
 		return err
 	})
@@ -336,7 +338,7 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 			e.udpConn.Close()
 		}
 		var err error
-		err = util.WithNS(e.ns, func() error {
+		err = kernel.WithNS(e.ns, func() error {
 			e.udpConn, err = net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
 			if err != nil {
 				return err
@@ -366,7 +368,7 @@ func (e *conntrackEventGenerator) populateUDPExpectedValues(expected *fieldValue
 	// IPS_CONFIRMED | IPS_SRC_NAT_DONE | IPS_DST_NAT_DONE
 	// see https://elixir.bootlin.com/linux/v5.19.17/source/include/uapi/linux/netfilter/nf_conntrack_common.h#L42
 	expected.ctStatus = 0x188
-	expected.netns, err = util.GetCurrentIno()
+	expected.netns, err = kernel.GetCurrentIno()
 	if err != nil {
 		return err
 	}

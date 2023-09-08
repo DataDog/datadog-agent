@@ -6,6 +6,7 @@
 package log
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -38,7 +39,10 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (Component, error) {
 	}
 
 	// flush the seelog logger when the test app stops
-	lc.Append(fx.StopHook(iface.Flush))
+	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		iface.Flush()
+		return nil
+	}})
 
 	// install the logger into pkg/util/log
 	log.ChangeLogLevel(iface, "off")

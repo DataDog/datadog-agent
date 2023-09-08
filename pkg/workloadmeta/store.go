@@ -204,7 +204,7 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
-	notifyChannel(sub.name, sub.ch, events, false)
+	s.notifyChannel(sub.name, sub.ch, events, false)
 
 	s.subscribersMut.Lock()
 	defer s.subscribersMut.Unlock()
@@ -318,21 +318,35 @@ func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
-	entities, ok := s.store[KindKubernetesPod]
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	containerEntities, ok := s.store[KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	for _, e := range entities {
-		pod := e.cached.(*KubernetesPod)
-		for _, podContainer := range pod.Containers {
-			if podContainer.ID == containerID {
-				return pod, nil
-			}
-		}
+	containerEntity, ok := containerEntities[containerID]
+	if !ok {
+		return nil, errors.NewNotFound(containerID)
 	}
 
-	return nil, errors.NewNotFound(containerID)
+	container := containerEntity.cached.(*Container)
+	if container.Owner == nil || container.Owner.Kind != KindKubernetesPod {
+		return nil, errors.NewNotFound(containerID)
+	}
+
+	podEntities, ok := s.store[KindKubernetesPod]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	pod, ok := podEntities[container.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	return pod.cached.(*KubernetesPod), nil
 }
 
 // GetKubernetesNode implements Store#GetKubernetesNode
@@ -383,6 +397,38 @@ func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
 		s.eventCh <- events
 	}
+}
+
+// ResetProcesses implements Store#ResetProcesses
+func (s *store) ResetProcesses(newProcesses []Entity, source Source) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	var events []CollectorEvent
+	newProcessEntities := classifyByKindAndID(newProcesses)[KindProcess]
+
+	processStore := s.store[KindProcess]
+	// Remove outdated stored processes
+	for ID, storedProcess := range processStore {
+		if newP, found := newProcessEntities[ID]; !found || storedProcess.cached != newP {
+			events = append(events, CollectorEvent{
+				Type:   EventTypeUnset,
+				Source: source,
+				Entity: storedProcess.cached,
+			})
+		}
+	}
+
+	// Add new processes
+	for _, newP := range newProcesses {
+		events = append(events, CollectorEvent{
+			Type:   EventTypeSet,
+			Source: source,
+			Entity: newP,
+		})
+	}
+
+	s.Notify(events)
 }
 
 // Reset implements Store#Reset
@@ -486,7 +532,7 @@ func (s *store) pull(ctx context.Context) {
 		ongoingPullStartTime := s.ongoingPulls[id]
 		alreadyRunning := !ongoingPullStartTime.IsZero()
 		if alreadyRunning {
-			timeRunning := time.Now().Sub(ongoingPullStartTime)
+			timeRunning := time.Since(ongoingPullStartTime)
 			if timeRunning > maxCollectorPullTime {
 				log.Errorf("collector %q has been running for too long (%d seconds)", id, timeRunning/time.Second)
 			} else {
@@ -512,7 +558,7 @@ func (s *store) pull(ctx context.Context) {
 			}
 
 			s.ongoingPullsMut.Lock()
-			pullDuration := time.Now().Sub(s.ongoingPulls[id])
+			pullDuration := time.Since(s.ongoingPulls[id])
 			telemetry.PullDuration.Observe(pullDuration.Seconds(), id)
 			s.ongoingPulls[id] = time.Time{}
 			s.ongoingPullsMut.Unlock()
@@ -648,7 +694,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			continue
 		}
 
-		notifyChannel(sub.name, sub.ch, evs, true)
+		s.notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
 
@@ -699,13 +745,14 @@ func (s *store) unsubscribeAll() {
 	telemetry.Subscribers.Set(0)
 }
 
-func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
+func (s *store) notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
 	bundle := EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-
+	s.subscribersMut.Lock()
 	ch <- bundle
+	s.subscribersMut.Unlock()
 
 	if wait {
 		timer := time.NewTimer(eventBundleChTimeout)
@@ -756,4 +803,10 @@ func CreateGlobalStore(catalog CollectorCatalog) Store {
 // nil in that case.
 func GetGlobalStore() Store {
 	return globalStore
+}
+
+// ResetGlobalStore resets the global store back to nil. This is useful in lifecycle
+// tests that start and stop parts of the agent multiple times.
+func ResetGlobalStore() {
+	globalStore = nil
 }

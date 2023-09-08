@@ -147,7 +147,6 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 	timestamp := float64(args.T.UnixNano()) / float64(time.Second)
 	billedDuration := float64(args.BilledDurationMs)
 	memorySize := float64(args.MemorySizeMb)
-	postRuntimeDuration := args.DurationMs - float64(args.RuntimeEnd.Sub(args.RuntimeStart).Milliseconds())
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       maxMemoryUsedMetric,
 		Value:      float64(args.MaxMemoryUsedMb),
@@ -188,14 +187,19 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	})
-	args.Demux.AggregateSample(metrics.MetricSample{
-		Name:       postRuntimeDurationMetric,
-		Value:      postRuntimeDuration,
-		Mtype:      metrics.DistributionType,
-		Tags:       args.Tags,
-		SampleRate: 1,
-		Timestamp:  timestamp,
-	})
+	if args.RuntimeStart.IsZero() || args.RuntimeEnd.IsZero() {
+		log.Debug("Impossible to compute aws.lambda.enhanced.post_runtime_duration due to an invalid interval")
+	} else {
+		postRuntimeDuration := args.DurationMs - float64(args.RuntimeEnd.Sub(args.RuntimeStart).Milliseconds())
+		args.Demux.AggregateSample(metrics.MetricSample{
+			Name:       postRuntimeDurationMetric,
+			Value:      postRuntimeDuration,
+			Mtype:      metrics.DistributionType,
+			Tags:       args.Tags,
+			SampleRate: 1,
+			Timestamp:  timestamp,
+		})
+	}
 	if args.InitDurationMs > 0 {
 		args.Demux.AggregateSample(metrics.MetricSample{
 			Name:       initDurationMetric,

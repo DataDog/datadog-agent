@@ -6,6 +6,8 @@
 
 #include "sockfd.h"
 
+#include "protocols/classification/common.h"
+
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"
 #include "protocols/http/usm-events.h"
@@ -108,17 +110,20 @@ static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *
     return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 }
 
+// Returns true if the given http transaction should be flushed to the user mode.
+// We flush a transaction if:
+//   1. We got a new request (packet_type == HTTP_REQUEST) and previously (in the given transaction) we had either a
+//      request (http->request_started != 0) or a response (http->response_status_code). This is equivalent to flush
+//      a transaction if we have a new request, and the given transaction is not clean.
+//   2. We got a new response (packet_type == HTTP_RESPONSE) and the given transaction already contains a response
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
-    return (packet_type == HTTP_REQUEST && http->request_started) ||
+    return (packet_type == HTTP_REQUEST && (http->request_started || http->response_status_code)) ||
         (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
-// http_process is reponsible for parsing traffic and emitting events
+// http_process is responsible for parsing traffic and emitting events
 // representing HTTP transactions.
-//
-// The return value is `true` when a given packet was successfully identified as
-// being the beginning of a request or response.
-static __always_inline bool http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
+static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
     char *buffer = (char *)http_stack->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
@@ -126,7 +131,7 @@ static __always_inline bool http_process(http_transaction_t *http_stack, skb_inf
 
     http_transaction_t *http = http_fetch_state(http_stack, packet_type);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
-        return false;
+        return;
     }
 
     if (http_should_flush_previous_state(http, packet_type)) {
@@ -143,7 +148,9 @@ static __always_inline bool http_process(http_transaction_t *http_stack, skb_inf
 
     http->tags |= tags;
 
-    if (http_responding(http)) {
+    // Only if we have a (L7/application-layer) payload we update the response_last_seen field
+    // This is to prevent things such as keep-alives adding up to the transaction latency
+    if (((skb_info && !is_payload_empty(skb_info)) || !skb_info) && http_responding(http)) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
@@ -152,7 +159,7 @@ static __always_inline bool http_process(http_transaction_t *http_stack, skb_inf
         bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
     }
 
-    return (packet_type == HTTP_REQUEST || packet_type == HTTP_RESPONSE);
+    return;
 }
 
 // this function is called by the socket-filter program to decide whether or not we should inspect
@@ -164,12 +171,8 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
         return false;
     }
 
-    protocol_stack_t *stack = get_protocol_stack(&http->tup);
-    if (!stack) {
-        return false;
-    }
     bool empty_payload = skb_info->data_off == skb->len;
-    if (empty_payload || is_fully_classified(stack) || is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
+    if (empty_payload || http->tup.sport == HTTPS_PORT || http->tup.dport == HTTPS_PORT) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);

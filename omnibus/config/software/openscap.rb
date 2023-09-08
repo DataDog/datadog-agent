@@ -6,12 +6,12 @@
 require './lib/cmake.rb'
 
 name 'openscap'
-default_version '1.3.7'
+default_version '1.3.9'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.3.7") { source sha256: "a74f5bfb420b748916d2f88941bb6e04cad4c67a4cafc78c96409cc15c54d1d3" }
+version("1.3.9") { source sha256: "2d8450b6b6ef068991e1292cd3989e8a1d81f2bcda0a2644dcb2943c2de1a20d" }
 
 ship_source_offer true
 
@@ -28,7 +28,7 @@ dependency 'libselinux'
 dependency 'libsepol'
 dependency 'libxslt'
 dependency 'libyaml'
-dependency 'pcre'
+dependency 'pcre2'
 dependency 'popt'
 dependency 'rpm'
 dependency 'util-linux'
@@ -39,30 +39,17 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  # Fixes since release 1.3.7
-  patch source: "0006-Use-correct-format-specifier.patch", env: env
-  patch source: "0007-Fix-leaked-variable.patch", env: env
-  patch source: "0008-Fix-a-leaked-variable.patch", env: env
-  patch source: "0009-Fix-Wint-conversion-error-building-with-clang.patch", env: env
-  patch source: "0010-Remove-reference-to-PROC_CHECK.patch", env: env
-  patch source: "0015-Fix-leak-of-session-skip_rules.patch", env: env
-  patch source: "0016-Fix-leak-of-dpkginfo_reply_t-fields.patch", env: env
-  patch source: "0018-Fix-leak-of-component_colls-in-_oval_component_evalu.patch", env: env
-  patch source: "0020-Fix-build-on-FreeBSD.patch", env: env
-  patch source: "0036-Fix-leak-of-regex-structure-in-oval_fts-in-error-cas.patch", env: env
-  patch source: "0037-Free-xmlDoc-structure-at-the-end-of-xccdf_session_lo.patch", env: env
-  patch source: "0041-Fix-implicitly-declared-function.patch", env: env
-  patch source: "0042-Plug-a-memory-leak.patch", env: env
-  patch source: "0043-Fix-other-occurences-of-oscap_htable_add.patch", env: env
-
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
-  patch source: "session_result_free.patch", env: env # add a function to free results from session
+  patch source: "session_result_reset.patch", env: env # add a function to reset results from session
+  patch source: "session_reset_syschar.patch", env: env # also reset system characteristics
+  patch source: "session_reset_results.patch", env: env # also reset OVAL results
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
-  patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
-  patch source: "shadow-chroot.patch", env: env # handle shadow probe in offline mode
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
+  patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
+  patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
+  patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
@@ -74,6 +61,7 @@ build do
   cmake_options = [
     "-DENABLE_PERL=OFF",
     "-DENABLE_PYTHON3=OFF",
+    "-DWITH_PCRE2=ON",
     "-DACL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DACL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libacl.so",
     "-DAPTPKG_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
@@ -99,8 +87,8 @@ build do
     "-DOPENSSL_CRYPTO_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libcrypto.so",
     "-DOPENSSL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DOPENSSL_SSL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libssl.so",
-    "-DPCRE_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DPCRE_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpcre.so",
+    "-DPCRE2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
+    "-DPCRE2_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpcre2-8.so",
     "-DPOPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DPOPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpopt.so",
     "-DPYTHON_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/python3.8",

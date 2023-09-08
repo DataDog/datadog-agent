@@ -14,11 +14,10 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .go import golangci_lint
+from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    SBOM_TAG,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
@@ -109,29 +108,15 @@ def gen_mocks(ctx):
     """
     Generate mocks.
     """
-
-    interfaces = {
-        "./pkg/security/proto/api": [
-            "SecurityModuleServer",
-            "SecurityModuleClient",
-        ],
-        "./pkg/eventmonitor/proto/api": [
-            "EventMonitoringModuleServer",
-            "EventMonitoringModuleClient",
-            "EventMonitoringModule_GetProcessEventsClient",
-        ],
-    }
-
-    for path, names in interfaces.items():
-        interface_regex = "|".join(f"^{i}\\$" for i in names)
-
-        with ctx.cd(path):
-            ctx.run(f"mockery --case snake -r --name=\"{interface_regex}\"")
+    ctx.run("mockery")
 
 
 @task
-def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=False):
     cmd = '{testsuite} {verbose_opt} {testflags}'
+    if fentry:
+        cmd = "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY=true " + cmd
+
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -286,12 +271,14 @@ def build_functional_tests(
     skip_linters=False,
     race=False,
     kernel_release=None,
+    debug=False,
 ):
     build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
         kernel_release=kernel_release,
+        debug=debug,
     )
 
     build_embed_syscall_tester(ctx)
@@ -304,7 +291,7 @@ def build_functional_tests(
 
     build_tags = build_tags.split(",")
     build_tags.append("linux_bpf")
-    build_tags.append(SBOM_TAG)
+    build_tags.append("trivy")
     build_tags.append("containerd")
 
     if bundle_ebpf:
@@ -315,7 +302,12 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        for result in results:
+            # golangci exits with status 1 when it finds an issue
+            if result.exited != 0:
+                raise Exit(code=1)
+        print("golangci-lint found no issues")
 
     if race:
         build_flags += " -race"
@@ -401,6 +393,7 @@ def functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
+    fentry=False,
 ):
     build_functional_tests(
         ctx,
@@ -418,6 +411,7 @@ def functional_tests(
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
+        fentry=fentry,
     )
 
 
@@ -560,12 +554,23 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
-    ctx.run(
-        "cp ./pkg/security/serializers/serializers_easyjson.mock ./pkg/security/serializers/serializers_easyjson.go"
-    )
-    ctx.run(
-        "cp ./pkg/security/security_profile/dump/activity_dump_easyjson.mock ./pkg/security/security_profile/dump/activity_dump_easyjson.go"
-    )
+
+    if sys.platform == "win32":
+        shutil.copy(
+            "./pkg/security/serializers/serializers_windows_easyjson.mock",
+            "./pkg/security/serializers/serializers_windows_easyjson.go",
+        )
+    else:
+        shutil.copy(
+            "./pkg/security/serializers/serializers_linux_easyjson.mock",
+            "./pkg/security/serializers/serializers_linux_easyjson.go",
+        )
+
+        shutil.copy(
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
+            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
+        )
+
     ctx.run("go generate ./pkg/security/...")
 
 
@@ -699,6 +704,7 @@ def kitchen_prepare(ctx, skip_linters=False):
         ctx,
         bundle_ebpf=False,
         race=True,
+        debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
     )
@@ -757,6 +763,10 @@ def print_failed_tests(_, output_dir):
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
 
+        if os.path.isdir(testjson_tgz):
+            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
+            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
+
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
                 tgz.extractall(path=unpack_dir)
@@ -776,3 +786,11 @@ def print_failed_tests(_, output_dir):
 
     if fail_count > 0:
         raise Exit(code=1)
+
+
+@task
+def print_fentry_stats(ctx):
+    fentry_o_path = "pkg/ebpf/bytecode/build/runtime-security-fentry.o"
+
+    for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
+        ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")

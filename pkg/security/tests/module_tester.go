@@ -5,6 +5,7 @@
 
 //go:build functionaltests || stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -40,9 +41,9 @@ import (
 	"golang.org/x/sys/unix"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -52,14 +53,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -251,6 +255,7 @@ type testOpts struct {
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
 	tagsResolver                        tags.Resolver
+	snapshotRuleMatchHandler            func(*testModule, *model.Event, *rules.Rule)
 }
 
 func (s *stringSlice) String() string {
@@ -289,7 +294,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableSBOM == opts.enableSBOM
+		to.enableSBOM == opts.enableSBOM &&
+		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil
 }
 
 type testModule struct {
@@ -303,8 +309,10 @@ type testModule struct {
 	probe         *sprobe.Probe
 	eventHandlers eventHandlers
 	cmdWrapper    cmdWrapper
-	statsdClient  *StatsdClient
+	statsdClient  *statsdclient.StatsdClient
 	proFile       *os.File
+	ruleEngine    *rulesmodule.RuleEngine
+	tracePipe     *tracePipeLogger
 }
 
 var testMod *testModule
@@ -862,11 +870,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
-	if err != nil {
-		return nil, err
-	}
-
 	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
@@ -888,9 +891,18 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
-
-		if err = testMod.reloadConfiguration(); err != nil {
+		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 			return testMod, err
+		}
+
+		if opts.preStartCallback != nil {
+			opts.preStartCallback(testMod)
+		}
+
+		if !opts.disableRuntimeSecurity {
+			if err = testMod.reloadPolicies(); err != nil {
+				return testMod, err
+			}
 		}
 
 		if ruleDefs != nil && logStatusMetrics {
@@ -901,9 +913,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
+	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
+	if err != nil {
+		return nil, err
+	}
+
 	t.Log("Instantiating a new security module")
 
-	statsdClient := NewStatsdClient()
+	statsdClient := statsdclient.NewStatsdClient()
 
 	testMod = &testModule{
 		secconfig:     secconfig,
@@ -919,9 +936,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: probe.Opts{
-			StatsdClient:          statsdClient,
-			DontDiscardRuntime:    true,
-			PathResolutionEnabled: true,
+			StatsdClient:              statsdClient,
+			DontDiscardRuntime:        true,
+			PathResolutionEnabled:     true,
+			SyscallsMapMonitorEnabled: true,
 		},
 	}
 	if opts.tagsResolver != nil {
@@ -942,10 +960,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
 		testMod.cws = cws
+		testMod.ruleEngine = cws.GetRuleEngine()
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.cws.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
 			for _, ruleSet := range es.RuleSets {
@@ -975,6 +994,16 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.preStartCallback(testMod)
 	}
 
+	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+		return nil, err
+	}
+
+	if opts.snapshotRuleMatchHandler != nil {
+		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
+			opts.snapshotRuleMatchHandler(testMod, e, r)
+		})
+		defer testMod.RegisterRuleEventHandler(nil)
+	}
 	if err := testMod.eventMonitor.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
@@ -1002,7 +1031,7 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 
 func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {}
 
-func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb func() []string, service string) {
+func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
@@ -1018,8 +1047,8 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 	tm.cmdWrapper.Run(t, name, fnc)
 }
 
-func (tm *testModule) reloadConfiguration() error {
-	log.Debugf("reload configuration with testDir: %s", tm.Root())
+func (tm *testModule) reloadPolicies() error {
+	log.Debugf("reload policies with testDir: %s", tm.Root())
 	policiesDir := tm.Root()
 
 	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
@@ -1027,7 +1056,7 @@ func (tm *testModule) reloadConfiguration() error {
 		return err
 	}
 
-	if err := tm.cws.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
+	if err := tm.ruleEngine.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return fmt.Errorf("failed to reload test module: %w", err)
 	}
 
@@ -1038,7 +1067,7 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
+func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	tm.eventHandlers.RLock()
 	callback := tm.eventHandlers.onRuleMatch
 	tm.eventHandlers.RUnlock()
@@ -1046,6 +1075,8 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	if callback != nil {
 		callback(event.(*model.Event), rule)
 	}
+
+	return true
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
@@ -1108,7 +1139,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 
 	select {
 	case <-time.After(getEventTimeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1144,7 +1175,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	}
 
 	status := map[string]interface{}{
-		"kernel-lost": eventStreamMonitor.GetKernelLostCount("events", model.MaxAllEventType),
+		"kernel-lost": eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType),
 		"per-events":  map[string]interface{}{},
 	}
 
@@ -1177,13 +1208,27 @@ func (et ErrTimeout) Error() string {
 }
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test
-func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
-	err := ErrTimeout{
-		"timeout, details: ",
+func (tm *testModule) NewTimeoutError() ErrTimeout {
+	var msg strings.Builder
+
+	msg.WriteString("timeout, details: ")
+	msg.WriteString(GetStatusMetrics(tm.probe))
+	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
+
+	events := tm.ruleEngine.StopEventCollector()
+	if len(events) != 0 {
+		msg.WriteString("\nevents evaluated:\n")
+
+		for _, event := range events {
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
+			for field, value := range event.Fields {
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
+			}
+			msg.WriteString("}\n")
+		}
 	}
 
-	err.msg += GetStatusMetrics(probe)
-	return err
+	return ErrTimeout{msg.String()}
 }
 
 // ActionMessage is used to send a message from an action function to its callback
@@ -1259,7 +1304,7 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHan
 		tb.FailNow()
 		return nil
 	case <-time.After(getEventTimeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1309,7 +1354,7 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 
 	select {
 	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1377,7 +1422,7 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Ev
 
 	select {
 	case <-time.After(timeout):
-		return NewTimeoutError(tm.probe)
+		return tm.NewTimeoutError()
 	case <-ctx.Done():
 		return nil
 	}
@@ -1428,17 +1473,18 @@ type tracePipeLogger struct {
 	*TracePipe
 	stop       chan struct{}
 	executable string
+	tb         testing.TB
 }
 
 //nolint:unused
 func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	// for some reason, the event task is resolved to "<...>"
 	// so we check that event.PID is the ID of a task of the running process
-	taskPath := filepath.Join(util.HostProc(), strconv.Itoa(int(utils.Getpid())), "task", event.PID)
+	taskPath := utilkernel.HostProc(strconv.Itoa(int(utils.Getpid())), "task", event.PID)
 	_, err := os.Stat(taskPath)
 
 	if event.Task == l.executable || (event.Task == "<...>" && err == nil) {
-		log.Debug(event.Raw)
+		l.tb.Log(strings.TrimSuffix(event.Raw, "\n"))
 	}
 }
 
@@ -1487,6 +1533,7 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 		TracePipe:  tracePipe,
 		stop:       make(chan struct{}),
 		executable: filepath.Base(executable),
+		tb:         tm.t,
 	}
 	logger.Start()
 
@@ -1503,6 +1550,13 @@ func (tm *testModule) validateAbnormalPaths() {
 	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
 
+func (tm *testModule) validateSyscallsInFlight() {
+	inflight := tm.statsdClient.GetByPrefix("datadog.runtime_security.syscalls_map.event_inflight:event_type:")
+	for key, value := range inflight {
+		assert.Greater(tm.t, int64(1024), value, "event type: %s leaked: %d", key, value)
+	}
+}
+
 func (tm *testModule) Close() {
 	if !tm.opts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
@@ -1512,10 +1566,22 @@ func (tm *testModule) Close() {
 		tm.validateAbnormalPaths()
 	}
 
+	// make sure we don't leak syscalls
+	tm.validateSyscallsInFlight()
+
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
+	}
+
 	tm.statsdClient.Flush()
 
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
+	}
+
+	if withProfile {
+		pprof.StopCPUProfile()
 	}
 }
 
@@ -1702,7 +1768,7 @@ func init() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	testSuitePid = uint32(utils.Getpid())
+	testSuitePid = utils.Getpid()
 }
 
 //nolint:deadcode,unused

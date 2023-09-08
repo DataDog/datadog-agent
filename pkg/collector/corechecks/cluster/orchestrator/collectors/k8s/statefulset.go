@@ -59,7 +59,7 @@ func (c *StatefulSetCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *StatefulSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().StatefulSets()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Apps().V1().StatefulSets()
 	c.lister = c.informer.Lister()
 }
 

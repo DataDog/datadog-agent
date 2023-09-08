@@ -25,9 +25,10 @@ import (
 
 const (
 	// Env vars
-	agentHostEnvVarName  = "DD_AGENT_HOST"
-	ddEntityIDEnvVarName = "DD_ENTITY_ID"
-	traceURLEnvVarName   = "DD_TRACE_AGENT_URL"
+	agentHostEnvVarName    = "DD_AGENT_HOST"
+	ddEntityIDEnvVarName   = "DD_ENTITY_ID"
+	traceURLEnvVarName     = "DD_TRACE_AGENT_URL"
+	dogstatsdURLEnvVarName = "DD_DOGSTATSD_URL"
 
 	// Config injection modes
 	hostIP  = "hostip"
@@ -39,7 +40,7 @@ const (
 )
 
 var (
-	agentHostEnvVar = corev1.EnvVar{
+	agentHostIPEnvVar = corev1.EnvVar{
 		Name:  agentHostEnvVarName,
 		Value: "",
 		ValueFrom: &corev1.EnvVarSource{
@@ -47,6 +48,11 @@ var (
 				FieldPath: "status.hostIP",
 			},
 		},
+	}
+
+	agentHostServiceEnvVar = corev1.EnvVar{
+		Name:  agentHostEnvVarName,
+		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
 	}
 
 	ddEntityIDEnvVar = corev1.EnvVar{
@@ -59,14 +65,14 @@ var (
 		},
 	}
 
-	traceURLEnvVar = corev1.EnvVar{
+	traceURLSocketEnvVar = corev1.EnvVar{
 		Name:  traceURLEnvVarName,
 		Value: config.Datadog.GetString("admission_controller.inject_config.trace_agent_socket"),
 	}
 
-	agentServiceEnvVar = corev1.EnvVar{
-		Name:  agentHostEnvVarName,
-		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
+	dogstatsdURLSocketEnvVar = corev1.EnvVar{
+		Name:  dogstatsdURLEnvVarName,
+		Value: config.Datadog.GetString("admission_controller.inject_config.dogstatsd_socket"),
 	}
 )
 
@@ -94,13 +100,14 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	mode := injectionMode(pod, config.Datadog.GetString("admission_controller.inject_config.mode"))
 	switch mode {
 	case hostIP:
-		injectedConfig = injectEnv(pod, agentHostEnvVar)
+		injectedConfig = injectEnv(pod, agentHostIPEnvVar)
 	case service:
-		injectedConfig = injectEnv(pod, agentServiceEnvVar)
+		injectedConfig = injectEnv(pod, agentHostServiceEnvVar)
 	case socket:
 		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
 		injectedVol := injectVolume(pod, volume, volumeMount)
-		injectedEnv := injectEnv(pod, traceURLEnvVar)
+		injectedEnv := injectEnv(pod, traceURLSocketEnvVar)
+		injectedEnv = injectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
 		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode")

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package profile holds profile related files
 package profile
 
 import (
@@ -19,15 +20,17 @@ import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// EventTypeState defines an event type state
 type EventTypeState struct {
 	lastAnomalyNano uint64
 	state           EventFilteringProfileState
@@ -133,11 +136,7 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 	// TODO: debounce and regenerate profile filters & programs
 }
 
-// IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
-func IsAnomalyDetectionEvent(eventType model.EventType) bool {
-	return model.AnomalyDetectionSyscallEventType == eventType
-}
-
+// LoadProfileFromFile loads profile from file
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -162,14 +161,14 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 }
 
 // SendStats sends profile stats
-func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
-	profile.Lock()
-	defer profile.Unlock()
-	return profile.ActivityTree.SendStats(client)
+func (p *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	p.Lock()
+	defer p.Unlock()
+	return p.ActivityTree.SendStats(client)
 }
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
-func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, minimumStablePeriod time.Duration) *api.SecurityProfileMessage {
+func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, cfg *config.RuntimeSecurityConfig) *api.SecurityProfileMessage {
 	msg := &api.SecurityProfileMessage{
 		LoadedInKernel:          p.loadedInKernel,
 		LoadedInKernelTimestamp: timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
@@ -204,7 +203,7 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		msg.LastAnomalies = append(msg.LastAnomalies, &api.LastAnomalyTimestampMessage{
 			EventType:         evt.String(),
 			Timestamp:         lastAnomaly.String(),
-			IsStableEventType: time.Now().Sub(lastAnomaly) >= minimumStablePeriod,
+			IsStableEventType: time.Since(lastAnomaly) >= cfg.GetAnomalyDetectionMinimumStablePeriod(evt),
 		})
 	}
 

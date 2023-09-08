@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -224,6 +224,9 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		IsError:            false,
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
 	}
 
 	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
@@ -233,6 +236,55 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
 	assert.Equal(t, "serverless", executionSpan.Type)
 	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
+	assert.Equal(t, "true", executionSpan.Meta["cold_start"])
+	assert.Equal(t, "", executionSpan.Meta["proactive_initialization"])
+	assert.Equal(t, testString, executionSpan.Meta["function.request"])
+	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
+	assert.Equal(t, "dotnet", executionSpan.Meta["language"])
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+}
+
+func TestEndExecutionSpanProactInit(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
+	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
+	startTime := time.Now()
+
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          false,
+		ProactiveInit:      true,
+	}
+
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
+	assert.Equal(t, "false", executionSpan.Meta["cold_start"])
+	assert.Equal(t, "true", executionSpan.Meta["proactive_initialization"])
 	assert.Equal(t, testString, executionSpan.Meta["function.request"])
 	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
@@ -346,4 +398,60 @@ func TestParseLambdaPayload(t *testing.T) {
 	assert.Equal(t, []byte("{a}"), ParseLambdaPayload([]byte("a{a}a")))
 	assert.Equal(t, []byte("{"), ParseLambdaPayload([]byte("{")))
 	assert.Equal(t, []byte("}"), ParseLambdaPayload([]byte("}")))
+}
+
+func TestLanguageTag(t *testing.T) {
+	testCases := []struct {
+		runtime     string
+		expectedTag string
+	}{
+		{runtime: "dotnet6", expectedTag: "dotnet"},
+		{runtime: "java11", expectedTag: "java"},
+		{runtime: "ruby2.7", expectedTag: "ruby"},
+		{runtime: "go1.x", expectedTag: "go"},
+	}
+
+	for _, tc := range testCases {
+		currentExecutionInfo := &ExecutionStartInfo{}
+		t.Setenv(functionNameEnvVar, "TestFunction")
+		testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
+
+		startTime := time.Now()
+		startDetails := &InvocationStartDetails{
+			StartTime:          startTime,
+			InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		}
+		startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+
+		duration := 1 * time.Second
+		endTime := startTime.Add(duration)
+		var tracePayload *api.Payload
+		mockProcessTrace := func(payload *api.Payload) {
+			tracePayload = payload
+		}
+
+		endDetails := &InvocationEndDetails{
+			EndTime:            endTime,
+			IsError:            false,
+			RequestID:          "test-request-id",
+			ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+			ColdStart:          true,
+			ProactiveInit:      false,
+			Runtime:            tc.runtime, // add runtime
+		}
+
+		endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+		executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+		assert.Equal(t, "aws.lambda", executionSpan.Name)
+		assert.Equal(t, "aws.lambda", executionSpan.Service)
+		assert.Equal(t, "TestFunction", executionSpan.Resource)
+		assert.Equal(t, "serverless", executionSpan.Type)
+		assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
+		assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+		assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+		assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+		assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+
+		assert.Equal(t, tc.expectedTag, executionSpan.Meta["language"]) // expected tag from runtime
+	}
 }

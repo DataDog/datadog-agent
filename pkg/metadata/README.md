@@ -26,6 +26,6 @@ with a default interval.
 **Notice:** For the time being, several providers collect a piece of information that is used in
 the `v5` package to compose a single metadata payload compatible with the one from Agent v.5.
 This way we can send metadata through the current backend endpoints
-(see `HostCollector` and `ResourcesCollector`), waiting for the new ones to be deployed.
+(see `HostCollector`), waiting for the new ones to be deployed.
 At that point, all the subpackages will be required to define a payload with either the new Protobuf format
 or a custom JSON compatible with the v2 intake API.

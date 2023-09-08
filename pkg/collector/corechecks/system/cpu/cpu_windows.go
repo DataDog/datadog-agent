@@ -13,8 +13,8 @@ package cpu
 
 import (
 	"fmt"
-	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -27,7 +27,7 @@ import (
 const cpuCheckName = "cpu"
 
 // For testing purposes
-var cpuInfo = cpu.GetCpuInfo
+var cpuInfo = cpu.CollectInfo
 
 // Check doesn't need additional fields
 type Check struct {
@@ -143,18 +143,18 @@ func addProcessorPdhCounter(query *pdhutil.PdhQuery, counterName string) pdhutil
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source); err != nil {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
 	}
 
 	// do nothing
-	info, err := cpuInfo()
+	info := cpuInfo()
+	cpucount, err := info.CPULogicalProcessors.Value()
 	if err != nil {
-		return fmt.Errorf("cpu.Check: could not query CPU info")
+		return fmt.Errorf("cpu.Check: could not get number of CPU: %w", err)
 	}
-	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
-	c.nbCPU = cpucount
+	c.nbCPU = float64(cpucount)
 
 	// Create PDH query
 	c.pdhQuery, err = pdhutil.CreatePdhQuery()

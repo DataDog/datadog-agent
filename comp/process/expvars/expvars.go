@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
@@ -37,7 +38,8 @@ type dependencies struct {
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
 
-	Log log.Component
+	Log       log.Component
+	Telemetry telemetry.Component
 }
 
 func newExpvarServer(deps dependencies) (Component, error) {
@@ -51,8 +53,8 @@ func newExpvarServer(deps dependencies) (Component, error) {
 	expvarPort := getExpvarPort(deps)
 	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
 
-	deps.Lc.Append(fx.StartStopHook(
-		func(ctx context.Context) error {
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
 			go func() {
 				err := expvarServer.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -61,14 +63,14 @@ func newExpvarServer(deps dependencies) (Component, error) {
 			}()
 			return nil
 		},
-		func(ctx context.Context) error {
+		OnStop: func(ctx context.Context) error {
 			err := expvarServer.Shutdown(ctx)
 			if err != nil {
 				_ = deps.Log.Error("Failed to properly shutdown expvar server:", err)
 			}
 			return nil
 		},
-	))
+	})
 	return expvarServer, nil
 }
 
@@ -90,11 +92,12 @@ func initStatus(deps dependencies) error {
 	status.UpdateDockerSocket(dockerSock)
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := deps.SysProbeConfig.Object().EnabledModules[sysconfig.ProcessModule]
+	_, processModuleEnabled := deps.SysProbeConfig.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
 	eps, err := endpoint.GetAPIEndpoints(deps.Config)
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	status.InitExpvars(deps.Config, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
+	languageDetectionEnabled := deps.Config.GetBool("language_detection.enabled")
+	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
 	return nil
 }

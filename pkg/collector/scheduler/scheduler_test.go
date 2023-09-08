@@ -12,11 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 )
 
 // FIXTURE
 type TestCheck struct {
-	check.StubCheck
+	stub.StubCheck
 	intl time.Duration
 }
 

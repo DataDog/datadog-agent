@@ -143,7 +143,7 @@ func (s *agentRunner) Kill() {
 
 func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	s.Kill()
-	cmd := exec.Command(filepath.Join(s.bindir, "trace-agent"), "-config", path)
+	cmd := exec.Command(filepath.Join(s.bindir, "trace-agent"), "--config", path)
 	s.log.Reset()
 	cmd.Stdout = s.log
 	cmd.Stderr = io.Discard
@@ -159,7 +159,7 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	go func() {
 		ch <- cmd.Wait()
 		if s.verbose {
-			log.Print("agent: killed")
+			log.Printf("agent: killed")
 		}
 	}()
 	return ch

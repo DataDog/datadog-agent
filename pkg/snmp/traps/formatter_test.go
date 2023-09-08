@@ -107,7 +107,7 @@ var (
 			// ifOperStatus
 			{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.Integer, Value: 7},
 			// myFakeVarType
-			// Bits 0, 1, 2, 3, 12, 13, 14, 15, 88, and 130 are set
+			// No bits are set
 			{Name: "1.3.6.1.2.1.200.1.3.1.5", Type: gosnmp.OctetString, Value: []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
 		},
 	}
@@ -607,7 +607,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.1.1.3",
 						"type":  "string",
-						"value": base64.StdEncoding.EncodeToString([]byte{0xc0, 0x00}),
+						"value": "0xC000",
 					},
 				},
 			},
@@ -658,7 +658,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
-						"value": base64.StdEncoding.EncodeToString([]byte{0xf0, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0x20}),
+						"value": "0xF00F000000000000000000800000000020",
 					},
 				},
 			},
@@ -765,7 +765,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					map[string]interface{}{
 						"oid":   "1.3.6.1.2.1.200.1.3.1.5",
 						"type":  "string",
-						"value": base64.StdEncoding.EncodeToString([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}),
+						"value": "0x0000000000000000000000000000000000",
 					},
 				},
 			},
@@ -933,10 +933,11 @@ func TestIsBitEnabled(t *testing.T) {
 
 func TestEnrichBits(t *testing.T) {
 	data := []struct {
-		description string
-		variable    trapVariable
-		varMetadata VariableMetadata
-		expected    interface{}
+		description     string
+		variable        trapVariable
+		varMetadata     VariableMetadata
+		expectedMapping interface{}
+		expectedHex     string
 	}{
 		{
 			description: "all bits are enrichable and are enriched",
@@ -952,13 +953,14 @@ func TestEnrichBits(t *testing.T) {
 					15: "test15",
 				},
 			},
-			expected: []interface{}{
+			expectedMapping: []interface{}{
 				"test0",
 				"test1",
 				"test5",
 				"test8",
 				"test15",
 			},
+			expectedHex: "0xC481",
 		},
 		{
 			description: "no bits are enrichable are returned unenriched",
@@ -972,13 +974,14 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: []interface{}{
+			expectedMapping: []interface{}{
 				0,
 				1,
 				5,
 				8,
 				15,
 			},
+			expectedHex: "0xC481",
 		},
 		{
 			description: "mix of enrichable and unenrichable bits are returned semi-enriched",
@@ -992,13 +995,14 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: []interface{}{
+			expectedMapping: []interface{}{
 				"test2",
 				3,
 				"test4",
 				9,
 				"test14",
 			},
+			expectedHex: "0x3842",
 		},
 		{
 			description: "non-byte array value returns original value unchanged",
@@ -1012,7 +1016,8 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: 42,
+			expectedMapping: 42,
+			expectedHex:     "",
 		},
 		{
 			description: "completely zeroed out bits returns zeroed out bits",
@@ -1026,16 +1031,18 @@ func TestEnrichBits(t *testing.T) {
 					14: "test14",
 				},
 			},
-			expected: []interface{}{},
+			expectedMapping: []interface{}{},
+			expectedHex:     "0x000000000000",
 		},
 	}
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			actual := enrichBits(d.variable, d.varMetadata)
-			if diff := cmp.Diff(d.expected, actual); diff != "" {
+			actualMapping, actualHex := enrichBits(d.variable, d.varMetadata)
+			if diff := cmp.Diff(d.expectedMapping, actualMapping); diff != "" {
 				t.Error(diff)
 			}
+			require.Equal(t, d.expectedHex, actualHex)
 		})
 	}
 }
@@ -1099,6 +1106,125 @@ func TestIsValidOID_Unit(t *testing.T) {
 
 	for oid, expected := range cases {
 		require.Equal(t, expected, IsValidOID(oid))
+	}
+}
+
+func TestVariableTypeFormat(t *testing.T) {
+	data := []struct {
+		description string
+		variable    gosnmp.SnmpPDU
+		expected    interface{}
+	}{
+
+		{
+			description: "type gosnmp.Integer is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.Integer, Value: 10},
+			expected:    "integer",
+		},
+		{
+			description: "type gosnmp.Boolean is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.Boolean, Value: 1},
+			expected:    "boolean",
+		},
+		{
+			description: "type gosnmp.Uinteger32 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.Uinteger32, Value: 15},
+			expected:    "integer",
+		},
+		{
+			description: "type gosnmp.Opaque is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.6574.4.2.12.1.0", Type: gosnmp.Opaque, Value: 0.65},
+			expected:    "opaque",
+		},
+		{
+			description: "type gosnmp.OpaqueFloat is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.6574.4.2.12.1.0", Type: gosnmp.OpaqueFloat, Value: 0.657685},
+			expected:    "opaque",
+		},
+		{
+			description: "type gosnmp.OpaqueDouble is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.6574.4.2.12.1.0", Type: gosnmp.OpaqueDouble, Value: 0.685},
+			expected:    "opaque",
+		},
+		{
+			description: "type gosnmp.ObjectIdentifier is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.ObjectIdentifier, Value: "1.3.6.7.8"},
+			expected:    "oid",
+		},
+		{
+			description: "type gosnmp.OctetString is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.193.183.4.1.4.5.1.8", Type: gosnmp.OctetString, Value: "teststring"},
+			expected:    "string",
+		},
+		{
+			description: "type gosnmp.BitString is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.193.183.4.1.4.5.1.8", Type: gosnmp.BitString, Value: []byte{0x74, 0x65, 0x73, 0x74}},
+			expected:    "string",
+		},
+		{
+			description: "type gosnmp.IPAddress is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.4.20.1.1", Type: gosnmp.IPAddress, Value: "127.0.0.1"},
+			expected:    "ip-address",
+		},
+		{
+			description: "type gosnmp.TimeTicks is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.232.18.2.2.1.1.17", Type: gosnmp.TimeTicks, Value: 156},
+			expected:    "time-ticks",
+		},
+		{
+			description: "type gosnmp.Gauge32 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.4.1.232.18.2.2.1.1.17", Type: gosnmp.Gauge32, Value: 6},
+			expected:    "gauge32",
+		},
+		{
+			description: "type gosnmp.Counter32 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.Counter32, Value: 34},
+			expected:    "counter32",
+		},
+		{
+			description: "type gosnmp.Counter64 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.Counter64, Value: 34},
+			expected:    "counter64",
+		},
+		{
+			description: "type gosnmp.Null is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.Null, Value: "whatever"},
+			expected:    "null",
+		},
+		{
+			description: "type gosnmp.UnknownType is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.19", Type: gosnmp.UnknownType, Value: "whatever"},
+			expected:    "unknown-type",
+		},
+		{
+			description: "type gosnmp.ObjectDescription is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.8", Type: gosnmp.ObjectDescription, Value: "whatever"},
+			expected:    "object-description",
+		},
+		{
+			description: "type gosnmp.NsapAddress is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.NsapAddress, Value: []byte{0x74, 0x65, 0x73, 0x74}},
+			expected:    "nsap-address",
+		},
+		{
+			description: "type gosnmp.NoSuchObject is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.NoSuchObject, Value: "whatever"},
+			expected:    "no-such-object",
+		},
+		{
+			description: "type gosnmp.NoSuchInstance is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.NoSuchInstance, Value: "whatever"},
+			expected:    "no-such-instance",
+		},
+		{
+			description: "type gosnmp.EndOfMibView is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.2.2.1.15", Type: gosnmp.EndOfMibView, Value: "whatever"},
+			expected:    "end-of-mib-view",
+		},
+	}
+
+	for _, d := range data {
+		require.Equal(t, d.expected, formatType(d.variable), d.description)
 	}
 }
 

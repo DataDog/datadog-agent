@@ -3,12 +3,12 @@
 # https://github.com/confluentinc/confluent-kafka-python/blob/master/tools/windows-install-librdkafka.bat
 
 name "librdkafka"
-default_version "2.0.2"
+default_version "2.2.0"
 
 dependency "cyrus-sasl"
 
 source :url => "https://github.com/confluentinc/librdkafka/archive/refs/tags/v#{version}.tar.gz",
-        :sha256 => "f321bcb1e015a34114c83cf1aa7b99ee260236aab096b85c003170c90a47ca9d",
+        :sha256 => "af9a820cbecbc64115629471df7c7cecd40403b6c34bfdbb9223152677a47226",
         :extract => :seven_zip
 
 relative_path "librdkafka-#{version}"
@@ -25,7 +25,7 @@ build do
   }
 
   command "./configure --enable-sasl --prefix=#{install_dir}/embedded", :env => env
-  command "make", :env => env
+  command "make -j #{workers}", :env => env
   command "make install", :env => env
 
   delete "#{install_dir}/embedded/lib/librdkafka.a"
