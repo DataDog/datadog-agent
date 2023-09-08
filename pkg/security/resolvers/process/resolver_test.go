@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package process holds process related files
 package process
 
 import (

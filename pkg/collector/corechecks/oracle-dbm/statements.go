@@ -967,24 +967,3 @@ func (c *Check) StatementMetrics() (int, error) {
 	}
 	return SQLCount, nil
 }
-
-func getFullSQLText(c *Check, SQLStatement *string, key string, value string) error {
-	sql := fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
-	err := c.db.Get(SQLStatement, sql, value)
-	if err != nil {
-		log.Warnf("failed to select full SQL text based on %s: %s \n%s", key, err, sql)
-		recoverFromDeadConnection(c, err)
-	}
-	return err
-}
-
-func recoverFromDeadConnection(c *Check, err error) {
-	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
-		db, err := c.Connect()
-		if err != nil {
-			c.Teardown()
-			log.Errorf("failed to tear down check: %s", err)
-		}
-		c.db = db
-	}
-}

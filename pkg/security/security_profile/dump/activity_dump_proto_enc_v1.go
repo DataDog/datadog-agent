@@ -5,12 +5,13 @@
 
 //go:build linux
 
+// Package dump holds dump related files
 package dump
 
 import (
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
@@ -25,10 +26,10 @@ func activityDumpToProto(ad *ActivityDump) *adproto.SecDump {
 		Service: ad.Service,
 		Source:  ad.Source,
 
-		Metadata: mtdt.MetadataToProto(&ad.Metadata),
+		Metadata: mtdt.ToProto(&ad.Metadata),
 
 		Tags: make([]string, len(ad.Tags)),
-		Tree: activity_tree.ActivityTreeToProto(ad.ActivityTree),
+		Tree: activity_tree.ToProto(ad.ActivityTree),
 	}
 
 	copy(pad.Tags, ad.Tags)

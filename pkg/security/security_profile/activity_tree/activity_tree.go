@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"errors"
@@ -85,8 +86,8 @@ func (genType NodeGenerationType) String() string {
 	}
 }
 
-// ActivityTreeOwner is used to communicate with the owner of the activity tree
-type ActivityTreeOwner interface {
+// Owner is used to communicate with the owner of the activity tree
+type Owner interface {
 	MatchesSelector(entry *model.ProcessCacheEntry) bool
 	IsEventTypeValid(evtType model.EventType) bool
 	NewProcessNodeCallback(p *ProcessNode)
@@ -103,13 +104,13 @@ func (cs *cookieSelector) isSet() bool {
 
 // ActivityTree contains a process tree and its activities. This structure has no locks.
 type ActivityTree struct {
-	Stats *ActivityTreeStats
+	Stats *Stats
 
 	treeType          string
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator    ActivityTreeOwner
+	validator    Owner
 	pathsReducer *PathsReducer
 
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
@@ -120,11 +121,12 @@ type ActivityTree struct {
 	SyscallsMask map[int]int
 }
 
-const COOKIE_TO_PROCESS_NODE_CACHE_SIZE = 128
+// CookieToProcessNodeCacheSize defines the "cookie to process" node cache size
+const CookieToProcessNodeCacheSize = 128
 
 // NewActivityTree returns a new ActivityTree instance
-func NewActivityTree(validator ActivityTreeOwner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
-	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](COOKIE_TO_PROCESS_NODE_CACHE_SIZE, nil)
+func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
+	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
 
 	return &ActivityTree{
 		treeType:            treeType,
@@ -157,7 +159,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 	for len(pnodes) > 0 {
 		node := pnodes[0]
 
-		at.Stats.ProcessNodes += 1
+		at.Stats.ProcessNodes++
 		pnodes = append(pnodes, node.Children...)
 
 		at.Stats.DNSNodes += int64(len(node.DNSNames))
@@ -174,7 +176,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		node := fnodes[0]
 
 		if node.File != nil {
-			at.Stats.FileNodes += 1
+			at.Stats.FileNodes++
 		}
 
 		for _, f := range node.Children {
@@ -190,7 +192,7 @@ func (at *ActivityTree) IsEmpty() bool {
 	return len(at.ProcessNodes) == 0
 }
 
-// nolint: unused
+// Debug dumps the content of an activity tree
 func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")
@@ -504,42 +506,41 @@ func (at *ActivityTree) findBranch(children *[]*ProcessNode, siblings *[]*Proces
 
 			// we need to return the node that matched branch[0]
 			return newNodesRoot, true
-		} else {
-			// are we looking for an exec child ?
-			if branchCursor.IsExecChild && siblings != nil {
-				// if yes, then look for branchCursor in the siblings of the parent of children
-				matchingNode, treeNodeToRebaseIndex = at.findProcessCacheEntryInTree(*siblings, branchCursor)
-				if treeNodeToRebaseIndex >= 0 {
-
-					// we're about to rebase part of the tree, exit early if this is a dry run
-					if i < len(branch)-1 && dryRun {
-						return nil, true
-					}
-
-					// rebase the siblings node below the branch
-					newNodesRoot := at.rebaseTree(siblings, treeNodeToRebaseIndex, children, branch[i+1:], generationType, resolvers)
-
-					// we need to return the node that matched branch[0]
-					if i == len(branch)-1 {
-						return matchingNode, false
-					}
-
-					return newNodesRoot, true
-				}
-			}
-
-			// We didn't find the current entry anywhere, has it execed into something else ? (i.e. are we missing something
-			// in the profile ?)
-			if i-1 >= 0 {
-				if branch[i-1].IsExecChild {
-					continue
-				}
-			}
-
-			// if we're here, we've either reached the end of the list of children, or the next child wasn't
-			// directly exec-ed
-			break
 		}
+		// are we looking for an exec child ?
+		if branchCursor.IsExecChild && siblings != nil {
+			// if yes, then look for branchCursor in the siblings of the parent of children
+			matchingNode, treeNodeToRebaseIndex = at.findProcessCacheEntryInTree(*siblings, branchCursor)
+			if treeNodeToRebaseIndex >= 0 {
+
+				// we're about to rebase part of the tree, exit early if this is a dry run
+				if i < len(branch)-1 && dryRun {
+					return nil, true
+				}
+
+				// rebase the siblings node below the branch
+				newNodesRoot := at.rebaseTree(siblings, treeNodeToRebaseIndex, children, branch[i+1:], generationType, resolvers)
+
+				// we need to return the node that matched branch[0]
+				if i == len(branch)-1 {
+					return matchingNode, false
+				}
+
+				return newNodesRoot, true
+			}
+		}
+
+		// We didn't find the current entry anywhere, has it execed into something else ? (i.e. are we missing something
+		// in the profile ?)
+		if i-1 >= 0 {
+			if branch[i-1].IsExecChild {
+				continue
+			}
+		}
+
+		// if we're here, we've either reached the end of the list of children, or the next child wasn't
+		// directly exec-ed
+		break
 	}
 	return nil, false
 }
@@ -653,6 +654,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 	return nil
 }
 
+// FindMatchingRootNodes finds and returns the matching root nodes
 func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {

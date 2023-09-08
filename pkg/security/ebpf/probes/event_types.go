@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -98,7 +99,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check", fentry),
 				}},
 				kprobeOrFentry("setup_new_exec_interp", fentry),
-				kprobeOrFentry("setup_new_exec_args_envs", fentry, withUid(SecurityAgentUID+"_a")),
+				kprobeOrFentry("setup_new_exec_args_envs", fentry, withUID(SecurityAgentUID+"_a")),
 				kprobeOrFentry("setup_arg_pages", fentry),
 				kprobeOrFentry("mprotect_fixup", fentry),
 				kprobeOrFentry("exit_itimers", fentry),
@@ -392,7 +393,10 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_kernel_read_file", fentry),
 					kprobeOrFentry("security_kernel_module_from_file", fentry),
 				}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_parse_args"}},
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					kprobeOrFentry("mod_sysfs_setup", fentry),
+					kprobeOrFentry("module_param_sysfs_setup", fentry),
+				}},
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "init_module", fentry, EntryAndExit|SupportFentry|SupportFexit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "finit_module", fentry, EntryAndExit|SupportFentry|SupportFexit)},

@@ -173,15 +173,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
-| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
-| [`network.device.ifname`](#network-device-ifname-doc) | interface ifname |
-| [`network.l3_protocol`](#network-l3_protocol-doc) | l3 protocol of the network packet |
-| [`network.l4_protocol`](#network-l4_protocol-doc) | l4 protocol of the network packet |
-| [`network.size`](#network-size-doc) | size in bytes of the network packet |
-| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -510,6 +501,15 @@ A DNS request was sent
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | l3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | l4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `exec`
 

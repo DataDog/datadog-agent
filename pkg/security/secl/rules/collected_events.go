@@ -5,6 +5,7 @@
 
 package rules
 
+// CollectedEvent defines a collected event
 type CollectedEvent struct {
 	Type       string
 	EvalResult bool
