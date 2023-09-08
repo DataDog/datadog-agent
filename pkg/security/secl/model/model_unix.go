@@ -8,6 +8,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
 
+// Package model holds model related files
 package model
 
 import (
@@ -23,15 +24,13 @@ import (
 )
 
 const (
-	// OverlayFS overlay filesystem
-	OverlayFS = "overlay"
-	// TmpFS tmpfs
-	TmpFS = "tmpfs"
-	// UnknownFS unknown filesystem
-	UnknownFS             = "unknown"
-	ErrPathMustBeAbsolute = "all the path have to be absolute"
-	ErrPathDepthLimit     = "path depths have to be shorter than"
-	ErrPathSegmentLimit   = "each segment of a path must be shorter than"
+	OverlayFS = "overlay" // OverlayFS overlay filesystem
+	TmpFS     = "tmpfs"   // TmpFS tmpfs
+	UnknownFS = "unknown" // UnknownFS unknown filesystem
+
+	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
+	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
+	ErrPathSegmentLimit   = "each segment of a path must be shorter than" // ErrPathSegmentLimit tells when a patch reached the segment limit
 )
 
 // check that all path are absolute
@@ -542,13 +541,14 @@ type SELinuxEvent struct {
 }
 
 const (
-	ProcessCacheEntryFromUnknown = iota
-	ProcessCacheEntryFromEvent
-	ProcessCacheEntryFromKernelMap
-	ProcessCacheEntryFromProcFS
-	ProcessCacheEntryFromSnapshot
+	ProcessCacheEntryFromUnknown   = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
+	ProcessCacheEntryFromEvent            // ProcessCacheEntryFromEvent defines a process cache entry from event
+	ProcessCacheEntryFromKernelMap        // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
+	ProcessCacheEntryFromProcFS           // ProcessCacheEntryFromProcFS defines a process cache entry from procfs
+	ProcessCacheEntryFromSnapshot         // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
 )
 
+// ProcessSources defines process sources
 var ProcessSources = [...]string{
 	"unknown",
 	"event",
@@ -557,6 +557,7 @@ var ProcessSources = [...]string{
 	"procfs_snapshot",
 }
 
+// ProcessSourceToString returns the string corresponding to a process source
 func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
 }
@@ -787,6 +788,7 @@ type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
+// PathKeySize defines the path key size
 const PathKeySize = 16
 
 // AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
@@ -843,7 +845,7 @@ func (pl *PathLeaf) GetName() string {
 	return NullTerminatedString(pl.Name[:])
 }
 
-// GetName returns the path value as a string
+// SetName sets the path name
 func (pl *PathLeaf) SetName(name string) {
 	copy(pl.Name[:], []byte(name))
 	pl.Len = uint16(len(name) + 1)

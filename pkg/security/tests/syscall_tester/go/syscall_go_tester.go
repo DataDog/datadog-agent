@@ -5,6 +5,7 @@
 
 //go:build syscalltesters
 
+// Package main holds main related files
 package main
 
 import (

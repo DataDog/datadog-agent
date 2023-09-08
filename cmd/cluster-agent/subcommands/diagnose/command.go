@@ -9,8 +9,6 @@
 package diagnose
 
 import (
-	"regexp"
-
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -51,11 +49,10 @@ func run(log log.Component, config config.Component) error {
 	//                  diagnose suite as it was done in this agent for
 	//                  a while. Most likely need to relax or add more
 	//                  diagnose suites in the future
-	reAutoDiscovery, _ := regexp.Compile("connectivity-datadog-autodiscovery")
 	diagCfg := diagnosis.Config{
 		Verbose:  true, // show details
 		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
-		Include:  []*regexp.Regexp{reAutoDiscovery},
+		Include:  []string{"connectivity-datadog-autodiscovery"},
 	}
 	return diagnose.RunStdOut(color.Output, diagCfg)
 }
