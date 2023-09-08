@@ -412,26 +412,44 @@ kubelet_runtime_operations_latency_microseconds_count{operation_type="version"} 
 # TYPE kubelet_volume_stats_available_bytes gauge
 kubelet_volume_stats_available_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 9.785049088e+10
 kubelet_volume_stats_available_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 9.8636845056e+10
+kubelet_volume_stats_available_bytes{namespace="default",persistentvolumeclaim="www-web-2"} 9.785049088e+10
+kubelet_volume_stats_available_bytes{namespace="default",persistentvolumeclaim="www2-web-3"} 9.8636845056e+10
+kubelet_volume_stats_available_bytes{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 9.8636845056e+10
 # HELP kubelet_volume_stats_capacity_bytes Capacity in bytes of the volume
 # TYPE kubelet_volume_stats_capacity_bytes gauge
 kubelet_volume_stats_capacity_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 1.05555197952e+11
 kubelet_volume_stats_capacity_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 1.05555197952e+11
+kubelet_volume_stats_capacity_bytes{namespace="default",persistentvolumeclaim="www-web-2"} 1.05555197952e+11
+kubelet_volume_stats_capacity_bytes{namespace="default",persistentvolumeclaim="www2-web-3"} 1.05555197952e+11
+kubelet_volume_stats_capacity_bytes{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 1.05555197952e+11
 # HELP kubelet_volume_stats_inodes Maximum number of inodes in the volume
 # TYPE kubelet_volume_stats_inodes gauge
 kubelet_volume_stats_inodes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 6.5536e+06
 kubelet_volume_stats_inodes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 6.5536e+06
+kubelet_volume_stats_inodes{namespace="default",persistentvolumeclaim="www-web-2"} 6.5536e+06
+kubelet_volume_stats_inodes{namespace="default",persistentvolumeclaim="www2-web-3"} 6.5536e+06
+kubelet_volume_stats_inodes{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 6.5536e+06
 # HELP kubelet_volume_stats_inodes_free Number of free inodes in the volume
 # TYPE kubelet_volume_stats_inodes_free gauge
 kubelet_volume_stats_inodes_free{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 6.538687e+06
 kubelet_volume_stats_inodes_free{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 6.535645e+06
+kubelet_volume_stats_inodes_free{namespace="default",persistentvolumeclaim="www-web-2"} 6.538687e+06
+kubelet_volume_stats_inodes_free{namespace="default",persistentvolumeclaim="www2-web-3"} 6.535645e+06
+kubelet_volume_stats_inodes_free{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 6.535645e+06
 # HELP kubelet_volume_stats_inodes_used Number of used inodes in the volume
 # TYPE kubelet_volume_stats_inodes_used gauge
 kubelet_volume_stats_inodes_used{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 14913
 kubelet_volume_stats_inodes_used{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 17955
+kubelet_volume_stats_inodes_used{namespace="default",persistentvolumeclaim="www-web-2"} 14913
+kubelet_volume_stats_inodes_used{namespace="default",persistentvolumeclaim="www2-web-3"} 17955
+kubelet_volume_stats_inodes_used{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 17955
 # HELP kubelet_volume_stats_used_bytes Number of used bytes in the volume
 # TYPE kubelet_volume_stats_used_bytes gauge
 kubelet_volume_stats_used_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 2.319220736e+09
 kubelet_volume_stats_used_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 1.53286656e+09
+kubelet_volume_stats_used_bytes{namespace="default",persistentvolumeclaim="www-web-2"} 2.319220736e+09
+kubelet_volume_stats_used_bytes{namespace="default",persistentvolumeclaim="www2-web-3"} 1.53286656e+09
+kubelet_volume_stats_used_bytes{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 1.53286656e+09
 # HELP kubernetes_build_info A metric with a constant '1' value labeled by major, minor, git version, git commit, git tree state, build date, Go version, and compiler from which Kubernetes was built, and platform on which it is running.
 # TYPE kubernetes_build_info gauge
 kubernetes_build_info{buildDate="2018-03-26T16:44:10Z",compiler="gc",gitCommit="fc32d2f3698e36b93322a3465f63a14e9f0eaead",gitTreeState="clean",gitVersion="v1.10.0",goVersion="go1.9.3",major="1",minor="10",platform="linux/amd64"} 1

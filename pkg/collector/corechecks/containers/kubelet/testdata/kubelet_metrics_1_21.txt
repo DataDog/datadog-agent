@@ -51,14 +51,14 @@ apiserver_storage_data_key_generation_failures_total 0
 # HELP apiserver_storage_envelope_transformation_cache_misses_total [ALPHA] Total number of cache misses while accessing key decryption key(KEK).
 # TYPE apiserver_storage_envelope_transformation_cache_misses_total counter
 apiserver_storage_envelope_transformation_cache_misses_total 0
-# HELP authentication_token_cache_active_fetch_count [ALPHA] 
+# HELP authentication_token_cache_active_fetch_count [ALPHA]
 # TYPE authentication_token_cache_active_fetch_count gauge
 authentication_token_cache_active_fetch_count{status="blocked"} 0
 authentication_token_cache_active_fetch_count{status="in_flight"} 0
-# HELP authentication_token_cache_fetch_total [ALPHA] 
+# HELP authentication_token_cache_fetch_total [ALPHA]
 # TYPE authentication_token_cache_fetch_total counter
 authentication_token_cache_fetch_total{status="ok"} 13337
-# HELP authentication_token_cache_request_duration_seconds [ALPHA] 
+# HELP authentication_token_cache_request_duration_seconds [ALPHA]
 # TYPE authentication_token_cache_request_duration_seconds histogram
 authentication_token_cache_request_duration_seconds_bucket{status="hit",le="0.005"} 956217
 authentication_token_cache_request_duration_seconds_bucket{status="hit",le="0.01"} 956234
@@ -88,7 +88,7 @@ authentication_token_cache_request_duration_seconds_bucket{status="miss",le="10"
 authentication_token_cache_request_duration_seconds_bucket{status="miss",le="+Inf"} 13676
 authentication_token_cache_request_duration_seconds_sum{status="miss"} 223.1349999999765
 authentication_token_cache_request_duration_seconds_count{status="miss"} 13676
-# HELP authentication_token_cache_request_total [ALPHA] 
+# HELP authentication_token_cache_request_total [ALPHA]
 # TYPE authentication_token_cache_request_total counter
 authentication_token_cache_request_total{status="hit"} 956243
 authentication_token_cache_request_total{status="miss"} 13676
@@ -1837,3 +1837,7 @@ workqueue_work_duration_seconds_bucket{name="DynamicCABundle-client-ca-bundle",l
 workqueue_work_duration_seconds_bucket{name="DynamicCABundle-client-ca-bundle",le="+Inf"} 28479
 workqueue_work_duration_seconds_sum{name="DynamicCABundle-client-ca-bundle"} 2.3146415870000094
 workqueue_work_duration_seconds_count{name="DynamicCABundle-client-ca-bundle"} 28479
+# HELP kubelet_evictions [ALPHA] Cumulative number of pod evictions by eviction signal
+# TYPE kubelet_evictions counter
+kubelet_evictions{eviction_signal="allocatableMemory.available"} 3
+kubelet_evictions{eviction_signal="memory.available"} 3

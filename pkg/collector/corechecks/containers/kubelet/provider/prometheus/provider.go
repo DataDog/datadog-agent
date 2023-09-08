@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -207,6 +208,11 @@ func (p *Provider) SubmitMetric(metric *model.Sample, metricName string, sender 
 	metricType := metric.Metric[TypeLabel]
 
 	if p.ignoreMetricByLabel(metric, metricName) {
+		return
+	}
+
+	if math.IsNaN(float64(metric.Value)) || math.IsInf(float64(metric.Value), 0) {
+		log.Debugf("Metric value is not supported for metric %s", metricName)
 		return
 	}
 
