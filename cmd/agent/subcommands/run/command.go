@@ -46,6 +46,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -65,7 +67,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -270,6 +271,21 @@ func getSharedFxOption() fx.Option {
 			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
 			return params
 		}),
+
+		// workloadmeta setup
+		collectors.GetCatalog(),
+		fx.Provide(func(config config.Component) workloadmeta.Params {
+			var catalog workloadmeta.AgentType
+			if flavor.GetFlavor() == flavor.ClusterAgent {
+				catalog = workloadmeta.ClusterAgent
+			} else {
+				catalog = workloadmeta.NodeAgent
+			}
+
+			return workloadmeta.Params{AgentType: catalog}
+		}),
+		workloadmeta.Module,
+
 		dogstatsd.Bundle,
 		otelcol.Bundle,
 		rcclient.Module,
@@ -277,14 +293,14 @@ func getSharedFxOption() fx.Option {
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					// Main context passed to components
 					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
 					// create and setup the Autoconfig instance
-					common.LoadComponents(common.MainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(common.MainCtx, demultiplexer, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -453,9 +469,6 @@ func startAgent(
 		}
 	}
 
-	// create and setup the Autoconfig instance
-	common.LoadComponents(common.MainCtx, wmeta, pkgconfig.Datadog.GetString("confd_path"))
-
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
 		logsAgent.AddScheduler(adScheduler.New(common.AC))
@@ -478,6 +491,7 @@ func startAgent(
 		server,
 		capture,
 		serverDebug,
+		wmeta,
 		logsAgent,
 		demultiplexer,
 		hostMetadata,
