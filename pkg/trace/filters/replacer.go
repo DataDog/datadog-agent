@@ -6,6 +6,7 @@
 package filters
 
 import (
+	"regexp"
 	"strconv"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -34,13 +35,7 @@ func (f Replacer) Replace(trace pb.Trace) {
 					s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 				}
 				for k := range s.Metrics {
-					replacedValue := re.ReplaceAllString(strconv.FormatFloat(s.Metrics[k], 'f', -1, 64), str)
-					if rf, err := strconv.ParseFloat(replacedValue, 64); err == nil {
-						s.Metrics[k] = rf
-					} else {
-						s.Meta[k] = replacedValue
-						delete(s.Metrics, k)
-					}
+					f.replaceNumericTag(re, s, k, str)
 				}
 				s.Resource = re.ReplaceAllString(s.Resource, str)
 			case "resource.name":
@@ -53,17 +48,23 @@ func (f Replacer) Replace(trace pb.Trace) {
 				}
 				if s.Metrics != nil {
 					if _, ok := s.Metrics[key]; ok {
-						replacedValue := re.ReplaceAllString(strconv.FormatFloat(s.Metrics[key], 'f', -1, 64), str)
-						if rf, err := strconv.ParseFloat(replacedValue, 64); err == nil {
-							s.Metrics[key] = rf
-						} else {
-							s.Meta[key] = replacedValue
-							delete(s.Metrics, key)
-						}
+						f.replaceNumericTag(re, s, key, str)
 					}
 				}
 			}
 		}
+	}
+}
+
+// replaceNumericTag acts on the `metrics` portion of a span, if the resulting replacement is no longer a string the tag
+// is moved to the `meta`.
+func (f Replacer) replaceNumericTag(re *regexp.Regexp, s *pb.Span, key string, str string) {
+	replacedValue := re.ReplaceAllString(strconv.FormatFloat(s.Metrics[key], 'f', -1, 64), str)
+	if rf, err := strconv.ParseFloat(replacedValue, 64); err == nil {
+		s.Metrics[key] = rf
+	} else {
+		s.Meta[key] = replacedValue
+		delete(s.Metrics, key)
 	}
 }
 
