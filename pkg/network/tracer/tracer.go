@@ -11,13 +11,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"sync"
 	"time"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -40,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -241,12 +241,19 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 		return netlink.NewNoOpConntracker(), nil
 	}
 	var c netlink.Conntracker
-
-	consumer, _ := netlink.NewConsumer(cfg)
-	consumer.DumpAndDiscardTable(unix.AF_INET)
-	consumer.Stop()
-
 	var err error
+
+	// Create a new cmd object to represent the external command.
+	cmd := exec.Command("modprobe", "nf_conntrack_netlink")
+
+	// Run the command and capture any potential errors.
+	err = cmd.Run()
+
+	if err != nil {
+		log.Warnf("error enabling probe nf_conntrack_netlink: %s", err)
+		return nil, err
+	}
+
 	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
 		return c, nil
 	}
