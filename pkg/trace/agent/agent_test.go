@@ -141,8 +141,8 @@ func TestProcess(t *testing.T) {
 			Type:     "web",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
-			Metrics:  map[string]float64{"request.zipcode": 12345, "request.secret": 1337},
-			Meta:     map[string]string{},
+			Metrics:  map[string]float64{"request.zipcode": 12345, "request.secret": 1337, "safe.data": 42},
+			Meta:     map[string]string{"keep.me": "very-normal-not-sensitive-data"},
 		}
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
@@ -151,7 +151,8 @@ func TestProcess(t *testing.T) {
 
 		assert.Equal(t, 5555.0, span.Metrics["request.secret"])
 		assert.Equal(t, "...", span.Meta["request.zipcode"])
-
+		assert.Equal(t, "very-normal-not-sensitive-data", span.Meta["keep.me"])
+		assert.Equal(t, 42.0, span.Metrics["safe.data"])
 	})
 
 	t.Run("Blacklister", func(t *testing.T) {
