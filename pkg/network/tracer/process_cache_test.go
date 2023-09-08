@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 )
@@ -70,12 +71,12 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 				entry.Envs = values
 
 				p := pc.processEvent(entry)
-				if entry.ContainerID == "" && len(te.filter) > 0 && len(te.filtered) == 0 {
+				if entry.ContainerID.Get() == "" && len(te.filter) > 0 && len(te.filtered) == 0 {
 					assert.Nil(t, p)
 				} else {
 					assert.NotNil(t, p)
 					assert.Equal(t, entry.Pid, p.Pid)
-					if entry.ContainerID != "" {
+					if entry.ContainerID.Get() != "" {
 						containerID, ok := p.ContainerID.Get().(string)
 						assert.True(t, ok)
 						assert.Equal(t, entry.ContainerID, containerID)
@@ -102,7 +103,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	t.Run("with container id", func(t *testing.T) {
 		entry := events.Process{
 			Pid:         1234,
-			ContainerID: "container",
+			ContainerID: intern.GetByString("container"),
 		}
 
 		testFunc(t, &entry)
