@@ -11,7 +11,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/docker/docker/client"

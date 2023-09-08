@@ -8,14 +8,14 @@
 package listeners
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -84,10 +84,10 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		t.Fatalf("cannot initialize container filters: %s", err)
 	}
 
-	w := fxutil.Test[workloadmeta.Component](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+	w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
 		workloadmeta.MockModule,
+		fx.Supply(context.Background()),
 	))
 
 	return &testWorkloadmetaListener{
