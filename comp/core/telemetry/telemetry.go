@@ -62,7 +62,7 @@ func GetCompatComponent() Component {
 }
 
 func (t *telemetryImpl) Handler() http.Handler {
-	return promhttp.HandlerFor(t.registry, promhttp.HandlerOpts{})
+	return promhttp.HandlerFor(t.registry, promhttp.HandlerOpts{DisableCompression: true})
 }
 
 func (t *telemetryImpl) Reset() {
