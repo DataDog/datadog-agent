@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/hashicorp/go-multierror"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
@@ -29,6 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -368,10 +368,9 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
+
 	// send specific event
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
-	}
+	p.sendSpecificEvent(event)
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -386,6 +385,13 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		}
 	}
 	p.monitor.ProcessEvent(event)
+}
+
+// send specific event
+func (p *Probe) sendSpecificEvent(event *model.Event) {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.HandleEvent(event)
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
