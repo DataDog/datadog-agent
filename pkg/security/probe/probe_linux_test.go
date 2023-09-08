@@ -38,8 +38,8 @@ func (MockEventHandler) Copy(incomingEvent *model.Event) interface{} {
 	return incomingEvent
 }
 
-// go test github.com/DataDog/datadog-agent/pkg/security/probe -v -bench="BenchmarkSendSpecificEvent" -run=^# -benchtime=10s -count=7 | tee old.txt
-// benchstat new.txt old.txt
+// go test github.com/DataDog/datadog-agent/pkg/security/probe -v -bench="BenchmarkSendSpecificEvent" -run=^# -benchtime=10s -count=7 | tee new.txt
+// benchstat old.txt new.txt
 func BenchmarkSendSpecificEvent(b *testing.B) {
 	eventHandler := MockEventHandler{}
 	execEvent := model.NewDefaultEvent()
