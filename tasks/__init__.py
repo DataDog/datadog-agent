@@ -30,6 +30,7 @@ from . import (
     system_probe,
     systray,
     trace_agent,
+    update_go,
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
@@ -94,6 +95,7 @@ ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
 ns.add_task(show_linters_issues)
+ns.add_task(update_go.update_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
