@@ -14,6 +14,7 @@ type DeviceMeta struct {
 
 type ProfileDefinition struct {
 	Name         string            `yaml:"name" json:"name"`
+	Description  string            `yaml:"description" json:"description"`
 	SysObjectIds StringArray       `yaml:"sysobjectid" json:"sysobjectid"`
 	Device       DeviceMeta        `yaml:"device" json:"device"` // DEPRECATED
 	Metrics      []MetricsConfig   `yaml:"metrics" json:"metrics"`
