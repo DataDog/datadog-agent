@@ -630,6 +630,9 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				}
 			}
 		}
+		packet.Buffer = nil
+		packet.Contents = nil
+		packet.Origin = ""
 		s.sharedPacketPoolManager.Put(packet)
 	}
 	batcher.flush()
