@@ -165,7 +165,7 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrat
 
 // Warn sends an integration warning to logs + agent status.
 func (c *CheckBase) Warn(v ...interface{}) error {
-	w := log.Warn(v...)
+	w := log.WarncStackDepth(log.BuildLogEntry(v...), 1, "check", c.checkName)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
@@ -173,7 +173,7 @@ func (c *CheckBase) Warn(v ...interface{}) error {
 
 // Warnf sends an integration warning to logs + agent status.
 func (c *CheckBase) Warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params...)
+	w := log.WarncStackDepth(fmt.Sprintf(format, params...), 1, "check", c.checkName)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w

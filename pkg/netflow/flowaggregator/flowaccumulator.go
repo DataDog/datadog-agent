@@ -6,12 +6,13 @@
 package flowaggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
-	"go.uber.org/atomic"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 )
@@ -40,6 +41,8 @@ type flowAccumulator struct {
 	portRollupDisabled  bool
 
 	hashCollisionFlowCount *atomic.Uint64
+
+	logger log.Component
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -50,7 +53,7 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                  make(map[uint64]flowContext),
 		flowFlushInterval:      aggregatorFlushInterval,
@@ -59,6 +62,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		portRollupThreshold:    portRollupThreshold,
 		portRollupDisabled:     portRollupDisabled,
 		hashCollisionFlowCount: atomic.NewUint64(0),
+		logger:                 logger,
 	}
 }
 
@@ -80,7 +84,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 	for key, flowCtx := range f.flows {
 		now := timeNow()
 		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
-			log.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
+			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
 			delete(f.flows, key)
 			continue
@@ -100,7 +104,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 }
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
-	log.Tracef("Add new flow: %+v", flowToAdd)
+	f.logger.Tracef("Add new flow: %+v", flowToAdd)
 
 	if !f.portRollupDisabled {
 		// Handle port rollup
@@ -149,7 +153,7 @@ func (f *flowAccumulator) getFlowContextCount() int {
 
 func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
 	if !common.IsEqualFlowContext(existingFlow, flowToAdd) {
-		log.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
+		f.logger.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
 		f.hashCollisionFlowCount.Inc()
 	}
 }

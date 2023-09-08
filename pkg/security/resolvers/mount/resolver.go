@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package mount holds mount related files
 package mount
 
 import (
@@ -29,7 +30,6 @@ import (
 )
 
 const (
-	deleteDelayTime                      = 5 * time.Second
 	numAllowedMountIDsToResolvePerPeriod = 75
 	fallbackLimiterPeriod                = 5 * time.Second
 	redemptionTime                       = 5 * time.Second
@@ -264,7 +264,7 @@ func (mr *Resolver) insert(m *model.Mount) {
 
 func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 	entry, exists := mr.redemption.Get(mountID)
-	if !exists || time.Now().Sub(entry.insertedAt) > redemptionTime {
+	if !exists || time.Since(entry.insertedAt) > redemptionTime {
 		return nil
 	}
 	return entry.mount
@@ -324,7 +324,7 @@ func (mr *Resolver) getMountPath(mountID uint32) (string, error) {
 	return mr._getMountPath(mountID, map[uint32]bool{})
 }
 
-// ResolveMountPath returns the root of a mount identified by its mount ID.
+// ResolveMountRoot resolves mount root
 func (mr *Resolver) ResolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -340,7 +340,7 @@ func (mr *Resolver) resolveMountRoot(mountID, pid uint32, containerID string) (s
 	return mount.RootStr, nil
 }
 
-// ResolveMountRoot returns the root of a mount identified by its mount ID.
+// ResolveMountPath resolves mount path
 func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -467,6 +467,7 @@ func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
 	return offset
 }
 
+// GetVFSLinkDentryPosition gets VFS link dentry position
 func GetVFSLinkDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(2)
 
@@ -477,6 +478,7 @@ func GetVFSLinkDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSMKDirDentryPosition gets VFS MKDir dentry position
 func GetVFSMKDirDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(2)
 
@@ -487,6 +489,7 @@ func GetVFSMKDirDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSLinkTargetDentryPosition gets VFS link target dentry position
 func GetVFSLinkTargetDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(3)
 
@@ -497,6 +500,7 @@ func GetVFSLinkTargetDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSSetxattrDentryPosition gets VFS set xattr dentry position
 func GetVFSSetxattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(1)
 
@@ -507,6 +511,7 @@ func GetVFSSetxattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSRemovexattrDentryPosition gets VFS remove xattr dentry position
 func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(1)
 
@@ -517,6 +522,7 @@ func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	return position
 }
 
+// GetVFSRenameInputType gets VFS rename input type
 func GetVFSRenameInputType(kernelVersion *skernel.Version) uint64 {
 	inputType := uint64(1)
 

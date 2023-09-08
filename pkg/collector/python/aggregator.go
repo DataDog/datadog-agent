@@ -10,7 +10,6 @@ package python
 import (
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -31,7 +30,13 @@ import "C"
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
 
-	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -67,7 +72,13 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
 	goCheckID := C.GoString(checkID)
 
-	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -96,7 +107,13 @@ func eventParseString(value *C.char, fieldName string) string {
 func SubmitEvent(checkID *C.char, event *C.event_t) {
 	goCheckID := C.GoString(checkID)
 
-	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -115,7 +132,6 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 	}
 
 	sender.Event(_event)
-	return
 }
 
 // SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
@@ -123,7 +139,13 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
-	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting histogram bucket to the Sender: %v", err)
 		return
@@ -146,7 +168,13 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 //export SubmitEventPlatformEvent
 func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
 	_checkID := C.GoString(checkID)
-	sender, err := aggregator.GetSender(checkid.ID(_checkID))
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(_checkID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting event platform event to the Sender: %v", err)
 		return

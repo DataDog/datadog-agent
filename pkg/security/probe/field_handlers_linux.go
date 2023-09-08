@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -81,6 +82,7 @@ func (fh *FieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAtt
 	return e.Namespace
 }
 
+// ResolveMountPointPath resolves a mount point path
 func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
 		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
@@ -93,6 +95,7 @@ func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEv
 	return e.MountPointPath
 }
 
+// ResolveMountSourcePath resolves a mount source path
 func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
 		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)

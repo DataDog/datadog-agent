@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package mount holds mount related files
 package mount
 
 import (

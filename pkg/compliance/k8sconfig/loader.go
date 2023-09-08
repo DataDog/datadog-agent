@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package k8sconfig is a compliance submodule that is able to parse the
+// Kubernetes components configurations and export it as a log.
 package k8sconfig
 
 import (
@@ -201,7 +203,7 @@ func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
 	if !ok {
 		return nil
 	}
-	if kind, _ := content["kind"]; kind != "KubeletConfiguration" {
+	if kind := content["kind"]; kind != "KubeletConfiguration" {
 		l.pushError(fmt.Errorf(`kubelet configuration loaded from %q is expected to be of kind "KubeletConfiguration"`, name))
 		return nil
 	}

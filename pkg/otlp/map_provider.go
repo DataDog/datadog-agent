@@ -31,9 +31,6 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	smap := map[string]interface{}{
 		buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
 	}
-	if cfg.OpenCensusEnabled {
-		smap[buildKey("service", "pipelines", "traces", "receivers")] = []interface{}{"otlp", "opencensus"}
-	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)
@@ -48,9 +45,6 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	}
 	smap := map[string]interface{}{
 		buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
-	}
-	if cfg.OpenCensusEnabled {
-		smap[buildKey("service", "pipelines", "metrics", "receivers")] = []interface{}{"otlp", "opencensus"}
 	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
@@ -69,9 +63,6 @@ func buildLogsMap() (*confmap.Conf, error) {
 func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 	rcvs := map[string]interface{}{
 		"otlp": cfg.OTLPReceiverConfig,
-	}
-	if cfg.OpenCensusEnabled {
-		rcvs["opencensus"] = cfg.OpenCensusReceiverConfig
 	}
 	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
 }

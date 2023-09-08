@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package module holds module related files
 package module
 
 import (
@@ -47,9 +46,10 @@ type CWSConsumer struct {
 	grpcServer    *GRPCServer
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
+	reloader      ReloaderInterface
 }
 
-// Init initializes the module with options
+// NewCWSConsumer initializes the module with options
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
@@ -57,6 +57,8 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
+
+	family, address := getFamilyAddress(config)
 
 	c := &CWSConsumer{
 		config:       config,
@@ -68,8 +70,9 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 		apiServer:     NewAPIServer(config, evm.Probe, evm.StatsdClient, selfTester),
 		rateLimiter:   events.NewRateLimiter(config, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcServer:    NewGRPCServer(config.SocketPath),
+		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
+		reloader:      NewReloader(),
 	}
 
 	// set sender
@@ -96,8 +99,10 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 
 	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
 
-	// Activity dumps related
-	evm.Probe.AddActivityDumpHandler(c)
+	// platform specific initialization
+	if err := c.init(evm, config, opts); err != nil {
+		return nil, err
+	}
 
 	return c, nil
 }
@@ -109,8 +114,11 @@ func (c *CWSConsumer) ID() string {
 
 // Start the module
 func (c *CWSConsumer) Start() error {
-	err := c.grpcServer.Start()
-	if err != nil {
+	if err := c.grpcServer.Start(); err != nil {
+		return err
+	}
+
+	if err := c.reloader.Start(); err != nil {
 		return err
 	}
 
@@ -127,7 +135,7 @@ func (c *CWSConsumer) Start() error {
 		}
 	}
 
-	if err := c.ruleEngine.Start(c.ctx, &c.wg); err != nil {
+	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan(), &c.wg); err != nil {
 		return err
 	}
 
@@ -151,22 +159,26 @@ func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
 	}
 
 	// add selftests as provider
-	providers = append(providers, c.selfTester)
+	if c.selfTester != nil {
+		providers = append(providers, c.selfTester)
+	}
 
 	if err := c.ruleEngine.LoadPolicies(providers, false); err != nil {
 		return false, err
 	}
 
-	success, fails, testEvents, err := c.selfTester.RunSelfTest()
-	if err != nil {
-		return true, err
-	}
+	if c.selfTester != nil {
+		success, fails, testEvents, err := c.selfTester.RunSelfTest()
+		if err != nil {
+			return true, err
+		}
 
-	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
+		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 
-	// send the report
-	if c.config.SelfTestSendReport {
-		ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
+		// send the report
+		if c.config.SelfTestSendReport {
+			ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
+		}
 	}
 
 	return true, nil
@@ -188,13 +200,17 @@ func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterfa
 	sender.SendEvent(rule, event, nil, "")
 }
 
-// Close the module
+// Stop closes the module
 func (c *CWSConsumer) Stop() {
+	c.reloader.Stop()
+
 	if c.apiServer != nil {
 		c.apiServer.Stop()
 	}
 
-	_ = c.selfTester.Close()
+	if c.selfTester != nil {
+		_ = c.selfTester.Close()
+	}
 
 	c.ruleEngine.Stop()
 
@@ -261,9 +277,4 @@ func (c *CWSConsumer) statsSender() {
 // GetRuleEngine returns new current rule engine
 func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 	return c.ruleEngine
-}
-
-// UpdateEventMonitorOpts adapt the event monitor options
-func UpdateEventMonitorOpts(opts *eventmonitor.Opts) {
-	opts.ProbeOpts.PathResolutionEnabled = true
 }

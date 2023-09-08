@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package rules holds rules related files
 package rules
 
 import (

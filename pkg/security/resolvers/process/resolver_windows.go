@@ -5,12 +5,15 @@
 
 //go:build windows
 
+// Package process holds process related files
 package process
 
 import (
+	"path"
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -22,19 +25,22 @@ type Resolver struct {
 	maplock   sync.Mutex
 	processes map[Pid]*model.ProcessCacheEntry
 	opts      ResolverOpts
+	scrubber  *procutil.DataScrubber
 }
 
 // ResolverOpts options of resolver
 type ResolverOpts struct {
+	envsWithValue map[string]bool
 }
 
 // NewResolver returns a new process resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface,
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber,
 	opts ResolverOpts) (*Resolver, error) {
 
 	p := &Resolver{
 		processes: make(map[Pid]*model.ProcessCacheEntry),
 		opts:      opts,
+		scrubber:  scrubber,
 	}
 
 	return p, nil
@@ -51,6 +57,8 @@ func (p *Resolver) AddNewProcessEntry(pid Pid, file string, commandLine string) 
 	e.Process.PIDContext.Pid = uint32(e.Pid)
 	e.Process.Argv0 = file
 	e.Process.Argv = strings.Split(commandLine, " ")
+	e.Process.FileEvent.PathnameStr = commandLine
+	e.Process.FileEvent.BasenameStr = path.Base(e.Process.FileEvent.PathnameStr)
 
 	// where do we put the file and the command line?
 	p.maplock.Lock()
@@ -79,4 +87,42 @@ func (p *Resolver) DeleteProcessEntry(pid Pid) {
 // Resolve returns the cache entry for the given pid
 func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry {
 	return p.GetProcessEntry(pid)
+}
+
+// GetProcessScrubbedArgv returns the scrubbed args of the event as an array
+func (p *Resolver) GetProcessScrubbedArgv(pr *model.Process) []string {
+	if pr.ScrubbedArgvResolved {
+		return pr.ScrubbedArgv
+	}
+
+	argv := pr.Argv
+	if p.scrubber != nil {
+		argv, _ = p.scrubber.ScrubCommand(argv)
+	}
+
+	pr.ScrubbedArgv = argv
+	pr.ScrubbedArgvResolved = true
+
+	return argv
+}
+
+// GetProcessEnvs returns the envs of the event
+func (p *Resolver) GetProcessEnvs(pr *model.Process) []string {
+	if pr.EnvsEntry == nil {
+		return pr.Envs
+	}
+
+	keys, _ := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
+	pr.Envs = keys
+	return pr.Envs
+}
+
+// GetProcessEnvp returns the envs of the event with their values
+func (p *Resolver) GetProcessEnvp(pr *model.Process) []string {
+	if pr.EnvsEntry == nil {
+		return pr.Envp
+	}
+
+	pr.Envp = pr.EnvsEntry.Values
+	return pr.Envp
 }

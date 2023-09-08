@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,7 +26,7 @@ func TestAgentConfigCheckSuite(t *testing.T) {
 type CheckConfigOutput struct {
 	CheckName  string
 	Filepath   string
-	InstanceId string
+	InstanceID string
 	Settings   string
 }
 
@@ -52,8 +52,8 @@ func MatchCheckToTemplate(checkname, input string) (*CheckConfigOutput, error) {
 	return &CheckConfigOutput{
 		CheckName:  checkname,
 		Filepath:   matches[filepathIndex],
-		InstanceId: matches[instanceIndex],
-		Settings:   fmt.Sprintf("%s", matches[settingsIndex]), // format to string for assertion
+		InstanceID: matches[instanceIndex],
+		Settings:   matches[settingsIndex],
 	}, nil
 }
 
@@ -88,7 +88,7 @@ Config for instance ID: cpu:e331d61ed1323219
 
 	assert.Contains(v.T(), result.CheckName, "uptime")
 	assert.Contains(v.T(), result.Filepath, "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default")
-	assert.Contains(v.T(), result.InstanceId, "uptime:c72f390abdefdf1a")
+	assert.Contains(v.T(), result.InstanceID, "uptime:c72f390abdefdf1a")
 	assert.Contains(v.T(), result.Settings, "key: value")
 	assert.Contains(v.T(), result.Settings, "path: http://example.com/foo")
 	assert.NotContains(v.T(), result.Settings, "{}")
@@ -98,7 +98,7 @@ Config for instance ID: cpu:e331d61ed1323219
 
 	assert.Contains(v.T(), result.CheckName, "cpu")
 	assert.Contains(v.T(), result.Filepath, "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default")
-	assert.Contains(v.T(), result.InstanceId, "cpu:e331d61ed1323219")
+	assert.Contains(v.T(), result.InstanceID, "cpu:e331d61ed1323219")
 	assert.Contains(v.T(), result.Settings, "{}")
 }
 
@@ -110,55 +110,55 @@ func (v *agentConfigCheckSuite) TestDefaultInstalledChecks() {
 		{
 			CheckName:  "cpu",
 			Filepath:   "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default",
-			InstanceId: "cpu:",
+			InstanceID: "cpu:",
 			Settings:   "{}",
 		},
 		{
 			CheckName:  "disk",
 			Filepath:   "file:/etc/datadog-agent/conf.d/disk.d/conf.yaml.default",
-			InstanceId: "disk:",
+			InstanceID: "disk:",
 			Settings:   "use_mount: false",
 		},
 		{
 			CheckName:  "file_handle",
 			Filepath:   "file:/etc/datadog-agent/conf.d/file_handle.d/conf.yaml.default",
-			InstanceId: "file_handle:",
+			InstanceID: "file_handle:",
 			Settings:   "{}",
 		},
 		{
 			CheckName:  "io",
 			Filepath:   "file:/etc/datadog-agent/conf.d/io.d/conf.yaml.default",
-			InstanceId: "io:",
+			InstanceID: "io:",
 			Settings:   "{}",
 		},
 		{
 			CheckName:  "load",
 			Filepath:   "file:/etc/datadog-agent/conf.d/load.d/conf.yaml.default",
-			InstanceId: "load:",
+			InstanceID: "load:",
 			Settings:   "{}",
 		},
 		{
 			CheckName:  "memory",
 			Filepath:   "file:/etc/datadog-agent/conf.d/memory.d/conf.yaml.default",
-			InstanceId: "memory:",
+			InstanceID: "memory:",
 			Settings:   "{}",
 		},
 		{
 			CheckName:  "network",
 			Filepath:   "file:/etc/datadog-agent/conf.d/network.d/conf.yaml.default",
-			InstanceId: "network:",
+			InstanceID: "network:",
 			Settings:   "{}",
 		},
 		{
 			CheckName:  "ntp",
 			Filepath:   "file:/etc/datadog-agent/conf.d/ntp.d/conf.yaml.default",
-			InstanceId: "ntp:",
+			InstanceID: "ntp:",
 			Settings:   "{}",
 		},
 		{
 			CheckName:  "uptime",
 			Filepath:   "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default",
-			InstanceId: "uptime:",
+			InstanceID: "uptime:",
 			Settings:   "{}",
 		},
 	}
@@ -172,7 +172,7 @@ func (v *agentConfigCheckSuite) TestDefaultInstalledChecks() {
 			result, err := MatchCheckToTemplate(testCheck.CheckName, output)
 			assert.NoError(t, err)
 			assert.Contains(t, result.Filepath, testCheck.Filepath)
-			assert.Contains(t, result.InstanceId, testCheck.InstanceId)
+			assert.Contains(t, result.InstanceID, testCheck.InstanceID)
 			assert.Contains(t, result.Settings, testCheck.Settings)
 		})
 	}
@@ -204,7 +204,7 @@ func (v *agentConfigCheckSuite) TestWithAddedIntegrationsCheck() {
 	result, err := MatchCheckToTemplate("http_check", output)
 	assert.NoError(v.T(), err)
 	assert.Contains(v.T(), result.Filepath, "file:/etc/datadog-agent/conf.d/http_check.d/conf.yaml")
-	assert.Contains(v.T(), result.InstanceId, "http_check:")
+	assert.Contains(v.T(), result.InstanceID, "http_check:")
 	assert.Contains(v.T(), result.Settings, "name: My First Service")
 	assert.Contains(v.T(), result.Settings, "url: http://some.url.example.com")
 }

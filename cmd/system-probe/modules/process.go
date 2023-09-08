@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -89,6 +90,11 @@ func (t *process) Register(httpMux *module.Router) error {
 	return nil
 }
 
+// RegisterGRPC register to system probe gRPC server
+func (t *process) RegisterGRPC(_ *grpc.Server) error {
+	return nil
+}
+
 // Close cleans up the underlying probe object
 func (t *process) Close() {
 	if t.probe != nil {
@@ -97,7 +103,7 @@ func (t *process) Close() {
 }
 
 func logProcTracerRequests(count uint64, statsCount int, start time.Time) {
-	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Now().Sub(start)}
+	args := []interface{}{string(sysconfig.ProcessModule), count, statsCount, time.Since(start)}
 	msg := "Got request on /%s/stats (count: %d): retrieved %d stats in %s"
 	switch {
 	case count <= 5, count%20 == 0:

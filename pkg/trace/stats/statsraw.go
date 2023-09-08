@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"math"
 	"math/rand"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -183,15 +184,14 @@ func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregatio
 	}
 }
 
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask int64 = 1 << 10
-
 // nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
 func nsTimestampToFloat(ns int64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
+	b := math.Float64bits(float64(ns))
+	// IEEE-754
+	// the mask include 1 bit sign 11 bits exponent (0xfff)
+	// then we filter the mantissa to 10bits (0xff8) (9 bits as it has implicit value of 1)
+	// 10 bits precision (any value will be +/- 1/1024)
+	// https://en.wikipedia.org/wiki/Double-precision_floating-point_format
+	b &= 0xfffff80000000000
+	return math.Float64frombits(b)
 }
