@@ -5,8 +5,9 @@
 
 //go:build linux
 
-package security_profile
+// Package securityprofile holds securityprofile related files
+package securityprofile
 
 const (
-	LocalProfileVersion = "local_profile"
+	LocalProfileVersion = "local_profile" // LocalProfileVersion defines loacl profile version
 )

@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// FieldHandlers defines a field handlers
 type FieldHandlers struct {
 	resolvers *resolvers.Resolvers
 }

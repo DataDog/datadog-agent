@@ -7,6 +7,7 @@
 
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
+// Package dump holds dump related files
 package dump
 
 import (
@@ -34,7 +35,7 @@ import (
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -534,12 +535,12 @@ func (ad *ActivityDump) GetImageNameTag() (string, string) {
 
 	var imageName, imageTag string
 	for _, tag := range ad.Tags {
-		if tag_name, tag_value, valid := strings.Cut(tag, ":"); valid {
-			switch tag_name {
+		if tagName, tagValue, valid := strings.Cut(tag, ":"); valid {
+			switch tagName {
 			case "image_name":
-				imageName = tag_value
+				imageName = tagValue
 			case "image_tag":
-				imageTag = tag_value
+				imageTag = tagValue
 			}
 		}
 	}
@@ -867,6 +868,7 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 	return nil
 }
 
+// DecodeJSON decodes JSON to an activity dump
 func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 	ad.Lock()
 	defer ad.Unlock()

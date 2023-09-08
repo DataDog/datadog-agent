@@ -15,14 +15,14 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
-// TrivyReport describes a trivy report along with its marshaler
-type TrivyReport struct {
+// Report describes a trivy report along with its marshaler
+type Report struct {
 	types.Report
 	marshaler *cyclonedx.Marshaler
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
-func (r *TrivyReport) ToCycloneDX() (*cyclonedxgo.BOM, error) {
+func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
 	bom, err := r.marshaler.Marshal(r.Report)
 	if err != nil {
 		return nil, err

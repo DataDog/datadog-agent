@@ -6,8 +6,6 @@
 package diagnosis
 
 import (
-	"regexp"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,8 +43,8 @@ type Config struct {
 	Verbose               bool
 	RunLocal              bool
 	RunningInAgentProcess bool
-	Include               []*regexp.Regexp
-	Exclude               []*regexp.Regexp
+	Include               []string
+	Exclude               []string
 }
 
 type Result int
