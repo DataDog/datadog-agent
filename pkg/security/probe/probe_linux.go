@@ -19,8 +19,6 @@ import (
 	"sync"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/hashicorp/go-multierror"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
@@ -28,6 +26,9 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -389,10 +390,8 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 // send specific event
 func (p *Probe) sendSpecificEvent(event *model.Event) {
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(handler.Copy(event))
+		handler.HandleEvent(event)
 	}
-
-	return
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler

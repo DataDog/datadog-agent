@@ -8,15 +8,8 @@
 package probe
 
 import (
-	"context"
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"golang.org/x/time/rate"
-
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -45,22 +38,16 @@ func (MockEventHandler) Copy(incomingEvent *model.Event) interface{} {
 	return incomingEvent
 }
 
+// go test github.com/DataDog/datadog-agent/pkg/security/probe -v -bench="BenchmarkSendSpecificEvent" -run=^# -benchtime=10s -count=7 | tee old.txt
+// benchstat new.txt old.txt
 func BenchmarkSendSpecificEvent(b *testing.B) {
 	eventHandler := MockEventHandler{}
+	execEvent := model.NewDefaultEvent()
+	execEvent.Type = uint32(model.ExecEventType)
 
 	type fields struct {
-		Opts                 Opts
-		StatsdClient         statsd.ClientInterface
-		startTime            time.Time
-		ctx                  context.Context
-		cancelFnc            context.CancelFunc
-		scrubber             *procutil.DataScrubber
-		eventHandlers        [model.MaxAllEventType][]EventHandler
-		customEventHandlers  [model.MaxAllEventType][]CustomEventHandler
-		discarderRateLimiter *rate.Limiter
-		resolvers            *resolvers.Resolvers
-		fieldHandlers        *FieldHandlers
-		event                *model.Event
+		eventHandlers       [model.MaxAllEventType][]EventHandler
+		customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 	}
 	type args struct {
 		event *model.Event
@@ -72,25 +59,14 @@ func BenchmarkSendSpecificEvent(b *testing.B) {
 	}{
 		{
 			name: "basic case",
-			//fields: fields{eventHandlers: [model.MaxAllEventType][]EventHandler{}},
-			args: args{event: model.NewDefaultEvent()},
+			args: args{event: execEvent},
 		},
 	}
 
 	for _, tt := range tests {
 		p := &Probe{
-			Opts:                 tt.fields.Opts,
-			StatsdClient:         tt.fields.StatsdClient,
-			startTime:            tt.fields.startTime,
-			ctx:                  tt.fields.ctx,
-			cancelFnc:            tt.fields.cancelFnc,
-			scrubber:             tt.fields.scrubber,
-			eventHandlers:        tt.fields.eventHandlers,
-			customEventHandlers:  tt.fields.customEventHandlers,
-			discarderRateLimiter: tt.fields.discarderRateLimiter,
-			resolvers:            tt.fields.resolvers,
-			fieldHandlers:        tt.fields.fieldHandlers,
-			event:                tt.fields.event,
+			eventHandlers:       tt.fields.eventHandlers,
+			customEventHandlers: tt.fields.customEventHandlers,
 		}
 
 		for i := 0; i < 10; i++ {
