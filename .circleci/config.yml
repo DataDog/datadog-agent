@@ -221,7 +221,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run component linting
-          command: inv -e lint-components
+          command: inv -e lint-components lint-fxutil-oneshot-test
 
   codeowner_linting:
     <<: *job_template
