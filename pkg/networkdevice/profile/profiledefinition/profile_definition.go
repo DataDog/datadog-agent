@@ -9,19 +9,19 @@ package profiledefinition
 // DEPRECATED in favour of profile metadata syntax
 type DeviceMeta struct {
 	// deprecated in favour of new `ProfileDefinition.Metadata` syntax
-	Vendor string `yaml:"vendor" json:"vendor"`
+	Vendor string `yaml:"vendor,omitempty" json:"vendor,omitempty"`
 }
 
 type ProfileDefinition struct {
 	Name         string            `yaml:"name" json:"name"`
-	Description  string            `yaml:"description" json:"description"`
-	SysObjectIds StringArray       `yaml:"sysobjectid" json:"sysobjectid"`
-	Device       DeviceMeta        `yaml:"device" json:"device"` // DEPRECATED
-	Metrics      []MetricsConfig   `yaml:"metrics" json:"metrics"`
-	Metadata     MetadataConfig    `yaml:"metadata" json:"metadata"`
-	MetricTags   []MetricTagConfig `yaml:"metric_tags" json:"metric_tags"`
-	StaticTags   []string          `yaml:"static_tags" json:"static_tags"`
-	Extends      []string          `yaml:"extends" json:"extends"`
+	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
+	SysObjectIds StringArray       `yaml:"sysobjectid,omitempty" json:"sysobjectid,omitempty"`
+	Extends      []string          `yaml:"extends,omitempty" json:"extends,omitempty"`
+	Device       DeviceMeta        `yaml:"device,omitempty" json:"device,omitempty"` // DEPRECATED
+	Metadata     MetadataConfig    `yaml:"metadata,omitempty" json:"metadata,omitempty"`
+	MetricTags   []MetricTagConfig `yaml:"metric_tags,omitempty" json:"metric_tags,omitempty"`
+	StaticTags   []string          `yaml:"static_tags,omitempty" json:"static_tags,omitempty"`
+	Metrics      []MetricsConfig   `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 }
 
 // DeviceProfileRcConfig represent the profile stored in remote config.
