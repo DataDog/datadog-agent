@@ -43,9 +43,9 @@ It's safe to assume that this first bundle corresponds to entities that existed 
 ## Telemetry and Debugging
 
 The Workloadmeta Store produces agent telemetry measuring the behavior of the component.
-The metrics are defined in `pkg/workloadmeta/telemetry/telemetry.go`
+The metrics are defined in `comp/core/workloadmeta/telemetry/telemetry.go`
 
 The `agent workload-list` command will print the workload content of a running agent.
 
-The code in `pkg/workloadmeta/dumper` logs all events verbosely, and may be useful when debugging new collectors.
+The code in `comp/core/workloadmeta/dumper` logs all events verbosely, and may be useful when debugging new collectors.
 It is not built by default; see the comments in the package for how to set it up.

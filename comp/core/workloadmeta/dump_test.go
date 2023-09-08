@@ -6,13 +6,25 @@
 package workloadmeta
 
 import (
+	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 )
 
 func TestDump(t *testing.T) {
-	s := newTestStore()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+		fx.Supply(context.Background()),
+	))
+
+	s := newWorkloadMeta(deps).(*workloadmeta)
 
 	container := &Container{
 		EntityID: EntityID{

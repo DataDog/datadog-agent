@@ -123,14 +123,6 @@ type Component interface {
 	// - EventTypeUnset: one for each entity that exists in the store but is not
 	// present in newEntities.
 	Reset(newEntities []Entity, source Source)
-
-	// The following are for testing purposes and should maybe be revisited
-
-	// Set allows setting an entity in the workloadmeta store
-	Set(entity Entity)
-
-	// Unset removes an entity from the workloadmeta store
-	Unset(entity Entity)
 }
 
 // Module defines the fx options for this component.

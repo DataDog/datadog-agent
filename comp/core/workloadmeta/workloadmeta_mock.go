@@ -16,21 +16,31 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+)
+
+const (
+	mockSource = Source("mockSource")
 )
 
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
 type workloadmetamock struct {
+	log    log.Component
+	config config.Component
+
 	mu    sync.RWMutex
 	store map[Kind]map[string]Entity
 }
 
-func newWorkloadMetaMock(deps dependencies) Component {
+func newWorkloadMetaMock(deps dependencies) Mock {
 
 	mock := &workloadmetamock{
-		store: make(map[Kind]map[string]Entity),
+		log:    deps.Log,
+		config: deps.Config,
+		store:  make(map[Kind]map[string]Entity),
 	}
 
 	return mock
@@ -287,4 +297,60 @@ func (w *workloadmetamock) listEntitiesByKind(kind Kind) []Entity {
 	}
 
 	return entities
+}
+
+// GetConfig returns a ConfigReader for the internal injected config
+func (w *workloadmetamock) GetConfig() pkgconfig.ConfigReader {
+	return w.config
+}
+
+// MockStore is a store designed to be used in unit tests
+type workloadMetaMockV2 struct {
+	*workloadmeta
+}
+
+// newWorkloadMetaMockV2 returns a Mock
+func newWorkloadMetaMockV2(deps dependencies) Mock {
+	wm := newWorkloadMeta(deps)
+	// TODO(components): not sure if we should "disable" the collectors in the mock?
+	// wm.(*workloadmeta).candidates = nil
+
+	w := &workloadMetaMockV2{
+		workloadmeta: wm.(*workloadmeta),
+	}
+
+	return w
+
+}
+
+// Notify overrides store to allow for synchronous event processing
+func (w *workloadMetaMockV2) Notify(events []CollectorEvent) {
+	w.handleEvents(events)
+}
+
+// SetEntity generates a Set event
+func (w *workloadMetaMockV2) Set(e Entity) {
+	w.Notify([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: mockSource,
+			Entity: e,
+		},
+	})
+}
+
+// GetConfig returns a ConfigReader for the internal injected config
+func (w *workloadMetaMockV2) GetConfig() pkgconfig.ConfigReader {
+	return w.config
+}
+
+// UnsetEntity generates an Unset event
+func (w *workloadMetaMockV2) Unset(e Entity) {
+	w.Notify([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: mockSource,
+			Entity: e,
+		},
+	})
 }

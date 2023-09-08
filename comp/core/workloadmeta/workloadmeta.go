@@ -42,12 +42,12 @@ type workloadmeta struct {
 type dependencies struct {
 	fx.In
 
-	Lc  fx.Lifecycle
-	Ctx context.Context // TODO: maybe this should be removed
+	Lc fx.Lifecycle
+	// Ctx context.Context // TODO: maybe this should be removed
 
 	Log     log.Component
 	Config  config.Component
-	Catalog CollectorList
+	Catalog CollectorList `group:"workloadmeta"`
 }
 
 func newWorkloadMeta(deps dependencies) Component {
@@ -58,6 +58,9 @@ func newWorkloadMeta(deps dependencies) Component {
 	}
 
 	wm := &workloadmeta{
+		log:    deps.Log,
+		config: deps.Config,
+
 		store:        make(map[Kind]map[string]*cachedEntity),
 		candidates:   candidates,
 		collectors:   make(map[string]Collector),
@@ -66,13 +69,16 @@ func newWorkloadMeta(deps dependencies) Component {
 	}
 
 	// TODO: we probably need something here
-	// deps.Lc.Append(fx.Hook{OnStart: func(context.Context) error {
-	// 	wm.Start(deps.Ctx)
-	// 	return nil
-	// }})
-	// deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
-	// 	return nil
-	// }})
+	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
+		// create and setup the Autoconfig instance
+		// wm.Start(deps.Ctx)
+		wm.Start(c)
+
+		return nil
+	}})
+	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		return nil
+	}})
 
 	return wm
 }

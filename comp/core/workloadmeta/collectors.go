@@ -5,7 +5,11 @@
 
 package workloadmeta
 
-import "context"
+import (
+	"context"
+
+	"go.uber.org/fx"
+)
 
 // Collector is responsible for collecting metadata about workloads.
 type Collector interface {
@@ -23,19 +27,10 @@ type Collector interface {
 	GetID() string
 }
 
-type CollectorList []Collector
+type CollectorProvider struct {
+	fx.Out
 
-// TODO: Factory Catalogs will be removed in the component implementation.
-//
-// var (
-// 	// NodeAgentCatalog is a catalog of collectors that runs in the node
-// 	// agents
-// 	NodeAgentCatalog = make(CollectorCatalog)
-//
-// 	// ClusterAgentCatalog is a catalog of collectors that runs in the
-// 	// cluster agent, and the cluster checks runner agents
-// 	ClusterAgentCatalog = make(CollectorCatalog)
-//
-// 	// RemoteCatalog collectors to run when workloadmeta is configured as remote
-// 	RemoteCatalog = make(CollectorCatalog)
-// )
+	Collector Collector `group:"workloadmeta"`
+}
+
+type CollectorList []Collector

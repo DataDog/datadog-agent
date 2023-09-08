@@ -5,15 +5,26 @@
 
 package workloadmeta
 
-import "fmt"
+import (
+	"fmt"
+	"testing"
 
-func init() {
-	// CreateGlobalStore is usually called by the main cmd in the existing
-	// agents, so there's no need to call it yourself
-	CreateGlobalStore(nil)
-}
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
+)
 
-func ExampleStore_Subscribe() {
+func TestExampleStoreSubscribe(t *testing.T) {
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		log.MockModule,
+		config.MockModule,
+	))
+
+	s := newWorkloadMeta(deps).(*workloadmeta)
+	SetGlobalStore(s)
+
 	filterParams := FilterParams{
 		Kinds:     []Kind{KindContainer},
 		Source:    SourceRuntime,

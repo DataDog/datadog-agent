@@ -126,6 +126,15 @@ const (
 	ECSLaunchTypeFargate ECSLaunchType = "fargate"
 )
 
+// Define workloadmeta agent type
+type AgentType uint8
+
+const (
+	NodeAgent AgentType = 1 << iota
+	ClusterAgent
+	Remote
+)
+
 // EventType is the type of an event (set or unset).
 type EventType int
 

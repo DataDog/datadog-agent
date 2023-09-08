@@ -13,6 +13,7 @@ package workloadmeta
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,9 +22,24 @@ import (
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
+
+	// The following are for testing purposes and should maybe be revisited
+	// Set allows setting an entity in the workloadmeta store
+	Set(entity Entity)
+
+	// Unset removes an entity from the workloadmeta store
+	Unset(entity Entity)
+
+	// GetConfig returns a ConfigReader for the internal injected config
+	GetConfig() config.ConfigReader
 }
 
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
 	fx.Provide(newWorkloadMetaMock),
+)
+
+// MockModuleV2 defines the fx options for the mock component.
+var MockModuleV2 = fxutil.Component(
+	fx.Provide(newWorkloadMetaMockV2),
 )
