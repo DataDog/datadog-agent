@@ -26,6 +26,7 @@ var theMonitor atomic.Value
 var once sync.Once
 var initErr error
 
+// Process is a process
 type Process struct {
 	Pid         uint32
 	Envs        []string
@@ -34,6 +35,7 @@ type Process struct {
 	Expiry      int64
 }
 
+// Env returns the value of a environment variable
 func (p *Process) Env(key string) string {
 	for _, e := range p.Envs {
 		k, v, _ := strings.Cut(e, "=")
