@@ -21,6 +21,8 @@ const (
 type KubeletConfig struct {
 	ProbesMetricsEndpoint *string `yaml:"probes_metrics_endpoint,omitempty"`
 	types.OpenmetricsInstance
+	EnabledRates            []string `yaml:"enabled_rates,omitempty"`
+	UseStatsSummaryAsSource *bool    `yaml:"use_stats_summary_as_source,omitempty"`
 }
 
 func (c *KubeletConfig) Parse(data []byte) error {
