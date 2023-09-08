@@ -30,7 +30,7 @@ const (
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
-	Name string `yaml:"name" json:"name"`
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 
 	ExtractValue         string         `yaml:"extract_value,omitempty" json:"extract_value,omitempty"`
 	ExtractValueCompiled *regexp.Regexp `yaml:"-" json:"-"`
@@ -81,8 +81,8 @@ type MetricTagConfigList []MetricTagConfig
 
 // MetricIndexTransform holds configs for metric index transform
 type MetricIndexTransform struct {
-	Start uint `yaml:"start" json:"start"`
-	End   uint `yaml:"end" json:"end"`
+	Start uint `yaml:"start,omitempty" json:"start,omitempty"`
+	End   uint `yaml:"end,omitempty" json:"end,omitempty"`
 }
 
 // MetricsConfigOption holds config for metrics options
