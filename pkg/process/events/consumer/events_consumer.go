@@ -54,17 +54,10 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 	return p, nil
 }
 
-// Start starts the event consumer
 func (p *ProcessConsumer) Start() error {
 	return nil
 }
 
-// PostStart is called after the event stream is started
-func (p *ProcessConsumer) PostStart() error {
-	return nil
-}
-
-// Stop stops the event consumer
 func (p *ProcessConsumer) Stop() {
 }
 

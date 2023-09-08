@@ -9,7 +9,6 @@ package events
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
 
@@ -20,12 +19,6 @@ func (n *NetworkConsumer) Start() error {
 	return fmt.Errorf("network consumer is only supported on linux")
 }
 
-// PostStart is called after the event stream is started
-func (n *NetworkConsumer) PostStart() error {
-	return nil
-}
-
-// Stop stops the event consumer
 func (n *NetworkConsumer) Stop() {}
 
 // ID returns id for process monitor

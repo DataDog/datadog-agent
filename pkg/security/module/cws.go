@@ -137,8 +137,8 @@ func (c *CWSConsumer) Start() error {
 	return nil
 }
 
-// PostStart is called after the event stream is started
-func (c *CWSConsumer) PostStart() error {
+// PostProbeStart is called after the event stream is started
+func (c *CWSConsumer) PostProbeStart() error {
 	if c.config.SelfTestEnabled {
 		if triggerred, err := c.RunSelfTest(true); err != nil {
 			err = fmt.Errorf("failed to run self test: %w", err)

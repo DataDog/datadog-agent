@@ -46,10 +46,6 @@ func (fc *FakeEventConsumer) Start() error {
 	return nil
 }
 
-func (fc *FakeEventConsumer) PostStart() error {
-	return nil
-}
-
 func (fc *FakeEventConsumer) Stop() {
 }
 

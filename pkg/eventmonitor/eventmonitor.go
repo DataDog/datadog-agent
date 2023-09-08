@@ -67,10 +67,14 @@ type EventConsumer interface {
 	ID() string
 	// Start starts the event consumer
 	Start() error
-	// PostStart is called after the event stream is started
-	PostStart() error
 	// Stop stops the event consumer
 	Stop()
+}
+
+// EventConsumerPostProbeStartHandler defines an event consumer that can respond to PostProbeStart events
+type EventConsumerPostProbeStartHandler interface {
+	// PostProbeStart is called after the event stream (the probe) is started
+	PostProbeStart() error
 }
 
 // EventTypeHandler event type based handler
@@ -162,8 +166,10 @@ func (m *EventMonitor) Start() error {
 	}
 
 	for _, em := range m.eventConsumers {
-		if err := em.PostStart(); err != nil {
-			log.Errorf("after probe start callback of %s failed: %v", em.ID(), err)
+		if ppsem, ok := em.(EventConsumerPostProbeStartHandler); ok {
+			if err := ppsem.PostProbeStart(); err != nil {
+				log.Errorf("after probe start callback of %s failed: %v", em.ID(), err)
+			}
 		}
 	}
 
