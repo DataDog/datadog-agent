@@ -91,7 +91,10 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 
 	var err error
 	c.zipper, err = NewZipperWrapper(compressorKind)
-	c.zipper.SetWriter(c.compressed)
+	if err != nil {
+		return nil, err
+	}
+	err = c.zipper.SetWriter(c.compressed)
 	if err != nil {
 		return nil, err
 	}

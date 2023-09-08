@@ -36,30 +36,37 @@ var _ Zipper = &ZipperWrapper{}
 func NewZipperWrapper(kind string) (*ZipperWrapper, error) {
 	switch kind {
 	case "zlib":
-		return &ZipperWrapper{kind: kind}, nil
+		return &ZipperWrapper{kind: kind, zlibWriter: nil, zstdWriter: nil}, nil
 	case "zstd":
-		return &ZipperWrapper{kind: kind}, nil
+		return &ZipperWrapper{kind: kind, zlibWriter: nil, zstdWriter: nil}, nil
 	}
 	return nil, errors.New("invalid zipper kind. choose 'zlib' or 'zstd'")
 }
 
 // SetWriter creates the approriate writer for ZipperWrapper based on kind
-func (z *ZipperWrapper) SetWriter(output *bytes.Buffer) {
+func (z *ZipperWrapper) SetWriter(output *bytes.Buffer) error {
 	switch z.kind {
 	case "zlib":
 		z.zlibWriter = zlib.NewWriter(output)
+		return nil
 	case "zstd":
 		z.zstdWriter = zstd.NewWriter(output)
+		return nil
 	}
+	return errors.New("could not create writer")
 }
 
 // Write uses the appropriate zipper to write based on kind
 func (z *ZipperWrapper) Write(b []byte) (int, error) {
 	switch z.kind {
 	case "zlib":
-		return z.zlibWriter.Write(b)
+		if z.zlibWriter != nil {
+			return z.zlibWriter.Write(b)
+		}
 	case "zstd":
-		return z.zstdWriter.Write(b)
+		if z.zstdWriter != nil {
+			return z.zstdWriter.Write(b)
+		}
 	}
 	return 0, nil
 }
@@ -79,9 +86,13 @@ func (z *ZipperWrapper) NewZipperReader(r io.Reader) (io.ReadCloser, error) {
 func (z *ZipperWrapper) Flush() {
 	switch z.kind {
 	case "zlib":
-		z.zlibWriter.Flush()
+		if z.zlibWriter != nil {
+			z.zlibWriter.Flush()
+		}
 	case "zstd":
-		z.zstdWriter.Flush()
+		if z.zstdWriter != nil {
+			z.zstdWriter.Flush()
+		}
 	}
 }
 
@@ -89,9 +100,13 @@ func (z *ZipperWrapper) Flush() {
 func (z *ZipperWrapper) Close() error {
 	switch z.kind {
 	case "zlib":
-		return z.zlibWriter.Close()
+		if z.zlibWriter != nil {
+			return z.zlibWriter.Close()
+		}
 	case "zstd":
-		return z.zstdWriter.Close()
+		if z.zstdWriter != nil {
+			return z.zstdWriter.Close()
+		}
 	}
 	return errors.New("invalid zipper kind. choose 'zlib' or 'zstd'")
 }
