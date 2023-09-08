@@ -240,13 +240,11 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
+
 	var c netlink.Conntracker
 	var err error
 
-	// Create a new cmd object to represent the external command.
 	cmd := exec.Command("modprobe", "nf_conntrack_netlink")
-
-	// Run the command and capture any potential errors.
 	err = cmd.Run()
 
 	if err != nil {
