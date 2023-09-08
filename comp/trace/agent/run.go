@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -86,9 +86,6 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workload
 	// starts the local tagger if apm_config says so, or if starting the
 	// remote tagger has failed.
 	if !remoteTagger {
-		// TODO(components): verify the workloadmeta injected has the right
-		//                   catalog.
-
 		tagger.SetDefaultTagger(local.NewTagger(wmeta))
 		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)

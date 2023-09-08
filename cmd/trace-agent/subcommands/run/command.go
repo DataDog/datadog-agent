@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -68,6 +70,10 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,
+		// setup workloadmeta
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.Params{AgentType: workloadmeta.NodeAgent}),
+		fx.Supply(context.Background()),
 		workloadmeta.Module,
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
