@@ -366,10 +366,8 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(handler.Copy(event))
 	}
 
-	// send specific event to consumers that do not need all the SECL model fields
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(handler.Copy(event))
-	}
+	// send specific event
+	p.sendSpecificEvent(event)
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -384,6 +382,15 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		}
 	}
 	p.monitor.ProcessEvent(event)
+}
+
+// send specific event
+func (p *Probe) sendSpecificEvent(event *model.Event) {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.HandleEvent(handler.Copy(event))
+	}
+
+	return
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
