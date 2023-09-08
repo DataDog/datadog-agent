@@ -1,0 +1,29 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
+
+package config
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+)
+
+const (
+
+	// ServiceName is the service name used for the system-probe
+	ServiceName = "datadog-security-agent"
+)
+
+var (
+	DefaultConfigDir = "c:\\programdata\\datadog\\"
+)
+
+func init() {
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultConfigDir = pd
+	}
+}
