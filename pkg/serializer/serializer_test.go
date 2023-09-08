@@ -9,6 +9,7 @@ package serializer
 
 import (
 	"bytes"
+	"compress/zlib"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,9 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/zstd"
 )
 
 var initialContentEncoding = compression.ContentEncoding
@@ -211,18 +212,21 @@ func createJSONBytesPayloadMatcher(prefix string) interface{} {
 	})
 }
 
-func createProtoscopeMatcher(protoscopeDef string) interface{} {
+func createProtoscopeMatcher(protoscopeDef, compressorKind string) interface{} {
 	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
-			compressorKind := config.Datadog.GetString("serializer_compressor_kind")
-			z, err := stream.NewZipperWrapper(compressorKind)
+			var r io.ReadCloser
+			var err error
+			switch compressorKind {
+			case "zlib":
+				r, err = zlib.NewReader(bytes.NewReader(compressedPayload.GetContent()))
+			case "zstd":
+				r = zstd.NewReader(bytes.NewReader(compressedPayload.GetContent()))
+			}
 			if err != nil {
 				return false
 			}
-			r, err := z.NewZipperReader(bytes.NewReader(compressedPayload.GetContent()))
-			if err != nil {
-				return false
-			}
+			defer r.Close()
 			payload, err := io.ReadAll(r)
 			if err != nil {
 				return false
@@ -315,32 +319,58 @@ func TestSendV1Series(t *testing.T) {
 }
 
 func TestSendSeries(t *testing.T) {
-	f := &forwarder.MockedForwarder{}
-	matcher := createProtoscopeMatcher(`1: {
-		1: { 1: {"host"} }
-		5: 3
-		9: { 1: { 4: 10 }}
-	  }`)
-	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: "zlib"},
+		"zstd": {kind: "zstd"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
+			config.Datadog.Set("serializer_compressor_kind", tc.kind)
+			f := &forwarder.MockedForwarder{}
+			matcher := createProtoscopeMatcher(`1: {
+				1: { 1: {"host"} }
+				5: 3
+				9: { 1: { 4: 10 }}
+			}`, tc.kind)
+			f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+			config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
 
-	s := NewSerializer(f, nil)
+			s := NewSerializer(f, nil)
 
-	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
-	require.Nil(t, err)
-	f.AssertExpectations(t)
+			err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
+			require.Nil(t, err)
+			f.AssertExpectations(t)
+		})
+	}
 }
 
 func TestSendSketch(t *testing.T) {
-	f := &forwarder.MockedForwarder{}
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: "zlib"},
+		"zstd": {kind: "zstd"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
+			config.Datadog.Set("serializer_compressor_kind", tc.kind)
+			f := &forwarder.MockedForwarder{}
 
-	matcher := createProtoscopeMatcher(`2: {}`)
-	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+			matcher := createProtoscopeMatcher(`2: {}`, tc.kind)
+			f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
-	s := NewSerializer(f, nil)
-	err := s.SendSketch(metrics.NewSketchesSourceTest())
-	require.Nil(t, err)
-	f.AssertExpectations(t)
+			s := NewSerializer(f, nil)
+			err := s.SendSketch(metrics.NewSketchesSourceTest())
+			require.Nil(t, err)
+			f.AssertExpectations(t)
+		})
+	}
 }
 
 func TestSendMetadata(t *testing.T) {

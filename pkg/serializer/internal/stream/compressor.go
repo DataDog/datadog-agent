@@ -59,14 +59,14 @@ func init() {
 
 // Compressor is in charge of compressing items for a single payload
 type Compressor struct {
-	input               *bytes.Buffer  // temporary buffer for data that has not been compressed yet
-	compressed          *bytes.Buffer  // output buffer containing the compressed payload
-	zipper              *ZipperWrapper // wrapper for zlib/zstd
-	header              []byte         // json header to print at the beginning of the payload
-	footer              []byte         // json footer to append at the end of the payload
-	uncompressedWritten int            // uncompressed bytes written
-	firstItem           bool           // tells if the first item has been written
-	repacks             int            // numbers of time we had to pack this payload
+	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
+	compressed          *bytes.Buffer // output buffer containing the compressed payload
+	zipper              Zipper        // either zlib or zstd
+	header              []byte        // json header to print at the beginning of the payload
+	footer              []byte        // json footer to append at the end of the payload
+	uncompressedWritten int           // uncompressed bytes written
+	firstItem           bool          // tells if the first item has been written
+	repacks             int           // numbers of time we had to pack this payload
 	maxUnzippedItemSize int
 	maxZippedItemSize   int
 	maxPayloadSize      int
@@ -90,11 +90,7 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 	}
 
 	var err error
-	c.zipper, err = NewZipperWrapper(compressorKind)
-	if err != nil {
-		return nil, err
-	}
-	err = c.zipper.SetWriter(c.compressed)
+	c.zipper, err = NewZipperWriter(compressorKind, c.compressed)
 	if err != nil {
 		return nil, err
 	}

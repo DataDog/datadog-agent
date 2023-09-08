@@ -9,6 +9,7 @@ package metrics
 
 import (
 	"bytes"
+	"compress/zlib"
 	"fmt"
 	"io"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/zstd"
 )
 
 func TestMarshalJSONServiceChecks(t *testing.T) {
@@ -74,14 +76,14 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 		Tags:      []string{"5", "6"}}
 }
 
-func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
+func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, kind string) [][]byte {
 	builder := stream.NewJSONPayloadBuilder(true)
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
 
 	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(compressedPayload.GetContent())
+		payload, err := decompressPayload(compressedPayload.GetContent(), kind)
 		assert.NoError(t, err)
 
 		uncompressedPayloads = append(uncompressedPayloads, payload)
@@ -89,8 +91,11 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 	return uncompressedPayloads
 }
 
-func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler) {
-	payloads := buildPayload(t, m)
+func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler, kind string) {
+	oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+	defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
+	config.Datadog.Set("serializer_compressor_kind", kind)
+	payloads := buildPayload(t, m, kind)
 	json, err := jsonMarshaler.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(payloads))
@@ -103,43 +108,95 @@ func TestServiceCheckDescribeItem(t *testing.T) {
 }
 
 func TestPayloadsNoServiceCheck(t *testing.T) {
-	serviceChecks := ServiceChecks{}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {
+			kind: "zlib"},
+		"zstd": {
+			kind: "zstd"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			serviceChecks := ServiceChecks{}
+			assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, tc.kind)
+		})
+	}
 }
 
 func TestPayloadsSingleServiceCheck(t *testing.T) {
-	serviceChecks := ServiceChecks{createServiceCheck("checkName")}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {
+			kind: "zlib"},
+		"zstd": {
+			kind: "zstd"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			serviceChecks := ServiceChecks{createServiceCheck("checkName")}
+			assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, tc.kind)
+		})
+	}
 }
 
 func TestPayloadsEmptyServiceCheck(t *testing.T) {
-	serviceChecks := ServiceChecks{&servicecheck.ServiceCheck{}}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {
+			kind: "zlib"},
+		"zstd": {
+			kind: "zstd"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			serviceChecks := ServiceChecks{&servicecheck.ServiceCheck{}}
+			assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, tc.kind)
+		})
+	}
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {
-
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	config.Datadog.SetDefault("serializer_max_payload_size", 200)
-	defer config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSize)
-
-	serviceCheckCollection := []ServiceChecks{
-		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
-		{createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6")},
-		{createServiceCheck("7"), createServiceCheck("8")}}
-	var allServiceChecks ServiceChecks
-	for _, serviceCheck := range serviceCheckCollection {
-		allServiceChecks = append(allServiceChecks, serviceCheck...)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {
+			kind: "zlib"},
+		"zstd": {
+			kind: "zstd"},
 	}
 
-	payloads := buildPayload(t, allServiceChecks)
-	assert.Equal(t, 3, len(payloads))
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
+			config.Datadog.SetDefault("serializer_max_payload_size", 200)
+			defer config.Datadog.SetDefault("serializer_max_payload_size", maxPayloadSize)
 
-	for index, serviceChecks := range serviceCheckCollection {
-		json, err := serviceChecks.MarshalJSON()
-		assert.NoError(t, err)
+			oldCompressorKind := config.Datadog.GetString("serializer_compressor_kind")
+			defer config.Datadog.Set("serializer_compressor_kind", oldCompressorKind)
+			config.Datadog.Set("serializer_compressor_kind", tc.kind)
 
-		assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[index]))
+			serviceCheckCollection := []ServiceChecks{
+				{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
+				{createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6")},
+				{createServiceCheck("7"), createServiceCheck("8")}}
+			var allServiceChecks ServiceChecks
+			for _, serviceCheck := range serviceCheckCollection {
+				allServiceChecks = append(allServiceChecks, serviceCheck...)
+			}
+
+			payloads := buildPayload(t, allServiceChecks, tc.kind)
+			assert.Equal(t, 3, len(payloads))
+
+			for index, serviceChecks := range serviceCheckCollection {
+				json, err := serviceChecks.MarshalJSON()
+				assert.NoError(t, err)
+
+				assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[index]))
+			}
+		})
 	}
 }
 
@@ -152,18 +209,19 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 	return ServiceChecks(serviceCheckCollections)
 }
 
-func decompressPayload(payload []byte) ([]byte, error) {
-	compressorKind := config.Datadog.GetString("serializer_compressor_kind")
-	z, err := stream.NewZipperWrapper(compressorKind)
-	if err != nil {
-		return nil, err
+func decompressPayload(payload []byte, kind string) ([]byte, error) {
+	var r io.ReadCloser
+	var err error
+	switch kind {
+	case "zlib":
+		r, err = zlib.NewReader(bytes.NewReader(payload))
+	case "zstd":
+		r = zstd.NewReader(bytes.NewReader(payload))
 	}
-	r, err := z.NewZipperReader(bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-
 	dst, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
