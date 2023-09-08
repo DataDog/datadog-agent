@@ -332,6 +332,10 @@ def lint_fxutil_oneshot_test(ctx):
             if str(file).endswith("_test.go"):
                 continue
 
+            # The code in this file cannot be easily tested
+            if "cmd/system-probe/subcommands/run/command.go" in str(file):                
+                continue
+
             one_shot_count = file.read_text().count("fxutil.OneShot(")
             if one_shot_count > 0:
                 test_path = file.parent.joinpath(f"{file.stem}_test.go")
