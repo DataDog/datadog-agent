@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"

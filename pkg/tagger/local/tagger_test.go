@@ -10,17 +10,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTagBuilder(t *testing.T) {
 
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	tagger := NewTagger(workloadmeta.NewStore(nil))
+
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(context.Background()),
+		workloadmeta.MockModuleV2,
+	))
+	tagger := NewTagger(store)
 	tagger.Init(context.Background())
 	defer tagger.Stop()
 

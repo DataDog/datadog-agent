@@ -6,13 +6,14 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -60,10 +61,11 @@ func TestHandleKubePod(t *testing.T) {
 
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
 		workloadmeta.MockModule,
+		fx.Supply(context.Background()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -469,7 +471,7 @@ func TestHandleECSTask(t *testing.T) {
 
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
 		workloadmeta.MockModule,
@@ -1167,7 +1169,7 @@ func TestHandleDelete(t *testing.T) {
 
 	// FIXME(components): these tests will likely remain broken until we actually
 	//                    adopt the workloadmeta component mocks.
-	store := fxutil.Test[workloadmeta.Component](t, fx.Options(
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
 		workloadmeta.MockModule,
@@ -1248,7 +1250,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collector := &WorkloadMetaCollector{
 		// FIXME(components): these tests will likely remain broken until we actually
 		//                    adopt the workloadmeta component mocks.
-		store: fxutil.Test[workloadmeta.Component](t, fx.Options(
+		store: fxutil.Test[workloadmeta.Mock](t, fx.Options(
 			log.MockModule,
 			config.MockModule,
 			workloadmeta.MockModule,
