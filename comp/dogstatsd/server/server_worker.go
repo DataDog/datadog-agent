@@ -56,6 +56,9 @@ func (w *worker) run() {
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
 		case packets := <-w.server.packetsIn:
+			for k := range w.samples {
+				w.samples[k] = metrics.MetricSample{}
+			}
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
