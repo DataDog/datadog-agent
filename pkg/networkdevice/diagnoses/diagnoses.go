@@ -10,14 +10,16 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"sync"
 )
 
 // Diagnoses hold diagnoses for a NDM resource
 type Diagnoses struct {
-	resourceType         string
-	resourceID           string
-	diagnoses            []metadata.Diagnosis
-	lastFlushedDiagnoses []metadata.Diagnosis
+	resourceType           string
+	resourceID             string
+	diagnoses              []metadata.Diagnosis
+	lastFlushedDiagnoses   []metadata.Diagnosis
+	lastFlushedDiagnosesMu sync.Mutex
 }
 
 var severityMap = map[string]diagnosis.Result{
@@ -45,7 +47,10 @@ func (d *Diagnoses) Add(result string, code string, message string) {
 
 // Report returns diagnosis metadata
 func (d *Diagnoses) Report() []metadata.DiagnosisMetadata {
+	d.lastFlushedDiagnosesMu.Lock()
 	d.lastFlushedDiagnoses = d.diagnoses
+	d.lastFlushedDiagnosesMu.Unlock()
+
 	d.diagnoses = nil
 
 	return []metadata.DiagnosisMetadata{{ResourceType: d.resourceType, ResourceID: d.resourceID, Diagnoses: d.lastFlushedDiagnoses}}
@@ -55,7 +60,11 @@ func (d *Diagnoses) Report() []metadata.DiagnosisMetadata {
 func (d *Diagnoses) ReportAsAgentDiagnoses() []diagnosis.Diagnosis {
 	var cliDiagnoses []diagnosis.Diagnosis
 
-	for _, diag := range d.lastFlushedDiagnoses {
+	d.lastFlushedDiagnosesMu.Lock()
+	diagnoses := d.lastFlushedDiagnoses
+	d.lastFlushedDiagnosesMu.Unlock()
+
+	for _, diag := range diagnoses {
 		cliDiagnoses = append(cliDiagnoses, diagnosis.Diagnosis{
 			Result:    severityMap[diag.Severity],
 			Name:      fmt.Sprintf("NDM %s - %s - %s", d.resourceType, d.resourceID, diag.Code),
