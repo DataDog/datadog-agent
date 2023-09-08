@@ -79,6 +79,7 @@ k8s-e2e-cws-dev:
 k8s-e2e-cws-main:
   extends: .k8s_e2e_template
   rules: !reference [.on_main]
+  allow_failure: true
   # needs:
   #   - dev_master-a6
   #   - dev_master-a7
@@ -155,6 +156,9 @@ k8s-e2e-otlp-main:
 
 new-e2e-containers-dev:
   extends: .new_e2e_template
+  # TODO once images are deployed to ECR for dev branches, update
+  # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
+  # and move rules to template
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
@@ -169,7 +173,7 @@ new-e2e-containers-dev:
 
 new-e2e-containers-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main]
+  rules: !reference [.on_main_and_no_skip_e2e]
   needs:
     - qa_agent
     - qa_dca
@@ -189,7 +193,7 @@ new-e2e-agent-subcommands-dev:
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
-  rules: !reference [.on_main]
+  rules: !reference [.on_main_and_no_skip_e2e]
   variables:
     TARGETS: ./agent-subcommands
   # Temporary, until we manage to stabilize those tests.
@@ -197,19 +201,18 @@ new-e2e-agent-subcommands-main:
 
 new-e2e-language-detection-dev:
   extends: .new_e2e_template
-  rules: !reference [ .on_dev_branch_manual ]
-  needs: [ ]
+  rules: !reference [.on_dev_branch_manual]
+  needs: []
   variables:
     TARGETS: ./language-detection
     TEAM: processes
 
 new-e2e-language-detection-main:
   extends: .new_e2e_template
-  rules: !reference [ .on_main ]
+  rules: !reference [.on_main_and_no_skip_e2e]
   variables:
     TARGETS: ./language-detection
     TEAM: processes
-
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file

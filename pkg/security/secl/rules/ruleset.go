@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -750,6 +751,7 @@ func (rs *RuleSet) generatePartials() error {
 	return nil
 }
 
+// StopEventCollector stops the event collector
 func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
 }

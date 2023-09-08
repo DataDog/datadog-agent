@@ -50,30 +50,47 @@ const inputsResolveTimeout = 5 * time.Second
 // given rule's inputs are not resolvable in the current environment.
 var ErrIncompatibleEnvironment = errors.New("environment not compatible this type of input")
 
+// DockerProvider is a function returning a Docker client.
 type DockerProvider func(context.Context) (docker.CommonAPIClient, error)
+
+// KubernetesProvider is a function returning a Kubernetes client.
 type KubernetesProvider func(context.Context) (kubedynamic.Interface, error)
+
+// LinuxAuditProvider is a function returning a Linux Audit client.
 type LinuxAuditProvider func(context.Context) (LinuxAuditClient, error)
 
+// LinuxAuditClient is an interface that implements the capability of parsing
+// Linux Audit rules.
 type LinuxAuditClient interface {
 	GetFileWatchRules() ([]*auditrule.FileWatchRule, error)
 	Close() error
 }
 
+// DefaultDockerProvider returns the default Docker client.
 func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) {
 	return newDockerClient(ctx)
 }
 
+// DefaultLinuxAuditProvider returns the default Linux Audit client.
 func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
 	return newLinuxAuditClient()
 }
 
+// ResolverOptions is an options struct required to instantiate a Resolver
+// instance.
 type ResolverOptions struct {
+	// Hostname is the name of the host running the resolver.
 	Hostname string
+
+	// HostRoot is the path to the mountpoint of host root filesystem. In case
+	// the compliance module is run as part of a container.
 	HostRoot string
 
 	// ContainerID sets the resolving context relative to a specific container (optional)
 	ContainerID string
 
+	// StatsdClient is the statsd client used internally by the compliance
+	// resolver (optional)
 	StatsdClient *statsd.Client
 
 	DockerProvider
@@ -146,17 +163,8 @@ func (r *defaultResolver) Close() {
 	r.kubeClusterIDCache = ""
 }
 
-func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (ResolvedInputs, error) {
-	resolvingContext := struct {
-		RuleID            string                `json:"ruleID"`
-		Hostname          string                `json:"hostname"`
-		KubernetesCluster string                `json:"kubernetes_cluster"`
-		ContainerID       string                `json:"container_id"`
-		ImageID           string                `json:"image_id"`
-		ImageName         string                `json:"image_name"`
-		ImageTag          string                `json:"image_tag"`
-		InputSpecs        map[string]*InputSpec `json:"input"`
-	}{
+func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (ResolvedInputs, error) {
+	resolvingContext := ResolvingContext{
 		RuleID:      rule.ID,
 		Hostname:    r.opts.Hostname,
 		ContainerID: r.opts.ContainerID,
@@ -176,7 +184,7 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		return nil, fmt.Errorf("no inputs for rule %s", rule.ID)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx_, inputsResolveTimeout)
+	ctx, cancel := context.WithTimeout(ctx, inputsResolveTimeout)
 	defer cancel()
 
 	// If a container ID is associated with this resolver instance, we try to
@@ -269,33 +277,7 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		}
 	}
 
-	preMarshal := make(map[string]interface{})
-	for k, v := range resolved {
-		preMarshal[k] = v
-	}
-	if _, ok := preMarshal["context"]; ok {
-		return nil, fmt.Errorf("\"context\" key is reserved")
-	}
-	preMarshal["context"] = resolvingContext
-	preMarshalBuf, err := json.Marshal(preMarshal)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal resolver outcome: %w", err)
-	}
-
-	var outcome ResolvedInputs
-	log.Tracef("rego input for rule=%s:\n%s", rule.ID, preMarshalBuf)
-	if err := json.Unmarshal(preMarshalBuf, &outcome); err != nil {
-		return nil, fmt.Errorf("could not unmarshal resolver outcome: %w", err)
-	}
-
-	if statsdClient := r.opts.StatsdClient; statsdClient != nil {
-		tags := []string{"rule_id:" + rule.ID, "agent_version:" + version.AgentVersion}
-		if err := statsdClient.Gauge(metrics.MetricInputsSize, float64(len(preMarshalBuf)), tags, 1.0); err != nil {
-			log.Errorf("failed to send input size metric: %v", err)
-		}
-	}
-
-	return outcome, nil
+	return NewResolvedInputs(resolvingContext, resolved)
 }
 
 func (r *defaultResolver) pathNormalize(rootPath, path string) string {

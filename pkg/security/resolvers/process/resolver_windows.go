@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package process holds process related files
 package process
 
 import (

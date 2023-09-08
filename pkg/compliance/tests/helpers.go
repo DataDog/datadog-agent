@@ -52,7 +52,7 @@ type assertedRule struct {
 	expectErr bool
 }
 
-func NewTestBench(t *testing.T) *suite {
+func newTestBench(t *testing.T) *suite {
 	rootDir := t.TempDir()
 	return &suite{
 		t:       t,

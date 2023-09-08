@@ -255,7 +255,7 @@ int tail_call_target_dr_unshare_mntns_stage_two_callback(ctx_t *ctx) {
     };
     bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->unshare_mntns.fstype);
 
-    if (event.mountfields.mount_id == 0 && event.mountfields.device == 0) {
+    if (event.mountfields.mount_id == 0 || event.mountfields.device == 0) {
         return 0;
     }
 
@@ -437,7 +437,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx) {
     };
     bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->mount.fstype);
 
-    if (event.mountfields.mount_id == 0 && event.mountfields.device == 0) {
+    if (event.mountfields.mount_id == 0 || event.mountfields.device == 0) {
         return 0;
     }
 

@@ -6,7 +6,6 @@
 package diagnose
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
@@ -20,9 +19,8 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 		return nil
 	})
 
-	re, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunNoDiagnoses")
 	diagCfg := diagnosis.Config{
-		Include:  []*regexp.Regexp{re},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunNoDiagnoses"},
 		RunLocal: true,
 	}
 	diagnoses, err := Run(diagCfg)
@@ -60,9 +58,8 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 	})
 
 	// Include and run
-	reInclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis")
 	diagCfgInclude := diagnosis.Config{
-		Include:  []*regexp.Regexp{reInclude},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
 		RunLocal: true,
 	}
 	outSuitesDiagnosesInclude, err := Run(diagCfgInclude)
@@ -72,10 +69,9 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 	assert.Equal(t, outSuitesDiagnosesInclude[1].SuiteDiagnoses, inDiagnoses)
 
 	// Include and Exclude and run
-	reExclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a")
 	diagCfgIncludeExclude := diagnosis.Config{
-		Include:  []*regexp.Regexp{reInclude},
-		Exclude:  []*regexp.Regexp{reExclude},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
+		Exclude:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a"},
 		RunLocal: true,
 	}
 	outSuitesDiagnosesIncludeExclude, err := Run(diagCfgIncludeExclude)

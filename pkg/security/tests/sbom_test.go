@@ -5,6 +5,7 @@
 
 //go:build functionaltests && trivy
 
+// Package tests holds tests related files
 package tests
 
 import (
