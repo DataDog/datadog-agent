@@ -442,8 +442,8 @@ func (e *RuleEngine) HandleEvent(incomingEvent interface{}) {
 }
 
 // Copy is no-op function used to satisfy the EventHandler interface
-func (e *RuleEngine) Copy(_ *model.Event) interface{} {
-	return nil
+func (e *RuleEngine) Copy(incomingEvent *model.Event) interface{} {
+	return incomingEvent
 }
 
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {

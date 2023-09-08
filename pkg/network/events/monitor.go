@@ -94,6 +94,7 @@ func (h *eventHandlerWrapper) HandleEvent(ev interface{}) {
 	}
 }
 
+// Copy copies the necessary fields from the event received from the event monitor
 func (h *eventHandlerWrapper) Copy(ev *model.Event) interface{} {
 	m := theMonitor.Load()
 	if m != nil {

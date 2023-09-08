@@ -58,9 +58,8 @@ type Probe struct {
 	scrubber *procutil.DataScrubber
 
 	// Events section
-	seclModelEventHandlers [model.MaxAllEventType][]EventHandler
-	eventHandlers          [model.MaxAllEventType][]EventHandler
-	customEventHandlers    [model.MaxAllEventType][]CustomEventHandler
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 
 	discarderRateLimiter *rate.Limiter
 	// internals

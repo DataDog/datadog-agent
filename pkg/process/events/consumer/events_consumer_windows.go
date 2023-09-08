@@ -10,6 +10,7 @@ import (
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// Copy copies the necessary fields from the event received from the event monitor
 func (p *ProcessConsumer) Copy(event *smodel.Event) interface{} {
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()

@@ -361,11 +361,6 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
-	// send specific event to consumers that need all the SECL model fields
-	for _, handler := range p.seclModelEventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
-	}
-
 	// send wildcard first
 	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(handler.Copy(event))
