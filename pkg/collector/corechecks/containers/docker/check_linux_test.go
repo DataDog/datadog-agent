@@ -13,7 +13,7 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerNetworkTypes "github.com/docker/docker/api/types/network"
 
-	"github.com/DataDog/datadog-agent/comp/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
