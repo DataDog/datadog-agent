@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
+//go:build linux
 
 package runtime
 
@@ -47,6 +47,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
@@ -67,7 +68,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	return []*cobra.Command{runtimeCmd}
 }
-
 
 func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
 	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
