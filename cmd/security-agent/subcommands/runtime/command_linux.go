@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	)
+)
 
 // Commands returns the config commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
