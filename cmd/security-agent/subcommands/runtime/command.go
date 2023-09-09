@@ -47,11 +47,6 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> 0a4bd3b192 (Security agent running as a windows service)
 type checkPoliciesCliParams struct {
 	*command.GlobalParams
 

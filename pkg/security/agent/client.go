@@ -191,9 +191,8 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 			if runtime.GOOS == "windows" {
 				return net.Dial("tcp", url)
-			} else {
-				return net.Dial("unix", url)
 			}
+			return net.Dial("unix", url)
 		}),
 	)
 	if err != nil {
