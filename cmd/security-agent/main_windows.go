@@ -10,9 +10,11 @@ package main
 import (
 	"context"
 	"os"
+	"path"
 
 	"go.uber.org/fx"
 
+	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
@@ -35,8 +37,11 @@ import (
 type service struct {
 	errChan chan error
 	ctxChan chan context.Context
+}
 
-	configdirs []string
+var defaultSecurityAgentConfigFilePaths = []string{
+	path.Join(commonpath.DefaultConfPath, "datadog.yaml"),
+	path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
 }
 
 func (s *service) Name() string {
@@ -48,58 +53,46 @@ func (s *service) Init() error {
 
 	s.errChan = make(chan error)
 
-	s.configdirs = make([]string, 1)
-	s.configdirs = append(s.configdirs, saconfig.DefaultConfigDir)
 	return nil
 }
 
 func (s *service) Run(svcctx context.Context) error {
 
 	// run startSystemProbe in an app, so that the log and config components get initialized
-	go func() {
-		err := fxutil.OneShot(
-			func(log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component) error {
-				ctx, cancel := context.WithCancel(context.Background())
-				defer start.StopAgent(cancel, log)
+	err := fxutil.OneShot(
+		func(log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component) error {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer start.StopAgent(cancel, log)
 
-				err := start.RunAgent(ctx, log, config, telemetry, forwarder, "")
+			err := start.RunAgent(ctx, log, config, telemetry, forwarder, "")
+			// notify outer that startAgent finished
+			if err != nil {
+				return err
+			}
 
-				// notify outer that startAgent finished
-				s.errChan <- err
+			// Wait for stop signal
+			select {
+			case <-signals.Stopper:
+				log.Info("Received stop command, shutting down...")
+			case <-signals.ErrorStopper:
+				_ = log.Critical("The Agent has encountered an error, shutting down...")
+			case <-svcctx.Done():
+				log.Info("Received stop from service manager, shutting down...")
+			}
 
-				// Wait for stop signal
-				select {
-				case <-signals.Stopper:
-					log.Info("Received stop command, shutting down...")
-				case <-signals.ErrorStopper:
-					_ = log.Critical("The Agent has encountered an error, shutting down...")
-				case <-svcctx.Done():
-					log.Info("Received stop from service manager, shutting down...")
-				}
-
-				return nil
-			},
-			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewSecurityAgentParams(s.configdirs),
-				LogParams:    log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
-			}),
-			core.Bundle,
-			forwarder.Bundle,
-			fx.Provide(defaultforwarder.NewParamsWithResolvers),
-		)
-		// notify caller that fx.OneShot is done
-		s.errChan <- err
-	}()
-
-	// Wait for fxOneShot to start, or for an error
-	err := <-s.errChan
-	if err != nil {
-		//  failed, caller does not need errChan
-		return err
-	}
+			return nil
+		},
+		fx.Supply(core.BundleParams{
+			ConfigParams: config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
+			LogParams:    log.LogForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+		}),
+		core.Bundle,
+		forwarder.Bundle,
+		fx.Provide(defaultforwarder.NewParamsWithResolvers),
+	)
 
 	// startSystemProbe succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
-	return nil
+	return err
 }
 
 func main() {
