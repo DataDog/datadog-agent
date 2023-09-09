@@ -18,6 +18,12 @@ const (
 )
 
 var (
+	// DefaultconfigDir represents the base directory where the configuration
+	// is located.  By default it is as specified.  However, windows allows
+	// alternate install location, so the init function will figure out what
+	// the actual value is, if it's not the default.  It is called
+	// DefaultConfigDir because that's what the shared components expect it
+	// to be called even though it's not necessarily the default.
 	DefaultConfigDir = "c:\\programdata\\datadog\\"
 )
 
