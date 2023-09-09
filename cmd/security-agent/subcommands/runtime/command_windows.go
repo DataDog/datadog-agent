@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 )
 
+// Commands exports commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",

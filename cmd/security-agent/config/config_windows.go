@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package config implements config
 package config
 
 import (
@@ -18,7 +19,7 @@ const (
 )
 
 var (
-	// DefaultconfigDir represents the base directory where the configuration
+	// DefaultConfigDir represents the base directory where the configuration
 	// is located.  By default it is as specified.  However, windows allows
 	// alternate install location, so the init function will figure out what
 	// the actual value is, if it's not the default.  It is called
