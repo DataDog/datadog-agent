@@ -328,9 +328,9 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 // If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
 func isRemoteConfigEnabled() bool {
 	// This value defaults to true
-	sysprobeConfigRCVal := coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
+	rcEnabledInSysprobeConfig := coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
 
-	if sysprobeConfigRCVal == false {
+	if !rcEnabledInSysprobeConfig {
 		return false
 	}
 
