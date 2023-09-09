@@ -81,8 +81,8 @@ type MetricTagConfigList []MetricTagConfig
 
 // MetricIndexTransform holds configs for metric index transform
 type MetricIndexTransform struct {
-	Start uint `yaml:"start,omitempty" json:"start,omitempty"`
-	End   uint `yaml:"end,omitempty" json:"end,omitempty"`
+	Start uint `yaml:"start" json:"start"`
+	End   uint `yaml:"end" json:"end"`
 }
 
 // MetricsConfigOption holds config for metrics options
