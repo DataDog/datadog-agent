@@ -1020,7 +1020,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	return testMod, nil
 }
 
-func (tm *testModule) HandleEvent(event *model.Event) {
+func (tm *testModule) HandleEvent(incomingEvent interface{}) {
+	event, ok := incomingEvent.(*model.Event)
+	if !ok {
+		log.Error("Event is not a security model event")
+		return
+	}
+
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
