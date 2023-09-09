@@ -90,7 +90,6 @@ def build(
             out="cmd/security-agent/rsrc.syso",
         )
 
-
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(
         build="security-agent"
