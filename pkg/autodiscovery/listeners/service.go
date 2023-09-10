@@ -8,7 +8,6 @@ package listeners
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -27,7 +26,7 @@ type service struct {
 	entity          workloadmeta.Entity
 	adIdentifiers   []string
 	hosts           map[string]string
-	ports           []cprofstruct.ContainerPort
+	ports           []listeners_interfaces.ContainerPort
 	pid             int
 	hostname        string
 	ready           bool
@@ -37,7 +36,7 @@ type service struct {
 	logsExcluded    bool
 }
 
-var _ cprofstruct.Service = &service{}
+var _ listeners_interfaces.Service = &service{}
 
 // GetServiceID returns the AD entity ID of the service.
 func (s *service) GetServiceID() string {
@@ -78,7 +77,7 @@ func (s *service) GetHosts(_ context.Context) (map[string]string, error) {
 }
 
 // GetPorts returns the ports exposed by the service's containers.
-func (s *service) GetPorts(_ context.Context) ([]cprofstruct.ContainerPort, error) {
+func (s *service) GetPorts(_ context.Context) ([]listeners_interfaces.ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -207,7 +206,7 @@ func (s *service) GetExtraConfig(key string) (string, error) {
 // svcEqual checks that two Services are equal to each other by doing a deep
 // equality check on data returned by most of Service's methods. Methods not
 // checked are HasFilter and GetExtraConfig.
-func svcEqual(a, b cprofstruct.Service) bool {
+func svcEqual(a, b listeners_interfaces.Service) bool {
 	ctx := context.Background()
 
 	var (

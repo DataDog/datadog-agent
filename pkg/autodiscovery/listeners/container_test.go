@@ -179,7 +179,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{},
-						ports: []cprofstruct.ContainerPort{},
+						ports: []listeners_interfaces.ContainerPort{},
 						ready: true,
 					},
 				},
@@ -215,7 +215,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{},
-						ports: []cprofstruct.ContainerPort{},
+						ports: []listeners_interfaces.ContainerPort{},
 						ready: true,
 					},
 				},
@@ -233,7 +233,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{},
-						ports: []cprofstruct.ContainerPort{
+						ports: []listeners_interfaces.ContainerPort{
 							{
 								Port: 22,
 								Name: "ssh",
@@ -262,7 +262,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{"pod": pod.IP},
-						ports: []cprofstruct.ContainerPort{},
+						ports: []listeners_interfaces.ContainerPort{},
 						ready: pod.Ready,
 					},
 				},

@@ -34,14 +34,14 @@ var listenerCandidateIntl = 30 * time.Second
 // module README for details.
 type AutoConfig struct {
 	configPollers      []*configPoller
-	listeners          []cprofstruct.ServiceListener
+	listeners          []listeners_interfaces.ServiceListener
 	listenerCandidates map[string]*listenerCandidate
 	listenerRetryStop  chan struct{}
 	scheduler          *scheduler.MetaScheduler
 	listenerStop       chan struct{}
 	healthListening    *health.Handle
-	newService         chan cprofstruct.Service
-	delService         chan cprofstruct.Service
+	newService         chan listeners_interfaces.Service
+	delService         chan listeners_interfaces.Service
 	store              *store
 	cfgMgr             configManager
 
@@ -55,10 +55,10 @@ type AutoConfig struct {
 
 type listenerCandidate struct {
 	factory listeners.ServiceListenerFactory
-	config  cprofstruct.Config
+	config  listeners_interfaces.Config
 }
 
-func (l *listenerCandidate) try() (cprofstruct.ServiceListener, error) {
+func (l *listenerCandidate) try() (listeners_interfaces.ServiceListener, error) {
 	return l.factory(l.config)
 }
 
@@ -81,8 +81,8 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
 		listenerRetryStop:  nil, // We'll open it if needed
 		listenerStop:       make(chan struct{}),
 		healthListening:    health.RegisterLiveness("ad-servicelistening"),
-		newService:         make(chan cprofstruct.Service),
-		delService:         make(chan cprofstruct.Service),
+		newService:         make(chan listeners_interfaces.Service),
+		delService:         make(chan listeners_interfaces.Service),
 		store:              newStore(),
 		cfgMgr:             cfgMgr,
 		scheduler:          scheduler,
@@ -121,7 +121,7 @@ func (ac *AutoConfig) serviceListening() {
 
 func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	// check if services tags are up to date
-	var servicesToRefresh []cprofstruct.Service
+	var servicesToRefresh []listeners_interfaces.Service
 	for _, service := range ac.store.getServices() {
 		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
 		currentHash := tagger.GetEntityHash(service.GetTaggerEntity(), tagger.ChecksCardinality)
@@ -401,7 +401,7 @@ func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *AutoConfig) processNewService(ctx context.Context, svc cprofstruct.Service) {
+func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners_interfaces.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetServiceID())
 	ac.store.setTagsHashForService(
@@ -421,7 +421,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc cprofstruct.Ser
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *AutoConfig) processDelService(ctx context.Context, svc cprofstruct.Service) {
+func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners_interfaces.Service) {
 	ac.store.removeServiceForEntity(svc.GetServiceID())
 	changes := ac.cfgMgr.processDelService(ctx, svc)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())

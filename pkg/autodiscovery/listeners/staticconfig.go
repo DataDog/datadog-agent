@@ -7,8 +7,6 @@ package listeners
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -16,7 +14,7 @@ import (
 
 // StaticConfigListener implements a ServiceListener based on static configuration parameters
 type StaticConfigListener struct {
-	newService chan<- cprofstruct.Service
+	newService chan<- listeners_interfaces.Service
 }
 
 // StaticConfigService represents services generated from StaticConfigListener
@@ -25,19 +23,19 @@ type StaticConfigService struct {
 }
 
 // Make sure StaticConfigService implements the Service interface
-var _ cprofstruct.Service = &StaticConfigService{}
+var _ listeners_interfaces.Service = &StaticConfigService{}
 
 func init() {
 	Register("static config", NewStaticConfigListener)
 }
 
 // NewStaticConfigListener creates a StaticConfigListener
-func NewStaticConfigListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func NewStaticConfigListener(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	return &StaticConfigListener{}, nil
 }
 
 // Listen starts the goroutine to detect checks based on the config
-func (l *StaticConfigListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
+func (l *StaticConfigListener) Listen(newSvc chan<- listeners_interfaces.Service, delSvc chan<- listeners_interfaces.Service) {
 	l.newService = newSvc
 
 	go l.createServices()
@@ -80,7 +78,7 @@ func (s *StaticConfigService) GetHosts(context.Context) (map[string]string, erro
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
+func (s *StaticConfigService) GetPorts(context.Context) ([]listeners_interfaces.ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 

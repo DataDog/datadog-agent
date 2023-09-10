@@ -1,4 +1,4 @@
-package cprofstruct
+package listeners_interfaces
 
 import (
 	"context"

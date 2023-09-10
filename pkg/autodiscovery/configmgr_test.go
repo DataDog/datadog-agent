@@ -315,14 +315,14 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 		}
 
 		// make a random service
-		makeService := func(r *rand.Rand) cprofstruct.Service {
+		makeService := func(r *rand.Rand) listeners_interfaces.Service {
 			return &dummyService{ID: randStr("svc", 15, r), ADIdentifiers: randADIDs(r)}
 		}
 
 		op := 0
 		removeAfterOps := 10
 		configs := map[string]integration.Config{}
-		services := map[string]cprofstruct.Service{}
+		services := map[string]listeners_interfaces.Service{}
 		for {
 			p := r.Intn(90)
 			switch {

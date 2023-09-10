@@ -19,7 +19,7 @@ import (
 )
 
 type wlmListenerSvc struct {
-	service cprofstruct.Service
+	service listeners_interfaces.Service
 	parent  string
 }
 
@@ -30,7 +30,7 @@ type testWorkloadmetaListener struct {
 	services map[string]wlmListenerSvc
 }
 
-func (l *testWorkloadmetaListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
+func (l *testWorkloadmetaListener) Listen(newSvc chan<- listeners_interfaces.Service, delSvc chan<- listeners_interfaces.Service) {
 	panic("not implemented")
 }
 
@@ -42,7 +42,7 @@ func (l *testWorkloadmetaListener) Store() workloadmeta.Store {
 	return l.store
 }
 
-func (l *testWorkloadmetaListener) AddService(svcID string, svc cprofstruct.Service, parentSvcID string) {
+func (l *testWorkloadmetaListener) AddService(svcID string, svc listeners_interfaces.Service, parentSvcID string) {
 	l.services[svcID] = wlmListenerSvc{
 		service: svc,
 		parent:  parentSvcID,

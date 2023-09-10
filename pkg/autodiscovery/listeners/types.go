@@ -13,7 +13,7 @@ import (
 )
 
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func(cprofstruct.Config) (cprofstruct.ServiceListener, error)
+type ServiceListenerFactory func(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error)
 
 // ServiceListenerFactories holds the registered factories
 var ServiceListenerFactories = make(map[string]ServiceListenerFactory)

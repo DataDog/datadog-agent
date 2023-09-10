@@ -42,7 +42,7 @@ type store struct {
 	adIDToServices map[string]map[string]struct{}
 
 	// entityToService maps serviceIDs to Service instances.
-	entityToService map[string]cprofstruct.Service
+	entityToService map[string]listeners_interfaces.Service
 
 	// templateCache stores templates by their AD identifiers.
 	templateCache *templateCache
@@ -61,7 +61,7 @@ func newStore() *store {
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
 		adIDToServices:    make(map[string]map[string]struct{}),
-		entityToService:   make(map[string]cprofstruct.Service),
+		entityToService:   make(map[string]listeners_interfaces.Service),
 		templateCache:     newTemplateCache(),
 	}
 
@@ -142,17 +142,17 @@ func (s *store) getJMXMetricsForConfigName(config string) integration.Data {
 	return s.nameToJMXMetrics[config]
 }
 
-func (s *store) getServices() []cprofstruct.Service {
+func (s *store) getServices() []listeners_interfaces.Service {
 	s.m.Lock()
 	defer s.m.Unlock()
-	services := []cprofstruct.Service{}
+	services := []listeners_interfaces.Service{}
 	for _, service := range s.entityToService {
 		services = append(services, service)
 	}
 	return services
 }
 
-func (s *store) setServiceForEntity(svc cprofstruct.Service, entity string) {
+func (s *store) setServiceForEntity(svc listeners_interfaces.Service, entity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.entityToService[entity] = svc

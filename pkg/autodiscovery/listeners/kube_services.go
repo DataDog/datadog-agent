@@ -38,10 +38,10 @@ const (
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
 	informer          infov1.ServiceInformer
-	services          map[k8stypes.UID]cprofstruct.Service
+	services          map[k8stypes.UID]listeners_interfaces.Service
 	promInclAnnot     types.PrometheusAnnotations
-	newService        chan<- cprofstruct.Service
-	delService        chan<- cprofstruct.Service
+	newService        chan<- listeners_interfaces.Service
+	delService        chan<- listeners_interfaces.Service
 	targetAllServices bool
 	m                 sync.RWMutex
 }
@@ -51,11 +51,11 @@ type KubeServiceService struct {
 	entity string
 	tags   []string
 	hosts  map[string]string
-	ports  []cprofstruct.ContainerPort
+	ports  []listeners_interfaces.ContainerPort
 }
 
 // Make sure KubeServiceService implements the Service interface
-var _ cprofstruct.Service = &KubeServiceService{}
+var _ listeners_interfaces.Service = &KubeServiceService{}
 
 func init() {
 	Register(kubeServicesName, NewKubeServiceListener)
@@ -81,7 +81,7 @@ func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
 }
 
 // NewKubeServiceListener returns the kube service implementation of the ServiceListener interface
-func NewKubeServiceListener(conf cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func NewKubeServiceListener(conf listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -94,7 +94,7 @@ func NewKubeServiceListener(conf cprofstruct.Config) (cprofstruct.ServiceListene
 	}
 
 	return &KubeServiceListener{
-		services:          make(map[k8stypes.UID]cprofstruct.Service),
+		services:          make(map[k8stypes.UID]listeners_interfaces.Service),
 		informer:          servicesInformer,
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
 		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
@@ -102,7 +102,7 @@ func NewKubeServiceListener(conf cprofstruct.Config) (cprofstruct.ServiceListene
 }
 
 // Listen starts watching service events
-func (l *KubeServiceListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
+func (l *KubeServiceListener) Listen(newSvc chan<- listeners_interfaces.Service, delSvc chan<- listeners_interfaces.Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
@@ -261,9 +261,9 @@ func processService(ksvc *v1.Service) *KubeServiceService {
 	svc.hosts = map[string]string{"cluster": ksvc.Spec.ClusterIP}
 
 	// Ports
-	var ports []cprofstruct.ContainerPort
+	var ports []listeners_interfaces.ContainerPort
 	for _, port := range ksvc.Spec.Ports {
-		ports = append(ports, cprofstruct.ContainerPort{int(port.Port), port.Name})
+		ports = append(ports, listeners_interfaces.ContainerPort{int(port.Port), port.Name})
 	}
 	sort.Slice(ports, func(i, j int) bool {
 		return ports[i].Port < ports[j].Port
@@ -324,7 +324,7 @@ func (s *KubeServiceService) GetPid(context.Context) (int, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
+func (s *KubeServiceService) GetPorts(context.Context) ([]listeners_interfaces.ContainerPort, error) {
 	return s.ports, nil
 }
 

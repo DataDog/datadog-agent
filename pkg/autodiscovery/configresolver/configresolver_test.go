@@ -25,7 +25,7 @@ type dummyService struct {
 	ID            string
 	ADIdentifiers []string
 	Hosts         map[string]string
-	Ports         []cprofstruct.ContainerPort
+	Ports         []listeners_interfaces.ContainerPort
 	Pid           int
 	Hostname      string
 	CheckNames    []string
@@ -53,7 +53,7 @@ func (s *dummyService) GetHosts(context.Context) (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
+func (s *dummyService) GetPorts(context.Context) ([]listeners_interfaces.ContainerPort, error) {
 	return s.Ports, nil
 }
 
@@ -122,7 +122,7 @@ func TestResolve(t *testing.T) {
 	testCases := []struct {
 		testName    string
 		tpl         integration.Config
-		svc         cprofstruct.Service
+		svc         listeners_interfaces.Service
 		out         integration.Config
 		errorString string
 	}{
@@ -328,7 +328,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Ports:         []cprofstruct.ContainerPort{},
+				Ports:         []listeners_interfaces.ContainerPort{},
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -773,8 +773,8 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func newFakeContainerPorts() []cprofstruct.ContainerPort {
-	return []cprofstruct.ContainerPort{
+func newFakeContainerPorts() []listeners_interfaces.ContainerPort {
+	return []listeners_interfaces.ContainerPort{
 		{Port: 1, Name: "foo"},
 		{Port: 2, Name: "bar"},
 		{Port: 3, Name: "baz"},
@@ -789,7 +789,7 @@ func BenchmarkResolve(b *testing.B) {
 	testCases := []struct {
 		testName    string
 		tpl         integration.Config
-		svc         cprofstruct.Service
+		svc         listeners_interfaces.Service
 		out         integration.Config
 		errorString string
 	}{

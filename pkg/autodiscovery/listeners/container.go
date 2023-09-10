@@ -37,7 +37,7 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func NewContainerListener(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
@@ -97,9 +97,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return
 	}
 
-	ports := make([]cprofstruct.ContainerPort, 0, len(container.Ports))
+	ports := make([]listeners_interfaces.ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
-		ports = append(ports, cprofstruct.ContainerPort{
+		ports = append(ports, listeners_interfaces.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})

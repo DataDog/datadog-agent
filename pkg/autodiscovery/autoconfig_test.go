@@ -55,7 +55,7 @@ type MockListener struct {
 	stopReceived bool
 }
 
-func (l *MockListener) Listen(newSvc, delSvc chan<- cprofstruct.Service) {
+func (l *MockListener) Listen(newSvc, delSvc chan<- listeners_interfaces.Service) {
 	l.ListenCount++
 }
 
@@ -63,7 +63,7 @@ func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
 
-func (l *MockListener) fakeFactory(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func (l *MockListener) fakeFactory(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	return l, nil
 }
 
@@ -75,11 +75,11 @@ type factoryMock struct {
 	sync.Mutex
 	callCount   int
 	callChan    chan struct{}
-	returnValue cprofstruct.ServiceListener
+	returnValue listeners_interfaces.ServiceListener
 	returnError error
 }
 
-func (o *factoryMock) make(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func (o *factoryMock) make(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {

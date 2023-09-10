@@ -19,8 +19,8 @@ import (
 )
 
 func TestSNMPListener(t *testing.T) {
-	newSvc := make(chan cprofstruct.Service, 10)
-	delSvc := make(chan cprofstruct.Service, 10)
+	newSvc := make(chan listeners_interfaces.Service, 10)
+	delSvc := make(chan listeners_interfaces.Service, 10)
 	testChan := make(chan snmpJob, 10)
 
 	snmpConfig := snmp.Config{
@@ -62,8 +62,8 @@ func TestSNMPListener(t *testing.T) {
 }
 
 func TestSNMPListenerSubnets(t *testing.T) {
-	newSvc := make(chan cprofstruct.Service, 10)
-	delSvc := make(chan cprofstruct.Service, 10)
+	newSvc := make(chan listeners_interfaces.Service, 10)
+	delSvc := make(chan listeners_interfaces.Service, 10)
 	testChan := make(chan snmpJob)
 
 	listenerConfig := snmp.ListenerConfig{
@@ -94,7 +94,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	snmpListenerConfig, err := snmp.NewListenerConfig()
 	assert.Equal(t, nil, err)
 
-	services := map[string]cprofstruct.Service{}
+	services := map[string]listeners_interfaces.Service{}
 	l := &SNMPListener{
 		services: services,
 		stop:     make(chan bool),
@@ -118,8 +118,8 @@ func TestSNMPListenerSubnets(t *testing.T) {
 }
 
 func TestSNMPListenerIgnoredAdresses(t *testing.T) {
-	newSvc := make(chan cprofstruct.Service, 10)
-	delSvc := make(chan cprofstruct.Service, 10)
+	newSvc := make(chan listeners_interfaces.Service, 10)
+	delSvc := make(chan listeners_interfaces.Service, 10)
 	testChan := make(chan snmpJob, 10)
 
 	snmpConfig := snmp.Config{

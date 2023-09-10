@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"net"
 	"strconv"
 	"strings"
@@ -37,11 +36,11 @@ func init() {
 // SNMPListener implements SNMP discovery
 type SNMPListener struct {
 	sync.RWMutex
-	newService chan<- cprofstruct.Service
-	delService chan<- cprofstruct.Service
+	newService chan<- listeners_interfaces.Service
+	delService chan<- listeners_interfaces.Service
 	stop       chan bool
 	config     snmp.ListenerConfig
-	services   map[string]cprofstruct.Service
+	services   map[string]listeners_interfaces.Service
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -53,7 +52,7 @@ type SNMPService struct {
 }
 
 // Make sure SNMPService implements the Service interface
-var _ cprofstruct.Service = &SNMPService{}
+var _ listeners_interfaces.Service = &SNMPService{}
 
 type snmpSubnet struct {
 	adIdentifier   string
@@ -71,20 +70,20 @@ type snmpJob struct {
 }
 
 // NewSNMPListener creates a SNMPListener
-func NewSNMPListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func NewSNMPListener(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err
 	}
 	return &SNMPListener{
-		services: map[string]cprofstruct.Service{},
+		services: map[string]listeners_interfaces.Service{},
 		stop:     make(chan bool),
 		config:   snmpConfig,
 	}, nil
 }
 
 // Listen periodically refreshes devices
-func (l *SNMPListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
+func (l *SNMPListener) Listen(newSvc chan<- listeners_interfaces.Service, delSvc chan<- listeners_interfaces.Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
@@ -343,9 +342,9 @@ func (s *SNMPService) GetHosts(context.Context) (map[string]string, error) {
 }
 
 // GetPorts returns the device port
-func (s *SNMPService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
+func (s *SNMPService) GetPorts(context.Context) ([]listeners_interfaces.ContainerPort, error) {
 	port := int(s.config.Port)
-	return []cprofstruct.ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
+	return []listeners_interfaces.ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
 
 // GetTags returns the list of container tags - currently always empty

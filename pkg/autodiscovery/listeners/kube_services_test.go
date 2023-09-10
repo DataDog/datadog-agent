@@ -60,7 +60,7 @@ func TestProcessService(t *testing.T) {
 
 	ports, err := svc.GetPorts(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, []cprofstruct.ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
+	assert.Equal(t, []listeners_interfaces.ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
 	tags, err := svc.GetTags()
 	assert.NoError(t, err)

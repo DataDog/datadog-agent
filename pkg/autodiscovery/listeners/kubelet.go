@@ -31,7 +31,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func NewKubeletListener(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -73,10 +73,10 @@ func (l *KubeletListener) createPodService(
 	pod *workloadmeta.KubernetesPod,
 	containers []*workloadmeta.Container,
 ) {
-	var ports []cprofstruct.ContainerPort
+	var ports []listeners_interfaces.ContainerPort
 	for _, container := range containers {
 		for _, port := range container.Ports {
-			ports = append(ports, cprofstruct.ContainerPort{
+			ports = append(ports, listeners_interfaces.ContainerPort{
 				Port: port.Port,
 				Name: port.Name,
 			})
@@ -136,9 +136,9 @@ func (l *KubeletListener) createContainerService(
 		}
 	}
 
-	ports := make([]cprofstruct.ContainerPort, 0, len(container.Ports))
+	ports := make([]listeners_interfaces.ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
-		ports = append(ports, cprofstruct.ContainerPort{
+		ports = append(ports, listeners_interfaces.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})

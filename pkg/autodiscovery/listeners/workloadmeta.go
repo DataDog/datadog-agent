@@ -22,7 +22,7 @@ import (
 // workloadmetaListener is a generic subscriber to workloadmeta events that
 // generates AD services.
 type workloadmetaListener interface {
-	cprofstruct.ServiceListener
+	listeners_interfaces.ServiceListener
 
 	// Store returns a reference to the workloadmeta store being used by
 	// the listener.
@@ -32,7 +32,7 @@ type workloadmetaListener interface {
 	// internally to identify a service). If a non-empty parentSvcID is
 	// passed, the service will be deleted when the parent service is
 	// removed.
-	AddService(svcID string, svc cprofstruct.Service, parentSvcID string)
+	AddService(svcID string, svc listeners_interfaces.Service, parentSvcID string)
 
 	// IsExcluded returns whether a container should be excluded according
 	// to the chosen ft filter.
@@ -50,11 +50,11 @@ type workloadmetaListenerImpl struct {
 	workloadFilters  *workloadmeta.Filter
 	containerFilters *containerFilters
 
-	services map[string]cprofstruct.Service
+	services map[string]listeners_interfaces.Service
 	children map[string]map[string]struct{}
 
-	newService chan<- cprofstruct.Service
-	delService chan<- cprofstruct.Service
+	newService chan<- listeners_interfaces.Service
+	delService chan<- listeners_interfaces.Service
 }
 
 var _ workloadmetaListener = &workloadmetaListenerImpl{}
@@ -85,7 +85,7 @@ func newWorkloadmetaListener(
 		workloadFilters:  workloadFilters,
 		containerFilters: containerFilters,
 
-		services: make(map[string]cprofstruct.Service),
+		services: make(map[string]listeners_interfaces.Service),
 		children: make(map[string]map[string]struct{}),
 	}, nil
 }
@@ -94,7 +94,7 @@ func (l *workloadmetaListenerImpl) Store() workloadmeta.Store {
 	return l.store
 }
 
-func (l *workloadmetaListenerImpl) AddService(svcID string, svc cprofstruct.Service, parentSvcID string) {
+func (l *workloadmetaListenerImpl) AddService(svcID string, svc listeners_interfaces.Service, parentSvcID string) {
 	kind := kindFromSvcID(svcID)
 	if parentSvcID != "" {
 		if _, ok := l.children[parentSvcID]; !ok {
@@ -124,7 +124,7 @@ func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, annotati
 	return l.containerFilters.IsExcluded(ft, annotations, name, image, ns)
 }
 
-func (l *workloadmetaListenerImpl) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
+func (l *workloadmetaListenerImpl) Listen(newSvc chan<- listeners_interfaces.Service, delSvc chan<- listeners_interfaces.Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 

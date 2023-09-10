@@ -32,9 +32,9 @@ const (
 // CloudFoundryListener defines a listener that periodically fetches Cloud Foundry services from the BBS API
 type CloudFoundryListener struct {
 	sync.RWMutex
-	newService    chan<- cprofstruct.Service
-	delService    chan<- cprofstruct.Service
-	services      map[string]cprofstruct.Service // maps ADIdentifiers to services
+	newService    chan<- listeners_interfaces.Service
+	delService    chan<- listeners_interfaces.Service
+	services      map[string]listeners_interfaces.Service // maps ADIdentifiers to services
 	stop          chan bool
 	refreshCount  int64
 	refreshTicker *time.Ticker
@@ -46,20 +46,20 @@ type CloudFoundryService struct {
 	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier
 	containerIPs   map[string]string
-	containerPorts []cprofstruct.ContainerPort
+	containerPorts []listeners_interfaces.ContainerPort
 }
 
 // Make sure CloudFoundryService implements the Service interface
-var _ cprofstruct.Service = &CloudFoundryService{}
+var _ listeners_interfaces.Service = &CloudFoundryService{}
 
 // NewCloudFoundryListener creates a CloudFoundryListener
-func NewCloudFoundryListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
+func NewCloudFoundryListener(listeners_interfaces.Config) (listeners_interfaces.ServiceListener, error) {
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		return nil, err
 	}
 	return &CloudFoundryListener{
-		services:      map[string]cprofstruct.Service{},
+		services:      map[string]listeners_interfaces.Service{},
 		stop:          make(chan bool),
 		refreshTicker: time.NewTicker(10 * time.Second),
 		bbsCache:      bbsCache,
@@ -67,7 +67,7 @@ func NewCloudFoundryListener(cprofstruct.Config) (cprofstruct.ServiceListener, e
 }
 
 // Listen periodically refreshes services from global BBS API cache
-func (l *CloudFoundryListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
+func (l *CloudFoundryListener) Listen(newSvc chan<- listeners_interfaces.Service, delSvc chan<- listeners_interfaces.Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
@@ -135,7 +135,7 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier) *Cl
 		svc = &CloudFoundryService{
 			adIdentifier:   adID,
 			containerIPs:   map[string]string{},
-			containerPorts: []cprofstruct.ContainerPort{},
+			containerPorts: []listeners_interfaces.ContainerPort{},
 			tags:           dLRP.GetTagsFromDLRP(),
 		}
 	} else {
@@ -144,9 +144,9 @@ func (l *CloudFoundryListener) createService(adID cloudfoundry.ADIdentifier) *Cl
 		}
 		// container service => we need one service per container instance
 		ips := map[string]string{CfServiceContainerIP: aLRP.ContainerIP}
-		ports := []cprofstruct.ContainerPort{}
+		ports := []listeners_interfaces.ContainerPort{}
 		for _, p := range aLRP.Ports {
-			ports = append(ports, cprofstruct.ContainerPort{
+			ports = append(ports, listeners_interfaces.ContainerPort{
 				// NOTE: because of how configresolver.getPort works, we can't use e.g. port_8080, so we use port_p8080
 				Name: fmt.Sprintf("p%d", p),
 				Port: int(p),
@@ -219,7 +219,7 @@ func (s *CloudFoundryService) GetHosts(context.Context) (map[string]string, erro
 }
 
 // GetPorts returns the container's ports
-func (s *CloudFoundryService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
+func (s *CloudFoundryService) GetPorts(context.Context) ([]listeners_interfaces.ContainerPort, error) {
 	return s.containerPorts, nil
 }
 
