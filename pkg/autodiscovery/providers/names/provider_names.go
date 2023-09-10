@@ -34,6 +34,7 @@ const (
 const (
 	ConsulRegisterName             = "consul"
 	ClusterChecksRegisterName      = "clusterchecks"
+	DistributedChecksRegisterName  = "distributed_checks"
 	EndpointsChecksRegisterName    = "endpointschecks"
 	EtcdRegisterName               = "etcd"
 	KubeletRegisterName            = "kubelet"
