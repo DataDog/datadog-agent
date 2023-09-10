@@ -27,12 +27,13 @@ type SslReadArgs struct {
 type EbpfTx struct {
 	Tup                  ConnTuple
 	Request_started      uint64
-	Request_method       uint8
-	Response_status_code uint16
 	Response_last_seen   uint64
-	Request_fragment     [160]byte
-	Tcp_seq              uint32
 	Tags                 uint64
+	Tcp_seq              uint32
+	Response_status_code uint16
+	Request_method       uint8
+	Pad_cgo_0            [1]byte
+	Request_fragment     [160]byte
 }
 
 const (

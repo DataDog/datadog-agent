@@ -43,16 +43,14 @@ typedef enum
 typedef struct {
     conn_tuple_t tup;
     __u64 request_started;
-    __u8  request_method;
-    __u16 response_status_code;
     __u64 response_last_seen;
-    char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
-
+    __u64 tags;
     // this field is used to disambiguate segments in the context of keep-alives
     // we populate it with the TCP seq number of the request and then the response segments
     __u32 tcp_seq;
-
-    __u64 tags;
+    __u16 response_status_code;
+    __u8  request_method;
+    char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
 } http_transaction_t;
 
 // OpenSSL types
