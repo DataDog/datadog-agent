@@ -55,6 +55,7 @@ var _ Service = &DistributedCheckService{}
 
 // NewDistributedChecksListener creates a DistributedChecksListener
 func NewDistributedChecksListener(Config) (ServiceListener, error) {
+	log.Info("[DistributedChecksListener] NewDistributedChecksListener")
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err
@@ -118,7 +119,7 @@ func (l *DistributedChecksListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 
 	for {
-		log.Info("DistributedChecksListener run")
+		log.Info("[DistributedChecksListener] run")
 
 		select {
 		case <-l.stop:
