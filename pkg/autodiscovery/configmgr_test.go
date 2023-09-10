@@ -8,6 +8,7 @@ package autodiscovery
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"math/rand"
 	"strings"
 	"testing"
@@ -17,7 +18,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -315,14 +315,14 @@ func (suite *ConfigManagerSuite) TestFuzz() {
 		}
 
 		// make a random service
-		makeService := func(r *rand.Rand) listeners.Service {
+		makeService := func(r *rand.Rand) cprofstruct.Service {
 			return &dummyService{ID: randStr("svc", 15, r), ADIdentifiers: randADIDs(r)}
 		}
 
 		op := 0
 		removeAfterOps := 10
 		configs := map[string]integration.Config{}
-		services := map[string]listeners.Service{}
+		services := map[string]cprofstruct.Service{}
 		for {
 			p := r.Intn(90)
 			switch {

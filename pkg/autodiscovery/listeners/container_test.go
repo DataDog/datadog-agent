@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"testing"
 	"time"
 
@@ -178,7 +179,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{},
-						ports: []ContainerPort{},
+						ports: []cprofstruct.ContainerPort{},
 						ready: true,
 					},
 				},
@@ -214,7 +215,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{},
-						ports: []ContainerPort{},
+						ports: []cprofstruct.ContainerPort{},
 						ready: true,
 					},
 				},
@@ -232,7 +233,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{},
-						ports: []ContainerPort{
+						ports: []cprofstruct.ContainerPort{
 							{
 								Port: 22,
 								Name: "ssh",
@@ -261,7 +262,7 @@ func TestCreateContainerService(t *testing.T) {
 							"foobar",
 						},
 						hosts: map[string]string{"pod": pod.IP},
-						ports: []ContainerPort{},
+						ports: []cprofstruct.ContainerPort{},
 						ready: pod.Ready,
 					},
 				},

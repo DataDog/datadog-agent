@@ -6,10 +6,10 @@
 package autodiscovery
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 )
 
 // store holds useful mappings for the AD
@@ -42,7 +42,7 @@ type store struct {
 	adIDToServices map[string]map[string]struct{}
 
 	// entityToService maps serviceIDs to Service instances.
-	entityToService map[string]listeners.Service
+	entityToService map[string]cprofstruct.Service
 
 	// templateCache stores templates by their AD identifiers.
 	templateCache *templateCache
@@ -61,7 +61,7 @@ func newStore() *store {
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
 		adIDToServices:    make(map[string]map[string]struct{}),
-		entityToService:   make(map[string]listeners.Service),
+		entityToService:   make(map[string]cprofstruct.Service),
 		templateCache:     newTemplateCache(),
 	}
 
@@ -142,17 +142,17 @@ func (s *store) getJMXMetricsForConfigName(config string) integration.Data {
 	return s.nameToJMXMetrics[config]
 }
 
-func (s *store) getServices() []listeners.Service {
+func (s *store) getServices() []cprofstruct.Service {
 	s.m.Lock()
 	defer s.m.Unlock()
-	services := []listeners.Service{}
+	services := []cprofstruct.Service{}
 	for _, service := range s.entityToService {
 		services = append(services, service)
 	}
 	return services
 }
 
-func (s *store) setServiceForEntity(svc listeners.Service, entity string) {
+func (s *store) setServiceForEntity(svc cprofstruct.Service, entity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.entityToService[entity] = svc

@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 					service: &service{
 						entity:        pod,
 						adIdentifiers: []string{"kubernetes_pod://foobar"},
-						ports: []ContainerPort{
+						ports: []cprofstruct.ContainerPort{
 							{
 								Port: 22,
 								Name: "ssh",
@@ -248,7 +249,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports: []ContainerPort{},
+						ports: []cprofstruct.ContainerPort{},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -279,7 +280,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:           []ContainerPort{},
+						ports:           []cprofstruct.ContainerPort{},
 						metricsExcluded: true,
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -334,7 +335,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports: []ContainerPort{},
+						ports: []cprofstruct.ContainerPort{},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -365,7 +366,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports: []ContainerPort{
+						ports: []cprofstruct.ContainerPort{
 							{
 								Port: 22,
 								Name: "ssh",
@@ -406,7 +407,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:      []ContainerPort{},
+						ports:      []cprofstruct.ContainerPort{},
 						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -450,7 +451,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:      []ContainerPort{},
+						ports:      []cprofstruct.ContainerPort{},
 						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -484,7 +485,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:      []ContainerPort{},
+						ports:      []cprofstruct.ContainerPort{},
 						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,

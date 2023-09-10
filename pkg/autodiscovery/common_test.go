@@ -7,9 +7,9 @@ package autodiscovery
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -17,7 +17,7 @@ type dummyService struct {
 	ID              string
 	ADIdentifiers   []string
 	Hosts           map[string]string
-	Ports           []listeners.ContainerPort
+	Ports           []cprofstruct.ContainerPort
 	Pid             int
 	Hostname        string
 	CheckNames      []string
@@ -45,7 +45,7 @@ func (s *dummyService) GetHosts(context.Context) (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
 	return s.Ports, nil
 }
 

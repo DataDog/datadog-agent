@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"strings"
 	"sync"
 	"testing"
@@ -33,10 +34,10 @@ import (
 type DockerListenerTestSuite struct {
 	suite.Suite
 	compose    utils.ComposeConf
-	listener   listeners.ServiceListener
+	listener   cprofstruct.ServiceListener
 	dockerutil *docker.DockerUtil
-	newSvc     chan listeners.Service
-	delSvc     chan listeners.Service
+	newSvc     chan cprofstruct.Service
+	delSvc     chan cprofstruct.Service
 	stop       chan struct{}
 	m          sync.RWMutex
 }
@@ -85,8 +86,8 @@ func (suite *DockerListenerTestSuite) SetupTest() {
 	}
 	suite.listener = dl
 
-	suite.newSvc = make(chan listeners.Service, 10)
-	suite.delSvc = make(chan listeners.Service, 10)
+	suite.newSvc = make(chan cprofstruct.Service, 10)
+	suite.delSvc = make(chan cprofstruct.Service, 10)
 }
 
 func (suite *DockerListenerTestSuite) TearDownTest() {
@@ -114,8 +115,8 @@ func (suite *DockerListenerTestSuite) stopContainers() error {
 
 // Listens in a channel until it receives one service per listed container.
 // If several events are received for the same containerIDs, the last one is returned
-func (suite *DockerListenerTestSuite) getServices(targetIDs, excludedIDs []string, channel chan listeners.Service, timeout time.Duration) (map[string]listeners.Service, error) {
-	services := make(map[string]listeners.Service)
+func (suite *DockerListenerTestSuite) getServices(targetIDs, excludedIDs []string, channel chan cprofstruct.Service, timeout time.Duration) (map[string]cprofstruct.Service, error) {
+	services := make(map[string]cprofstruct.Service)
 	timeoutTicker := time.NewTicker(timeout)
 
 	for {

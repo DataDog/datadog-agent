@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sort"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestProcessService(t *testing.T) {
 
 	ports, err := svc.GetPorts(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
+	assert.Equal(t, []cprofstruct.ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
 	tags, err := svc.GetTags()
 	assert.NoError(t, err)

@@ -8,11 +8,11 @@ package autodiscovery
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,11 +23,11 @@ import (
 // This type is threadsafe, internally using a mutex to serialize operations.
 type configManager interface {
 	// processNewService handles a new service, with the given AD identifiers
-	processNewService(adIdentifiers []string, svc listeners.Service) integration.ConfigChanges
+	processNewService(adIdentifiers []string, svc cprofstruct.Service) integration.ConfigChanges
 
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
-	processDelService(ctx context.Context, svc listeners.Service) integration.ConfigChanges
+	processDelService(ctx context.Context, svc cprofstruct.Service) integration.ConfigChanges
 
 	// processNewConfig handles a new config
 	processNewConfig(config integration.Config) integration.ConfigChanges
@@ -47,7 +47,7 @@ type configManager interface {
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
 type serviceAndADIDs struct {
-	svc   listeners.Service
+	svc   cprofstruct.Service
 	adIDs []string
 }
 
@@ -111,7 +111,7 @@ func newReconcilingConfigManager() configManager {
 }
 
 // processNewService implements configManager#processNewService.
-func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, svc cprofstruct.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -142,7 +142,7 @@ func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, sv
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(_ context.Context, svc listeners.Service) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processDelService(_ context.Context, svc cprofstruct.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -345,7 +345,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // resolveTemplateForService resolves a template config for the given service,
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
-func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc cprofstruct.Service) (integration.Config, bool) {
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)

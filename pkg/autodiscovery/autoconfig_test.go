@@ -8,6 +8,7 @@ package autodiscovery
 import (
 	"context"
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sync"
 	"testing"
 	"time"
@@ -54,7 +55,7 @@ type MockListener struct {
 	stopReceived bool
 }
 
-func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
+func (l *MockListener) Listen(newSvc, delSvc chan<- cprofstruct.Service) {
 	l.ListenCount++
 }
 
@@ -62,7 +63,7 @@ func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
 
-func (l *MockListener) fakeFactory(listeners.Config) (listeners.ServiceListener, error) {
+func (l *MockListener) fakeFactory(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
 	return l, nil
 }
 
@@ -74,11 +75,11 @@ type factoryMock struct {
 	sync.Mutex
 	callCount   int
 	callChan    chan struct{}
-	returnValue listeners.ServiceListener
+	returnValue cprofstruct.ServiceListener
 	returnError error
 }
 
-func (o *factoryMock) make(listeners.Config) (listeners.ServiceListener, error) {
+func (o *factoryMock) make(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {

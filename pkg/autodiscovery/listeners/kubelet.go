@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sort"
 	"time"
 
@@ -30,7 +31,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(Config) (ServiceListener, error) {
+func NewKubeletListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -72,10 +73,10 @@ func (l *KubeletListener) createPodService(
 	pod *workloadmeta.KubernetesPod,
 	containers []*workloadmeta.Container,
 ) {
-	var ports []ContainerPort
+	var ports []cprofstruct.ContainerPort
 	for _, container := range containers {
 		for _, port := range container.Ports {
-			ports = append(ports, ContainerPort{
+			ports = append(ports, cprofstruct.ContainerPort{
 				Port: port.Port,
 				Name: port.Name,
 			})
@@ -135,9 +136,9 @@ func (l *KubeletListener) createContainerService(
 		}
 	}
 
-	ports := make([]ContainerPort, 0, len(container.Ports))
+	ports := make([]cprofstruct.ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, cprofstruct.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})

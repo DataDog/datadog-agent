@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ import (
 )
 
 type wlmListenerSvc struct {
-	service Service
+	service cprofstruct.Service
 	parent  string
 }
 
@@ -29,7 +30,7 @@ type testWorkloadmetaListener struct {
 	services map[string]wlmListenerSvc
 }
 
-func (l *testWorkloadmetaListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *testWorkloadmetaListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
 	panic("not implemented")
 }
 
@@ -41,7 +42,7 @@ func (l *testWorkloadmetaListener) Store() workloadmeta.Store {
 	return l.store
 }
 
-func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentSvcID string) {
+func (l *testWorkloadmetaListener) AddService(svcID string, svc cprofstruct.Service, parentSvcID string) {
 	l.services[svcID] = wlmListenerSvc{
 		service: svc,
 		parent:  parentSvcID,

@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sort"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(Config) (ServiceListener, error) {
+func NewContainerListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
@@ -96,9 +97,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return
 	}
 
-	ports := make([]ContainerPort, 0, len(container.Ports))
+	ports := make([]cprofstruct.ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, cprofstruct.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})

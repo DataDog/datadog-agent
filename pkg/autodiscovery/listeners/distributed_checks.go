@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"net"
 	"strconv"
 	"sync"
@@ -35,11 +36,11 @@ func init() {
 // DistributedChecksListener implements SNMP discovery
 type DistributedChecksListener struct {
 	sync.RWMutex
-	newService chan<- Service
-	delService chan<- Service
+	newService chan<- cprofstruct.Service
+	delService chan<- cprofstruct.Service
 	stop       chan bool
 	config     snmp.ListenerConfig
-	services   map[string]Service
+	services   map[string]cprofstruct.Service
 }
 
 // DistributedCheckService implements and store results from the Service interface for the SNMP listener
@@ -51,24 +52,24 @@ type DistributedCheckService struct {
 }
 
 // Make sure DistributedCheckService implements the Service interface
-var _ Service = &DistributedCheckService{}
+var _ cprofstruct.Service = &DistributedCheckService{}
 
 // NewDistributedChecksListener creates a DistributedChecksListener
-func NewDistributedChecksListener(Config) (ServiceListener, error) {
+func NewDistributedChecksListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
 	log.Info("[DistributedChecksListener] NewDistributedChecksListener")
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err
 	}
 	return &DistributedChecksListener{
-		services: map[string]Service{},
+		services: map[string]cprofstruct.Service{},
 		stop:     make(chan bool),
 		config:   snmpConfig,
 	}, nil
 }
 
 // Listen periodically refreshes devices
-func (l *DistributedChecksListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *DistributedChecksListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
@@ -201,9 +202,9 @@ func (s *DistributedCheckService) GetHosts(context.Context) (map[string]string, 
 }
 
 // GetPorts returns the device port
-func (s *DistributedCheckService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *DistributedCheckService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
 	port := int(s.config.Port)
-	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
+	return []cprofstruct.ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
 
 // GetTags returns the list of container tags - currently always empty

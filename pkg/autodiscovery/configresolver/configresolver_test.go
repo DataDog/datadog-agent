@@ -8,11 +8,11 @@ package configresolver
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ type dummyService struct {
 	ID            string
 	ADIdentifiers []string
 	Hosts         map[string]string
-	Ports         []listeners.ContainerPort
+	Ports         []cprofstruct.ContainerPort
 	Pid           int
 	Hostname      string
 	CheckNames    []string
@@ -53,7 +53,7 @@ func (s *dummyService) GetHosts(context.Context) (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
 	return s.Ports, nil
 }
 
@@ -122,7 +122,7 @@ func TestResolve(t *testing.T) {
 	testCases := []struct {
 		testName    string
 		tpl         integration.Config
-		svc         listeners.Service
+		svc         cprofstruct.Service
 		out         integration.Config
 		errorString string
 	}{
@@ -328,7 +328,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Ports:         []listeners.ContainerPort{},
+				Ports:         []cprofstruct.ContainerPort{},
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -773,8 +773,8 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func newFakeContainerPorts() []listeners.ContainerPort {
-	return []listeners.ContainerPort{
+func newFakeContainerPorts() []cprofstruct.ContainerPort {
+	return []cprofstruct.ContainerPort{
 		{Port: 1, Name: "foo"},
 		{Port: 2, Name: "bar"},
 		{Port: 3, Name: "baz"},
@@ -789,7 +789,7 @@ func BenchmarkResolve(b *testing.B) {
 	testCases := []struct {
 		testName    string
 		tpl         integration.Config
-		svc         listeners.Service
+		svc         cprofstruct.Service
 		out         integration.Config
 		errorString string
 	}{

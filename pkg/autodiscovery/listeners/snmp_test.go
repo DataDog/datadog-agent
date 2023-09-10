@@ -7,6 +7,7 @@ package listeners
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"strconv"
 	"testing"
 
@@ -18,8 +19,8 @@ import (
 )
 
 func TestSNMPListener(t *testing.T) {
-	newSvc := make(chan Service, 10)
-	delSvc := make(chan Service, 10)
+	newSvc := make(chan cprofstruct.Service, 10)
+	delSvc := make(chan cprofstruct.Service, 10)
 	testChan := make(chan snmpJob, 10)
 
 	snmpConfig := snmp.Config{
@@ -61,8 +62,8 @@ func TestSNMPListener(t *testing.T) {
 }
 
 func TestSNMPListenerSubnets(t *testing.T) {
-	newSvc := make(chan Service, 10)
-	delSvc := make(chan Service, 10)
+	newSvc := make(chan cprofstruct.Service, 10)
+	delSvc := make(chan cprofstruct.Service, 10)
 	testChan := make(chan snmpJob)
 
 	listenerConfig := snmp.ListenerConfig{
@@ -93,7 +94,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	snmpListenerConfig, err := snmp.NewListenerConfig()
 	assert.Equal(t, nil, err)
 
-	services := map[string]Service{}
+	services := map[string]cprofstruct.Service{}
 	l := &SNMPListener{
 		services: services,
 		stop:     make(chan bool),
@@ -117,8 +118,8 @@ func TestSNMPListenerSubnets(t *testing.T) {
 }
 
 func TestSNMPListenerIgnoredAdresses(t *testing.T) {
-	newSvc := make(chan Service, 10)
-	delSvc := make(chan Service, 10)
+	newSvc := make(chan cprofstruct.Service, 10)
+	delSvc := make(chan cprofstruct.Service, 10)
 	testChan := make(chan snmpJob, 10)
 
 	snmpConfig := snmp.Config{

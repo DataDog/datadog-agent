@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sync"
 	"testing"
 	"time"
@@ -68,13 +69,13 @@ var testBBSCache = &bbsCacheFake{}
 
 func TestCloudFoundryListener(t *testing.T) {
 	var lastRefreshCount int64
-	newSvc := make(chan Service, 10)
-	delSvc := make(chan Service, 10)
+	newSvc := make(chan cprofstruct.Service, 10)
+	delSvc := make(chan cprofstruct.Service, 10)
 	cfl := CloudFoundryListener{
 		bbsCache:      testBBSCache,
 		refreshTicker: time.NewTicker(10 * time.Millisecond),
 		stop:          make(chan bool),
-		services:      map[string]Service{},
+		services:      map[string]cprofstruct.Service{},
 	}
 	cfl.Listen(newSvc, delSvc)
 	defer cfl.Stop()
@@ -83,8 +84,8 @@ func TestCloudFoundryListener(t *testing.T) {
 		aLRP         map[string][]*cloudfoundry.ActualLRP
 		dLRP         map[string]*cloudfoundry.DesiredLRP
 		tagsByCellID map[string]map[string][]string
-		expNew       map[string]Service
-		expDel       map[string]Service
+		expNew       map[string]cprofstruct.Service
+		expDel       map[string]cprofstruct.Service
 	}{
 		{
 			// inputs with no AD_DATADOGHQ_COM set up => no services
@@ -94,8 +95,8 @@ func TestCloudFoundryListener(t *testing.T) {
 			dLRP: map[string]*cloudfoundry.DesiredLRP{
 				"processguid1": {AppGUID: "appguid1", ProcessGUID: "processguid1"},
 			},
-			expNew: map[string]Service{},
-			expDel: map[string]Service{},
+			expNew: map[string]cprofstruct.Service{},
+			expDel: map[string]cprofstruct.Service{},
 		},
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, but no containers of the app exist
@@ -113,8 +114,8 @@ func TestCloudFoundryListener(t *testing.T) {
 					}},
 				},
 			},
-			expNew: map[string]Service{},
-			expDel: map[string]Service{},
+			expNew: map[string]cprofstruct.Service{},
+			expDel: map[string]cprofstruct.Service{},
 		},
 		{
 			// inputs with AD_DATADOGHQ_COM containing config only for containers, 1 container exists for the app
@@ -152,24 +153,24 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 			},
 			tagsByCellID: map[string]map[string][]string{"cellX": {"instance-guid-1-0": {"tag:x"}}, "cellY": {"different-instance-guid-1-0": {"tag:y"}}},
-			expNew: map[string]Service{
+			expNew: map[string]cprofstruct.Service{
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
-					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
+					containerPorts: []cprofstruct.ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					tags:           []string{"tag:x"},
 				},
 			},
-			expDel: map[string]Service{},
+			expDel: map[string]cprofstruct.Service{},
 		},
 		{
 			// now the service created above should be deleted
 			aLRP:   map[string][]*cloudfoundry.ActualLRP{},
 			dLRP:   map[string]*cloudfoundry.DesiredLRP{},
-			expNew: map[string]Service{},
-			expDel: map[string]Service{
+			expNew: map[string]cprofstruct.Service{},
+			expDel: map[string]cprofstruct.Service{
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs:   map[string]string{CfServiceContainerIP: "1.2.3.4"},
-					containerPorts: []ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
+					containerPorts: []cprofstruct.ContainerPort{{Port: 11, Name: "p11"}, {Port: 22, Name: "p22"}},
 					tags:           []string{"tag:x"},
 				},
 			},
@@ -194,14 +195,14 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 			},
 			tagsByCellID: map[string]map[string][]string{"cellX": {"different-instance-guid-1-0": {"tag:x"}}},
-			expNew: map[string]Service{
+			expNew: map[string]cprofstruct.Service{
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []cprofstruct.ContainerPort{},
 					tags:           []string{"app_guid:myappguid1", "app_id:myappguid1", "app_name:myappname1"},
 				},
 			},
-			expDel: map[string]Service{},
+			expDel: map[string]cprofstruct.Service{},
 		},
 		{
 			// complex test with three apps, one having no AD configuration, two having different configurations
@@ -338,17 +339,17 @@ func TestCloudFoundryListener(t *testing.T) {
 					"instance-guid-3-1": {"tag:32"},
 				},
 			},
-			expDel: map[string]Service{
+			expDel: map[string]cprofstruct.Service{
 				"myappguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []cprofstruct.ContainerPort{},
 					tags:           []string{"app_guid:myappguid1", "app_id:myappguid1", "app_name:myappname1"},
 				},
 			},
-			expNew: map[string]Service{
+			expNew: map[string]cprofstruct.Service{
 				"processguid1/flask-app/instance-guid-1-0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.4"},
-					containerPorts: []ContainerPort{
+					containerPorts: []cprofstruct.ContainerPort{
 						{
 							Name: "p11",
 							Port: 11,
@@ -362,7 +363,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"processguid1/flask-app/instance-guid-1-1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.5"},
-					containerPorts: []ContainerPort{
+					containerPorts: []cprofstruct.ContainerPort{
 						{
 							Name: "p33",
 							Port: 33,
@@ -376,12 +377,12 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"appguid1/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []cprofstruct.ContainerPort{},
 					tags:           []string{"app_guid:appguid1", "app_id:appguid1", "app_name:appname1", "org_id:orgguid1", "org_name:orgname1", "space_id:spaceguid1", "space_name:spacename1"},
 				},
 				"processguid2/flask-app/instance-guid-2-0": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.7"},
-					containerPorts: []ContainerPort{
+					containerPorts: []cprofstruct.ContainerPort{
 						{
 							Name: "p77",
 							Port: 77,
@@ -395,7 +396,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"processguid2/flask-app/instance-guid-2-1": &CloudFoundryService{
 					containerIPs: map[string]string{CfServiceContainerIP: "1.2.3.8"},
-					containerPorts: []ContainerPort{
+					containerPorts: []cprofstruct.ContainerPort{
 						{
 							Name: "p99",
 							Port: 99,
@@ -409,7 +410,7 @@ func TestCloudFoundryListener(t *testing.T) {
 				},
 				"appguid2/my-postgres": &CloudFoundryService{
 					containerIPs:   map[string]string{},
-					containerPorts: []ContainerPort{},
+					containerPorts: []cprofstruct.ContainerPort{},
 					tags:           []string{"app_guid:appguid2", "app_id:appguid2", "app_name:appname2", "org_id:orgguid2", "org_name:orgname2", "space_id:spaceguid2", "space_name:spacename2"},
 				},
 			},

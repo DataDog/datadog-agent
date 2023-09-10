@@ -7,6 +7,7 @@ package listeners
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -16,7 +17,7 @@ import (
 
 // EnvironmentListener implements a ServiceListener based on current environment
 type EnvironmentListener struct {
-	newService chan<- Service
+	newService chan<- cprofstruct.Service
 }
 
 // EnvironmentService represents services generated from EnvironmentListener
@@ -25,19 +26,19 @@ type EnvironmentService struct {
 }
 
 // Make sure EnvironmentService implements the Service interface
-var _ Service = &EnvironmentService{}
+var _ cprofstruct.Service = &EnvironmentService{}
 
 func init() {
 	Register("environment", NewEnvironmentListener)
 }
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener(Config) (ServiceListener, error) {
+func NewEnvironmentListener(cprofstruct.Config) (cprofstruct.ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
 // Listen starts the goroutine to detect checks based on environment
-func (l *EnvironmentListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *EnvironmentListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
 	l.newService = newSvc
 
 	// ATM we consider environment as a fixed space
@@ -95,7 +96,7 @@ func (s *EnvironmentService) GetHosts(context.Context) (map[string]string, error
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *EnvironmentService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 

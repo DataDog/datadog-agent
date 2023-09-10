@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
@@ -21,7 +22,7 @@ import (
 // workloadmetaListener is a generic subscriber to workloadmeta events that
 // generates AD services.
 type workloadmetaListener interface {
-	ServiceListener
+	cprofstruct.ServiceListener
 
 	// Store returns a reference to the workloadmeta store being used by
 	// the listener.
@@ -31,7 +32,7 @@ type workloadmetaListener interface {
 	// internally to identify a service). If a non-empty parentSvcID is
 	// passed, the service will be deleted when the parent service is
 	// removed.
-	AddService(svcID string, svc Service, parentSvcID string)
+	AddService(svcID string, svc cprofstruct.Service, parentSvcID string)
 
 	// IsExcluded returns whether a container should be excluded according
 	// to the chosen ft filter.
@@ -49,11 +50,11 @@ type workloadmetaListenerImpl struct {
 	workloadFilters  *workloadmeta.Filter
 	containerFilters *containerFilters
 
-	services map[string]Service
+	services map[string]cprofstruct.Service
 	children map[string]map[string]struct{}
 
-	newService chan<- Service
-	delService chan<- Service
+	newService chan<- cprofstruct.Service
+	delService chan<- cprofstruct.Service
 }
 
 var _ workloadmetaListener = &workloadmetaListenerImpl{}
@@ -84,7 +85,7 @@ func newWorkloadmetaListener(
 		workloadFilters:  workloadFilters,
 		containerFilters: containerFilters,
 
-		services: make(map[string]Service),
+		services: make(map[string]cprofstruct.Service),
 		children: make(map[string]map[string]struct{}),
 	}, nil
 }
@@ -93,7 +94,7 @@ func (l *workloadmetaListenerImpl) Store() workloadmeta.Store {
 	return l.store
 }
 
-func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentSvcID string) {
+func (l *workloadmetaListenerImpl) AddService(svcID string, svc cprofstruct.Service, parentSvcID string) {
 	kind := kindFromSvcID(svcID)
 	if parentSvcID != "" {
 		if _, ok := l.children[parentSvcID]; !ok {
@@ -123,7 +124,7 @@ func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, annotati
 	return l.containerFilters.IsExcluded(ft, annotations, name, image, ns)
 }
 
-func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *workloadmetaListenerImpl) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 

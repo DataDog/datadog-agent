@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"net/url"
 	"os"
 	"regexp"
@@ -19,7 +20,6 @@ import (
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,7 +27,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-type variableGetter func(ctx context.Context, key string, svc listeners.Service) (string, error)
+type variableGetter func(ctx context.Context, key string, svc cprofstruct.Service) (string, error)
 
 var templateVariables = map[string]variableGetter{
 	"host":     getHost,
@@ -63,7 +63,7 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 
 // Resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
+func Resolve(tpl integration.Config, svc cprofstruct.Service) (integration.Config, error) {
 	ctx := context.TODO()
 	// Copy original template
 	resolvedConfig := integration.Config{
@@ -114,7 +114,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 // In order to do that, the string is decoded into a tree representing the yaml document.
 // If not `nil`, the `postProcessor` function is invoked on that tree so that it can alter the yaml document and benefit from the yaml parsing.
 // It can be used, for ex., to inject extra tags.
-func substituteTemplateVariables(ctx context.Context, config *integration.Config, svc listeners.Service, postProcessor func(interface{}) error) error {
+func substituteTemplateVariables(ctx context.Context, config *integration.Config, svc cprofstruct.Service, postProcessor func(interface{}) error) error {
 	var err error
 
 	for _, toResolve := range listDataToResolve(config) {
@@ -192,7 +192,7 @@ func listDataToResolve(config *integration.Config) []dataToResolve {
 	return res
 }
 
-func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc listeners.Service, parser parser, postProcessor func(interface{}) error) ([]byte, error) {
+func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc cprofstruct.Service, parser parser, postProcessor func(interface{}) error) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -300,13 +300,13 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 // for `‰host‰` patterns, if the value of the variable is an IPv6 *and* it appears in an URL context, then it is surrounded by square brackets.
 // Indeed, IPv6 needs to be surrounded by square brackets inside URL to distinguish the colons of the IPv6 itself from the one separating the IP from the port
 // like in: http://[::1]:80/
-func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners.Service) (out interface{}, err error) {
+func resolveStringWithTemplateVars(ctx context.Context, in string, svc cprofstruct.Service) (out interface{}, err error) {
 	isThereAnIPv6Host := false
 
 	adHocTemplateVars := make(map[string]variableGetter)
 	for k, v := range templateVariables {
 		if k == "host" {
-			adHocTemplateVars[k] = func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+			adHocTemplateVars[k] = func(ctx context.Context, tplVar string, svc cprofstruct.Service) (string, error) {
 				host, err := getHost(ctx, tplVar, svc)
 				if apiutil.IsIPv6(host) {
 					isThereAnIPv6Host = true
@@ -335,7 +335,7 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 	}
 
 	adHocTemplateVars = map[string]variableGetter{
-		"host": func(_ context.Context, _ string, _ listeners.Service) (string, error) {
+		"host": func(_ context.Context, _ string, _ cprofstruct.Service) (string, error) {
 			return "127.0.0.1", nil
 		},
 	}
@@ -350,7 +350,7 @@ func resolveStringWithTemplateVars(ctx context.Context, in string, svc listeners
 	}
 
 	adHocTemplateVars = map[string]variableGetter{
-		"host": func(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+		"host": func(ctx context.Context, tplVar string, svc cprofstruct.Service) (string, error) {
 			host, err := getHost(ctx, tplVar, svc)
 			var sb strings.Builder
 			sb.WriteByte('[')
@@ -377,7 +377,7 @@ var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
 // resolveStringWithAdHocTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
 // The variable getters are passed as last parameter.
 // If the input string is composed of *only* a `‰var_param‰` pattern and the result of the substitution is a boolean or a number, then the function returns a boolean or a number instead of a string.
-func resolveStringWithAdHocTemplateVars(ctx context.Context, in string, svc listeners.Service, templateVariables map[string]variableGetter) (out interface{}, err error) {
+func resolveStringWithAdHocTemplateVars(ctx context.Context, in string, svc cprofstruct.Service, templateVariables map[string]variableGetter) (out interface{}, err error) {
 	varIndexes := varPattern.FindAllStringSubmatchIndex(in, -1)
 
 	if len(varIndexes) == 0 {
@@ -478,7 +478,7 @@ func tagsAdder(tags []string) func(interface{}) error {
 	}
 }
 
-func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+func getHost(ctx context.Context, tplVar string, svc cprofstruct.Service) (string, error) {
 	if svc == nil {
 		return "", NewNoServiceError("No service. %%%%host%%%% is not allowed")
 	}
@@ -527,7 +527,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 }
 
 // getPort returns ports of the service
-func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
+func getPort(ctx context.Context, tplVar string, svc cprofstruct.Service) (string, error) {
 	if svc == nil {
 		return "", NewNoServiceError("No service. %%%%port%%%% is not allowed")
 	}
@@ -560,7 +560,7 @@ func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string,
 }
 
 // getPid returns the process identifier of the service
-func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error) {
+func getPid(ctx context.Context, _ string, svc cprofstruct.Service) (string, error) {
 	if svc == nil {
 		return "", NewNoServiceError("No service. %%%%pid%%%% is not allowed")
 	}
@@ -574,7 +574,7 @@ func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error
 
 // getHostname returns the hostname of the service, to be used
 // when the IP is unavailable or erroneous
-func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, error) {
+func getHostname(ctx context.Context, _ string, svc cprofstruct.Service) (string, error) {
 	if svc == nil {
 		return "", NewNoServiceError("No service. %%%%hostname%%%% is not allowed")
 	}
@@ -591,7 +591,7 @@ func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, 
 // Even though it gets the data from the same listener method GetExtraConfig, the kube_ and extra_
 // prefixes are customer facing, we support both of them for a better user experience depending on
 // the AD listener and what the template variable represents.
-func getAdditionalTplVariables(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
+func getAdditionalTplVariables(_ context.Context, tplVar string, svc cprofstruct.Service) (string, error) {
 	if svc == nil {
 		return "", NewNoServiceError("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
 	}
@@ -604,7 +604,7 @@ func getAdditionalTplVariables(_ context.Context, tplVar string, svc listeners.S
 }
 
 // getEnvvar returns a system environment variable if found
-func getEnvvar(_ context.Context, envVar string, svc listeners.Service) (string, error) {
+func getEnvvar(_ context.Context, envVar string, svc cprofstruct.Service) (string, error) {
 	if len(envVar) == 0 {
 		if svc != nil {
 			return "", fmt.Errorf("envvar name is missing, skipping service %s", svc.GetServiceID())

@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
@@ -43,8 +44,8 @@ type KubeEndpointsListener struct {
 	serviceLister      listv1.ServiceLister
 	endpoints          map[k8stypes.UID][]*KubeEndpointService
 	promInclAnnot      types.PrometheusAnnotations
-	newService         chan<- Service
-	delService         chan<- Service
+	newService         chan<- cprofstruct.Service
+	delService         chan<- cprofstruct.Service
 	targetAllEndpoints bool
 	m                  sync.RWMutex
 }
@@ -54,18 +55,18 @@ type KubeEndpointService struct {
 	entity string
 	tags   []string
 	hosts  map[string]string
-	ports  []ContainerPort
+	ports  []cprofstruct.ContainerPort
 }
 
 // Make sure KubeEndpointService implements the Service interface
-var _ Service = &KubeEndpointService{}
+var _ cprofstruct.Service = &KubeEndpointService{}
 
 func init() {
 	Register(kubeEndpointsName, NewKubeEndpointsListener)
 }
 
 // NewKubeEndpointsListener returns the kube endpoints implementation of the ServiceListener interface
-func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
+func NewKubeEndpointsListener(conf cprofstruct.Config) (cprofstruct.ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -94,7 +95,7 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 }
 
 // Listen starts watching service and endpoint events
-func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *KubeEndpointsListener) Listen(newSvc chan<- cprofstruct.Service, delSvc chan<- cprofstruct.Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
@@ -325,10 +326,10 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 func processEndpoints(kep *v1.Endpoints, tags []string) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 	for i := range kep.Subsets {
-		ports := []ContainerPort{}
+		ports := []cprofstruct.ContainerPort{}
 		// Ports
 		for _, port := range kep.Subsets[i].Ports {
-			ports = append(ports, ContainerPort{int(port.Port), port.Name})
+			ports = append(ports, cprofstruct.ContainerPort{int(port.Port), port.Name})
 		}
 		// Hosts
 		for _, host := range kep.Subsets[i].Addresses {
@@ -423,9 +424,9 @@ func (s *KubeEndpointService) GetPid(context.Context) (int, error) {
 }
 
 // GetPorts returns the endpoint's ports
-func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *KubeEndpointService) GetPorts(context.Context) ([]cprofstruct.ContainerPort, error) {
 	if s.ports == nil {
-		return []ContainerPort{}, nil
+		return []cprofstruct.ContainerPort{}, nil
 	}
 	return s.ports, nil
 }

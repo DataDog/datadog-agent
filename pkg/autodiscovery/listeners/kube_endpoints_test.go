@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"sort"
 	"testing"
 
@@ -70,7 +71,7 @@ func TestProcessEndpoints(t *testing.T) {
 
 	ports, err := eps[0].GetPorts(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
+	assert.Equal(t, []cprofstruct.ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
 	tags, err := eps[0].GetTags()
 	assert.NoError(t, err)
@@ -88,7 +89,7 @@ func TestProcessEndpoints(t *testing.T) {
 
 	ports, err = eps[1].GetPorts(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
+	assert.Equal(t, []cprofstruct.ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
 	tags, err = eps[1].GetTags()
 	assert.NoError(t, err)
