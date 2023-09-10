@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"net"
 	"strconv"
 	"sync"
@@ -120,7 +121,19 @@ func (l *DistributedChecksListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 
 	for {
-		log.Info("[DistributedChecksListener] run")
+		log.Infof("[DistributedChecksListener] run")
+		configs, errors, err := providers.ReadConfigFiles(providers.GetAll)
+		//log.Info("[DistributedChecksListener] configs: %v", configs)
+		log.Infof("[DistributedChecksListener] errors: %v", errors)
+		log.Infof("[DistributedChecksListener] err: %v", err)
+		for _, config := range configs {
+			log.Infof("[DistributedChecksListener] config (name=%s, ClusterCheck=%s)", config.Name, config.ClusterCheck)
+		}
+		for _, config := range configs {
+			if config.Name == "snmp" {
+				log.Infof("[DistributedChecksListener] yaml: %s", config.String())
+			}
+		}
 
 		select {
 		case <-l.stop:
