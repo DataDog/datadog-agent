@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners/listeners_interfaces"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
