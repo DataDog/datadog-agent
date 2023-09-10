@@ -130,6 +130,9 @@ func (l *DistributedChecksListener) checkDevices() {
 			log.Infof("[DistributedChecksListener] config (name=%s, ClusterCheck=%s)", config.Name, config.ClusterCheck)
 		}
 		for _, config := range configs {
+			if config.IsTemplate() {
+				continue
+			}
 			if config.Name == "snmp" {
 				log.Infof("[DistributedChecksListener] yaml: %s", config.String())
 			}
