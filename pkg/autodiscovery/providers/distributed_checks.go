@@ -7,12 +7,11 @@ package providers
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DistributedChecksProvider implements the ConfigProvider interface for prometheus pods.
@@ -42,14 +41,33 @@ func (p *DistributedChecksProvider) String() string {
 // Collect retrieves templates from the kubelet's podlist, builds config objects and returns them
 func (p *DistributedChecksProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	log.Info("[DistributedChecks] Collect")
-	instances := []integration.Config{
-		{
-			Name:       "snmp",
-			Instances:  []integration.Data{integration.Data(`{"ip_address":"1.2.3.4", "community_string": "public"}`)},
-			InitConfig: integration.Data("{}"),
-		},
+	configs, _, err := ReadConfigFiles(GetAll)
+	if err != nil {
+		return nil, log.Errorf("read config files: %s", err)
 	}
-	return instances, nil
+	var newConfig []integration.Config
+	for _, config := range configs {
+		if config.IsTemplate() {
+			continue
+		}
+
+		if config.Name == "snmp" {
+			log.Infof("[DistributedChecks] config %s (cluster_check=%t): \n%s", config.Name, config.ClusterCheck, config.String())
+			config.ClusterCheck = false
+			config.InitConfig.SetField("distributed_check", true)
+			log.Infof("[DistributedChecks] config after %s (cluster_check=%t): \n%s", config.Name, config.ClusterCheck, config.String())
+			newConfig = append(newConfig, config)
+		}
+	}
+	//
+	//instances := []integration.Config{
+	//	{
+	//		Name:       "snmp",
+	//		Instances:  []integration.Data{integration.Data(`{"ip_address":"1.2.3.4", "community_string": "public"}`)},
+	//		InitConfig: integration.Data("{}"),
+	//	},
+	//}
+	return newConfig, nil
 }
 
 // IsUpToDate always return false to poll new data from kubelet
