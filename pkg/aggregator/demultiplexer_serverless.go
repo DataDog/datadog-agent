@@ -37,7 +37,7 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
+func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration, flushInterval time.Duration) *ServerlessDemultiplexer {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 	log := log.NewTemporaryLoggerWithoutInit()
 	forwarder := forwarder.NewSyncForwarder(config.Datadog, log, domainResolvers, forwarderTimeout)
@@ -47,7 +47,7 @@ func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.Dom
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, nil, nil, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
+	statsdWorker := newTimeSamplerWorker(statsdSampler, flushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
 		log:              log,

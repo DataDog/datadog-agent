@@ -27,6 +27,7 @@ type ServerlessMetricAgent struct {
 
 // MetricConfig abstacts the config package
 type MetricConfig struct {
+	FlushInterval time.Duration
 }
 
 // MetricDogStatsD abstracts the DogStatsD package
@@ -60,7 +61,7 @@ func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (dogstatsdSe
 }
 
 // Start starts the DogStatsD agent
-func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory) {
+func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, flushInterval time.Duration, multipleEndpointConfig MultipleEndpointConfig, dogstatFactory DogStatsDFactory) {
 	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
 	// by setting this option to 1ms, all packets received will directly be sent to the parser
 	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
@@ -75,7 +76,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	} else {
 		config.Datadog.Set(statsDMetricBlocklistKey, buildMetricBlocklist(customerList))
 	}
-	demux := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout)
+	demux := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout, flushInterval)
 
 	if demux != nil {
 		statsd, err := dogstatFactory.NewServer(demux)
@@ -120,14 +121,14 @@ func (c *ServerlessMetricAgent) GetExtraTags() []string {
 	return c.tags
 }
 
-func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) aggregator.Demultiplexer {
+func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration, flushInterval time.Duration) aggregator.Demultiplexer {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
 	if err != nil {
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
+	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout, flushInterval)
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {
