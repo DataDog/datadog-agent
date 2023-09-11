@@ -21,7 +21,9 @@ const maxBackoffRetrySeconds = 5 * 60
 type Strategy interface {
 	String() string
 	ShouldFlush(moment Moment, t time.Time) bool
+	// Failure modify state to keep track of failure
 	Failure(t time.Time)
+	// Success reset the state when a flush is successful
 	Success()
 }
 
@@ -78,9 +80,8 @@ func (s *AtTheEnd) String() string { return "end" }
 func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 	if shouldWaitBackoff(t) {
 		return false
-	} else {
-		return moment == Stopping
 	}
+	return moment == Stopping
 }
 
 func (s *AtTheEnd) Failure(t time.Time) {
@@ -137,17 +138,16 @@ func shouldWaitBackoff(now time.Time) bool {
 
 		whenAcceptingFlush := lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9))
 
-		timeLeft := math.Max(float64(whenAcceptingFlush.Second()-now.Second()), 0)
+		timeLeft := int(math.Max(float64(whenAcceptingFlush.Second()-now.Second()), 0))
 
 		log.Debugf("Flush failed %d times, flushes will be prevented for %d seconds (%d left)", retries, ignoreWindowSeconds, timeLeft)
 		return now.Before(whenAcceptingFlush)
-	} else {
-		return false
 	}
+	return false
 }
 
 func incrementFailure(t time.Time) {
-	retries += 1
+	retries++
 	lastFail = t
 }
 
