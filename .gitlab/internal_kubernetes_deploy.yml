@@ -52,7 +52,7 @@ internal_kubernetes_deploy_stripe:
 notify-on-success:
   extends: .slack-notifier.on-success
   script:
-    - scripts/generate_changelog.sh da07054
+    - ./scripts/generate_changelog.sh da07054
     - git checkout da07054
     - git tag stripe-staging
     - git push origin stripe-staging
