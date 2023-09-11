@@ -87,11 +87,10 @@ def update_go(
         # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
         # releasenotes/notes/go1185-fd9d8b88c7c7a12e.yaml
         print("In particular as this is a major update, the release note should describe user-facing changes.")
-    print()
 
     print(
         color_message(
-            "Remember to look for reference to the former version by yourself too, and update this task if you find any.",
+            "\nRemember to look for reference to the former version by yourself too, and update this task if you find any.",
             "green",
         )
     )
