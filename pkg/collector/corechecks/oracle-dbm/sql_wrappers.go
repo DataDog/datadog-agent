@@ -31,7 +31,7 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	if err == nil {
 		return err
 	}
-	err, isPrivilegeError := handlePrivilegeError(c, err)
+	isPrivilegeError, err := handlePrivilegeError(c, err)
 	if err != nil && isPrivilegeError {
 		return err
 	}
@@ -39,13 +39,13 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	return err
 }
 
-func handlePrivilegeError(c *Check, err error) (error, bool) {
+func handlePrivilegeError(c *Check, err error) (bool, error) {
 	var isPrivilegeError bool
 	if err == nil {
 		return nil, isPrivilegeError
 	}
 	if !strings.Contains(err.Error(), "ORA-00942") {
-		return err, isPrivilegeError
+		return isPrivilegeError, err
 	}
 	var link string
 	if c.isRDS {
@@ -56,7 +56,7 @@ func handlePrivilegeError(c *Check, err error) (error, bool) {
 		link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/#grant-permissions"
 	}
 	isPrivilegeError = true
-	return fmt.Errorf("Some privileges are missing. Execute the `grant` commands from %s . Error: %w", link, err), isPrivilegeError
+	return isPrivilegeError, fmt.Errorf("Some privileges are missing. Execute the `grant` commands from %s . Error: %w", link, err)
 }
 
 func isConnectionError(err error) bool {
