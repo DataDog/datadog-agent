@@ -29,8 +29,8 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR_SUFFIX/kitchen-junit-*.tar.gz
-      - $DD_AGENT_TESTING_DIR_SUFFIX/testjson
+      - test/kitchen/kitchen-junit-*.tar.gz
+      - test/kitchen/testjson
       - kitchen_logs
 
 .retrieve_test_dockers:
@@ -71,7 +71,6 @@ kitchen_test_system_probe_linux_x64_ec2:
     KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-    KITCHEN_DOCKERS_SUFFIX: $DD_AGENT_TESTING_DIR_SUFFIX/kitchen-dockers-$ARCH
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
   before_script:
     - !reference [.retrieve_test_dockers]
@@ -136,7 +135,6 @@ kitchen_test_system_probe_linux_arm64:
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-    KITCHEN_DOCKERS_SUFFIX: $DD_AGENT_TESTING_DIR_SUFFIX/kitchen-dockers-$ARCH
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
   before_script:
     - !reference [.retrieve_test_dockers]
