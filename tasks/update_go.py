@@ -1,6 +1,7 @@
 import re
 from typing import Optional
 
+import semver
 from invoke import Context, exceptions, task
 
 from .go import tidy_all
@@ -12,7 +13,7 @@ GO_VERSION_FILE = "./.go-version"
 
 
 # replace the given pattern with the given string in the file
-def _update_file(path: str, pattern: str, replace: str, expected_match: int = 1):
+def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1):
     # newline='' keeps the file's newline character(s)
     # meaning it keeps '\n' for most files and '\r\n' for windows specific files
 
@@ -21,11 +22,11 @@ def _update_file(path: str, pattern: str, replace: str, expected_match: int = 1)
 
     content, nb_match = re.subn(pattern, replace, content, flags=re.MULTILINE)
     if nb_match != expected_match:
-        print(
-            color_message(
-                f"WARNING: {path}: '{pattern}': expected {expected_match} matches but go {nb_match}", "orange"
-            )
-        )
+        msg = f"{path}: '{pattern}': expected {expected_match} matches but go {nb_match}"
+        if warn:
+            print(color_message(f"WARNING: {msg}", "orange"))
+        else:
+            raise exceptions.Exit(msg)
 
     with open(path, "w", newline='') as writer:
         writer.write(content)
@@ -41,25 +42,26 @@ def _get_repo_go_version() -> str:
 # extracts the major version from the given string
 # eg. if the string is "1.2.3", returns "1.2"
 def _get_major_version(version: str) -> str:
-    major, _, _ = version.rpartition(".")
-    return major
+    ver = semver.Version.parse(version)
+    return f"{ver.major}.{ver.minor}"
 
 
-def _update_go_version_file(version: str):
-    _update_file(GO_VERSION_FILE, "[.0-9]+", version)
+def _update_go_version_file(warn: bool, version: str):
+    _update_file(warn, GO_VERSION_FILE, "[.0-9]+", version)
 
 
-def _update_gdb_dockerfile(version: str):
+def _update_gdb_dockerfile(warn: bool, version: str):
     path = "./tools/gdb/Dockerfile"
     pattern = r'(https://go\.dev/dl/go)[.0-9]+(\.linux-amd64\.tar\.gz)'
     replace = rf'\g<1>{version}\g<2>'
-    _update_file(path, pattern, replace)
+    _update_file(warn, path, pattern, replace)
 
 
-def _update_install_devenv(version: str):
+def _update_install_devenv(warn: bool, version: str):
     path = "./devenv/scripts/Install-DevEnv.ps1"
-    _update_file(path, '("Installing go )[.0-9]+"', rf'\g<1>{version}"')
+    _update_file(warn, path, '("Installing go )[.0-9]+"', rf'\g<1>{version}"')
     _update_file(
+        warn,
         path,
         r'(https://dl\.google\.com/go/go)[.0-9]+(\.windows-)',
         rf'\g<1>{version}\g<2>',
@@ -67,31 +69,31 @@ def _update_install_devenv(version: str):
     )
 
 
-def _update_agent_devenv(version: str):
+def _update_agent_devenv(warn: bool, version: str):
     path = "./docs/dev/agent_dev_env.md"
     pattern = r"^(You must \[install Golang\]\(https://golang\.org/doc/install\) version )`[.0-9]+`"
     replace = rf"\g<1>`{version}`"
-    _update_file(path, pattern, replace)
+    _update_file(warn, path, pattern, replace)
 
 
-def _update_task_go(version: str):
+def _update_task_go(warn: bool, version: str):
     path = "./tasks/go.py"
     pattern = '("go version go)[.0-9]+( linux/amd64")'
     replace = rf'\g<1>{version}\g<2>'
-    _update_file(path, pattern, replace)
+    _update_file(warn, path, pattern, replace)
 
 
-def _update_readme(major: str):
+def _update_readme(warn: bool, major: str):
     path = "./README.md"
     pattern = r'(\[Go\]\(https://golang\.org/doc/install\) )[.0-9]+( or later)'
     replace = rf'\g<1>{major}\g<2>'
-    _update_file(path, pattern, replace)
+    _update_file(warn, path, pattern, replace)
 
 
-def _update_go_mods(major: str):
+def _update_go_mods(warn: bool, major: str):
     mod_files = [f"./{module}/go.mod" for module in DEFAULT_MODULES]
     for mod_file in mod_files:
-        _update_file(mod_file, "^go [.0-9]+$", f"go {major}")
+        _update_file(warn, mod_file, "^go [.0-9]+$", f"go {major}")
 
 
 def _create_releasenote(ctx: Context, version: str):
@@ -117,7 +119,7 @@ enhancements:
         "version": "The version of Go to use",
         "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
         "test_version": "Whether the image is a test image or not",
-        "force_major": "Whether to apply changes like if it was a major version update",
+        "warn": "Don't exit in case of matching error, just warn.",
     }
 )
 def update_go(
@@ -125,40 +127,57 @@ def update_go(
     version: str,
     image_tag: str,
     test_version: Optional[bool] = False,
-    force_major: Optional[bool] = False,
+    warn: Optional[bool] = False,
 ):
     """
     Updates the version of Go and build images.
     """
-    if not re.match("[0-9]+.[0-9]+.[0-9]+", version):
-        raise exceptions.Exit(
-            "The version doesn't have an expected format, it should be 3 numbers separated with a dot."
-        )
-
-    # check the installed go version before running `tidy_all`
-    res = ctx.run("go version")
-    if not res.stdout.startswith(f"go version go{version} "):
-        raise exceptions.Exit("The version of your `go` binary doesn't match the requested version")
+    if not semver.Version.is_valid(version):
+        raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
     current_major = _get_major_version(current_version)
     new_major = _get_major_version(version)
 
-    major_update = current_major != new_major or force_major
+    major_update = current_major != new_major
     if major_update:
         print(color_message("WARNING: this is a change of major version\n", "orange"))
-        _update_readme(new_major)
-        _update_go_mods(new_major)
 
-    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    _update_go_version_file(version)
-    _update_gdb_dockerfile(version)
-    _update_install_devenv(version)
-    _update_agent_devenv(version)
-    _update_task_go(version)
+    try:
+        update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
+    except RuntimeError as e:
+        if warn:
+            print(color_message(f"WARNING: {str(e)}", "orange"))
+        else:
+            raise
 
-    tidy_all(ctx)
+    try:
+        update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+    except RuntimeError as e:
+        if warn:
+            print(color_message(f"WARNING: {str(e)}", "orange"))
+        else:
+            raise
+
+    _update_readme(warn, new_major)
+    _update_go_mods(warn, new_major)
+    _update_go_version_file(warn, version)
+    _update_gdb_dockerfile(warn, version)
+    _update_install_devenv(warn, version)
+    _update_agent_devenv(warn, version)
+    _update_task_go(warn, version)
+
+    # check the installed go version before running `tidy_all`
+    res = ctx.run("go version")
+    if res.stdout.startswith(f"go version go{version} "):
+        tidy_all(ctx)
+    else:
+        print(
+            color_message(
+                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the request version",
+                "orange",
+            )
+        )
 
     releasenote_path = _create_releasenote(ctx, version)
     print(
@@ -173,7 +192,7 @@ def update_go(
 
     print(
         color_message(
-            "Remember to look for reference to the former version by yourself too, and update this task if you find some.",
+            "Remember to look for reference to the former version by yourself too, and update this task if you find any.",
             "green",
         )
     )
