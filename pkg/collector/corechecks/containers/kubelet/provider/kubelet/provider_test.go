@@ -14,6 +14,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -240,20 +241,6 @@ func (suite *ProviderTestSuite) SetupTest() {
 	}
 	suite.store = store
 
-	//kubeletMock := mock.NewKubeletMock()
-	//var content []byte
-	//if tt.response.filename != "" {
-	//	content, err = os.ReadFile(tt.response.filename)
-	//	if err != nil {
-	//		t.Errorf("unable to read test file at: %s, err: %v", tt.response.filename, err)
-	//	}
-	//}
-	//kubeletMock.MockReplies["/metrics"] = &mock.HTTPReplyMock{
-	//	Data:         content,
-	//	ResponseCode: tt.response.code,
-	//	Error:        tt.response.err,
-	//}
-
 	sendBuckets := true
 	config := &common.KubeletConfig{
 		OpenmetricsInstance: types.OpenmetricsInstance{
@@ -278,16 +265,6 @@ func (suite *ProviderTestSuite) SetupTest() {
 func TestProviderTestSuite(t *testing.T) {
 	suite.Run(t, new(ProviderTestSuite))
 }
-
-// HERE IS WHAT WE ARE GOING TO DO:
-// DONE 1) test for expected metrics showing up in general for all 3 files
-// DONE 2) test for specifically volume metric tags
-// DONE 3) test for specifically monotonic count metrics
-// 4) test for rest latency metrics
-// 5) test for filesystem metrics
-// 6) test for histogram transformer
-// 7) test for SOME container tags from a metric mapping
-// 8) test for namespace filtering?
 
 func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 	type want struct {
@@ -387,6 +364,46 @@ func (suite *ProviderTestSuite) TestPodTagsOnPVCMetrics() {
 	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_free", podWithEphemeralTags)
 }
 
+func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
+	response := endpointResponse{
+		filename: "../../testdata/kubelet_metrics.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	suite.provider.filter = &containers.Filter{
+		NamespaceExcludeList: []*regexp.Regexp{regexp.MustCompile("default")},
+		Enabled:              true,
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+
+	// pvc tags show up
+	podWithPVCTags := append(instanceTags, "persistentvolumeclaim:www-web-2", "namespace:default", "kube_namespace:default", "kube_service:nginx", "kube_stateful_set:web", "namespace:default")
+
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.capacity_bytes", podWithPVCTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.used_bytes", podWithPVCTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.available_bytes", podWithPVCTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes", podWithPVCTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_used", podWithPVCTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_free", podWithPVCTags)
+
+	// ephemeral volume tags show up
+	podWithEphemeralTags := append(instanceTags, "persistentvolumeclaim:web-2-ephemeralvolume", "namespace:default", "kube_namespace:default", "kube_service:nginx", "kube_stateful_set:web", "namespace:default")
+
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.capacity_bytes", podWithEphemeralTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.used_bytes", podWithEphemeralTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.available_bytes", podWithEphemeralTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes", podWithEphemeralTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_used", podWithEphemeralTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_free", podWithEphemeralTags)
+}
+
 func (suite *ProviderTestSuite) TestSendAlwaysCounter() {
 	response := endpointResponse{
 		filename: "../../testdata/kubelet_metrics_1_21.txt",
@@ -405,6 +422,86 @@ func (suite *ProviderTestSuite) TestSendAlwaysCounter() {
 	suite.mockSender.AssertMetric(suite.T(), "MonotonicCount", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(instanceTags, "eviction_signal:allocatableMemory.available"))
 	suite.mockSender.AssertMetric(suite.T(), "MonotonicCount", common.KubeletMetricsPrefix+"kubelet.evictions", 3, "", append(instanceTags, "eviction_signal:memory.available"))
 	suite.mockSender.AssertMetric(suite.T(), "MonotonicCount", common.KubeletMetricsPrefix+"kubelet.pleg.discard_events", 0, "", instanceTags)
+}
+
+func (suite *ProviderTestSuite) TestKubeletContainerLogFilesystemUsedBytes() {
+	// Get around floating point conversion issues during AssertCalled
+	expected, _ := strconv.ParseFloat("24576", 64)
+
+	response := endpointResponse{
+		filename: "../../testdata/kubelet_metrics_1_21.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+
+	// container id has tags, so container tags show up
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes", 5242822656, "", append(instanceTags, "kube_container_name:datadog-agent"))
+	// container id not found in tagger, so no container tags show up
+	suite.mockSender.AssertCalled(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes", expected, "", instanceTags)
+}
+
+func (suite *ProviderTestSuite) TestRestClientLatency() {
+	response := endpointResponse{
+		filename: "../../testdata/kubelet_metrics_1_21.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+
+	// url is parsed
+	// note: there are so many metric points generated for this metric based on the input data, we are just going to focus on one
+	expectedTags := append(instanceTags, "url:/api/v1/namespaces/{namespace}/configmaps", "verb:GET")
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.001"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.002"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.004"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.008"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.016"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.032"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.064"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.128"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.256"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.count", append(expectedTags, "upper_bound:0.512"))
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"rest.client.latency.sum", expectedTags)
+}
+
+func (suite *ProviderTestSuite) TestHistogramFromSecondsToMicroseconds() {
+	response := endpointResponse{
+		filename: "../../testdata/kubelet_metrics_1_21.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+
+	// upper_bound tag is transformed for buckets
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.network_plugin.latency.count", 14, "", append(instanceTags, "operation_type:get_pod_network_status", "upper_bound:5000.000000"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.pod.start.duration.count", 30, "", append(instanceTags, "upper_bound:5000.000000"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.pod.worker.start.duration.count", 30, "", append(instanceTags, "upper_bound:5000.000000"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.runtime.operations.duration.count", 177, "", append(instanceTags, "operation_type:container_status", "upper_bound:5000.000000"))
+
+	// value is transformed for sum
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.network_plugin.latency.sum", 1.1268392169999992e+06, "", append(instanceTags, "operation_type:get_pod_network_status"))
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.pod.start.duration.sum", 202368874.00600008, "", instanceTags)
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.pod.worker.start.duration.sum", 26680.296, "", instanceTags)
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.runtime.operations.duration.sum", 1204396.2709999991, "", append(instanceTags, "operation_type:container_status"))
 }
 
 func (suite *ProviderTestSuite) assertMetricCallsMatch(t *testing.T, expectedMetrics []string) {
@@ -462,239 +559,6 @@ func createKubeletMock(response endpointResponse) (*mock.KubeletMock, error) {
 	}
 	return kubeletMock, nil
 }
-
-//func TestProvider_Provide(t *testing.T) {
-//	probesEndpoint := "http://10.8.0.1:10255/metrics/probes"
-//	//probesEndpointDisabled := ""
-//
-//	type response struct {
-//		filename string
-//		code     int
-//		err      error
-//	}
-//	type want struct {
-//		metrics []string
-//		err     error
-//	}
-//	tests := []struct {
-//		name           string
-//		podsFile       string
-//		probesEndpoint *string
-//		response       response
-//		want           want
-//	}{
-//		{
-//			name:           "pre 1.14 metrics all show up",
-//			podsFile:       "../../testdata/pods.json",
-//			probesEndpoint: &probesEndpoint,
-//			response: response{
-//				filename: "../../testdata/kubelet_metrics.txt",
-//				code:     200,
-//				err:      nil,
-//			},
-//			want: want{
-//				metrics: EXPECTED_METRICS_PROMETHEUS_PRE_1_14,
-//			},
-//		},
-//		{
-//			name:           "1.14 metrics all show up",
-//			podsFile:       "../../testdata/pods.json",
-//			probesEndpoint: &probesEndpoint,
-//			response: response{
-//				filename: "../../testdata/kubelet_metrics_1_14.txt",
-//				code:     200,
-//				err:      nil,
-//			},
-//			want: want{
-//				metrics: EXPECTED_METRICS_PROMETHEUS_1_14,
-//			},
-//		},
-//		{
-//			name:           "1.21 metrics all show up",
-//			podsFile:       "../../testdata/pods.json",
-//			probesEndpoint: &probesEndpoint,
-//			response: response{
-//				filename: "../../testdata/kubelet_metrics_1_21.txt",
-//				code:     200,
-//				err:      nil,
-//			},
-//			want: want{
-//				metrics: EXPECTED_METRICS_PROMETHEUS_1_21,
-//			},
-//		},
-//		//{
-//		//	name:           "endpoint 404 returns no error",
-//		//	podsFile:       "../../testdata/pods.json",
-//		//	probesEndpoint: &probesEndpoint,
-//		//	response: response{
-//		//		filename: "",
-//		//		code:     404,
-//		//		err:      nil,
-//		//	},
-//		//	want: want{
-//		//		metrics: nil,
-//		//		err:     nil,
-//		//	},
-//		//},
-//		//{
-//		//	name:           "endpoint error returns error",
-//		//	podsFile:       "../../testdata/pods.json",
-//		//	probesEndpoint: &probesEndpoint,
-//		//	response: response{
-//		//		filename: "",
-//		//		code:     0,
-//		//		err:      errors.New("some error happened"),
-//		//	},
-//		//	want: want{
-//		//		metrics: nil,
-//		//		err:     errors.New("some error happened"),
-//		//	},
-//		//},
-//		//{
-//		//	name:           "no pod metadata no metrics reported",
-//		//	podsFile:       "",
-//		//	probesEndpoint: &probesEndpoint,
-//		//	response: response{
-//		//		filename: "../../testdata/probes.txt",
-//		//		code:     200,
-//		//		err:      nil,
-//		//	},
-//		//	want: want{
-//		//		metrics: nil,
-//		//		err:     nil,
-//		//	},
-//		//},
-//		//{
-//		//	name:           "no probe endpoint supplied default used metrics reported",
-//		//	podsFile:       "../../testdata/pod_list_probes.json",
-//		//	probesEndpoint: nil,
-//		//	response: response{
-//		//		filename: "../../testdata/probes.txt",
-//		//		code:     200,
-//		//		err:      nil,
-//		//	},
-//		//	want: want{
-//		//		metrics: expectedMetrics,
-//		//		err:     nil,
-//		//	},
-//		//},
-//		//{
-//		//	name:           "empty string probe endpoint supplied no metrics reported",
-//		//	podsFile:       "../../testdata/pod_list_probes.json",
-//		//	probesEndpoint: &probesEndpointDisabled,
-//		//	response: response{
-//		//		filename: "../../testdata/probes.txt",
-//		//		code:     200,
-//		//		err:      nil,
-//		//	},
-//		//	want: want{
-//		//		metrics: nil,
-//		//		err:     nil,
-//		//	},
-//		//},
-//	}
-//	for _, tt := range tests {
-//		t.Run(tt.name, func(t *testing.T) {
-//			var err error
-//
-//			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
-//			mockSender.SetupAcceptAll()
-//
-//			fakeTagger := local.NewFakeTagger()
-//			for entity, tags := range commonTags {
-//				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
-//			}
-//			tagger.SetDefaultTagger(fakeTagger)
-//
-//			store, err := storePopulatedFromFile(tt.podsFile)
-//			if err != nil {
-//				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
-//			}
-//
-//			kubeletMock := mock.NewKubeletMock()
-//			var content []byte
-//			if tt.response.filename != "" {
-//				content, err = os.ReadFile(tt.response.filename)
-//				if err != nil {
-//					t.Errorf("unable to read test file at: %s, err: %v", tt.response.filename, err)
-//				}
-//			}
-//			kubeletMock.MockReplies["/metrics"] = &mock.HTTPReplyMock{
-//				Data:         content,
-//				ResponseCode: tt.response.code,
-//				Error:        tt.response.err,
-//			}
-//
-//			sendBuckets := true
-//			config := &common.KubeletConfig{
-//				OpenmetricsInstance: types.OpenmetricsInstance{
-//					Tags:                 []string{"instance_tag:something"},
-//					SendHistogramBuckets: &sendBuckets,
-//					Namespace:            common.KubeletMetricsPrefix,
-//				},
-//				ProbesMetricsEndpoint: tt.probesEndpoint,
-//			}
-//
-//			p, err := NewProvider(
-//				&containers.Filter{
-//					Enabled:         true,
-//					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-//				},
-//				config,
-//				store,
-//			)
-//			assert.NoError(t, err)
-//
-//			err = p.Provide(kubeletMock, mockSender)
-//			if !reflect.DeepEqual(err, tt.want.err) {
-//				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
-//				return
-//			}
-//			// TODO this is awful and ugly
-//			var matchedAsserts []tmock.Call
-//			for _, expectedMetric := range tt.want.metrics {
-//				matches := 0
-//				for _, call := range mockSender.Calls {
-//					expected := tmock.Arguments{expectedMetric, tmock.AnythingOfType("float64"), "", mocksender.MatchTagsContains(config.Tags)}
-//					if _, diffs := expected.Diff(call.Arguments); diffs == 0 {
-//						matches++
-//						matchedAsserts = append(matchedAsserts, call)
-//					}
-//				}
-//				if matches == 0 {
-//					t.Errorf("expected metric %s to be called, but it was not", expectedMetric)
-//				}
-//			}
-//			if len(matchedAsserts) != len(mockSender.Calls) {
-//				var calledWithArgs []string
-//				for _, call := range mockSender.Calls {
-//					wasMatched := false
-//					for _, matched := range matchedAsserts {
-//						if call.Method == matched.Method {
-//							if _, diffs := matched.Arguments.Diff(call.Arguments); diffs == 0 {
-//								wasMatched = true
-//								break
-//							}
-//						}
-//					}
-//					if !wasMatched {
-//						calledWithArgs = append(calledWithArgs, fmt.Sprintf("%v", call.Arguments))
-//					}
-//				}
-//				t.Errorf("expected %v metrics to be matched, but %v were", len(mockSender.Calls), len(matchedAsserts))
-//				t.Errorf("missing assertions for calls:\n        %v", strings.Join(calledWithArgs, "\n"))
-//			}
-//			//mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.want.metrics))
-//			//mockSender.AssertNumberOfCalls(t, "MonotonicCount", len(tt.want.metrics))
-//			//for _, metric := range tt.want.metrics {
-//			//	mockSender.AssertMetric(t, "MonotonicCount", metric.name, metric.value, "", metric.tags)
-//			//}
-//			//for _, metric := range tt.want.metrics {
-//			//	mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
-//			//}
-//		})
-//	}
-//}
 
 func storePopulatedFromFile(filename string) (*workloadmetatesting.Store, error) {
 	store := workloadmetatesting.NewStore()

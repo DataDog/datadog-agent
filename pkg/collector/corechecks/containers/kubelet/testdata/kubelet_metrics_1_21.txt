@@ -270,6 +270,7 @@ kubelet_cgroup_manager_duration_seconds_count{operation_type="update"} 57055
 # TYPE kubelet_container_log_filesystem_used_bytes gauge
 kubelet_container_log_filesystem_used_bytes{container="agent",namespace="datadog-agent-helm",pod="datadog-agent-linux-clusterchecks-798887cdbb-r7ft8",uid="2faa2ee1-7af3-405e-b5d5-cae8b2669028"} 1.536831488e+09
 kubelet_container_log_filesystem_used_bytes{container="agent",namespace="datadog-agent-helm",pod="datadog-agent-linux-z9zbm",uid="b279b6c5-5aa8-4167-9c2e-94b695201503"} 5.242822656e+09
+kubelet_container_log_filesystem_used_bytes{container="datadog-agent",namespace="default",pod="datadog-agent-jbm2k",uid="c2319815-10d0-11e8-bd5a-42010af00137"} 5.242822656e+09
 kubelet_container_log_filesystem_used_bytes{container="app",namespace="workload-dogstatsd",pod="dogstatsd-uds-5d4b8cbd9c-qwclq",uid="3bbded00-f9c0-48d3-a619-9a342c8092c7"} 7.818420224e+09
 kubelet_container_log_filesystem_used_bytes{container="aws-node",namespace="kube-system",pod="aws-node-tf7nn",uid="adfbb85f-d146-404f-929b-b495ac66385f"} 32768
 kubelet_container_log_filesystem_used_bytes{container="hello",namespace="workload-stress-test-ad",pod="hello-27441723-wsbz7",uid="66b735a5-ea94-497c-9fcf-07528085e561"} 24576
