@@ -1,0 +1,40 @@
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+index d282c8c7c..19949457e 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -67,6 +67,7 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+         if (Pkg.end() == true) {
+                 /* not found, clear error flag */
+                 if (err) *err = 0;
++                cgCache->Close();
+                 return NULL;
+         }
+ 
+@@ -75,6 +76,7 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+                 /* not installed, clear error flag */
+                 /* FIXME this should be different that not found */
+                 if (err) *err = 0;
++                cgCache->Close();
+                 return NULL;
+         }
+         pkgRecords::Parser &P = Recs.Lookup(V1.FileList());
+@@ -118,6 +120,8 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+         reply->version = strdup(version.c_str());
+         reply->evr = strdup(evr_str.c_str());
+ 
++        cgCache->Close();
++
+         return reply;
+ }
+ 
+@@ -151,10 +155,6 @@ int dpkginfo_init()
+ 
+ int dpkginfo_fini()
+ {
+-        if (cgCache != NULL) {
+-                cgCache->Close();
+-        }
+-
+         return 0;
+ }
+ 
