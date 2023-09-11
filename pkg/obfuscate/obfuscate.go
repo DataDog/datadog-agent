@@ -128,6 +128,9 @@ type SQLConfig struct {
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 
+	// BackendNormalization reports whether the obfuscator should skip local normalization
+	BackendNormalization bool `json:"backend_normalization"`
+
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
 }

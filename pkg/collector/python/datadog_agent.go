@@ -248,6 +248,8 @@ type sqlConfig struct {
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
+	// BackendNormalization reports whether the obfuscator should skip local normalization
+	BackendNormalization bool `json:"backend_normalization"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -267,13 +269,14 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:             sqlOpts.DBMS,
-		TableNames:       sqlOpts.TableNames,
-		CollectCommands:  sqlOpts.CollectCommands,
-		CollectComments:  sqlOpts.CollectComments,
-		ReplaceDigits:    sqlOpts.ReplaceDigits,
-		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
-		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
+		DBMS:                 sqlOpts.DBMS,
+		TableNames:           sqlOpts.TableNames,
+		CollectCommands:      sqlOpts.CollectCommands,
+		CollectComments:      sqlOpts.CollectComments,
+		ReplaceDigits:        sqlOpts.ReplaceDigits,
+		KeepSQLAlias:         sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc:     sqlOpts.DollarQuotedFunc,
+		BackendNormalization: sqlOpts.BackendNormalization,
 	})
 	if err != nil {
 		// memory will be freed by caller
