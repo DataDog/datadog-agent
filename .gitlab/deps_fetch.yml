@@ -23,7 +23,7 @@ go_deps:
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache.tar.gz
+      - modcache.tar.gz
   retry: 1
 
 go_tools_deps:
@@ -38,5 +38,5 @@ go_tools_deps:
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache_tools.tar.gz
+      - modcache_tools.tar.gz
   retry: 1

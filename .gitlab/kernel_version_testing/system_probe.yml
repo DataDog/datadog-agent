@@ -15,7 +15,7 @@
   artifacts:
     expire_in: 1 day
     paths:
-      - $KITCHEN_DOCKERS
+      - test/kitchen/kitchen-dockers-$ARCH
   variables:
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
 
@@ -291,7 +291,7 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
-      - $CI_PROJECT_DIR/stack.outputs
+      - stack.outputs
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing

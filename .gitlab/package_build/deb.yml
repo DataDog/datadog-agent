@@ -72,7 +72,7 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
 
 agent_deb-x64-a6:
   extends: .agent_build_common_deb
@@ -169,7 +169,7 @@ agent_deb-arm64-a7:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
 
 iot_agent_deb-x64:
   extends: .iot_agent_build_common_deb
@@ -234,7 +234,7 @@ dogstatsd_deb-x64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
 
 dogstatsd_deb-arm64:
   rules:
@@ -261,7 +261,7 @@ dogstatsd_deb-arm64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
 
 agent_heroku_deb-x64-a6:
   extends: agent_deb-x64-a6

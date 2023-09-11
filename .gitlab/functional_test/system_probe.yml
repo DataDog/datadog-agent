@@ -29,9 +29,9 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
-      - $DD_AGENT_TESTING_DIR/testjson
-      - $CI_PROJECT_DIR/kitchen_logs
+      - test/kitchen/kitchen-junit-*.tar.gz
+      - test/kitchen/testjson
+      - kitchen_logs
 
 .retrieve_test_dockers:
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers

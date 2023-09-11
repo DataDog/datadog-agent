@@ -9,7 +9,7 @@ cluster_agent_cloudfoundry-build_amd64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
   variables:
     ARCH: amd64
   before_script:
