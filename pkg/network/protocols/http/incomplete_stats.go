@@ -109,10 +109,11 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(nowNano int64) []Transaction {
+func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 	var (
 		joined   []Transaction
 		previous = b.data
+		nowUnix  = now.UnixNano()
 	)
 
 	b.data = make(map[types.ConnectionKey]*txParts)
@@ -145,7 +146,7 @@ func (b *incompleteBuffer) Flush(nowNano int64) []Transaction {
 		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little longer
 		for i < len(parts.requests) {
-			if b.shouldKeep(parts.requests[i], nowNano) {
+			if b.shouldKeep(parts.requests[i], nowUnix) {
 				keep := parts.requests[i:]
 				parts := newTXParts()
 				parts.requests = append(parts.requests, keep...)
