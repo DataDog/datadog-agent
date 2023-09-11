@@ -1,5 +1,5 @@
-#ifndef __TLS_H
-#define __TLS_H
+#ifndef __NATIVE_TLS_H
+#define __NATIVE_TLS_H
 
 #include "ktypes.h"
 #include "bpf_builtins.h"
