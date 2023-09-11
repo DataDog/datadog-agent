@@ -376,7 +376,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.4 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/go-version v1.6.0 // indirect
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
@@ -567,8 +567,11 @@ require (
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
+	github.com/hashicorp/raft v1.5.0
+	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
+	github.com/otoolep/hraftd v0.0.0-20230828114941-b063fb963e8d
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
 	go.opentelemetry.io/collector/extension v0.84.0
@@ -582,6 +585,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
@@ -589,6 +593,7 @@ require (
 	github.com/google/cel-go v0.12.6 // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
+	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/knadh/koanf/v2 v2.0.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
