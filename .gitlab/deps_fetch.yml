@@ -21,6 +21,7 @@ go_deps:
     - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
     - ls -la . || true
+    - ls -la $CI_PROJECT_DIR || true
   artifacts:
     expire_in: 1 day
     paths:
@@ -33,7 +34,7 @@ test:
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
   script:
-    - echo "test" > test
+    - echo "test" > $CI_PROJECT_DIR/test
   artifacts:
     expire_in: 1 day
     paths:
