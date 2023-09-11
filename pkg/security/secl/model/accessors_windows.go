@@ -7,6 +7,7 @@
 //go:build windows
 // +build windows
 
+// Package model holds model related files
 package model
 
 import (

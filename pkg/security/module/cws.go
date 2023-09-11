@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package module holds module related files
 package module
 
 import (
@@ -48,7 +49,7 @@ type CWSConsumer struct {
 	reloader      ReloaderInterface
 }
 
-// Init initializes the module with options
+// NewCWSConsumer initializes the module with options
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
@@ -124,6 +125,20 @@ func (c *CWSConsumer) Start() error {
 	// start api server
 	c.apiServer.Start(c.ctx)
 
+	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan(), &c.wg); err != nil {
+		return err
+	}
+
+	c.wg.Add(1)
+	go c.statsSender()
+
+	seclog.Infof("runtime security started")
+
+	return nil
+}
+
+// PostProbeStart is called after the event stream is started
+func (c *CWSConsumer) PostProbeStart() error {
 	if c.config.SelfTestEnabled {
 		if triggerred, err := c.RunSelfTest(true); err != nil {
 			err = fmt.Errorf("failed to run self test: %w", err)
@@ -133,15 +148,6 @@ func (c *CWSConsumer) Start() error {
 			seclog.Warnf("%s", err)
 		}
 	}
-
-	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan(), &c.wg); err != nil {
-		return err
-	}
-
-	c.wg.Add(1)
-	go c.statsSender()
-
-	seclog.Infof("runtime security started")
 
 	return nil
 }
@@ -199,7 +205,7 @@ func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterfa
 	sender.SendEvent(rule, event, nil, "")
 }
 
-// Close the module
+// Stop closes the module
 func (c *CWSConsumer) Stop() {
 	c.reloader.Stop()
 

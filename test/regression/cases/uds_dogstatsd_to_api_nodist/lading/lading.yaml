@@ -1,3 +1,5 @@
+# If you update this configuration please update `uds_dogstatsd_*` experiments
+# to match, where reasonable.
 generator:
   - unix_datagram:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
@@ -19,9 +21,9 @@ generator:
           multivalue_count_maximum: 32
           multivalue_pack_probability: 0.08
           kind_weights:
-            metric: 100
-            event: 0
-            service_check: 0
+            metric: 90
+            event: 5
+            service_check: 5
           metric_weights:
             count: 45
             gauge: 45
