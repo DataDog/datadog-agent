@@ -16,7 +16,6 @@ import (
 	"go.uber.org/fx"
 
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	saconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
@@ -36,8 +35,6 @@ import (
 )
 
 type service struct {
-	errChan chan error
-	ctxChan chan context.Context
 }
 
 var defaultSecurityAgentConfigFilePaths = []string{
@@ -45,41 +42,32 @@ var defaultSecurityAgentConfigFilePaths = []string{
 	path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
 }
 
+// Name returns the service name
 func (s *service) Name() string {
 	return saconfig.ServiceName
 }
 
+// Init does nothing for now.
 func (s *service) Init() error {
-	s.ctxChan = make(chan context.Context)
-
-	s.errChan = make(chan error)
-
 	return nil
 }
 
+// Run actually runs the service; blocks until service exits.
 func (s *service) Run(svcctx context.Context) error {
 
-	// run startSystemProbe in an app, so that the log and config components get initialized
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
 			err := start.RunAgent(ctx, log, config, telemetry, forwarder, "")
-			// notify outer that startAgent finished
 			if err != nil {
 				return err
 			}
 
 			// Wait for stop signal
-			select {
-			case <-signals.Stopper:
-				log.Info("Received stop command, shutting down...")
-			case <-signals.ErrorStopper:
-				_ = log.Critical("The Agent has encountered an error, shutting down...")
-			case <-svcctx.Done():
-				log.Info("Received stop from service manager, shutting down...")
-			}
+			<-svcctx.Done()
+			log.Info("Received stop from service manager, shutting down...")
 
 			return nil
 		},
@@ -92,7 +80,6 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
 	)
 
-	// startSystemProbe succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
 	return err
 }
 
