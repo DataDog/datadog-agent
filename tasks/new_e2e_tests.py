@@ -6,7 +6,6 @@ import json
 import os
 import os.path
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import List
@@ -145,7 +144,7 @@ def clean(ctx, locks=True, stacks=False):
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
     """
-    if not _is_local_state(_get_pulumi_about()):
+    if not _is_local_state(_get_pulumi_about(ctx)):
         print("Cleanup supported for local state only, run `pulumi login --local` to switch to local state")
         return
 
@@ -181,7 +180,8 @@ def _clean_stacks(ctx: Context):
 
 
 def _get_existing_stacks(ctx: Context) -> List[str]:
-    # ensure we deal with local stacks
+    # running in temp dir as this is where datadog-agent test
+    # stacks are stored
     with ctx.cd(tempfile.gettempdir()):
         output = ctx.run("pulumi stack ls --all", pty=True)
         if output is None or not output:
@@ -191,16 +191,23 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
         e2e_stacks: List[str] = []
         for line in lines:
             stack_name = line.split(" ")[0]
+            print(f"Adding stack {stack_name}")
             e2e_stacks.append(stack_name)
         return e2e_stacks
 
 
 def _remove_stack(ctx: Context, stack_name: str):
-    ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
+    # running in temp dir as this is where datadog-agent test
+    # stacks are stored
+    with ctx.cd(tempfile.gettempdir()):
+        ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
-def _get_pulumi_about() -> str:
-    return subprocess.getoutput("pulumi about")
+def _get_pulumi_about(ctx: Context) -> str:
+    output = ctx.run("pulumi about", pty=True)
+    if output is None or not output:
+        return ""
+    return output.stdout
 
 
 def _is_local_state(pulumi_about: str) -> bool:
