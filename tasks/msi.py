@@ -183,7 +183,7 @@ def _build(
 
     # Construct build command line
     cmd = _get_vs_build_command(
-        f'cd {BUILD_SOURCE_DIR} && nuget restore && msbuild {project} /p:Configuration={configuration} /p:Platform="{arch}"',
+        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="{arch}"',
         vstudio_root,
     )
     print(f"Build Command: {cmd}")
@@ -240,8 +240,8 @@ def _build_msi(ctx, env, outdir, name):
     if not succeeded:
         raise Exit("Failed to build the MSI installer.", code=1)
 
-    # sign the MSI
     out_file = os.path.join(outdir, f"{name}.msi")
+    validate_msi(ctx, out_file)
     sign_file(ctx, out_file)
 
 
