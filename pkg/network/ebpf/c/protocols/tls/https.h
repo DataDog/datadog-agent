@@ -80,7 +80,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         /* read_into_buffer(http.request_fragment, buffer_ptr, len); */
         /* http2_process(&) */
 
-        bpf_tail_call_compat(ctx, &protocols_progs, PROG_HTTP2_TLS_ENTRY);
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_PROG_HTTP2);
         break;
     default:
         return;

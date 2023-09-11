@@ -77,8 +77,8 @@ var Spec = &protocols.ProtocolSpec{
 			},
 		},
 		{
-			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2TlsEntry),
+			ProgArrayName: protocols.TlsDispatcherProgramsMap,
+			Key:           uint32(protocols.TlsProgramHTTP2),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsEntryTailCall,
 			},

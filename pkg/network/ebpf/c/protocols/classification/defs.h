@@ -1,9 +1,9 @@
 #ifndef __PROTOCOL_CLASSIFICATION_DEFS_H
 #define __PROTOCOL_CLASSIFICATION_DEFS_H
 
-#include "ktypes.h"
-#include "compiler.h"
 #include "bpf_helpers_custom.h"
+#include "compiler.h"
+#include "ktypes.h"
 
 #include "protocols/amqp/defs.h"
 #include "protocols/http/classification-defs.h"
@@ -67,21 +67,21 @@ typedef enum {
     //  Add encryption protocols below (eg. TLS)
     PROTOCOL_TLS,
     __LAYER_ENCRYPTION_MAX = LAYER_ENCRYPTION_MAX,
-} __attribute__ ((packed)) protocol_t;
+} __attribute__((packed)) protocol_t;
 
 // This enum represents all existing protocol layers
 //
 // Each `protocol_t` entry is implicitly associated to a single
 // `protocol_layer_t` value (see notes above).
 //
-//In order to determine which `protocol_layer_t` a `protocol_t` belongs to,
+// In order to determine which `protocol_layer_t` a `protocol_t` belongs to,
 // users can call `get_protocol_layer`
 typedef enum {
     LAYER_UNKNOWN,
     LAYER_API,
     LAYER_APPLICATION,
     LAYER_ENCRYPTION,
-} __attribute__ ((packed)) protocol_layer_t;
+} __attribute__((packed)) protocol_layer_t;
 
 typedef struct {
     __u8 layer_api;
@@ -141,5 +141,11 @@ typedef enum {
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;
+
+typedef enum {
+    TLS_PROG_UNKNOWN = 0,
+    TLS_PROG_HTTP2,
+    TLS_PROG_MAX,
+} tls_prog_t;
 
 #endif

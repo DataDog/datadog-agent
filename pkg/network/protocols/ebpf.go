@@ -30,7 +30,6 @@ type ProgramType C.protocol_prog_t
 const (
 	ProgramHTTP             ProgramType = C.PROG_HTTP
 	ProgramHTTP2            ProgramType = C.PROG_HTTP2
-	ProgramHTTP2TlsEntry    ProgramType = C.PROG_HTTP2_TLS_ENTRY
 	ProgramHTTP2FrameParser ProgramType = C.PROG_HTTP2_FRAME_PARSER
 	ProgramKafka            ProgramType = C.PROG_KAFKA
 )
@@ -81,3 +80,9 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 		return Unknown
 	}
 }
+
+type TlsProgramType C.tls_prog_t
+
+const (
+	TlsProgramHTTP2 ProgramType = C.TLS_PROG_HTTP2
+)

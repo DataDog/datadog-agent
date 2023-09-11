@@ -16,7 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-const ProtocolDispatcherProgramsMap = "protocols_progs"
+const (
+	ProtocolDispatcherProgramsMap = "protocols_progs"
+	TlsDispatcherProgramsMap      = "tls_process_progs"
+)
 
 // Protocol is the interface that represents a protocol supported by USM.
 //
