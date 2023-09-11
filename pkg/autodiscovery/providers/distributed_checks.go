@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,6 +31,7 @@ func NewDistributedChecksProvider(*config.ConfigurationProviders) (ConfigProvide
 	p := &DistributedChecksProvider{
 		checks: checks,
 	}
+	haagent.StartRaft()
 	return p, nil
 }
 

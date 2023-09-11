@@ -1,17 +1,18 @@
-package main
+package haagent
 
 import (
 	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 
 	httpd "github.com/otoolep/hraftd/http"
 	"github.com/otoolep/hraftd/store"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Command line defaults
@@ -53,38 +54,43 @@ func mainBak() {
 	// Ensure Raft storage exists.
 	raftDir := flag.Arg(0)
 	if raftDir == "" {
-		log.Fatalln("No Raft storage directory specified")
+		log.Errorf("No Raft storage directory specified")
+		return
 	}
 	if err := os.MkdirAll(raftDir, 0700); err != nil {
-		log.Fatalf("failed to create path for Raft storage: %s", err.Error())
+		log.Errorf("failed to create path for Raft storage: %s", err.Error())
+		return
 	}
 
 	s := store.New(inmem)
 	s.RaftDir = raftDir
 	s.RaftBind = raftAddr
 	if err := s.Open(joinAddr == "", nodeID); err != nil {
-		log.Fatalf("failed to open store: %s", err.Error())
+		log.Errorf("failed to open store: %s", err.Error())
+		return
 	}
 
 	h := httpd.New(httpAddr, s)
 	if err := h.Start(); err != nil {
-		log.Fatalf("failed to start HTTP service: %s", err.Error())
+		log.Errorf("failed to start HTTP service: %s", err.Error())
+		return
 	}
 
 	// If join was specified, make the join request.
 	if joinAddr != "" {
 		if err := join(joinAddr, raftAddr, nodeID); err != nil {
-			log.Fatalf("failed to join node at %s: %s", joinAddr, err.Error())
+			log.Errorf("failed to join node at %s: %s", joinAddr, err.Error())
+			return
 		}
 	}
 
 	// We're up and running!
-	log.Printf("hraftd started successfully, listening on http://%s", httpAddr)
+	log.Infof("hraftd started successfully, listening on http://%s", httpAddr)
 
 	terminate := make(chan os.Signal, 1)
 	signal.Notify(terminate, os.Interrupt)
 	<-terminate
-	log.Println("hraftd exiting")
+	log.Infof("hraftd exiting")
 }
 
 func join(joinAddr, raftAddr, nodeID string) error {
@@ -98,4 +104,8 @@ func join(joinAddr, raftAddr, nodeID string) error {
 	}
 	defer resp.Body.Close()
 	return nil
+}
+
+func StartRaft() {
+	log.Infof("Start Raft")
 }
