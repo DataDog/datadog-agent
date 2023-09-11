@@ -17,7 +17,9 @@ import (
 // team: network-device-monitoring
 
 // Component is the component type.
-type Component sender.Sender
+type Component interface {
+	sender.Sender
+}
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(

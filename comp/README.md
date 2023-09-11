@@ -92,7 +92,8 @@ Package runner implements a component to generate metadata payload at the right 
 
 *Datadog Team*: network-device-monitoring
 
-Package netflow implements the "netflow" bundle
+Package netflow implements the "netflow" bundle, which listens for netflow
+packets, processes them, and forwards relevant data to the backend.
 
 ### [comp/netflow/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/config)
 

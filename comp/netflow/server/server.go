@@ -32,14 +32,15 @@ type dependencies struct {
 
 // newServer configures a netflow server.
 func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
-	if !deps.Config.Enabled {
+	conf := deps.Config.Get()
+	if !conf.Enabled {
 		// no-op
 		return nil, nil
 	}
-	flowAgg := flowaggregator.NewFlowAggregator(deps.Sender, deps.Forwarder, deps.Config, deps.Hostname.Get(), deps.Logger)
+	flowAgg := flowaggregator.NewFlowAggregator(deps.Sender, deps.Forwarder, conf, deps.Hostname.Get(), deps.Logger)
 
 	server := &Server{
-		config:  deps.Config,
+		config:  conf,
 		FlowAgg: flowAgg,
 		logger:  deps.Logger,
 	}

@@ -15,9 +15,11 @@ import (
 // team: network-device-monitoring
 
 // Component is the component type.
-type Component = *NetflowConfig
+type Component interface {
+	Get() *NetflowConfig
+}
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(ReadConfig),
+	fx.Provide(newService),
 )

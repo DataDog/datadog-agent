@@ -39,18 +39,12 @@ func getAggregator(logger log.Component, lc fx.Lifecycle) aggregator.Demultiplex
 var testModule = fx.Module(
 	"ServerTestModule",
 	Module,
-	nfconfig.Module,
+	nfconfig.MockModule,
 	sender.Module,
 	forwarder.MockModule,
 	hostname.MockModule,
 	fx.Provide(
 		getAggregator,
-	),
-	fx.Decorate(
-		// Allow tests to inject incomplete config and have defaults set automatically
-		func(conf *nfconfig.NetflowConfig) (*nfconfig.NetflowConfig, error) {
-			return conf, conf.SetDefaults("default")
-		},
 	),
 	// Set the internal flush frequency to a small number so tests don't take forever
 	fx.Invoke(func(c Component) {
