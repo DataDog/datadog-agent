@@ -42,6 +42,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cenkalti/backoff/v4"
 	"io"
 	"net/http"
 	"regexp"
@@ -120,20 +121,18 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
 	var resp *http.Response
-	for _, sleepTime := range retrySchedule {
-		tmp_resp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
+	b := backoff.NewExponentialBackOff()
+	b.MaxElapsedTime = 1 * time.Minute
+	err = backoff.Retry(func() error {
+		tmpResp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
 		if err != nil {
-			return nil, err
+			return err
 		}
-		resp = tmp_resp
-		if resp.StatusCode != http.StatusOK {
-			time.Sleep(sleepTime)
-		} else {
-			break
-		}
+		resp = tmpResp
+		return nil
+	}, backoff.WithMaxRetries(b, 4))
 
-	}
-	if resp.StatusCode != http.StatusOK {
+	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error querying fake payloads, status code %s", resp.Status)
 	}
 
