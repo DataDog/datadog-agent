@@ -14,6 +14,16 @@ const (
 	disabled = uint64(0)
 )
 
+// AddUint64Const added the constant of type uint64 into the constant editor.
+func AddUint64Const(options *manager.Options, val uint64, name string) {
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  name,
+			Value: val,
+		},
+	)
+}
+
 func AddBoolConst(options *manager.Options, flag bool, name string) {
 	val := enabled
 	if !flag {

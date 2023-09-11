@@ -10,6 +10,7 @@ package usm
 import (
 	"fmt"
 	"math"
+	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -324,6 +325,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	// Some parts of USM (https capturing, and part of the classification) use `read_conn_tuple`, and has some if
 	// clauses that handled IPV6, for USM we care (ATM) only from TCP connections, so adding the sole config about tcpv6.
 	utils.AddBoolConst(&options, e.cfg.CollectTCPv6Conns, "tcpv6_enabled")
+	utils.AddUint64Const(&options, uint64(syscall.Getpagesize()), "pagesize")
 
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
