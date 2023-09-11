@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package hostname exposes hostname.Get() as a component
+// Package hostname exposes hostname.Get() as a component.
 package hostname
 
 import (

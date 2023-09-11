@@ -94,6 +94,22 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package netflow implements the "netflow" bundle
 
+### [comp/netflow/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/config)
+
+Package config exposes the netflow configuration as a component.
+
+### [comp/netflow/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/forwarder)
+
+Package forwarder exposes the event platform forwarder for netflow.
+
+### [comp/netflow/hostname](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/hostname)
+
+Package hostname exposes hostname.Get() as a component.
+
+### [comp/netflow/sender](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/sender)
+
+Package sender exposes a Sender for netflow.
+
 ### [comp/netflow/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/netflow/server)
 
 Package server implements a component that runs the netflow server.

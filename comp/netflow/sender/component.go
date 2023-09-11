@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package sender exposes the default sender.
+// Package sender exposes a Sender for netflow.
 package sender
 
 import (

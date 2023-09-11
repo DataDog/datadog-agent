@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package forwarder exposes the event platform forwarder.
+// Package forwarder exposes the event platform forwarder for netflow.
 package forwarder
 
 import (
@@ -20,7 +20,9 @@ import (
 // team: network-device-monitoring
 
 // Component is the component type.
-type Component epforwarder.EventPlatformForwarder
+type Component interface {
+	epforwarder.EventPlatformForwarder
+}
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
