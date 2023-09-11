@@ -3714,8 +3714,8 @@ var activityTreeInsertExecEventTestCases = []struct {
 	//         |         | (exec)                  |                        |             | (exec)
 	//       python    uwsgi                      bash                   python        ddtrace
 	//                                             |                                      | (exec)
-	//                                           ddtrace                                  tools
-	//                                             | (exec                               | (exec)
+	//                                           ddtrace                                tools
+	//                                             | (exec)                               | (exec)
 	//                                           tools                                  utils
 	//                                             | (exec)                               | (exec)
 	//                                           utils                                  uwsgi
