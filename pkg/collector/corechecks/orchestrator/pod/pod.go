@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build kubelet && orchestrator
 
+// Package pod is used for the orchestrator pod check
 package pod
 
 import (
