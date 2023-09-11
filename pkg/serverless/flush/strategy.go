@@ -21,9 +21,7 @@ const maxBackoffRetrySeconds = 5 * 60
 type Strategy interface {
 	String() string
 	ShouldFlush(moment Moment, t time.Time) bool
-	// Failure modify state to keep track of failure
 	Failure(t time.Time)
-	// Success reset the state when a flush is successful
 	Success()
 }
 
@@ -84,9 +82,12 @@ func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 	return moment == Stopping
 }
 
+// Failure modify state to keep track of failure
 func (s *AtTheEnd) Failure(t time.Time) {
 	incrementFailure(t)
 }
+
+// Success reset the state when a flush is successful
 func (s *AtTheEnd) Success() {
 	reset()
 }
@@ -119,10 +120,12 @@ func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 	return false
 }
 
+// Failure modify state to keep track of failure
 func (s *Periodically) Failure(t time.Time) {
 	incrementFailure(t)
 }
 
+// Success reset the state when a flush is successful
 func (s *Periodically) Success() {
 	reset()
 }
