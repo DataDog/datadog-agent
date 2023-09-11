@@ -17,21 +17,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 type DockerListenerTestSuite struct {
 	suite.Suite
+	store      workloadmeta.Mock
 	compose    utils.ComposeConf
 	listener   listeners.ServiceListener
 	dockerutil *docker.DockerUtil
@@ -42,8 +45,6 @@ type DockerListenerTestSuite struct {
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
-	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
-	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
 	containers.ResetSharedFilter()
 
 	config.SetupLogger(
@@ -56,10 +57,24 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		false,
 	)
 
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-	store.Start(context.Background())
+	overrides := map[string]interface{}{
+		"ac_include": []string{"name:.*redis.*"},
+		"ac_exclude": []string{"image:datadog/docker-library:redis.*"},
+	}
 
-	tagger.SetDefaultTagger(local.NewTagger(store))
+	suite.store = fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Replace(core.MockParams{
+			Overrides: overrides,
+			Features:  []config.Feature{config.Docker},
+		}),
+		fx.Provide(collectors.GetCatalog()),
+		fx.Supply(workloadmeta.Params{AgentType: workloadmeta.NodeAgent}),
+		fx.Supply(context.Background()),
+		workloadmeta.MockModuleV2,
+	))
+
+	tagger.SetDefaultTagger(local.NewTagger(suite.store))
 	tagger.Init(context.Background())
 
 	var err error
@@ -73,8 +88,6 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 }
 
 func (suite *DockerListenerTestSuite) TearDownSuite() {
-	config.Datadog.SetDefault("ac_include", []string{})
-	config.Datadog.SetDefault("ac_exclude", []string{})
 	containers.ResetSharedFilter()
 }
 
@@ -263,6 +276,5 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 }
 
 func TestDockerListenerSuite(t *testing.T) {
-	config.SetFeatures(t, config.Docker)
 	suite.Run(t, &DockerListenerTestSuite{})
 }
