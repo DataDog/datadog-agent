@@ -11,6 +11,7 @@ import (
 	"compress/zlib"
 	"io"
 	"sort"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -23,8 +24,9 @@ type PayloadItem interface {
 type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
 
 type Aggregator[P PayloadItem] struct {
-	payloadsByName map[string][]P
-	parse          parseFunc[P]
+	payloadsByName    map[string][]P
+	collectedAtByName map[string][]time.Time
+	parse             parseFunc[P]
 }
 
 const (
@@ -34,8 +36,9 @@ const (
 
 func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	return Aggregator[P]{
-		payloadsByName: map[string][]P{},
-		parse:          parse,
+		payloadsByName:    map[string][]P{},
+		collectedAtByName: map[string][]time.Time{},
+		parse:             parse,
 	}
 }
 
@@ -51,8 +54,10 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 		for _, item := range payloads {
 			if _, found := agg.payloadsByName[item.name()]; !found {
 				agg.payloadsByName[item.name()] = []P{}
+				agg.collectedAtByName[item.name()] = []time.Time{}
 			}
 			agg.payloadsByName[item.name()] = append(agg.payloadsByName[item.name()], item)
+			agg.collectedAtByName[item.name()] = append(agg.collectedAtByName[item.name()], p.Timestamp)
 		}
 	}
 
@@ -115,6 +120,10 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 
 func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
 	return agg.payloadsByName[name]
+}
+
+func (agg *Aggregator[P]) GetCollectedTimeByName(name string) []time.Time {
+	return agg.collectedAtByName[name]
 }
 
 func (agg *Aggregator[P]) Reset() {
