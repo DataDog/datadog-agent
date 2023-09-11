@@ -18,7 +18,7 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
 
 agent_dmg-x64-a7:
   extends: .agent_build_common_dmg

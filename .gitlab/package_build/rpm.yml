@@ -55,7 +55,7 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
 
 # build Agent package for rpm-x64
 agent_rpm-x64-a6:
@@ -153,7 +153,7 @@ agent_rpm-arm64-a7:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg
 
 iot_agent_rpm-x64:
   extends: .iot_agent_build_common_rpm
@@ -217,4 +217,4 @@ dogstatsd_rpm-x64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - omnibus/pkg

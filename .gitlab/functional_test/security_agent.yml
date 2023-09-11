@@ -28,7 +28,7 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - test/kitchen/kitchen-junit-*.tar.gz
 
 kitchen_test_security_agent_x64:
   extends:

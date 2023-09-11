@@ -57,7 +57,7 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR_SUSE
+      - omnibus/suse/pkg
 
 # build Agent package for suse-x64
 agent_suse-x64-a6:
@@ -130,7 +130,7 @@ iot_agent_suse-x64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR_SUSE
+      - omnibus/suse/pkg
 
 dogstatsd_suse-x64:
   rules:
@@ -165,4 +165,4 @@ dogstatsd_suse-x64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR_SUSE
+      - omnibus/suse/pkg

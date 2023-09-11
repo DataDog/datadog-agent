@@ -7,7 +7,7 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - $CI_PROJECT_DIR/kitchen_logs
+      - kitchen_logs
   retry: 1
 
 # Kitchen: providers

@@ -18,7 +18,7 @@ build_serverless-deb_x64:
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/cmd/serverless
+      - cmd/serverless
 
 build_serverless-deb_arm64:
   extends: .build_serverless_common
