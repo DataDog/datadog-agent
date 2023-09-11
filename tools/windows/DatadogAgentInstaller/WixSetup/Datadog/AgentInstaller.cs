@@ -213,41 +213,16 @@ namespace WixSetup.Datadog
                     .Select("Wix/Product")
                     .AddElement("MediaTemplate",
                         "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
-                document
-                    .FindAll("RemoveFolder")
-                    .Where(x => x.HasAttribute("Id",
-                        value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
-                                 value.StartsWith("EXAMPLECONFSLOCATION")))
-                    .Remove();
-                // TODO: Wix# adds these automatically
+
                 // Windows Installer (MSI.dll) calls the obsolete SetFileSecurityW function during CreateFolder rollback,
                 // this causes directories in the CreateFolder table to have their SE_DACL_AUTO_INHERITED flag removed.
                 // Also, since folders created by CreateFolder aren't removed on uninstall then it can cause empty directories
                 // to be left behind on uninstall.
-                document
-                    .FindAll("RemoveFolder")
-                    .Where(x => x.HasAttribute("Id",
-                        // We don't want to remove TARGETDIR (C:\)
-                        value => value.Equals("TARGETDIR") ||
-                                 // We don't want to remove Program Files
-                                 value.Equals("ProgramFiles64Folder") ||
-                                 // BIN and AGENT will be cleaned up by normal uninstall and also by RemoveFolderEx(PROJECTLOCATION)
-                                 value.Equals("BIN") ||
-                                 value.Equals("AGENT")))
-                    .Remove();
-                // We shouldn't have to create Program Files and we can't have it in the CreateFolder table
-                document
-                    .FindAll("CreateFolder")
-                    .Where(x => x.Parent.Parent.HasAttribute("Id",
-                        value => value.Equals("ProgramFiles64Folder")))
-                    .Remove();
-                // We can't have the EventSource parent directories in the CreateFolder table. They are currently in
-                // BIN + AGENT so this entry causes DatadogAppRoot to be left behind on uninstall.
-                document
-                    .FindAll("CreateFolder")
-                    .Where(x => x.Parent.HasAttribute("Id",
-                        value => value.StartsWith("EventSource")))
-                    .Remove();
+                document.FindAll("CreateFolder")
+                    .ForEach(x => x.Remove());
+                document.FindAll("RemoveFolder")
+                    .ForEach(x => x.Remove());
+
                 // Wix# is auto-adding components for the following directories for some reason, which causes them to be placed
                 // in the CreateFolder table.
                 document
