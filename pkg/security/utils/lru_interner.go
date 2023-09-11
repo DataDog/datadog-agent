@@ -12,7 +12,7 @@ import (
 )
 
 type LRUStringInterner struct {
-	sync.RWMutex
+	sync.Mutex
 	store *simplelru.LRU[string, string]
 }
 
@@ -28,6 +28,13 @@ func NewLRUStringInterner(size int) *LRUStringInterner {
 }
 
 func (si *LRUStringInterner) Deduplicate(value string) string {
+	si.Lock()
+	defer si.Unlock()
+
+	return si.deduplicateUnsafe(value)
+}
+
+func (si *LRUStringInterner) deduplicateUnsafe(value string) string {
 	if res, ok := si.store.Get(value); ok {
 		return res
 	}
@@ -37,7 +44,10 @@ func (si *LRUStringInterner) Deduplicate(value string) string {
 }
 
 func (si *LRUStringInterner) DeduplicateSlice(values []string) {
+	si.Lock()
+	defer si.Unlock()
+
 	for i := range values {
-		values[i] = si.Deduplicate(values[i])
+		values[i] = si.deduplicateUnsafe(values[i])
 	}
 }
