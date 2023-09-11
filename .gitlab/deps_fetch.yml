@@ -20,25 +20,10 @@ go_deps:
     - source /root/.bashrc
     - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
-    - ls -la . || true
-    - ls -la $CI_PROJECT_DIR || true
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache.tar.gz
-  retry: 1
-
-test:
-  stage: deps_fetch
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs: ["setup_agent_version"]
-  script:
-    - echo "test" > $CI_PROJECT_DIR/test
-  artifacts:
-    expire_in: 1 day
-    paths:
-      - $CI_PROJECT_DIR/test
+      - modcache.tar.gz
   retry: 1
 
 go_tools_deps:
@@ -53,5 +38,5 @@ go_tools_deps:
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache_tools.tar.gz
+      - modcache_tools.tar.gz
   retry: 1

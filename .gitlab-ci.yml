@@ -100,15 +100,18 @@ variables:
   OMNIBUS_BASE_DIR: /omnibus
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/omnibus/pkg/
+  OMNIBUS_PACKAGE_DIR_SUFFIX: omnibus/pkg/
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/$OMNIBUS_PACKAGE_DIR_SUFFIX
   # Directory in which we put the SUSE artifacts after the SUSE build
   # Must be in $CI_PROJECT_DIR
   # RPM builds and SUSE RPM builds create artifacts with the same name.
   # To differentiate them, we put them in different folders. That also
   # avoids accidentally overwriting files when downloading artifacts from
   # both RPM and SUSE rpm jobs.
-  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/omnibus/suse/pkg
-  DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
+  OMNIBUS_PACKAGE_DIR_SUSE_SUFFIX: omnibus/suse/pkg
+  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/$OMNIBUS_PACKAGE_DIR_SUSE_SUFFIX
+  DD_AGENT_TESTING_DIR_SUFFIX: test/kitchen
+  DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/$DD_AGENT_TESTING_DIR_SUFFIX
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent

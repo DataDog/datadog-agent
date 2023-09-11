@@ -62,8 +62,8 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/.tmp/clang
-      - $CI_PROJECT_DIR/.tmp/llc
+      - .tmp/clang
+      - .tmp/llc
 
 build_clang_x64:
   extends: .build_clang_common

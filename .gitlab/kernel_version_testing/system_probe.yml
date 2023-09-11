@@ -15,8 +15,9 @@
   artifacts:
     expire_in: 1 day
     paths:
-      - $KITCHEN_DOCKERS
+      - $KITCHEN_DOCKERS_SUFFIX
   variables:
+    KITCHEN_DOCKERS_SUFFIX: $DD_AGENT_TESTING_DIR_SUFFIX/kitchen-dockers-$ARCH
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
 
 pull_test_dockers_x64:
@@ -90,6 +91,7 @@ pull_test_dockers_arm64:
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
+    KITCHEN_DOCKERS_SUFFIX: $DD_AGENT_TESTING_DIR_SUFFIX/kitchen-dockers-$ARCH
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
@@ -291,7 +293,7 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
-      - $CI_PROJECT_DIR/stack.outputs
+      - stack.outputs
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
