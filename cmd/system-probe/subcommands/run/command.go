@@ -293,13 +293,13 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	}
 
 	// Setup healthcheck port
-	healthPort := sysprobeconfig.GetInt("system_probe_config.health_port")
+	healthPort := cfg.HealthPort
 	if healthPort > 0 {
 		err := healthprobe.Serve(ctx, healthPort)
 		if err != nil {
-			return log.Errorf("Error starting health port, exiting: %s", err)
+			return log.Errorf("error starting health check server, exiting: %s", err)
 		}
-		log.Infof("Health check listening on port %d", healthPort)
+		log.Infof("health check server listening on port %d", healthPort)
 	}
 
 	if err = api.StartServer(cfg, telemetry); err != nil {

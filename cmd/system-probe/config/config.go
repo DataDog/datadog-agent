@@ -54,6 +54,7 @@ type Config struct {
 	LogFile          string
 	LogLevel         string
 	DebugPort        int
+	HealthPort       int
 	TelemetryEnabled bool
 
 	StatsdHost string
@@ -123,6 +124,7 @@ func load() (*Config, error) {
 		LogFile:          cfg.GetString("log_file"),
 		LogLevel:         cfg.GetString("log_level"),
 		DebugPort:        cfg.GetInt(spNS("debug_port")),
+		healthPort:       cfg.GetInt(spNS("health_port")),
 		TelemetryEnabled: cfg.GetBool(spNS("telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
