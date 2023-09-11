@@ -78,7 +78,7 @@ var routeCacheTelemetry = struct {
 	telemetry.NewCounter(routeCacheTelemetryModuleName, "evicts", []string{}, "Counter measuring the number of route cache evicts"),
 
 	telemetry.NewCounter(routerTelemetryModuleName, "netlink_lookups", []string{}, "Counter measuring the number of netlink lookups"),
-	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{}, "Counter measuring the number of netlink errors"),
+	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{"error"}, "Counter measuring the number of netlink errors"),
 	telemetry.NewCounter(routerTelemetryModuleName, "netlink_misses", []string{}, "Counter measuring the number of netlink misses"),
 
 	telemetry.NewCounter(routerTelemetryModuleName, "if_cache_lookups", []string{}, "Counter measuring the number of interface cache lookups"),
@@ -362,7 +362,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 func netlinkErrIncWithTag(err syscall.Errno) {
 	if tag := unix.ErrnoName(syscall.Errno(err)); tag != "" {
-		routeCacheTelemetry.netlinkErrors.Inc(tag)
+		routeCacheTelemetry.netlinkErrors.Inc("error:" + tag)
 	} else {
 		routeCacheTelemetry.netlinkErrors.Inc()
 	}
