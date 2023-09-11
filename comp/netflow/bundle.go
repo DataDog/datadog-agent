@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package netflow implements the "netflow" bundle
+// Package netflow implements the "netflow" bundle, which listens for netflow
+// packets, processes them, and forwards relevant data to the backend.
 package netflow
 
 import (
@@ -25,5 +26,6 @@ var Bundle = fxutil.Bundle(
 	sender.Module,
 	forwarder.Module,
 	hostname.Module,
+	// Run the server
 	fx.Invoke(func(server.Component) {}),
 )
