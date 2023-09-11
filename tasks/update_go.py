@@ -12,6 +12,90 @@ from .pipeline import update_circleci_config, update_gitlab_config
 GO_VERSION_FILE = "./.go-version"
 
 
+@task(
+    help={
+        "version": "The version of Go to use",
+        "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
+        "test_version": "Whether the image is a test image or not",
+        "warn": "Don't exit in case of matching error, just warn.",
+    }
+)
+def update_go(
+    ctx: Context,
+    version: str,
+    image_tag: str,
+    test_version: Optional[bool] = False,
+    warn: Optional[bool] = False,
+):
+    """
+    Updates the version of Go and build images.
+    """
+    if not semver.Version.is_valid(version):
+        raise exceptions.Exit(f"The version {version} isn't valid.")
+
+    current_version = _get_repo_go_version()
+    current_major = _get_major_version(current_version)
+    new_major = _get_major_version(version)
+
+    major_update = current_major != new_major
+    if major_update:
+        print(color_message("WARNING: this is a change of major version\n", "orange"))
+
+    try:
+        update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
+    except RuntimeError as e:
+        if warn:
+            print(color_message(f"WARNING: {str(e)}", "orange"))
+        else:
+            raise
+
+    try:
+        update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+    except RuntimeError as e:
+        if warn:
+            print(color_message(f"WARNING: {str(e)}", "orange"))
+        else:
+            raise
+
+    _update_readme(warn, new_major)
+    _update_go_mods(warn, new_major)
+    _update_go_version_file(warn, version)
+    _update_gdb_dockerfile(warn, version)
+    _update_install_devenv(warn, version)
+    _update_agent_devenv(warn, version)
+    _update_task_go(warn, version)
+
+    # check the installed go version before running `tidy_all`
+    res = ctx.run("go version")
+    if res.stdout.startswith(f"go version go{version} "):
+        tidy_all(ctx)
+    else:
+        print(
+            color_message(
+                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the request version",
+                "orange",
+            )
+        )
+
+    releasenote_path = _create_releasenote(ctx, version)
+    print(
+        f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
+    )
+    if major_update:
+        # Examples of major updates with long descriptions:
+        # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
+        # releasenotes/notes/go1185-fd9d8b88c7c7a12e.yaml
+        print("In particular as this is a major update, the release note should describe user-facing changes.")
+    print()
+
+    print(
+        color_message(
+            "Remember to look for reference to the former version by yourself too, and update this task if you find any.",
+            "green",
+        )
+    )
+
+
 # replace the given pattern with the given string in the file
 def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1):
     # newline='' keeps the file's newline character(s)
@@ -112,87 +196,3 @@ enhancements:
     with open(path, "w") as writer:
         writer.write(RELEASENOTE_TEMPLATE.format(version))
     return path
-
-
-@task(
-    help={
-        "version": "The version of Go to use",
-        "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
-        "test_version": "Whether the image is a test image or not",
-        "warn": "Don't exit in case of matching error, just warn.",
-    }
-)
-def update_go(
-    ctx: Context,
-    version: str,
-    image_tag: str,
-    test_version: Optional[bool] = False,
-    warn: Optional[bool] = False,
-):
-    """
-    Updates the version of Go and build images.
-    """
-    if not semver.Version.is_valid(version):
-        raise exceptions.Exit(f"The version {version} isn't valid.")
-
-    current_version = _get_repo_go_version()
-    current_major = _get_major_version(current_version)
-    new_major = _get_major_version(version)
-
-    major_update = current_major != new_major
-    if major_update:
-        print(color_message("WARNING: this is a change of major version\n", "orange"))
-
-    try:
-        update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    except RuntimeError as e:
-        if warn:
-            print(color_message(f"WARNING: {str(e)}", "orange"))
-        else:
-            raise
-
-    try:
-        update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    except RuntimeError as e:
-        if warn:
-            print(color_message(f"WARNING: {str(e)}", "orange"))
-        else:
-            raise
-
-    _update_readme(warn, new_major)
-    _update_go_mods(warn, new_major)
-    _update_go_version_file(warn, version)
-    _update_gdb_dockerfile(warn, version)
-    _update_install_devenv(warn, version)
-    _update_agent_devenv(warn, version)
-    _update_task_go(warn, version)
-
-    # check the installed go version before running `tidy_all`
-    res = ctx.run("go version")
-    if res.stdout.startswith(f"go version go{version} "):
-        tidy_all(ctx)
-    else:
-        print(
-            color_message(
-                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the request version",
-                "orange",
-            )
-        )
-
-    releasenote_path = _create_releasenote(ctx, version)
-    print(
-        f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
-    )
-    if major_update:
-        # Examples of major updates with long descriptions:
-        # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
-        # releasenotes/notes/go1185-fd9d8b88c7c7a12e.yaml
-        print("In particular as this is a major update, the release note should describe user-facing changes.")
-    print()
-
-    print(
-        color_message(
-            "Remember to look for reference to the former version by yourself too, and update this task if you find any.",
-            "green",
-        )
-    )
