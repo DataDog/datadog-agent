@@ -70,6 +70,7 @@ func (p *Probe) Start() error {
 				log.Infof("Received start %v", start)
 				// this doesn't take into account the possibility of
 				// PID collision
+
 				e, err = p.resolvers.ProcessResolver.AddNewProcessEntry(process.Pid(start.Pid), start.ImageFile, start.CmdLine)
 				if err != nil {
 					// count the error and
@@ -207,4 +208,34 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
+}
+
+func (p *Probe) getSnapshot() {
+	puprobe := procutil.NewWindowsToolhelpProbe()
+	pmap, err := puprobe.ProcessesByPID(time.Now(), false)
+
+	if err != nil {
+		return
+	}
+	// the list returned is a map of pid to procutil.Process.
+	// The processes can be iterated with the following caveats
+	// Pid should be valid
+	// Ppid should be valid (with more caveats below)
+	// The `exe` field is the unqualified name of the executable (no path)
+	// the `Cmdline` is an array of strings, parsed on ` ` boundaries
+	// the `stats` field is mostly not filled in because of the `false` argument to `ProcessesByPID()`
+	//     however, the create time will be filled in
+	for pid, proc := range pmap {
+		log.Debugf("PID %d  %d PPID %d\n", pid, proc.Pid, proc.Ppid)
+		log.Debugf("  executable %s\n", proc.Exe)
+		log.Debugf("  executable %v\n", proc.GetCmdline())
+		log.Debugf("  createtime %v\n", proc.Stats.CreateTime)
+	}
+	// another note on PPids.  Windows reuses process IDS.  So consider the following
+
+	// process 1 starts
+	// process 1 starts process 2 (so 1 is the parent of 2)
+	// process 1 ends/dies
+	// another process starts and is given the pid (1)
+	// process 2's PPid will still be 2, but the current Pid(1) was not the one that created pid 2.
 }
