@@ -12,12 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/netsampler/goflow2/utils"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/forwarder"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/hostname"
 	"github.com/DataDog/datadog-agent/comp/netflow/sender"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
@@ -25,6 +29,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type dummyFlowProcessor struct {
+	receivedMessages chan interface{}
+	stopped          bool
+}
+
+func (d *dummyFlowProcessor) FlowRoutine(workers int, addr string, port int, reuseport bool) error {
+	return utils.UDPStoppableRoutine(make(chan struct{}), "test_udp", func(msg interface{}) error {
+		d.receivedMessages <- msg
+		return nil
+	}, 3, addr, port, false, logrus.StandardLogger())
+}
+
+func (d *dummyFlowProcessor) Shutdown() {
+	d.stopped = true
+}
+
+func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
+	// Testing using a dummyFlowProcessor since we can't test using real goflow flow processor
+	// due to this race condition https://github.com/netsampler/goflow2/issues/83
+	flowProcessor := &dummyFlowProcessor{}
+	listener := server.listeners[0]
+	listener.flowState = &goflowlib.FlowStateWrapper{
+		State:    flowProcessor,
+		Hostname: "abc",
+		Port:     0,
+	}
+	return flowProcessor
+}
 
 func getAggregator(logger log.Component, lc fx.Lifecycle) aggregator.DemultiplexerWithAggregator {
 	agg := aggregator.InitTestAgentDemultiplexerWithFlushInterval(logger, 10*time.Millisecond)
@@ -46,8 +79,8 @@ var testModule = fx.Module(
 	fx.Provide(
 		getAggregator,
 	),
-	// Set the internal flush frequency to a small number so tests don't take forever
-	fx.Invoke(func(c Component) {
+	fx.Invoke(func(lc fx.Lifecycle, c Component) {
+		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 100 * time.Millisecond
 	}),
 )
@@ -68,7 +101,12 @@ func TestStartServerAndStopServer(t *testing.T) {
 				}},
 			},
 		),
-	))
+	)).(*Server)
 	assert.NotNil(t, server)
-	assert.True(t, server.(*Server).started)
+	assert.False(t, server.running)
+	require.NoError(t, server.Start())
+	assert.True(t, server.running)
+	replaceWithDummyFlowProcessor(server)
+	server.Stop()
+	assert.False(t, server.running)
 }

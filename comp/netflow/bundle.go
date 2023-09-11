@@ -8,6 +8,8 @@
 package netflow
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/forwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/hostname"
@@ -27,5 +29,21 @@ var Bundle = fxutil.Bundle(
 	forwarder.Module,
 	hostname.Module,
 	// Run the server
-	fx.Invoke(func(server.Component) {}),
+	fx.Invoke(func(lc fx.Lifecycle, server server.Component, conf config.Component) {
+		if !conf.Get().Enabled {
+			// netflow is disabled - don't do anything.
+			return
+		}
+
+		lc.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				return server.Start()
+			},
+			OnStop: func(context.Context) error {
+				server.Stop()
+				return nil
+			},
+		})
+
+	}),
 )

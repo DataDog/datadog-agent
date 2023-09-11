@@ -6,7 +6,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -31,7 +30,7 @@ type dependencies struct {
 }
 
 // newServer configures a netflow server.
-func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
+func newServer(deps dependencies) (Component, error) {
 	conf := deps.Config.Get()
 	if !conf.Enabled {
 		// no-op
@@ -44,16 +43,6 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		FlowAgg: flowAgg,
 		logger:  deps.Logger,
 	}
-
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			return server.Start()
-		},
-		OnStop: func(context.Context) error {
-			server.Stop()
-			return nil
-		},
-	})
 	return server, nil
 }
 
@@ -64,15 +53,15 @@ type Server struct {
 	listeners []*netflowListener
 	FlowAgg   *flowaggregator.FlowAggregator
 	logger    log.Component
-	started   bool
+	running   bool
 }
 
 // Start starts the server running
 func (s *Server) Start() error {
-	if s.started {
+	if s.running {
 		return errors.New("server already started")
 	}
-	s.started = true
+	s.running = true
 	go s.FlowAgg.Start()
 
 	if s.config.PrometheusListenerEnabled {
@@ -101,7 +90,9 @@ func (s *Server) Start() error {
 // Stop stops the Server.
 func (s *Server) Stop() {
 	s.logger.Infof("Stop NetFlow Server")
-
+	if !s.running {
+		return
+	}
 	s.FlowAgg.Stop()
 
 	for _, listener := range s.listeners {
@@ -120,4 +111,5 @@ func (s *Server) Stop() {
 			s.logger.Errorf("Stopping listener `%s`. Timeout after %d seconds", listener.config.Addr(), s.config.StopTimeout)
 		}
 	}
+	s.running = false
 }
