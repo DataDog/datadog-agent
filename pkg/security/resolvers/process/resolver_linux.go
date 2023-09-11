@@ -278,6 +278,8 @@ type argsEnvsCacheEntry struct {
 	truncated bool
 }
 
+var argsEnvsInterner = utils.NewLRUStringInterner(4096)
+
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
 	values, err := model.UnmarshalStringArray(data)
@@ -287,6 +289,8 @@ func parseStringArray(data []byte) ([]string, bool) {
 		}
 		truncated = true
 	}
+
+	argsEnvsInterner.DeduplicateSlice(values)
 	return values, truncated
 }
 
