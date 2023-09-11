@@ -503,7 +503,7 @@ build do
       #   command "#{python} -m pip check"
       # else
       #   command "#{pip} check"
-      end
+      # end
     end
 
     block do
