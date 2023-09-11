@@ -153,6 +153,9 @@ def stop(flavor)
     end
   end
   wait_until_service_stopped(service)
+  if result == nil || result == false
+      log_trace "datadog-agent" "stop"
+  end
   result
 end
 
@@ -171,6 +174,9 @@ def start(flavor)
     end
   end
   wait_until_service_started(service)
+  if result == nil || result == false
+      log_trace "datadog-agent" "start"
+  end
   result
 end
 
@@ -203,6 +209,9 @@ def restart(flavor)
       wait_until_service_stopped(service, 5)
       wait_until_service_started(service, 5)
     end
+  end
+  if result == nil || result == false
+      log_trace "datadog-agent" "restart"
   end
   result
 end
@@ -652,9 +661,6 @@ shared_examples_for "a running Agent with APM manually disabled" do
     File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "restart"
-    end
     if os != :windows
       expect(output).to be_truthy
       system 'command -v systemctl 2>&1 > /dev/null || sleep 5 || true'
@@ -673,9 +679,6 @@ end
 shared_examples_for 'an Agent that stops' do
   it 'stops' do
     output = stop "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "stop"
-    end
     if os != :windows
       expect(output).to be_truthy
     end
@@ -698,9 +701,6 @@ shared_examples_for 'an Agent that stops' do
 
   it 'starts after being stopped' do
     output = start "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "start"
-    end
     if os != :windows
       expect(output).to be_truthy
     end
@@ -714,9 +714,6 @@ shared_examples_for 'an Agent that restarts' do
       start "datadog-agent"
     end
     output = restart "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "restart"
-    end
     if os != :windows
       expect(output).to be_truthy
     end
@@ -728,9 +725,6 @@ shared_examples_for 'an Agent that restarts' do
       stop "datadog-agent"
     end
     output = restart "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "restart"
-    end
     if os != :windows
       expect(output).to be_truthy
     end
@@ -749,9 +743,6 @@ shared_examples_for 'an Agent with Python' do
     File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "restart"
-    end
     expect(output).to be_truthy
   end
 
@@ -773,9 +764,6 @@ shared_examples_for 'an Agent with Python' do
     File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "restart"
-    end
     expect(output).to be_truthy
   end
 
@@ -974,9 +962,6 @@ shared_examples_for 'a running Agent with CWS enabled' do
     enable_cws(get_conf_file("security-agent.yaml"), true)
 
     output = restart "datadog-agent"
-    if output == nil || output == false
-      log_trace "datadog-agent" "restart"
-    end
     expect(output).to be_truthy
   end
 
