@@ -27,7 +27,7 @@ var raftAddr string
 var joinAddr string
 var nodeID string
 
-func init() {
+func initBak() {
 	flag.BoolVar(&inmem, "inmem", false, "Use in-memory storage for Raft")
 	flag.StringVar(&httpAddr, "haddr", DefaultHTTPAddr, "Set the HTTP bind address")
 	flag.StringVar(&raftAddr, "raddr", DefaultRaftAddr, "Set Raft bind address")
@@ -39,7 +39,7 @@ func init() {
 	}
 }
 
-func main() {
+func mainBak() {
 	flag.Parse()
 	if flag.NArg() == 0 {
 		fmt.Fprintf(os.Stderr, "No Raft storage directory specified\n")
