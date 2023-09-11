@@ -79,7 +79,6 @@ k8s-e2e-cws-dev:
 k8s-e2e-cws-main:
   extends: .k8s_e2e_template
   rules: !reference [.on_main]
-  allow_failure: true
   # needs:
   #   - dev_master-a6
   #   - dev_master-a7
