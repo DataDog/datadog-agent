@@ -241,6 +241,15 @@ var opensslSpec = &protocols.ProtocolSpec{
 			Name: "ssl_read_args",
 		},
 		{
+			Name: "ssl_read_ex_args",
+		},
+		{
+			Name: "ssl_write_args",
+		},
+		{
+			Name: "ssl_write_ex_args",
+		},
+		{
 			Name: "bio_new_socket_args",
 		},
 		{
