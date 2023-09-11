@@ -33,7 +33,7 @@ github_labels = ["team/agent-shared-components"]
 exclude_members = ["olivielpeau", "sgnn7"]
 
 [teams."Agent Platform"]
-jira_project = "AP"
+jira_project = "APL"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
@@ -45,7 +45,7 @@ github_labels = ["team/agent-platform"]
 exclude_members = ["olivielpeau"]
 
 [teams."Universal Service Monitoring"]
-jira_project = "USMO"
+jira_project = "USMON"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -56,7 +56,7 @@ github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
 
 [teams."Network Device Monitoring"]
-jira_project = "NDM"
+jira_project = "NDMII"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -140,7 +140,7 @@ github_team = "apm-go"
 github_labels = ["team/agent-apm"]
 
 [teams."Remote Config"]
-jira_project = "RCM"
+jira_project = "RC"
 jira_issue_type = "QA"
 jira_statuses = [
   "To Do",
@@ -151,7 +151,7 @@ github_team = "remote-config"
 github_labels = ["team/remote-config"]
 
 [teams."Container Integrations"]
-jira_project = "CONT"
+jira_project = "CONTINT"
 jira_issue_type = "Task"
 jira_statuses = [
   "To Do",
@@ -198,7 +198,7 @@ github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
 [teams."Processes"]
-jira_project = "PROC"
+jira_project = "PROCS"
 jira_issue_type = "Task"
 jira_statuses = [
   "TRIAGE",

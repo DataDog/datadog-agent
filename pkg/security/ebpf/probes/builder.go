@@ -6,6 +6,7 @@
 //go:build linux
 // +build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -54,7 +55,7 @@ func kretprobeOrFexit(funcName string, fentry bool, options ...psbOption) *manag
 	}
 }
 
-func withUid(uid string) psbOption {
+func withUID(uid string) psbOption {
 	return func(psb *probeSelectorBuilder) {
 		psb.uid = uid
 	}

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package hash holds hash related files
 package hash
 
 import (

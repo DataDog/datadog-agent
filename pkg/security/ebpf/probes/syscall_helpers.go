@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -82,6 +83,7 @@ func ShouldUseSyscallExitTracepoints() bool {
 	return currentKernelVersion != nil && (currentKernelVersion.Code < kernel.Kernel4_12 || currentKernelVersion.IsRH7Kernel())
 }
 
+// ShouldUseModuleLoadTracepoint returns true if we should use module load tracepoint
 func ShouldUseModuleLoadTracepoint() bool {
 	currentKernelVersion, err := kernel.NewKernelVersion()
 	// the condition may need to be fine-tuned based on the kernel version
@@ -148,7 +150,7 @@ const (
 	ExpandTime32 = 1 << 2
 	// SupportFentry indicates that this probe supports fentry expansion (instead of kprobe)
 	SupportFentry = 1 << 3
-	// SupportFentryExit indicates that this probe support fexit expansion (instead of kretprobe)
+	// SupportFexit indicates that this probe support fexit expansion (instead of kretprobe)
 	SupportFexit = 1 << 4
 
 	// EntryAndExit indicates that both the entry kprobe and exit kretprobe should be expanded

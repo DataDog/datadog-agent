@@ -25,7 +25,8 @@ type InitConfig struct {
 }
 
 type QuerySamplesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool `yaml:"enabled"`
+	IncludeAllSessions bool `yaml:"include_all_sessions"`
 }
 
 type QueryMetricsConfig struct {
