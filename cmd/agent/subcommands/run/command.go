@@ -348,19 +348,25 @@ func getSharedFxOption() fx.Option {
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
-		fx.Provide(func(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
-			hostnameDetected, err := hostname.Get(context.TODO())
-			if err != nil {
-				return nil, log.Errorf("Error while getting hostname, exiting: %v", err)
-			}
-			// demux is currently a global used by start/stop. It will need to be migrated at some point
-			demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
-			return demux, nil
-		}),
+		fx.Provide(
+			func(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
+				opts := aggregator.DefaultAgentDemultiplexerOptions()
+				opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+				opts.UseDogstatsdContextLimiter = true
+				opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
+				hostnameDetected, err := hostname.Get(context.TODO())
+				if err != nil {
+					return nil, log.Errorf("Error while getting hostname, exiting: %v", err)
+				}
+				// demux is currently a global used by start/stop. It will need to be migrated at some point
+				demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
+				return demux, nil
+			},
+			// also inject as DemultiplexerWithAggregator for components that
+			// depend on the interface rather than on the struct.
+			func(a *aggregator.AgentDemultiplexer) aggregator.DemultiplexerWithAggregator {
+				return a
+			}),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
