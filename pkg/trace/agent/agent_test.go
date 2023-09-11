@@ -123,7 +123,7 @@ func TestProcess(t *testing.T) {
 			},
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
 		now := time.Now()
