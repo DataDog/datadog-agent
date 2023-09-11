@@ -884,11 +884,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
 
 	// increase the number of files that can be tailed in parallel:
-	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
-		// The OS max for windows is 512, and the default limit on darwin is 256.
+	if runtime.GOOS == "darwin" {
+		// The default limit on darwin is 256.
 		// This is configurable per process on darwin with `ulimit -n` or a launchDaemon config.
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 200)
 	} else {
+		// There is no effective limit for windows due to use of CreateFile win32 API
 		// The OS default for most linux distributions is 1024
 		config.BindEnvAndSetDefault("logs_config.open_files_limit", 500)
 	}
