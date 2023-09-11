@@ -66,6 +66,15 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: http2IterationsTable,
 		},
+		{
+			Name: "http2_headers_to_process",
+		},
+		{
+			Name: "http2_stream_heap",
+		},
+		{
+			Name: "http2_ctx_heap",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
