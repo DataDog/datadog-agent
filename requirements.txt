@@ -1,3 +1,18 @@
 # To edit the requirements file, open a PR on github.com/DataDog/datadog-agent-buildimages
--r https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/main/requirements.txt
+# python development requirements for the Datadog Agent
+pyyaml==6.0
+invoke==2.2.0
+reno==3.5.0
+docker==6.0.1; python_version >= '3.7'
+docker-squash==1.0.9
+dulwich==0.20.45
+requests==2.27.1
+toml==0.10.2
+packaging==21.3
+# more recent boto3 has a bug which generates an import exception.
+# pin until this can be resolved.
+boto3==1.22.4
+# urllib3 major version 2, released on May 4th 2023, breaks botocore used
+# by awscli (removed DEFAULT_CIPHERS list from urllib3.util.ssl_)
+urllib3==1.26.15
 semver==2.10.0
