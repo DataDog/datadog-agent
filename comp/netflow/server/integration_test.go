@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	"github.com/DataDog/datadog-agent/comp/netflow/forwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -39,13 +40,12 @@ func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.Netfl
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	port := testutil.GetFreePort()
-	ctrl := gomock.NewController(t)
-	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		log.MockModule,
 		testModule,
+		fx.Populate(&epForwarder),
 		fx.Replace(
-			fx.Annotate(epForwarder, fx.As(new(netflowEPForwarder))),
 			singleListenerConfig("netflow5", port),
 		),
 	)).(*Server)
@@ -77,13 +77,12 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	port := testutil.GetFreePort()
-	ctrl := gomock.NewController(t)
-	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		log.MockModule,
 		testModule,
+		fx.Populate(&epForwarder),
 		fx.Replace(
-			fx.Annotate(epForwarder, fx.As(new(netflowEPForwarder))),
 			singleListenerConfig("netflow9", port),
 		),
 	)).(*Server)
@@ -113,17 +112,15 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	port := testutil.GetFreePort()
-	ctrl := gomock.NewController(t)
-	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
+	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		log.MockModule,
 		testModule,
+		fx.Populate(&epForwarder),
 		fx.Replace(
-			fx.Annotate(epForwarder, fx.As(new(netflowEPForwarder))),
 			singleListenerConfig("sflow5", port),
 		),
 	)).(*Server)
-
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 	// Setup NetFlow Server

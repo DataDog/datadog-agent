@@ -17,6 +17,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/forwarder"
+	"github.com/DataDog/datadog-agent/comp/netflow/hostname"
+	"github.com/DataDog/datadog-agent/comp/netflow/sender"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -35,23 +38,24 @@ func getAggregator(logger log.Component, lc fx.Lifecycle) aggregator.Demultiplex
 // testModule is an fx module of common dependencies for all tests
 var testModule = fx.Module(
 	"ServerTestModule",
-	// Provide the test demux/aggregator
+	Module,
+	nfconfig.Module,
+	sender.Module,
+	forwarder.MockModule,
+	hostname.MockModule,
 	fx.Provide(
 		getAggregator,
 	),
-	// Set the hostname to my-hostname
-	fx.Replace(netflowHostname("my-hostname")),
-	// Set the internal flush frequency to a small number so tests don't take forever
 	fx.Decorate(
 		// Allow tests to inject incomplete config and have defaults set automatically
 		func(conf *nfconfig.NetflowConfig) (*nfconfig.NetflowConfig, error) {
 			return conf, conf.SetDefaults("default")
 		},
 	),
+	// Set the internal flush frequency to a small number so tests don't take forever
 	fx.Invoke(func(c Component) {
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 100 * time.Millisecond
 	}),
-	Module,
 )
 
 func TestStartServerAndStopServer(t *testing.T) {

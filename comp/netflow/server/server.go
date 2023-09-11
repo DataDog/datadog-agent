@@ -14,57 +14,34 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/comp/netflow/forwarder"
+	"github.com/DataDog/datadog-agent/comp/netflow/hostname"
+	"github.com/DataDog/datadog-agent/comp/netflow/sender"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/fx"
 )
 
-// We expose these types internally in order to inject them; if they are ever componentized separately we will use the true componentized versions.
-type netflowHostname string
-type netflowEPForwarder epforwarder.EventPlatformForwarder
-type netflowSender sender.Sender
-
-func getHostname(logger log.Component) netflowHostname {
-	host, err := hostname.Get(context.Background())
-	if err != nil {
-		logger.Warnf("Error getting the hostname: %v", err)
-		return ""
-	}
-	return netflowHostname(host)
-}
-
-func getNetflowSender(agg aggregator.DemultiplexerWithAggregator) (netflowSender, error) {
-	return agg.GetDefaultSender()
-}
-
-func getNetflowForwarder(agg aggregator.DemultiplexerWithAggregator) (netflowEPForwarder, error) {
-	return agg.GetEventPlatformForwarder()
-}
-
 type dependencies struct {
 	fx.In
-	Config      *config.NetflowConfig
-	Logger      log.Component
-	EPForwarder netflowEPForwarder
-	Sender      netflowSender
-	Hostname    netflowHostname
+	Config    config.Component
+	Logger    log.Component
+	Sender    sender.Component
+	Forwarder forwarder.Component
+	Hostname  hostname.Component
 }
 
 // newServer configures a netflow server.
-func newServer(lc fx.Lifecycle, dep dependencies) (Component, error) {
-	if !dep.Config.Enabled {
+func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
+	if !deps.Config.Enabled {
 		// no-op
 		return nil, nil
 	}
-	flowAgg := flowaggregator.NewFlowAggregator(dep.Sender, dep.EPForwarder, dep.Config, string(dep.Hostname), dep.Logger)
+	flowAgg := flowaggregator.NewFlowAggregator(deps.Sender, deps.Forwarder, deps.Config, deps.Hostname.Get(), deps.Logger)
 
 	server := &Server{
-		config:  dep.Config,
+		config:  deps.Config,
 		FlowAgg: flowAgg,
-		logger:  dep.Logger,
+		logger:  deps.Logger,
 	}
 
 	lc.Append(fx.Hook{
