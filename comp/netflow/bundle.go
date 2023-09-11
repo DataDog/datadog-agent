@@ -7,6 +7,10 @@
 package netflow
 
 import (
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/forwarder"
+	"github.com/DataDog/datadog-agent/comp/netflow/hostname"
+	"github.com/DataDog/datadog-agent/comp/netflow/sender"
 	"github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -17,5 +21,9 @@ import (
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
 	server.Module,
+	config.Module,
+	sender.Module,
+	forwarder.Module,
+	hostname.Module,
 	fx.Invoke(func(server.Component) {}),
 )
