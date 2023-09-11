@@ -7,6 +7,7 @@ package examples
 
 import (
 	"os"
+	"path"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
@@ -21,23 +22,51 @@ type agentSuiteEx6 struct {
 }
 
 func TestAgentSuiteEx6(t *testing.T) {
-	file, err := os.ReadFile("test-folder/file-0")
-	require.NoError(t, err)
-	e2e.Run(t, &agentSuiteEx6{}, e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)}, agentparams.WithFile("/home/ubuntu/testfilewithfile", string(file), false)))
+
+	e2e.Run(t, &agentSuiteEx6{}, e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)}))
 }
 
 func (v *agentSuiteEx6) TestCopy() {
 
-	v.Env().VM.CopyFolder("test-folder", "test")
-	v.Env().VM.CopyFile("test-folder/file-0", "copied-file")
+	testFolder := path.Join(os.TempDir(), "test-folder")
+	err := createFolders(testFolder)
+	require.NoError(v.T(), err)
+
+	file, err := os.ReadFile(path.Join(testFolder, "file-0"))
+	require.NoError(v.T(), err)
+	v.UpdateEnv(e2e.AgentStackDef([]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)}, agentparams.WithFile("/home/ubuntu/testfilewithfile", string(file), false)))
+	v.Env().VM.CopyFolder(path.Join(testFolder), "test")
+	v.Env().VM.CopyFile(path.Join(testFolder, "file-0"), "copied-file")
 
 	output0 := v.Env().VM.Execute("cat test/file-0")
 	output1 := v.Env().VM.Execute("cat test/folder-1/file-1")
 	output2 := v.Env().VM.Execute("cat copied-file")
 	output3 := v.Env().VM.Execute("cat testfilewithfile")
 
-	require.Equal(v.T(), "This is a test file 0\n", output0)
-	require.Equal(v.T(), "This is a test file 1\n", output1)
-	require.Equal(v.T(), "This is a test file 0\n", output2)
-	require.Equal(v.T(), "This is a test file 0\n", output3)
+	require.Equal(v.T(), "This is a test file 0", output0)
+	require.Equal(v.T(), "This is a test file 1", output1)
+	require.Equal(v.T(), "This is a test file 0", output2)
+	require.Equal(v.T(), "This is a test file 0", output3)
+}
+
+func createFolders(folder string) error {
+
+	err := os.MkdirAll(folder, 0755)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll(path.Join(folder, "folder-1"), 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(path.Join(folder, "file-0"), []byte("This is a test file 0"), 0655)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(path.Join(folder, "folder-1", "file-1"), []byte("This is a test file 1"), 0655)
+	if err != nil {
+		return err
+	}
+	return nil
 }

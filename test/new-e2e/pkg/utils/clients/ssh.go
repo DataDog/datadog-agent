@@ -105,10 +105,7 @@ func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
 	}
 	defer sftpClient.Close()
 
-	if err := copyFolder(sftpClient, srcFolder, dstFolder); err != nil {
-		return err
-	}
-	return nil
+	return copyFolder(sftpClient, srcFolder, dstFolder)
 }
 
 func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {
