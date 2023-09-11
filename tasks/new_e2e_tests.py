@@ -203,27 +203,24 @@ def _remove_stack(ctx: Context, stack_name: str):
         ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
-def _get_pulumi_about(ctx: Context) -> str:
-    output = ctx.run("pulumi about", pty=True)
+def _get_pulumi_about(ctx: Context) -> dict:
+    output = ctx.run("pulumi about --json", pty=True, hide=True)
     if output is None or not output:
         return ""
-    return output.stdout
+    return json.loads(output.stdout)
 
 
-def _is_local_state(pulumi_about: str) -> bool:
+def _is_local_state(pulumi_about: dict) -> bool:
     # check output contains
     # Backend
     # Name           xxxxxxxxxx
     # URL            file://xxx
     # User           xxxxx.xxxxx
     # Organizations
-    about_groups = pulumi_about.split("\n\n")
-
-    for about_group in about_groups:
-        lines = about_group.splitlines()
-        if not lines[0].startswith("Backend"):
-            continue
-        url_lines = [x for x in lines[1:] if x.startswith("URL")]
-        if len(url_lines) > 0 and "file://" in url_lines[0]:
-            return True
+    backend_group = pulumi_about.get("backend")
+    if backend_group is None or not isinstance(backend_group, dict):
         return False
+    url = backend_group.get("url")
+    if url is None or not isinstance(url, str):
+        return False
+    return url.startswith("file://")
