@@ -171,6 +171,6 @@ func StartRaft() *store.Store {
 	//terminate := make(chan os.Signal, 1)
 	//signal.Notify(terminate, os.Interrupt)
 	//<-terminate
-	log.Infof("hraftd exiting")
+	//log.Infof("hraftd exiting")
 	return s
 }
