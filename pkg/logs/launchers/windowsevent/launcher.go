@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	newtailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent-new"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
@@ -65,7 +65,7 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			identifier := newtailer.Identifier(source.Config.ChannelPath, source.Config.Query)
+			identifier := tailer.Identifier(source.Config.ChannelPath, source.Config.Query)
 			if _, exists := l.tailers[identifier]; exists {
 				// tailer already setup
 				continue
@@ -94,8 +94,8 @@ func (l *Launcher) Stop() {
 }
 
 // sanitizedConfig sets default values for the config
-func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *newtailer.Config {
-	config := &newtailer.Config{
+func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *tailer.Config {
+	config := &tailer.Config{
 		ChannelPath: sourceConfig.ChannelPath,
 		Query:       sourceConfig.Query,
 	}
@@ -109,12 +109,12 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *newtailer.C
 func (l *Launcher) setupTailer(source *sources.LogSource) (Tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
 	var t Tailer
-	if source.Config.Type == "windows_event_new" {
-		config := &newtailer.Config{
+	if source.Config.Type == config.WindowsEventType {
+		config := &tailer.Config{
 			ChannelPath: sanitizedConfig.ChannelPath,
 			Query:       sanitizedConfig.Query,
 		}
-		t = newtailer.NewTailer(l.evtapi, source, config, l.pipelineProvider.NextPipelineChan())
+		t = tailer.NewTailer(l.evtapi, source, config, l.pipelineProvider.NextPipelineChan())
 	} else {
 		return nil, fmt.Errorf("unsupported type %s", source.Config.Type)
 	}
