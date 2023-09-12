@@ -593,31 +593,32 @@ func TestExecLostExec(t *testing.T) {
 	// parent
 	resolver.AddForkEntry(parent, 0)
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 11, Tid: 11})
-	child.PPid = parent.Pid
-	child.FileEvent.Inode = 2
+	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 22, Tid: 22})
+	child1.PPid = parent.Pid
+	child1.FileEvent.Inode = 1
+	child1.ExecInode = 1
 
 	// parent
-	//     \ child
-	resolver.AddExecEntry(child, parent.ExecInode)
-
-	assert.Equal(t, "agent", child.FileEvent.BasenameStr)
-	assert.False(t, child.IsParentMissing)
-
-	// exec loss with inode 2
-
-	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 33, Tid: 33})
-	child1.FileEvent.BasenameStr = "sh"
-	child1.PPid = child.Pid
-	child1.ExecInode = 2
-
-	// parent
-	//     \ child
-	//		\ child1
-	resolver.AddForkEntry(child1, child1.ExecInode)
+	//     \ child1
+	resolver.AddForkEntry(child1, parent.ExecInode)
 
 	assert.Equal(t, "agent", child1.FileEvent.BasenameStr)
-	assert.True(t, child1.IsParentMissing)
+	assert.False(t, child1.IsParentMissing)
+
+	// exec loss with inode 2 and pid 22
+
+	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 33, Tid: 33})
+	child2.FileEvent.BasenameStr = "sh"
+	child2.PPid = child1.Pid
+	child2.ExecInode = 2
+
+	// parent
+	//     \ child1
+	//		\ child2
+	resolver.AddForkEntry(child2, child2.ExecInode)
+
+	assert.Equal(t, "agent", child2.FileEvent.BasenameStr)
+	assert.True(t, child2.IsParentMissing)
 }
 
 func TestIsExecChildRuntime(t *testing.T) {

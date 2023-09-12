@@ -532,20 +532,22 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64,
 		prev.Exit(entry.ForkTime)
 	}
 
-	parent := p.entryCache[entry.PPid]
-	if entry.PPid >= 1 && (parent == nil || parent.FileEvent.Inode != inode) {
-		if candidate := p.resolve(entry.PPid, entry.PPid, inode, true); candidate != nil {
-			parent = candidate
+	if entry.Pid != 1 {
+		parent := p.entryCache[entry.PPid]
+		if entry.PPid >= 1 && (parent == nil || parent.FileEvent.Inode != inode) {
+			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true); candidate != nil {
+				parent = candidate
+			} else {
+				entry.IsParentMissing = true
+				p.inodeErrStats.Inc()
+			}
+		}
+
+		if parent != nil {
+			parent.Fork(entry)
 		} else {
 			entry.IsParentMissing = true
-			p.inodeErrStats.Inc()
 		}
-	}
-
-	if parent != nil {
-		parent.Fork(entry)
-	} else {
-		entry.IsParentMissing = true
 	}
 
 	p.insertEntry(entry, prev, source)

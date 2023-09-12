@@ -550,7 +550,7 @@ const (
 	ProcessCacheEntryFromUnknown   = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
 	ProcessCacheEntryFromEvent            // ProcessCacheEntryFromEvent defines a process cache entry from event
 	ProcessCacheEntryFromKernelMap        // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS           // ProcessCacheEntryFromProcFS defines a process cache entry from procfs
+	ProcessCacheEntryFromProcFS           // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
 	ProcessCacheEntryFromSnapshot         // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
 )
 
