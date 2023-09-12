@@ -2,9 +2,9 @@
 
 This folder contains tests and utilities to write and run agent end to end tests based on Pulumi.
 
-## Documentation 
+## Documentation
 
-See https://pkg.go.dev/github.com/DataDog/datadog-agent/test/new-e2e@main/utils/e2e.
+See https://pkg.go.dev/github.com/DataDog/datadog-agent/test/new-e2e@main/pkg/utils/e2e.
 
 ## Development in VSCode
 
@@ -15,10 +15,9 @@ go work init
 go work use . ./test/new-e2e
 ```
 
-> **Note**
-> `go.work` file is currently ignored in `datadog-agent`
-
 ## Use VsCode tasks to wrap aws-vault
 
 The `agent-sandbox: test current file` can be used to launch test on a file withtout having to launch the whole VsCode wrapped by aws-vault exec. To use it copy the `.template` files in `.vscode` and remove the `.template` extension. 
 You need to open the `new-e2e` folder
+
+> **Note** > `go.work` file is currently ignored in `datadog-agent`

@@ -22198,23 +22198,23 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mprotect.vm_protection":
 		return "mprotect", nil
 	case "network.destination.ip":
-		return "*", nil
+		return "dns", nil
 	case "network.destination.port":
-		return "*", nil
+		return "dns", nil
 	case "network.device.ifindex":
-		return "*", nil
+		return "dns", nil
 	case "network.device.ifname":
-		return "*", nil
+		return "dns", nil
 	case "network.l3_protocol":
-		return "*", nil
+		return "dns", nil
 	case "network.l4_protocol":
-		return "*", nil
+		return "dns", nil
 	case "network.size":
-		return "*", nil
+		return "dns", nil
 	case "network.source.ip":
-		return "*", nil
+		return "dns", nil
 	case "network.source.port":
-		return "*", nil
+		return "dns", nil
 	case "open.file.change_time":
 		return "open", nil
 	case "open.file.destination.mode":

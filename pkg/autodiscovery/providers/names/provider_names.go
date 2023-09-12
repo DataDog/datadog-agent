@@ -22,6 +22,7 @@ const (
 	KubeEndpointsFile  = "kubernetes-endpoints-file"
 	PrometheusPods     = "prometheus-pods"
 	PrometheusServices = "prometheus-services"
+	RemoteConfig       = "remote-config"
 	SNMP               = "snmp"
 	Zookeeper          = "zookeeper"
 )
@@ -43,5 +44,6 @@ const (
 	KubeEndpointsFileRegisterName  = "kube_endpoints_file"
 	PrometheusPodsRegisterName     = "prometheus_pods"
 	PrometheusServicesRegisterName = "prometheus_services"
+	RemoteConfigRegisterName       = "remote_config"
 	ZookeeperRegisterName          = "zookeeper"
 )

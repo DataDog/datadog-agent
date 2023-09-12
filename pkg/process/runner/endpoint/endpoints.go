@@ -11,6 +11,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
@@ -29,7 +30,7 @@ func getAPIEndpointsWithKeys(config ddconfig.ConfigReader, prefix, defaultEpKey,
 		return nil, fmt.Errorf("error parsing %s: %s", defaultEpKey, err)
 	}
 	eps = append(eps, apicfg.Endpoint{
-		APIKey:   ddconfig.SanitizeAPIKey(config.GetString("api_key")),
+		APIKey:   configUtils.SanitizeAPIKey(config.GetString("api_key")),
 		Endpoint: mainEndpointURL,
 	})
 
@@ -41,7 +42,7 @@ func getAPIEndpointsWithKeys(config ddconfig.ConfigReader, prefix, defaultEpKey,
 		}
 		for _, k := range apiKeys {
 			eps = append(eps, apicfg.Endpoint{
-				APIKey:   ddconfig.SanitizeAPIKey(k),
+				APIKey:   configUtils.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}

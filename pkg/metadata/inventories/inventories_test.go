@@ -197,7 +197,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, "check1_instance2", check1Instance2["config.hash"])
 	assert.Equal(t, "provider1", check1Instance2["config.provider"])
 	assert.Equal(t, "", check1Instance2["init_config"])
-	assert.Equal(t, "{\"test\":21}", check1Instance2["instance_config"])
+	assert.Equal(t, "test: 21", check1Instance2["instance_config"])
 
 	assert.Len(t, checkMeta["check2"], 1) // check2 has one instance
 	check2Instance1 := *checkMeta["check2"][0]
@@ -272,7 +272,7 @@ func TestGetPayload(t *testing.T) {
 					"config.hash": "check1_instance2",
 					"config.provider": "provider1",
 					"init_config": "",
-					"instance_config": "{\"test\":21}"
+					"instance_config": "test: 21"
 				}
 			],
 			"check2":
@@ -328,7 +328,10 @@ func TestGetPayload(t *testing.T) {
 		}
 	}`
 	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), version.AgentVersion)
-	jsonString = strings.Join(strings.Fields(jsonString), "") // Removes whitespaces and new lines
+	// jsonString above is structure for easy editing, we have to convert if to a compact JSON
+	jsonString = strings.Replace(jsonString, "\t", "", -1)      // Removes tabs
+	jsonString = strings.Replace(jsonString, "\n", "", -1)      // Removes line breaks
+	jsonString = strings.Replace(jsonString, "\": ", "\":", -1) // Remove space between keys and values
 	assert.Equal(t, jsonString, string(marshaled))
 
 }
