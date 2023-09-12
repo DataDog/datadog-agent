@@ -25,7 +25,9 @@
 #include "protocols/http/maps.h"
 #include "protocols/http/http.h"
 #include "protocols/tls/tags-types.h"
+#include "protocols/tls/native-tls-maps.h"
 #include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/go-tls-maps.h"
 
 #define HTTPS_PORT 443
 

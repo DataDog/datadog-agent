@@ -1,5 +1,5 @@
-#ifndef _ERPC_HANDLERS_H
-#define _ERPC_HANDLERS_H
+#ifndef __ERPC_HANDLERS_H
+#define __ERPC_HANDLERS_H
 
 #include "conn_tuple.h"
 #include "protocols/tls/tags-types.h"
@@ -179,4 +179,4 @@ int kprobe_handle_async_payload(struct pt_regs *ctx) {
     return 0;
 }
 
-#endif // _ERPC_HANDLERS_H
+#endif // __ERPC_HANDLERS_H
