@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package envvars holds envvars related files
 package envvars
 
 import (
@@ -12,10 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+// Resolver defines a resolver
 type Resolver struct {
 	priorityEnvs []string
 }
 
+// NewEnvVarsResolver returns a new resolver
 func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 	var envsWithValue []string
 	if cfg != nil {
@@ -31,6 +34,7 @@ func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 	}
 }
 
+// ResolveEnvVars resolves a pid
 func (r *Resolver) ResolveEnvVars(pid uint32) ([]string, bool, error) {
 	return utils.EnvVars(r.priorityEnvs, pid)
 }

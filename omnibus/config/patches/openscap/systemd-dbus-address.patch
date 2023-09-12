@@ -1,6 +1,6 @@
-]--- a/src/OVAL/probes/unix/linux/systemdshared.h
-+++ b/src/OVAL/probes/unix/linux/systemdshared.h
-@@ -338,6 +338,8 @@ static DBusConnection *connect_dbus()
+--- a/src/OVAL/probes/unix/linux/oval_dbus.c
++++ b/src/OVAL/probes/unix/linux/oval_dbus.c
+@@ -128,6 +128,8 @@ DBusConnection *oval_connect_dbus(void)
  		setenv("DBUS_SYSTEM_BUS_ADDRESS", dbus_address, 0);
  		/* We won't overwrite DBUS_SYSTEM_BUS_ADDRESS so that
  		 * user could have a way to define some non-standard system bus socket location */

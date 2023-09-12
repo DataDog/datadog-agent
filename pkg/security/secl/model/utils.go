@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -58,6 +59,7 @@ func UnmarshalString(data []byte, size int) (string, error) {
 	return NullTerminatedString(data[:size]), nil
 }
 
+// NullTerminatedString returns null-terminated string
 func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {

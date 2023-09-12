@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main holds main related files
 package main
 
 import (
@@ -47,10 +48,12 @@ var (
 	buildTags           string
 )
 
+// AstFiles defines ast files
 type AstFiles struct {
 	files []*ast.File
 }
 
+// LookupSymbol lookups symbol
 func (af *AstFiles) LookupSymbol(symbol string) *ast.Object {
 	for _, file := range af.files {
 		if obj := file.Scope.Lookup(symbol); obj != nil {
@@ -60,6 +63,7 @@ func (af *AstFiles) LookupSymbol(symbol string) *ast.Object {
 	return nil
 }
 
+// GetSpecs gets specs
 func (af *AstFiles) GetSpecs() []ast.Spec {
 	var specs []ast.Spec
 

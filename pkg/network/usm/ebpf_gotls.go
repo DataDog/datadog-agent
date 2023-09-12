@@ -217,6 +217,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 		{Name: offsetsDataMap},
 		{Name: goTLSReadArgsMap},
 		{Name: goTLSWriteArgsMap},
+		{Name: connectionTupleByGoTLSMap},
 	}...)
 	// Hooks will be added in runtime for each binary
 }

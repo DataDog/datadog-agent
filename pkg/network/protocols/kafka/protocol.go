@@ -33,6 +33,7 @@ const (
 	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
+	kafkaHeapMap                             = "kafka_heap"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -43,6 +44,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: kafkaLastTCPSeqPerConnectionMap,
+		},
+		{
+			Name: kafkaHeapMap,
 		},
 	},
 	TailCalls: []manager.TailCallRoute{

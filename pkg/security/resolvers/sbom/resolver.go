@@ -5,6 +5,7 @@
 
 //go:build linux && trivy
 
+// Package sbom holds sbom related files
 package sbom
 
 import (
@@ -39,10 +40,11 @@ const SBOMSource = "runtime-security-agent"
 
 const maxSBOMGenerationRetries = 3
 
+// SBOM defines an SBOM
 type SBOM struct {
 	sync.RWMutex
 
-	report *trivy.TrivyReport
+	report *trivy.Report
 	files  map[string]*Package
 
 	Host        string
@@ -217,7 +219,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
-	trivyReport, ok := result.Report.(*trivy.TrivyReport)
+	trivyReport, ok := result.Report.(*trivy.Report)
 	if !ok {
 		return fmt.Errorf("failed to convert report for %s", root)
 	}
@@ -455,6 +457,7 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 	r.sbomsCache.Add(sbomKey, sbom)
 }
 
+// SendStats sends stats
 func (r *Resolver) SendStats() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
