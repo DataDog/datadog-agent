@@ -7,6 +7,7 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
@@ -49,25 +50,56 @@ func (p *DistributedChecksProvider) Collect(ctx context.Context) ([]integration.
 	log.Info("[DistributedChecks] Collect")
 	if p.store.IsLeader() {
 		log.Info("[DistributedChecks] Is Leader")
-	}
-	configs, _, err := ReadConfigFiles(GetAll)
-	if err != nil {
-		return nil, log.Errorf("read config files: %s", err)
+		configs, _, err := ReadConfigFiles(GetAll)
+		if err != nil {
+			return nil, log.Errorf("read config files: %s", err)
+		}
+		for _, config := range configs {
+			if config.IsTemplate() {
+				continue
+			}
+			if config.Name == "snmp" {
+				config.ClusterCheck = false
+				config.InitConfig.SetField("distributed_check", true)
+				log.Infof("[DistributedChecks][Leader] config after %s (cluster_check=%t, digest=%s): \n%s", config.Name, config.ClusterCheck, config.Digest(), config.String())
+
+				configStr, err := json.Marshal(config)
+				if err != nil {
+					return nil, log.Errorf("marshall error: %s", err)
+				}
+				p.store.Set(config.Digest(), string(configStr))
+			}
+		}
 	}
 	var newConfig []integration.Config
-	for _, config := range configs {
-		if config.IsTemplate() {
-			continue
+	for digest, configStr := range p.store.GetAll() {
+		var config integration.Config
+		err := json.Unmarshal([]byte(configStr), &config)
+		if err != nil {
+			return nil, log.Errorf("marshall error: %s", err)
 		}
-
-		if config.Name == "snmp" {
-			log.Infof("[DistributedChecks] config %s (cluster_check=%t): \n%s", config.Name, config.ClusterCheck, config.String())
-			config.ClusterCheck = false
-			config.InitConfig.SetField("distributed_check", true)
-			log.Infof("[DistributedChecks] config after %s (cluster_check=%t): \n%s", config.Name, config.ClusterCheck, config.String())
-			newConfig = append(newConfig, config)
-		}
+		config.InitConfig.SetField("from_raft", true)
+		log.Infof("[DistributedChecks][Read] config after %s (cluster_check=%t, digest=%s): \n%s", config.Name, config.ClusterCheck, digest, config.String())
+		newConfig = append(newConfig, config)
 	}
+	//configs, _, err := ReadConfigFiles(GetAll)
+	//if err != nil {
+	//	return nil, log.Errorf("read config files: %s", err)
+	//}
+	//var newConfig []integration.Config
+	//for _, config := range configs {
+	//	if config.IsTemplate() {
+	//		continue
+	//	}
+	//
+	//	if config.Name == "snmp" {
+	//		log.Infof("[DistributedChecks] config %s (cluster_check=%t): \n%s", config.Name, config.ClusterCheck, config.String())
+	//		config.ClusterCheck = false
+	//		config.InitConfig.SetField("distributed_check", true)
+	//		log.Infof("[DistributedChecks] config after %s (cluster_check=%t): \n%s", config.Name, config.ClusterCheck, config.String())
+	//		newConfig = append(newConfig, config)
+	//	}
+	//}
 	//
 	//instances := []integration.Config{
 	//	{
