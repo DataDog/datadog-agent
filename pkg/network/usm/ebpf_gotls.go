@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -155,13 +156,16 @@ type GoTLSProgram struct {
 
 	// blockCache is a sized limited cache for processes that cannot be hooked (binversion.ErrNotGoExe).
 	blockCache *simplelru.LRU[binaryID, struct{}]
+
+	// sockFDMap is the user mode handler of `sock_by_pid_fd` map, which is shared among NPM and USM.
+	sockFDMap *ebpf.Map
 }
 
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &GoTLSProgram{}
 
-func newGoTLSProgram(c *config.Config) *GoTLSProgram {
-	if !c.EnableHTTPSMonitoring || !c.EnableGoTLSSupport {
+func newGoTLSProgram(c *config.Config, sockFD *ebpf.Map) *GoTLSProgram {
+	if !c.EnableGoTLSSupport {
 		return nil
 	}
 
@@ -188,6 +192,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		binaries:   make(map[binaryID]*runningBinary),
 		processes:  make(map[pid]binaryID),
 		blockCache: blockCache,
+		sockFDMap:  sockFD,
 	}
 
 	p.binAnalysisMetric = libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd)
@@ -212,6 +217,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 		{Name: offsetsDataMap},
 		{Name: goTLSReadArgsMap},
 		{Name: goTLSWriteArgsMap},
+		{Name: connectionTupleByGoTLSMap},
 	}...)
 	// Hooks will be added in runtime for each binary
 }
@@ -219,10 +225,15 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 // ConfigureOptions changes map attributes to the given options.
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+
+	if options.MapEditors == nil {
+		options.MapEditors = make(map[string]*ebpf.Map)
+	}
+
+	options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
 }
 
 // GetAllUndefinedProbes returns a list of the program's probes.

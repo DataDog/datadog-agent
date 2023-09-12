@@ -74,7 +74,7 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func() (check.Loader, error) {
+	factory := func(sender.SenderManager) (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
 

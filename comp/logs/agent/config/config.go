@@ -16,6 +16,7 @@ import (
 
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -177,7 +178,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.ConfigReader, logsConfig *LogsConfig
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
-		additionals[i].APIKey = pkgConfig.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].APIKey = configUtils.SanitizeAPIKey(additionals[i].APIKey)
 	}
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
@@ -249,7 +250,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.ConfigReader, logsConfig 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
-		additionals[i].APIKey = pkgConfig.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].APIKey = configUtils.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
 		additionals[i].CompressionLevel = main.CompressionLevel
 		additionals[i].BackoffBase = main.BackoffBase
@@ -343,4 +344,9 @@ func TaggerWarmupDuration(coreConfig pkgConfig.ConfigReader) time.Duration {
 // AggregationTimeout is used when performing aggregation operations
 func AggregationTimeout(coreConfig pkgConfig.ConfigReader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).aggregationTimeout()
+}
+
+// MaxMessageSizeBytes is used to cap the maximum log message size in bytes
+func MaxMessageSizeBytes(coreConfig pkgConfig.ConfigReader) int {
+	return defaultLogsConfigKeys(coreConfig).maxMessageSizeBytes()
 }

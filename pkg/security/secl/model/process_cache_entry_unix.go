@@ -6,6 +6,7 @@
 //go:build unix
 // +build unix
 
+// Package model holds model related files
 package model
 
 import (
@@ -55,7 +56,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
-// Replace previous entry values by the given one
+// ApplyExecTimeOf replace previous entry values by the given one
 func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }

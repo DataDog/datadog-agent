@@ -186,7 +186,14 @@ func (fb *builder) AddFileFromFunc(destFile string, cb func() ([]byte, error)) e
 func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) error {
 	if shouldScrub {
 		var err error
-		content, err = fb.scrubber.ScrubBytes(content)
+
+		// We use the YAML scrubber when needed. This handles nested keys, list, maps and such.
+		if strings.Contains(destFile, ".yaml") {
+			content, err = fb.scrubber.ScrubYaml(content)
+		} else {
+			content, err = fb.scrubber.ScrubBytes(content)
+		}
+
 		if err != nil {
 			return fb.logError("error scrubbing content for '%s': %s", destFile, err)
 		}
@@ -226,7 +233,13 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 
 	if shouldScrub {
 		var err error
-		content, err = fb.scrubber.ScrubBytes(content)
+
+		// We use the YAML scrubber when needed. This handles nested keys, list, maps and such.
+		if strings.Contains(srcFile, ".yaml") || strings.Contains(destFile, ".yaml") {
+			content, err = fb.scrubber.ScrubYaml(content)
+		} else {
+			content, err = fb.scrubber.ScrubBytes(content)
+		}
 		if err != nil {
 			return fb.logError("error scrubbing content for file '%s': %s", destFile, err)
 		}

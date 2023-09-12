@@ -23,6 +23,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// nolint: revive
+func applyEmpty(s string, as state.ApplyStatus) {}
+
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
@@ -74,7 +77,7 @@ func TestPrioritySampler(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
 	rareSampler.EXPECT().SetEnabled(true).Times(1)
 
-	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config}, applyEmpty)
 
 	ctrl.Finish()
 }
@@ -105,7 +108,7 @@ func TestErrorsSampler(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(42)).Times(1)
 	rareSampler.EXPECT().SetEnabled(true).Times(1)
 
-	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config}, applyEmpty)
 
 	ctrl.Finish()
 }
@@ -136,7 +139,7 @@ func TestRareSampler(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
 	rareSampler.EXPECT().SetEnabled(false).Times(1)
 
-	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config}, applyEmpty)
 
 	ctrl.Finish()
 }
@@ -177,7 +180,7 @@ func TestEnvPrecedence(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(43)).Times(1)
 	rareSampler.EXPECT().SetEnabled(false).Times(1)
 
-	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config}, applyEmpty)
 
 	ctrl.Finish()
 }
@@ -219,7 +222,7 @@ func TestLogLevel(t *testing.T) {
 	h.onAgentConfigUpdate(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layer,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
-	})
+	}, remoteClient.UpdateApplyStatus)
 
 	ctrl.Finish()
 }

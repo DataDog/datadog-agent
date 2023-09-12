@@ -1,0 +1,7 @@
+process_config:
+  process_collection:
+    enabled: true
+  intervals:
+    process: 1
+language_detection:
+  enabled: true

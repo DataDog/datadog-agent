@@ -9,6 +9,7 @@ include:
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
+  - /.gitlab/cancel-prev-pipelines.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
@@ -37,12 +38,8 @@ include:
   - /.gitlab/functional_test_junit_upload.yml
   - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
-  # FIXME: our current Gitlab version doesn't support importing a file more than once
-  # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-  # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/publish_job_templates.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
 
@@ -56,6 +53,7 @@ default:
       - api_failure
 
 stages:
+  - .pre
   - setup
   - maintenance_jobs
   - deps_build
@@ -166,8 +164,8 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v18868373-918b265
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18868373-918b265
-  DATADOG_AGENT_BUILDERS: v18823563-572898a
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: b26f1d056477
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 713eba6ee3fe
+  DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -270,6 +268,9 @@ variables:
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
+
+.if_not_e2e: &if_not_e2e
+  if: $RUN_KITCHEN_TESTS == "false"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -741,6 +742,12 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.except_main_or_release_branch:
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_release_branch
+    when: never
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always
@@ -842,6 +849,7 @@ workflow:
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
+    allow_failure: true
   - changes:
       paths:
         - pkg/ebpf/**/*
@@ -905,3 +913,9 @@ workflow:
     when: always
   - when: manual
     allow_failure: true
+
+.on_main_and_no_skip_e2e:
+  - <<: *if_not_e2e
+    when: never
+  - <<: *if_main_branch
+    when: on_success
