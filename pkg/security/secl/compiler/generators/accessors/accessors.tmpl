@@ -260,7 +260,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{range $Check := $Checks}}
 				{{$Check = $Check | printf "ev.%s"}}
 				if !{{$Check}}() {
-					return {{$Field.GetDefaultReturnValue}}, nil
+					return {{$Field.GetDefaultReturnValue}}, &eval.ErrFieldNotFound{Field: field}
 				}
 			{{end}}
 
