@@ -20,13 +20,14 @@ import (
 )
 
 const (
-	// logsIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
+	// logsIntakeURLTemplate is the template for building the logs intake URL for each site.
 	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
 
+	// debuggerDiagnosticsURLTemplate is the template for building the debugger intake URL for each site.
 	debuggerDiagnosticsURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
 
-	// intakeMaximumTagsLength is the maximum number of characters we send as ddtags.
-	intakeMaximumTagsLength = 4001
+	// intakeDDTagsQueryStringMaximumLength is the maximum number of characters we send as ddtags in the intake query string.
+	intakeDDTagsQueryStringMaximumLength = 4001
 )
 
 // debuggerLogsProxyHandler returns an http.Handler proxying Dynamic Instrumentation dynamic logs
@@ -104,9 +105,9 @@ func getDirector(hostTags string, cidProvider IDProvider, containerTags func(str
 			tags = fmt.Sprintf("%s,%s", tags, qtags)
 		}
 		maxLen := len(tags)
-		if maxLen > intakeMaximumTagsLength {
-			log.Warn("Truncating tags in debugger endpoint. Got %d, max is %d.", maxLen, intakeMaximumTagsLength)
-			maxLen = intakeMaximumTagsLength
+		if maxLen > intakeDDTagsQueryStringMaximumLength {
+			log.Warn("Truncating tags in debugger endpoint. Got %d, max is %d.", maxLen, intakeDDTagsQueryStringMaximumLength)
+			maxLen = intakeDDTagsQueryStringMaximumLength
 		}
 		tags = tags[0:maxLen]
 		q.Set("ddtags", tags)
