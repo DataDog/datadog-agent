@@ -26,24 +26,15 @@ type deploymentFilter struct{}
 
 func (f *deploymentFilter) filteredOut(obj metav1.Object) bool {
 	labels := obj.GetLabels()
-	if _, ok := labels[ddkube.EnvTagLabelKey]; ok {
-		return false
-	}
-
-	if _, ok := labels[ddkube.ServiceTagLabelKey]; ok {
-		return false
-	}
-
-	if _, ok := labels[ddkube.VersionTagLabelKey]; ok {
-		return false
-	}
 
 	// annotations := obj.GetAnnotations()
 	// if _, ok := annotations["tags.datadog.com/languages"] { // stub, exact annotation will need to be defined in the future
 	// 	return false
 	// }
 
-	return true
+	return labels[ddkube.EnvTagLabelKey] == "" &&
+		labels[ddkube.ServiceTagLabelKey] == "" &&
+		labels[ddkube.VersionTagLabelKey] == ""
 }
 
 func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
@@ -92,15 +83,8 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Name, // not sure if we should use the UID or the name here
 		},
-		Env:     getOrDefault(deployment.Labels, ddkube.EnvTagLabelKey, ""),
-		Service: getOrDefault(deployment.Labels, ddkube.ServiceTagLabelKey, ""),
-		Version: getOrDefault(deployment.Labels, ddkube.VersionTagLabelKey, ""),
+		Env:     deployment.Labels[ddkube.EnvTagLabelKey],
+		Service: deployment.Labels[ddkube.ServiceTagLabelKey],
+		Version: deployment.Labels[ddkube.VersionTagLabelKey],
 	}
-}
-
-func getOrDefault(m map[string]string, key, defaultV string) string {
-	if v, ok := m[key]; ok {
-		return v
-	}
-	return defaultV
 }

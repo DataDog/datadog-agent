@@ -23,21 +23,26 @@ import (
 
 func TestDeploymentParser_Parse(t *testing.T) {
 	parser := newdeploymentParser()
+	expected := &workloadmeta.KubernetesDeployment{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesDeployment,
+			ID:   "test-deployment",
+		},
+		Env:     "env",
+		Service: "service",
+		Version: "version",
+	}
 	deployment := &appsv1.Deployment{
 		ObjectMeta: v1.ObjectMeta{
-			Name:      "test-deployment",
+			Name:      expected.ID,
 			Namespace: "test-namespace",
-			Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env", "tags.datadoghq.com/service": "service", "tags.datadoghq.com/version": "version"},
+			Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": expected.Env, "tags.datadoghq.com/service": expected.Service, "tags.datadoghq.com/version": expected.Version},
 		},
 	}
 	entity := parser.Parse(deployment)
 	storedDeployment, ok := entity.(*workloadmeta.KubernetesDeployment)
 	require.True(t, ok)
-	assert.IsType(t, &workloadmeta.KubernetesDeployment{}, entity)
-	assert.Equal(t, "test-deployment", storedDeployment.ID)
-	assert.Equal(t, "env", storedDeployment.Env)
-	assert.Equal(t, "service", storedDeployment.Service)
-	assert.Equal(t, "version", storedDeployment.Version)
+	assert.Equal(t, expected, storedDeployment)
 }
 
 func Test_DeploymentsFakeKubernetesClient(t *testing.T) {

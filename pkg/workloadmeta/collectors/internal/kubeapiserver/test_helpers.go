@@ -35,24 +35,17 @@ func TestFakeHelper(t *testing.T, createResource func(*fake.Clientset) error, ne
 	go store.Run(stopStore)
 
 	ch := wlm.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
-	doneCh := make(chan struct{})
 
 	actual := []workloadmeta.EventBundle{}
-	go func() {
-		<-ch
-		bundle := <-ch
-		close(bundle.Ch)
-
-		// nil the bundle's Ch so we can
-		// deep-equal just the events later
-		bundle.Ch = nil
-
-		actual = append(actual, bundle)
-
-		close(doneCh)
-	}()
-
-	<-doneCh
+	// When Subscribe is called, the first Bundle contains events about the items currently in the store.
+	// In that case, the first bundle is empty.
+	<-ch
+	bundle := <-ch
+	close(bundle.Ch)
+	// nil the bundle's Ch so we can
+	// deep-equal just the events later
+	bundle.Ch = nil
+	actual = append(actual, bundle)
 	close(stopStore)
 	wlm.Unsubscribe(ch)
 	assert.Equal(t, expected, actual)

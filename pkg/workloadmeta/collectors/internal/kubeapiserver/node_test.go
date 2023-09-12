@@ -23,18 +23,26 @@ import (
 
 func TestNodeParser_Parse(t *testing.T) {
 	parser := newNodeParser()
-	Node := &corev1.Node{
-		ObjectMeta: v1.ObjectMeta{
+	expected := &workloadmeta.KubernetesNode{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesNode,
+			ID:   "test-node",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
 			Name:   "test-node",
 			Labels: map[string]string{"test-label": "test-value"},
 		},
 	}
-	entity := parser.Parse(Node)
+	node := &corev1.Node{
+		ObjectMeta: v1.ObjectMeta{
+			Name:   expected.ID,
+			Labels: expected.Labels,
+		},
+	}
+	entity := parser.Parse(node)
 	storedNode, ok := entity.(*workloadmeta.KubernetesNode)
 	require.True(t, ok)
-	assert.IsType(t, &workloadmeta.KubernetesNode{}, entity)
-	assert.Equal(t, "test-node", storedNode.ID)
-	assert.Equal(t, map[string]string{"test-label": "test-value"}, storedNode.Labels)
+	assert.Equal(t, expected, storedNode)
 }
 
 func Test_NodesFakeKubernetesClient(t *testing.T) {

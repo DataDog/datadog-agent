@@ -740,8 +740,8 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
-	_, _ = fmt.Fprintln(&sb, "Service :", d.Env)
-	_, _ = fmt.Fprintln(&sb, "Version :", d.Env)
+	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
+	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
 
 	for container, languages := range d.LanguagesForContainer {
