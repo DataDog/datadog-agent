@@ -38,7 +38,6 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
 	github.com/docker/cli v24.0.4+incompatible
 	github.com/docker/docker v24.0.4+incompatible
-	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
 	k8s.io/api v0.27.3
 	k8s.io/apimachinery v0.27.3
@@ -107,7 +106,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
