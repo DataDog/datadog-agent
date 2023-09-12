@@ -40,16 +40,16 @@ message ParentLanguageAnnotationRequest {
 
 // PodLanguageDetails holds the language metadata associated to a given pod
 message PodLanguageDetails {
-  string podNamespace = 1;
-  string podName = 2;
+  string namespace = 1;
+  string name = 2;
   repeated ContainerLanguageDetails containerDetails = 3;
   KubeOwnerInfo ownerref = 4;
 }
 
-// ContainerLanguageDetails contains the different languages of a container
+// ContainerLanguageDetails contains the different languages used in a container
 message ContainerLanguageDetails {
   string containerName = 1;
-  repeated Language containerLanguages = 2;
+  repeated Language languages = 2;
 }
 
 // KubeOwnerInfo holds metadata about the owner of the pod
