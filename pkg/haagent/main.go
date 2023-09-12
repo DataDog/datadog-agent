@@ -11,7 +11,8 @@ import (
 	"path/filepath"
 
 	httpd "github.com/otoolep/hraftd/http"
-	"github.com/otoolep/hraftd/store"
+
+	"github.com/DataDog/datadog-agent/pkg/haagent/store"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -114,12 +115,12 @@ type HaAgentConfig struct {
 	JoinAddr string `mapstructure:"join_addr"`
 }
 
-func StartRaft() {
+func StartRaft() *store.Store {
 	log.Infof("[HA Agent] Start Raft")
 	var haAgentConfig HaAgentConfig
 	if err := coreconfig.Datadog.UnmarshalKey("ha_agent", &haAgentConfig); err != nil {
 		log.Errorf("unmarshall config: %s", err)
-		return
+		return nil
 	}
 	log.Infof("[HA Agent] Config: %+v", haAgentConfig)
 
@@ -131,11 +132,11 @@ func StartRaft() {
 	log.Infof("[HA Agent] raftDir: %+v", raftDir)
 	if raftDir == "" {
 		log.Errorf("No Raft storage directory specified")
-		return
+		return nil
 	}
 	if err := os.MkdirAll(raftDir, 0700); err != nil {
 		log.Errorf("failed to create path for Raft storage: %s", err.Error())
-		return
+		return nil
 	}
 
 	nodeID := haAgentConfig.NodeName
@@ -149,20 +150,20 @@ func StartRaft() {
 	s.RaftBind = raftAddr
 	if err := s.Open(joinAddr == "", nodeID); err != nil {
 		log.Errorf("failed to open store: %s", err.Error())
-		return
+		return nil
 	}
 
 	h := httpd.New(httpAddr, s)
 	if err := h.Start(); err != nil {
 		log.Errorf("failed to start HTTP service: %s", err.Error())
-		return
+		return nil
 	}
 
 	// If join was specified, make the join request.
 	if joinAddr != "" {
 		if err := join(joinAddr, raftAddr, nodeID); err != nil {
 			log.Errorf("failed to join node at %s: %s", joinAddr, err.Error())
-			return
+			return nil
 		}
 	}
 
@@ -173,4 +174,5 @@ func StartRaft() {
 	signal.Notify(terminate, os.Interrupt)
 	<-terminate
 	log.Infof("hraftd exiting")
+	return s
 }

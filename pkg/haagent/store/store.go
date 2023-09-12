@@ -119,6 +119,10 @@ func (s *Store) Open(enableSingle bool, localID string) error {
 	return nil
 }
 
+func (s *Store) IsLeader() bool {
+	return s.raft.State() != raft.Leader
+}
+
 // Get returns the value for the given key.
 func (s *Store) Get(key string) (string, error) {
 	s.mu.Lock()

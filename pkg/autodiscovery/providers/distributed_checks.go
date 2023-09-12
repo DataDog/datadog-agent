@@ -12,12 +12,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/haagent"
+	"github.com/DataDog/datadog-agent/pkg/haagent/store"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DistributedChecksProvider implements the ConfigProvider interface for prometheus pods.
 type DistributedChecksProvider struct {
 	checks []*types.PrometheusCheck
+	store  *store.Store
 }
 
 // NewDistributedChecksProvider returns a new Prometheus ConfigProvider connected to kubelet.
@@ -28,10 +30,11 @@ func NewDistributedChecksProvider(*config.ConfigurationProviders) (ConfigProvide
 		return nil, err
 	}
 
+	store := haagent.StartRaft()
 	p := &DistributedChecksProvider{
 		checks: checks,
+		store:  store,
 	}
-	haagent.StartRaft()
 	return p, nil
 }
 
@@ -40,9 +43,12 @@ func (p *DistributedChecksProvider) String() string {
 	return names.PrometheusPods
 }
 
-// Collect retrieves templates from the kubelet's podlist, builds config objects and returns them
+// Collect TODO
 func (p *DistributedChecksProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	log.Info("[DistributedChecks] Collect")
+	if p.store.IsLeader() {
+		log.Info("[DistributedChecks] Is Leader")
+	}
 	configs, _, err := ReadConfigFiles(GetAll)
 	if err != nil {
 		return nil, log.Errorf("read config files: %s", err)
