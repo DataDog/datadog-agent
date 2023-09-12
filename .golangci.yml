@@ -82,6 +82,9 @@ linters-settings:
       - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
       - io/ioutil: "Deprecated since Go 1.16. Use package io or os instead."
       - github.com/golang/glog: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
+      # feel free to remove if you really need it as opposed to testify/assert
+      - gotest.tools/assert: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
+
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
     # Disable warnings for select Windows functions
