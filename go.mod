@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.3.0
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.2.16
-	github.com/DataDog/go-libddwaf v1.0.0
+	github.com/DataDog/go-libddwaf v1.5.0
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
@@ -583,6 +583,7 @@ require (
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
+	github.com/ebitengine/purego v0.5.0-alpha.0.20230803142445-813050efbc99 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
