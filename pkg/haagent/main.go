@@ -7,11 +7,9 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
 
-	httpd "github.com/otoolep/hraftd/http"
-
+	"github.com/DataDog/datadog-agent/pkg/haagent/http"
 	"github.com/DataDog/datadog-agent/pkg/haagent/store"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -170,9 +168,9 @@ func StartRaft() *store.Store {
 	// We're up and running!
 	log.Infof("hraftd started successfully, listening on http://%s", httpAddr)
 
-	terminate := make(chan os.Signal, 1)
-	signal.Notify(terminate, os.Interrupt)
-	<-terminate
+	//terminate := make(chan os.Signal, 1)
+	//signal.Notify(terminate, os.Interrupt)
+	//<-terminate
 	log.Infof("hraftd exiting")
 	return s
 }

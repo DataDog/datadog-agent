@@ -30,11 +30,12 @@ func NewDistributedChecksProvider(*config.ConfigurationProviders) (ConfigProvide
 		return nil, err
 	}
 
-	store := haagent.StartRaft()
+	s := haagent.StartRaft()
 	p := &DistributedChecksProvider{
 		checks: checks,
-		store:  store,
+		store:  s,
 	}
+
 	return p, nil
 }
 
