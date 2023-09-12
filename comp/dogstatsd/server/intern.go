@@ -57,8 +57,9 @@ func newStringInterner(maxSize int) *stringInterner {
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
 // If we need to store a new entry and the cache is at its maximum capacity,
-// it is reset.
-func (i *stringInterner) LoadOrStore(key []byte) string {
+// it is reset.  The origin identifies the container (and thusly, the quota)
+// originating the string.
+func (i *stringInterner) LoadOrStore(key []byte, origin string) string {
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
 	// returning the string value -> no new heap allocation
