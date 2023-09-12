@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package datadog.process;
 
-import "datadog/workloadmeta/workloadmeta.proto";
-
 option go_package = "pkg/proto/pbgo/process"; // golang
 
 message ProcessStreamResponse {
@@ -45,11 +43,18 @@ message PodLanguageDetails {
   string podNamespace = 1;
   string podName = 2;
   repeated ContainerLanguageDetails containerDetails = 3;
-  datadog.workloadmeta.KubernetesPodOwner ownerref = 4;
+  KubeOwnerInfo ownerref = 4;
 }
 
 // ContainerLanguageDetails contains the different languages of a container
 message ContainerLanguageDetails {
   string containerName = 1;
   repeated Language containerLanguages = 2;
+}
+
+// KubeOwnerInfo holds metadata about the owner of the pod
+message KubeOwnerInfo {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
 }
