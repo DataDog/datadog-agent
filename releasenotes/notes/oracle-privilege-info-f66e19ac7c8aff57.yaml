@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add the information about missing privileges with the link to the `grant` commands.
+    Add information about missing privileges with the link to the `grant` commands.
