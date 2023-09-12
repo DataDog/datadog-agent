@@ -51,6 +51,7 @@ const (
 const (
 	procResolveMaxDepth              = 16
 	maxParallelArgsEnvs              = 512 // == number of parallel starting processes
+	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
 )
@@ -278,7 +279,7 @@ type argsEnvsCacheEntry struct {
 	truncated bool
 }
 
-var argsEnvsInterner = utils.NewLRUStringInterner(4096)
+var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
 
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
