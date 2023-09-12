@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/networkdevice/profile
 
-go 1.19
+go 1.20
 
 require (
 	github.com/stretchr/testify v1.8.4
