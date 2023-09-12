@@ -362,7 +362,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 
 func netlinkErrIncWithTag(err syscall.Errno) {
 	if tag := unix.ErrnoName(syscall.Errno(err)); tag != "" {
-		routeCacheTelemetry.netlinkErrors.Inc("error:" + tag)
+		routeCacheTelemetry.netlinkErrors.Inc(tag)
 	} else {
 		routeCacheTelemetry.netlinkErrors.Inc()
 	}
