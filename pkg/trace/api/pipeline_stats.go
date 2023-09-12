@@ -33,6 +33,7 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 	}
 	for _, e := range cfg.Endpoints {
 		urlStr := e.Host + pipelineStatsURLSuffix
+		log.Debug("[pipeline_stats] Intake URL " + urlStr)
 		url, err := url.Parse(urlStr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error parsing pipeline stats intake URL %q: %v", urlStr, err)
@@ -45,9 +46,10 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 
 // pipelineStatsProxyHandler returns a new HTTP handler which will proxy requests to the pipeline stats intake.
 func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
+	log.Debug("[pipeline_stats] Creating proxy handler")
 	urls, apiKeys, err := pipelineStatsEndpoints(r.conf)
 	if err != nil {
-		log.Errorf("Failed to start pipeline stats proxy handler: %v", err)
+		log.Errorf("[pipeline_stats] Failed to start pipeline stats proxy handler: %v", err)
 		return pipelineStatsErrorHandler(err)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
@@ -68,6 +70,7 @@ func pipelineStatsErrorHandler(err error) http.Handler {
 // newPipelineStatsProxy creates an http.ReverseProxy which forwards requests to the pipeline stats intake.
 // The tags will be added as a header to all proxied requests.
 func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []string, tags string) *httputil.ReverseProxy {
+	log.Debug("[pipeline_stats] Creating reverse proxy")
 	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
