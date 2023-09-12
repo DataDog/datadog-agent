@@ -9,6 +9,7 @@ package oracle
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -181,6 +182,9 @@ func connectGoOra(c *Check) (*go_ora.Connection, error) {
 }
 
 func closeGoOraConnection(c *Check) {
+	if c.connection == nil {
+		return
+	}
 	err := c.connection.Close()
 	if err != nil {
 		log.Warnf("failed to close go-ora connection | server=[%s]: %s", c.config.Server, err.Error())

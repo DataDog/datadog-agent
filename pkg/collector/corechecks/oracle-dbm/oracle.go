@@ -182,6 +182,12 @@ func (c *Check) Run() error {
 				return err
 			}
 		}
+		if len(c.config.CustomQueries) > 0 {
+			err := c.CustomQueries()
+			if err != nil {
+				log.Errorf("failed to execute custom queries %s", err)
+			}
+		}
 	}
 
 	if c.dbmEnabled {
@@ -202,12 +208,6 @@ func (c *Check) Run() error {
 				err := c.SharedMemory()
 				if err != nil {
 					return err
-				}
-			}
-			if len(c.config.CustomQueries) > 0 {
-				err := c.CustomQueries()
-				if err != nil {
-					log.Errorf("failed to execute custom queries %s", err)
 				}
 			}
 		}

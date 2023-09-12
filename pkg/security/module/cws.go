@@ -125,6 +125,20 @@ func (c *CWSConsumer) Start() error {
 	// start api server
 	c.apiServer.Start(c.ctx)
 
+	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan(), &c.wg); err != nil {
+		return err
+	}
+
+	c.wg.Add(1)
+	go c.statsSender()
+
+	seclog.Infof("runtime security started")
+
+	return nil
+}
+
+// PostProbeStart is called after the event stream is started
+func (c *CWSConsumer) PostProbeStart() error {
 	if c.config.SelfTestEnabled {
 		if triggerred, err := c.RunSelfTest(true); err != nil {
 			err = fmt.Errorf("failed to run self test: %w", err)
@@ -134,15 +148,6 @@ func (c *CWSConsumer) Start() error {
 			seclog.Warnf("%s", err)
 		}
 	}
-
-	if err := c.ruleEngine.Start(c.ctx, c.reloader.Chan(), &c.wg); err != nil {
-		return err
-	}
-
-	c.wg.Add(1)
-	go c.statsSender()
-
-	seclog.Infof("runtime security started")
 
 	return nil
 }

@@ -33,6 +33,7 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.9.12'
+        cache: 'pip'
     - name: Install python requirements.txt
       run: python3 -m pip install -r requirements.txt
     - name: Go mod tidy
