@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
@@ -33,7 +34,7 @@ const (
 	eventIDPath = "Event.System.EventID"
 	// Custom path, not a Microsoft path
 	eventIDQualifierPath = "Event.System.EventIDQualifier"
-	maxRunes             = 1<<17 - 1 // 128 kB
+	maxMessageBytes      = 1<<17 - 1 // 128 kB
 	truncatedFlag        = "...TRUNCATED..."
 )
 
@@ -317,7 +318,8 @@ func (t *Tailer) enrichEvent(event evtapi.EventRecordHandle) *richEvent {
 
 	// Truncates the message. Messages with more than 128kB are likely to be bigger
 	// than 256kB when serialized and then dropped
-	if len(message) >= maxRunes {
+	if len(message) >= maxMessageBytes {
+		message = strings.TruncateUTF8(message, maxMessageBytes)
 		message = message + truncatedFlag
 	}
 
