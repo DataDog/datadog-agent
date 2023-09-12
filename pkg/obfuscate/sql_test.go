@@ -2059,3 +2059,58 @@ func TestToUpper(t *testing.T) {
 	}
 
 }
+
+func TestSQLLexerObfuscation(t *testing.T) {
+	tests := []struct {
+		query            string
+		expected         string
+		replaceDigits    bool
+		dollarQuotedFunc bool
+	}{
+		{
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = ?",
+		},
+		{
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users? WHERE id = ?",
+			replaceDigits: true,
+		},
+		{
+			query:         "SELECT * FROM users123 WHERE id = 1",
+			expected:      "SELECT * FROM users123 WHERE id = ?",
+			replaceDigits: false,
+		},
+		{
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT $func$INSERT INTO table VALUES (?, ?, ?)$func$ FROM users",
+			dollarQuotedFunc: true,
+		},
+		{
+			query:            "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected:         "SELECT ? FROM users",
+			dollarQuotedFunc: false,
+		},
+		{
+			query:            "SELECT * FROM users123 WHERE id = $tag$1$tag$",
+			expected:         "SELECT * FROM users? WHERE id = ?",
+			replaceDigits:    true,
+			dollarQuotedFunc: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					BackendNormalization: true,
+					ReplaceDigits:        tt.replaceDigits,
+					DollarQuotedFunc:     tt.dollarQuotedFunc,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+		})
+	}
+}

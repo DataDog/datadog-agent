@@ -12,6 +12,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/DataDog/go-sqllexer"
 )
 
 var questionMark = []byte("?")
@@ -296,6 +298,17 @@ func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
+	if opts.BackendNormalization {
+		obfuscator := sqllexer.NewObfuscator(
+			sqllexer.WithReplaceDigits(opts.ReplaceDigits),
+			sqllexer.WithDollarQuotedFunc(opts.DollarQuotedFunc),
+		)
+		out := obfuscator.Obfuscate(in)
+		return &ObfuscatedQuery{
+			Query: out,
+		}, nil
+	}
+
 	if v, ok := o.queryCache.Get(in); ok {
 		return v.(*ObfuscatedQuery), nil
 	}
