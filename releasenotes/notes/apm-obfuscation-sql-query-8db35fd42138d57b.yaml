@@ -8,7 +8,7 @@
 ---
 security:
   - |
-    The `sql.query` tag will now always be obfuscated by the Datadog Agent
+   This update ensures the `sql.query` tag is always obfuscated by the Datadog Agent
     even if this tag was already set by a tracer or manually by a customer.
     This is to prevent potentially sensitive data from being sent to Datadog.
     If you wish to have a raw, unobfuscated query within a span, then
