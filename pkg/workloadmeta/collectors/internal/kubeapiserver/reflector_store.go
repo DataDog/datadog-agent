@@ -113,9 +113,7 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 			Entity: entity,
 		})
 
-		if _, ok := seenBefore[uid]; ok {
-			delete(seenBefore, uid)
-		}
+		delete(seenBefore, uid)
 
 		seenNow[uid] = entity.GetID()
 	}

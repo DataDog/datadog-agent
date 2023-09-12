@@ -8,7 +8,9 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/cihub/seelog"
@@ -140,6 +142,12 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if err := activationCB(path); err != nil {
+		// short living process would be hard to catch and will failed when we try to open the library
+		// so let's failed silently
+		if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+
 		// we are calling `deactivationCB` here as some uprobes could be already attached
 		_ = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {

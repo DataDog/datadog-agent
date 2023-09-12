@@ -6,8 +6,6 @@
 package diagnosis
 
 import (
-	"regexp"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,8 +43,8 @@ type Config struct {
 	Verbose               bool
 	RunLocal              bool
 	RunningInAgentProcess bool
-	Include               []*regexp.Regexp
-	Exclude               []*regexp.Regexp
+	Include               []string
+	Exclude               []string
 }
 
 type Result int
@@ -82,13 +80,13 @@ type Diagnosis struct {
 	// optional fields
 
 	// static-time (meta typically)
-	Category string
+	Category string `json:",omitempty"`
 	// static-time (meta typically, description of what being tested)
 	Description string
 	// run-time (what can be done of what docs need to be consulted to address the issue)
 	Remediation string
 	// run-time
-	RawError error
+	RawError string
 }
 
 type Diagnoses struct {

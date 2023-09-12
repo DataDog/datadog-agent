@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rconfig holds rconfig related files
 package rconfig
 
 import (
@@ -73,7 +74,7 @@ func (r *RCPolicyProvider) Start() {
 	r.client.Start()
 }
 
-func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig) {
+func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	r.Lock()
 	r.lastDefaults = configs
 	r.Unlock()
@@ -83,7 +84,7 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Raw
 	r.debouncer.Call()
 }
 
-func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig) {
+func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	r.Lock()
 	r.lastCustoms = configs
 	r.Unlock()

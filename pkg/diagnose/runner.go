@@ -12,6 +12,7 @@ import (
 	"io"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -27,6 +28,12 @@ type counters struct {
 	fail          int
 	warnings      int
 	unexpectedErr int
+}
+
+// diagnose suite filter
+type diagSuiteFilter struct {
+	include []*regexp.Regexp
+	exclude []*regexp.Regexp
 }
 
 // Output summary
@@ -103,7 +110,7 @@ func outputDiagnosis(w io.Writer, cfg diagnosis.Config, result string, diagnosis
 	}
 
 	// [Optional] Error
-	if d.RawError != nil {
+	if len(d.RawError) > 0 {
 		// Do not output error for diagnosis.DiagnosisSuccess unless verbose
 		if d.Result != diagnosis.DiagnosisSuccess || cfg.Verbose {
 			fmt.Fprintf(w, "  Error: %s\n", d.RawError)
@@ -121,7 +128,7 @@ func outputNewLineIfNeeded(w io.Writer, lastDot *bool) {
 }
 
 func outputSuiteIfNeeded(w io.Writer, suiteName string, suiteAlreadyReported *bool) {
-	if !(*suiteAlreadyReported) {
+	if !*suiteAlreadyReported {
 		fmt.Fprintf(w, "==============\nSuite: %s\n", suiteName)
 		*suiteAlreadyReported = true
 	}
@@ -141,20 +148,55 @@ func matchRegExList(regexList []*regexp.Regexp, s string) bool {
 	return false
 }
 
+func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
+	if len(patterns) > 0 {
+		res := make([]*regexp.Regexp, 0)
+		for _, pattern := range patterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("failed to compile regex pattern %s: %s", pattern, err.Error())
+			}
+			res = append(res, re)
+		}
+		return res, nil
+	}
+	return nil, nil
+}
+
 // Currently used only to match Diagnose Suite name. In future will be
 // extended to diagnose name or category
-func matchConfigFilters(diagCfg diagnosis.Config, s string) bool {
-	if len(diagCfg.Include) > 0 && len(diagCfg.Exclude) > 0 {
-		return matchRegExList(diagCfg.Include, s) && !matchRegExList(diagCfg.Exclude, s)
-	} else if len(diagCfg.Include) > 0 {
-		return matchRegExList(diagCfg.Include, s)
-	} else if len(diagCfg.Exclude) > 0 {
-		return !matchRegExList(diagCfg.Exclude, s)
+func matchConfigFilters(filter diagSuiteFilter, s string) bool {
+	if len(filter.include) > 0 && len(filter.exclude) > 0 {
+		return matchRegExList(filter.include, s) && !matchRegExList(filter.exclude, s)
+	} else if len(filter.include) > 0 {
+		return matchRegExList(filter.include, s)
+	} else if len(filter.exclude) > 0 {
+		return !matchRegExList(filter.exclude, s)
 	}
 	return true
 }
 
-func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Suite {
+func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) ([]diagnosis.Suite, error) {
+
+	var filter diagSuiteFilter
+	var err error
+
+	if len(diagCfg.Include) > 0 {
+		filter.include, err = strToRegexList(diagCfg.Include)
+		if err != nil {
+			includes := strings.Join(diagCfg.Include, " ")
+			return nil, fmt.Errorf("invalid --include option value(s) provided (%s) compiled with error: %w", includes, err)
+		}
+	}
+
+	if len(diagCfg.Exclude) > 0 {
+		filter.exclude, err = strToRegexList(diagCfg.Exclude)
+		if err != nil {
+			excludes := strings.Join(diagCfg.Exclude, " ")
+			return nil, fmt.Errorf("invalid --exclude option value(s) provided (%s) compiled with error: %w", excludes, err)
+		}
+	}
+
 	sortedSuites := make([]diagnosis.Suite, len(diagnosis.Catalog))
 	copy(sortedSuites, diagnosis.Catalog)
 	sort.Slice(sortedSuites, func(i, j int) bool {
@@ -163,25 +205,12 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) []diagnosis.Su
 
 	var sortedFilteredSuites []diagnosis.Suite
 	for _, ds := range sortedSuites {
-		if matchConfigFilters(diagCfg, ds.SuitName) {
+		if matchConfigFilters(filter, ds.SuitName) {
 			sortedFilteredSuites = append(sortedFilteredSuites, ds)
 		}
 	}
 
-	return sortedFilteredSuites
-}
-
-// Diagnose sites are already sorted, sort only by category and then
-// by name. It may change in future versions, e.g. configured to not to sort
-// or confgured to sort by other attributes or order (which would need config)
-func sortDiagnoses(siteDiagnoses []diagnosis.Diagnoses) {
-	for _, sd := range siteDiagnoses {
-		ds := sd.SuiteDiagnoses
-		sort.Slice(ds, func(i, j int) bool {
-			return (ds[i].Category < ds[j].Category) ||
-				(ds[i].Category == ds[j].Category && ds[i].Name < ds[j].Name)
-		})
-	}
+	return sortedFilteredSuites, nil
 }
 
 func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis.Diagnosis {
@@ -194,12 +223,12 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis
 			len(d.Name) == 0 ||
 			len(d.Diagnosis) == 0 {
 
-			if d.RawError != nil {
+			if len(d.RawError) > 0 {
 				// If error already reported, append to it
-				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
-					d.Result, d.Name, d.Diagnosis, d.RawError.Error())
+				diagnoses[i].RawError = fmt.Sprintf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
+					d.Result, d.Name, d.Diagnosis, d.RawError)
 			} else {
-				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
+				diagnoses[i].RawError = fmt.Sprintf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
 			}
 
 			diagnoses[i].Result = diagnosis.DiagnosisUnexpectedError
@@ -219,9 +248,13 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 		color.NoColor = true
 	}
 
-	sortedSuites := getSortedAndFilteredDiagnoseSuites(diagCfg)
-
 	fmt.Fprintf(w, "Diagnose suites ...\n")
+
+	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
+	if err != nil {
+		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
+		return
+	}
 
 	count := 0
 	for _, ds := range sortedSuites {
@@ -233,7 +266,10 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
 func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-	suites := getSortedAndFilteredDiagnoseSuites(diagCfg)
+	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
+	if err != nil {
+		return nil, err
+	}
 
 	var suitesDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
@@ -273,18 +309,18 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Run diagnose code inside Agent process
-	var r []byte
-	r, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
+	var response []byte
+	response, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
-		if r != nil && string(r) != "" {
-			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(r))
+		if response != nil && string(response) != "" {
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(response))
 		}
 		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
 	}
 
 	// Deserialize results
 	var diagnoses []diagnosis.Diagnoses
-	err = json.Unmarshal(r, &diagnoses)
+	err = json.NewDecoder(bytes.NewReader(response)).Decode(&diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
 	}
@@ -304,9 +340,6 @@ func Run(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Please note that if streaming will be implemented sorting strategy may need to be changed
-	sortDiagnoses(diagnoses)
 
 	return diagnoses, nil
 }

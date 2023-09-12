@@ -273,6 +273,16 @@ func ScrubYaml(data []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubYaml(data)
 }
 
+// ScrubYamlString scrubs credentials from the given YAML string by loading the data and scrubbing the object instead of
+// the serialized string, using the default scrubber.
+func ScrubYamlString(data string) (string, error) {
+	res, err := DefaultScrubber.ScrubYaml([]byte(data))
+	if err != nil {
+		return "", err
+	}
+	return string(res), nil
+}
+
 // ScrubString scrubs credentials from the given string, using the default scrubber.
 func ScrubString(data string) (string, error) {
 	res, err := DefaultScrubber.ScrubBytes([]byte(data))

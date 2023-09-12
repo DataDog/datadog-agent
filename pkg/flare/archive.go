@@ -175,12 +175,9 @@ func getExpVar(fb flarehelpers.FlareBuilder) error {
 		}
 	}
 
-	apmPort := "8126"
-	if config.Datadog.IsSet("apm_config.receiver_port") {
-		apmPort = config.Datadog.GetString("apm_config.receiver_port")
-	}
+	apmDebugPort := config.Datadog.GetInt("apm_config.debug.port")
 	f := filepath.Join("expvar", "trace-agent")
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/debug/vars", apmPort))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/debug/vars", apmDebugPort))
 	if err != nil {
 		return fb.AddFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
 	}
@@ -300,10 +297,14 @@ func getProcessChecks(fb flarehelpers.FlareBuilder, getAddressPort func() (url s
 
 func getDiagnoses() ([]byte, error) {
 	fct := func(w io.Writer) error {
+		// Run agent diagnose command to be verbose and remote. If Agent is running small performance hit
+		// since this code will get diagnoses using Agent’s local port listener (instead of calling a
+		// function directly since the caller and callee are in the same process).However, the same code
+		// will continue to work well because agent diagnose command works locally as well (if it cannot
+		// connect to the running Agent).
 		diagCfg := diagnosis.Config{
-			Verbose:               true,
-			RunningInAgentProcess: true,
-			RunLocal:              true,
+			Verbose:  true,
+			RunLocal: false,
 		}
 
 		return diagnose.RunStdOut(w, diagCfg)

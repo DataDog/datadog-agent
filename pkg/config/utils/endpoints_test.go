@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
@@ -409,4 +410,81 @@ external_config:
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.eu", externalAgentURL)
+}
+
+func TestAddAgentVersionToDomain(t *testing.T) {
+	appVersionPrefix := getDomainPrefix("app")
+	flareVersionPrefix := getDomainPrefix("flare")
+
+	versionURLTests := []struct {
+		url                 string
+		expectedURL         string
+		shouldAppendVersion bool
+	}{
+		{ // US
+			"https://app.datadoghq.com",
+			".datadoghq.com",
+			true,
+		},
+		{ // EU
+			"https://app.datadoghq.eu",
+			".datadoghq.eu",
+			true,
+		},
+		{ // Gov
+			"https://app.ddog-gov.com",
+			".ddog-gov.com",
+			true,
+		},
+		{ // Additional site
+			"https://app.us2.datadoghq.com",
+			".us2.datadoghq.com",
+			true,
+		},
+		{ // arbitrary site
+			"https://app.xx9.datadoghq.com",
+			".xx9.datadoghq.com",
+			true,
+		},
+		{ // Custom DD URL: leave unchanged
+			"https://custom.datadoghq.com",
+			"custom.datadoghq.com",
+			false,
+		},
+		{ // Custom DD URL with 'agent' subdomain: leave unchanged
+			"https://custom.agent.datadoghq.com",
+			"custom.agent.datadoghq.com",
+			false,
+		},
+		{ // Custom DD URL: unclear if anyone is actually using such a URL, but for now leave unchanged
+			"https://app.custom.datadoghq.com",
+			"app.custom.datadoghq.com",
+			false,
+		},
+		{ // Custom top-level domain: unclear if anyone is actually using this, but for now leave unchanged
+			"https://app.datadoghq.internal",
+			"app.datadoghq.internal",
+			false,
+		},
+		{ // DD URL set to proxy, leave unchanged
+			"https://app.myproxy.com",
+			"app.myproxy.com",
+			false,
+		},
+	}
+
+	for _, testCase := range versionURLTests {
+		appURL, err := AddAgentVersionToDomain(testCase.url, "app")
+		require.Nil(t, err)
+		flareURL, err := AddAgentVersionToDomain(testCase.url, "flare")
+		require.Nil(t, err)
+
+		if testCase.shouldAppendVersion {
+			assert.Equal(t, "https://"+appVersionPrefix+testCase.expectedURL, appURL)
+			assert.Equal(t, "https://"+flareVersionPrefix+testCase.expectedURL, flareURL)
+		} else {
+			assert.Equal(t, "https://"+testCase.expectedURL, appURL)
+			assert.Equal(t, "https://"+testCase.expectedURL, flareURL)
+		}
+	}
 }

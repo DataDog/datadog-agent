@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package process holds process related files
 package process
 
 import (
@@ -50,6 +51,7 @@ const (
 const (
 	procResolveMaxDepth              = 16
 	maxParallelArgsEnvs              = 512 // == number of parallel starting processes
+	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
 )
@@ -100,7 +102,7 @@ type Resolver struct {
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
 
-	processCacheEntryPool *ProcessCacheEntryPool
+	processCacheEntryPool *Pool
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -108,25 +110,25 @@ type Resolver struct {
 	exitedQueue []uint32
 }
 
-// ProcessCacheEntryPool defines a pool for process entry allocations
-type ProcessCacheEntryPool struct {
+// Pool defines a pool for process entry allocations
+type Pool struct {
 	pool *sync.Pool
 }
 
 // Get returns a cache entry
-func (p *ProcessCacheEntryPool) Get() *model.ProcessCacheEntry {
+func (p *Pool) Get() *model.ProcessCacheEntry {
 	return p.pool.Get().(*model.ProcessCacheEntry)
 }
 
 // Put returns a cache entry
-func (p *ProcessCacheEntryPool) Put(pce *model.ProcessCacheEntry) {
+func (p *Pool) Put(pce *model.ProcessCacheEntry) {
 	pce.Reset()
 	p.pool.Put(pce)
 }
 
-// NewProcessCacheEntryPool returns a new ProcessCacheEntryPool pool
-func NewProcessCacheEntryPool(p *Resolver) *ProcessCacheEntryPool {
-	pcep := ProcessCacheEntryPool{pool: &sync.Pool{}}
+// NewProcessCacheEntryPool returns a new Pool
+func NewProcessCacheEntryPool(p *Resolver) *Pool {
+	pcep := Pool{pool: &sync.Pool{}}
 
 	pcep.pool.New = func() interface{} {
 		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
@@ -277,6 +279,8 @@ type argsEnvsCacheEntry struct {
 	truncated bool
 }
 
+var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
+
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
 	values, err := model.UnmarshalStringArray(data)
@@ -286,6 +290,8 @@ func parseStringArray(data []byte) ([]string, bool) {
 		}
 		truncated = true
 	}
+
+	argsEnvsInterner.DeduplicateSlice(values)
 	return values, truncated
 }
 
@@ -644,6 +650,7 @@ func (p *Resolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDC
 	return fileEvent.PathnameStr, nil
 }
 
+// IsBusybox returns true if the pathname matches busybox
 func IsBusybox(pathname string) bool {
 	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
