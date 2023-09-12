@@ -458,11 +458,11 @@ func (c *Check) SampleSession() error {
 			statement = sample.Statement.String
 
 			/*
-			 * If the statement length is 4000 characters, we are assuming that the statement was truncated,
+			 * If the statement length is maxSQLTextLength characters, we are assuming that the statement was truncated,
 			 * so we are trying to fetch it complete. The full statement is stored in a LOB, so we are calling
 			 * getFullSQLText which doesn't leak PGA memory
 			 */
-			if len(statement) == 4000 {
+			if len(statement) == maxSQLTextLength {
 				var fetchedStatement string
 				err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlCurrentSQL.SQLID)
 				if err != nil {
@@ -492,7 +492,7 @@ func (c *Check) SampleSession() error {
 				 * a cursor with a short living explain plan was evicted from the shared pool.
 				 * We'll search for the text of a different cursor of the same SQL.
 				 */
-				if len(statement) == 4000 {
+				if len(statement) == maxSQLTextLength {
 					var fetchedStatement string
 					err = getFullSQLText(c, &fetchedStatement, "sql_id", sqlPrevSQL.SQLID)
 					if err != nil {
@@ -511,11 +511,12 @@ func (c *Check) SampleSession() error {
 			obfuscate = false
 		} else if commandName != "" {
 			statement = commandName
-			//obfuscate = false
+			if (sample.OpFlags & 128) == 128 {
+				statement = fmt.Sprintf("%s (IN HARD PARSE)", statement)
+			}
 		} else if sessionType == "BACKGROUND" {
+			// The program name can contain an IP address, so we have to obfuscate it
 			statement = program
-			// The program name can contain an IP address
-			//obfuscate = false
 		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
 			statement = sample.Module.String
 			obfuscate = false
