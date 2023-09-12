@@ -285,9 +285,9 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 				}
 			}
 		}
-		log.Debugf("Error getting route via netlink from %s: %s", string(dstIP), err)
+		log.Debugf("Error getting route via netlink from %s: %s", dstIP, err)
 	} else if len(routes) != 1 {
-		log.Debugf("Failed to get route from cache for %s", string(dstIP))
+		log.Debugf("Failed to get route from cache for %s", dstIP)
 		routeCacheTelemetry.netlinkMisses.Inc()
 	}
 	if err != nil || len(routes) != 1 {
@@ -324,10 +324,10 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 		if ok {
 			netlinkErrIncWithTag(errno)
 		}
-		log.Debugf("Error getting route via netlink from %s: %s", string(srcIP), err)
+		log.Debugf("Error getting route via netlink: %s", srcIp, err)
 		return nil
 	} else if len(routes) != 1 {
-		log.Debugf("Failed to get route from cache for %s", string(srcIP))
+		log.Debugf("Failed to get route from cache for %s", srcIP)
 		routeCacheTelemetry.netlinkMisses.Inc()
 		return nil
 	}
