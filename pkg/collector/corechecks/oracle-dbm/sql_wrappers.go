@@ -42,7 +42,7 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 func handlePrivilegeError(c *Check, err error) (bool, error) {
 	var isPrivilegeError bool
 	if err == nil {
-		return nil, isPrivilegeError
+		return isPrivilegeError, err
 	}
 	if !strings.Contains(err.Error(), "ORA-00942") {
 		return isPrivilegeError, err
