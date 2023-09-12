@@ -12,4 +12,4 @@ security:
     even if this tag was already set by a tracer or manually by a user.
     This is to prevent potentially sensitive data from being sent to Datadog.
     If you wish to have a raw, unobfuscated query within a span, then
-    manually add a span tag of a different name (e.g. `sql.rawquery`)
+    manually add a span tag of a different name (for example, `sql.rawquery`).
