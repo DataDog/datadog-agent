@@ -45,6 +45,7 @@ const (
 //   - end
 //   - periodically[,milliseconds]
 func StrategyFromString(str string) (Strategy, error) {
+	retries = 0
 	switch str {
 	case "end":
 		return &AtTheEnd{}, nil
@@ -101,6 +102,7 @@ type Periodically struct {
 
 // NewPeriodically returns an initialized Periodically flush strategy.
 func NewPeriodically(interval time.Duration) *Periodically {
+	retries = 0
 	return &Periodically{interval: interval}
 }
 
