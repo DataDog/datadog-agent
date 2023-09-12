@@ -320,7 +320,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
 		netlinkErrIncWithTag(err)
-		log.Debugf("Error getting route via netlink: %s", srcIP, err)
+		log.Debugf("Error getting route via netlink %s: %s", srcIP, err)
 		return nil
 	} else if len(routes) != 1 {
 		log.Debugf("Did not get exactly one route for %s, got %d routes", srcIP, len(routes))
