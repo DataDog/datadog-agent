@@ -15,6 +15,10 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,6 +62,7 @@ type Tailer struct {
 	evtapi     evtapi.API
 	source     *sources.LogSource
 	config     *Config
+	decoder    *decoder.Decoder
 	outputChan chan *message.Message
 	stop       chan struct{}
 	done       chan struct{}
@@ -73,6 +78,7 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi:     evtapi,
 		source:     source,
 		config:     config,
+		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), windowsevent.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		outputChan: outputChan,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
@@ -102,6 +108,8 @@ func (t *Tailer) Start(bookmark string) {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.stop = make(chan struct{})
 	t.done = make(chan struct{})
+	go t.forwardMessages()
+	t.decoder.Start()
 	go t.tail(bookmark)
 }
 
@@ -111,7 +119,17 @@ func (t *Tailer) Stop() {
 	close(t.stop)
 	<-t.done
 
+	t.decoder.Stop()
+
 	t.sub.Stop()
+}
+
+func (t *Tailer) forwardMessages() {
+	for decodedMessage := range t.decoder.OutputChan {
+		if len(decodedMessage.Content) > 0 {
+			t.outputChan <- decodedMessage
+		}
+	}
 }
 
 // tail subscribes to the channel for the windows events
@@ -276,7 +294,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	}
 
 	t.source.RecordBytes(int64(len(msg.Content)))
-	t.outputChan <- msg
+	t.decoder.InputChan <- msg
 }
 
 // enrichEvent renders event record fields using (EvtRender, EvtFormatMessage)
