@@ -283,6 +283,8 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 					// invalidate interface cache entry as this may have been the cause of the netlink error
 					n.removeInterface(source, netns)
 				}
+			} else {
+				routeCacheTelemetry.netlinkErrors.Inc()
 			}
 		}
 		log.Debugf("Error getting route via netlink from %s: %s", dstIP, err)
@@ -323,6 +325,8 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 		errno, ok := err.(syscall.Errno)
 		if ok {
 			netlinkErrIncWithTag(errno)
+		} else {
+			routeCacheTelemetry.netlinkErrors.Inc()
 		}
 		log.Debugf("Error getting route via netlink: %s", srcIp, err)
 		return nil
