@@ -48,10 +48,6 @@ type collector struct {
 	col  *otlp.Pipeline
 }
 
-func newCollector(deps dependencies) *collector {
-	return &collector{deps: deps}
-}
-
 func (c *collector) Start() error {
 	deps := c.deps
 	on := otlp.IsEnabled(deps.Config)
@@ -78,7 +74,7 @@ func (c *collector) Start() error {
 	ctx := context.Background()
 	go func() {
 		if err := col.Run(ctx); err != nil {
-			deps.Log.Errorf("Error starting the OTLP ingest pipeline: %v", err)
+			deps.Log.Errorf("Error running the OTLP ingest pipeline: %v", err)
 		}
 	}()
 	return nil
@@ -97,5 +93,5 @@ func (c *collector) Status() otlp.CollectorStatus {
 
 // newPipeline creates a new Component for this module and returns any errors on failure.
 func newPipeline(deps dependencies) (Component, error) {
-	return newCollector(deps), nil
+	return &collector{deps: deps}, nil
 }

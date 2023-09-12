@@ -14,6 +14,8 @@ import (
 )
 
 // OTLPCollector holds an instance of any running collector.
+// It is assigned in cmd/agent/subcommands/run.go.(startAgent)
+// Will be nil otherwise!
 // TODO: remove once this package is migrated to components.
 var OTLPCollector collector.Component
 
