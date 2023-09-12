@@ -156,7 +156,7 @@ func (pc *processCache) processEvent(entry *events.Process) *events.Process {
 		}
 	}
 
-	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID.Get() == "" {
+	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID == nil {
 		return nil
 	}
 
