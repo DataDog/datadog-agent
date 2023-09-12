@@ -25,7 +25,11 @@ func (c *Connections) name() string {
 
 // GetTags return tags connection
 func (c *Connections) GetTags() []string {
-	return c.GetTags()
+	dns, err := c.GetDNSNames()
+	if err != nil {
+		return []string{}
+	}
+	return dns
 }
 
 // DecodeCollectorConnection return a CollectorConnections protobuf object from raw bytes
