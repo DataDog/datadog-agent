@@ -156,7 +156,7 @@ func (c *Check) SysMetrics() error {
 	}
 
 	var overAllocationCount float64
-	err = c.db.Get(&overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
+	err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
 	if err != nil {
 		return fmt.Errorf("failed to get PGA over allocation count: %w", err)
 	}
