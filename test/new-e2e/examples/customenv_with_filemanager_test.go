@@ -20,7 +20,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type fileManagerSuiteEx8 struct {
+type fileManagerSuiteEx7 struct {
 	e2e.Suite[e2e.VMEnv]
 }
 
@@ -40,13 +40,13 @@ func fileManagerVMStackDef(localFolderPath string, remoteFolderPath string) *e2e
 	})
 }
 
-func TestFileManagerSuiteEx8(t *testing.T) {
+func TestFileManagerSuiteEx7(t *testing.T) {
 	testFolder := path.Join(os.TempDir(), "test-folder")
 	createFolders(testFolder)
-	e2e.Run(t, &fileManagerSuiteEx8{}, fileManagerVMStackDef(testFolder, "/home/ubuntu/test"))
+	e2e.Run(t, &fileManagerSuiteEx7{}, fileManagerVMStackDef(testFolder, "/home/ubuntu/test"))
 }
 
-func (v *fileManagerSuiteEx8) TestCopy() {
+func (v *fileManagerSuiteEx7) TestCopy() {
 
 	output0 := v.Env().VM.Execute("cat test/test-folder/file-0")
 	output1 := v.Env().VM.Execute("cat test/test-folder/folder-1/file-1")
