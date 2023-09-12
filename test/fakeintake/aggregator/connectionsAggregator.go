@@ -13,18 +13,22 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+// Connections type contain all payload from /api/v1/connections
 type Connections struct {
 	agentmodel.CollectorConnections
 }
 
+// name return connection payload name based on hostname and network ID
 func (c *Connections) name() string {
 	return c.HostName + c.NetworkId
 }
 
+// GetTags return tags connection
 func (c *Connections) GetTags() []string {
 	return c.GetTags()
 }
 
+// DecodeCollectorConnection return a CollectorConnections protobuf object from raw bytes
 func DecodeCollectorConnection(b []byte) (cnx *agentmodel.CollectorConnections, err error) {
 	m, err := agentmodel.DecodeMessage(b)
 	if err != nil {
@@ -37,6 +41,7 @@ func DecodeCollectorConnection(b []byte) (cnx *agentmodel.CollectorConnections, 
 	return conns, nil
 }
 
+// ParseConnections return the Connections from payload
 func ParseConnections(payload api.Payload) (conns []*Connections, err error) {
 	connections, err := DecodeCollectorConnection(payload.Data)
 	if err != nil {
@@ -48,10 +53,12 @@ func ParseConnections(payload api.Payload) (conns []*Connections, err error) {
 	return cnx, nil
 }
 
+// ConnectionsAggregator aggregate connections
 type ConnectionsAggregator struct {
 	Aggregator[*Connections]
 }
 
+// NewConnectionsAggregator create a new aggregator
 func NewConnectionsAggregator() ConnectionsAggregator {
 	return ConnectionsAggregator{
 		Aggregator: newAggregator(ParseConnections),
