@@ -104,6 +104,12 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	if s.Name != "aws.lambda" || s.Type != "serverless" {
 		return
 	}
+	if isStandalone() {
+		if chunk.Tags == nil {
+			chunk.Tags = make(map[string]string)
+		}
+		chunk.Tags["_dd.apm.enabled"] = "0"
+	}
 	currentReqId := s.Meta["request_id"]
 	if spanReqId := lastReqId; currentReqId != spanReqId {
 		log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
@@ -229,17 +235,6 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
-
-		// Make sure to mark the service entry span with the appsec.event: true tag
-		value := os.Getenv("DD_APM_TRACING_ENABLED")
-		standalone := value != "true" && value != "1"
-		if standalone {
-			for _, sp := range chunk.Spans {
-				if sp.ParentID == 0 {
-					sp.Meta["appsec.event"] = "true"
-				}
-			}
-		}
 	}
 }
 
@@ -281,4 +276,9 @@ type bytesStringer []byte
 
 func (b bytesStringer) String() string {
 	return string(b)
+}
+
+func isStandalone() bool {
+	value := os.Getenv("DD_APM_TRACING_ENABLED")
+	return value == "false" || value == "0"
 }

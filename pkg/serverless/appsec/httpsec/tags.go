@@ -78,11 +78,6 @@ type span interface {
 // be in service entry span when AppSec is enabled.
 func setAppSecEnabledTags(span span) {
 	span.SetMetricsTag("_dd.appsec.enabled", 1)
-	value := os.Getenv("DD_APM_TRACING_ENABLED")
-	standalone := value != "true" && value != "1"
-	if standalone {
-		span.SetMetricsTag("_dd.apm.enabled", 0)
-	}
 }
 
 // setEventSpanTags sets the security event span tags into the service entry span.
