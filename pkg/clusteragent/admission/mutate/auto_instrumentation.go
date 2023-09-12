@@ -298,8 +298,9 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 		if err != nil {
 			metrics.LibInjectionErrors.Inc(langStr)
-			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "", langStr)
+			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "requirements config error", langStr)
 			lastError = err
+			log.Errorf("Error injecting library config requirements: %s", err)
 		}
 
 		initContainerToInject[lib.lang] = lib.image
