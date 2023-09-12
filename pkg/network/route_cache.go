@@ -276,20 +276,17 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 
 	if err != nil {
 		if iifIndex > 0 {
-			errno, ok := err.(syscall.Errno)
+			errno, ok := netlinkErrIncWithTag(err)
 			if ok {
-				netlinkErrIncWithTag(errno)
 				if errno == syscall.EINVAL || errno == syscall.ENODEV {
 					// invalidate interface cache entry as this may have been the cause of the netlink error
 					n.removeInterface(source, netns)
 				}
-			} else {
-				routeCacheTelemetry.netlinkErrors.Inc()
 			}
 		}
-		log.Debugf("Error getting route via netlink from %s: %s", dstIP, err)
+		log.Debugf("Error getting route via netlink for destination IP %s: %s", dstIP, err)
 	} else if len(routes) != 1 {
-		log.Debugf("Failed to get route from cache for %s", dstIP)
+		log.Debugf("Did not get exactly one route for %s, got %d routes", dstIP, len(routes))
 		routeCacheTelemetry.netlinkMisses.Inc()
 	}
 	if err != nil || len(routes) != 1 {
@@ -322,16 +319,11 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		errno, ok := err.(syscall.Errno)
-		if ok {
-			netlinkErrIncWithTag(errno)
-		} else {
-			routeCacheTelemetry.netlinkErrors.Inc()
-		}
-		log.Debugf("Error getting route via netlink: %s", srcIp, err)
+		netlinkErrIncWithTag(err)
+		log.Debugf("Error getting route via netlink: %s", srcIP, err)
 		return nil
 	} else if len(routes) != 1 {
-		log.Debugf("Failed to get route from cache for %s", srcIP)
+		log.Debugf("Did not get exactly one route for %s, got %d routes", srcIP, len(routes))
 		routeCacheTelemetry.netlinkMisses.Inc()
 		return nil
 	}
@@ -364,10 +356,16 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	return iff
 }
 
-func netlinkErrIncWithTag(err syscall.Errno) {
-	if tag := unix.ErrnoName(syscall.Errno(err)); tag != "" {
+func netlinkErrIncWithTag(err error) (errno syscall.Errno, ok bool) {
+	errno, ok = err.(syscall.Errno)
+	if !ok {
+		routeCacheTelemetry.netlinkErrors.Inc()
+		return
+	}
+	if tag := unix.ErrnoName(syscall.Errno(errno)); tag != "" {
 		routeCacheTelemetry.netlinkErrors.Inc(tag)
 	} else {
 		routeCacheTelemetry.netlinkErrors.Inc()
 	}
+	return
 }
