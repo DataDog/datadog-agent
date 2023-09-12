@@ -1212,7 +1212,7 @@ api_key:
 
   ## @param max_message_size_bytes - integer - optional - default: 256000
   ## @env DD_LOGS_CONFIG_MAX_MESSAGE_SIZE_BYTES - integer - optional - default : 256000
-  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds 
+  ## The maximum size of single log message in bytes. If maxMessageSizeBytes exceeds
   ## the documented API limit of 1MB - any payloads larger than 1MB will be dropped by the intake.
   # https://docs.datadoghq.com/api/latest/logs/
   #
@@ -2800,6 +2800,7 @@ api_key:
   ## from the cluster level check runners to optimize the check dispatching logic.
   #
   # advanced_dispatching_enabled: false
+  ## TODO: Do we need advanced dispatching?
 
   ## @param clc_runners_port - integer - optional - default: 5005
   ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
