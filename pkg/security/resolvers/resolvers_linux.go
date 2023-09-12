@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package resolvers holds resolvers related files
 package resolvers
 
 import (
@@ -39,8 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ResolversOpts defines common options
-type ResolversOpts struct {
+// Opts defines common options
+type Opts struct {
 	PathResolutionEnabled bool
 	TagsResolver          tags.Resolver
 	UseRingBuffer         bool
@@ -65,7 +66,7 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts ResolversOpts) (*Resolvers, error) {
+func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*Resolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err

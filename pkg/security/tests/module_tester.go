@@ -5,6 +5,7 @@
 
 //go:build functionaltests || stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -56,7 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -254,6 +255,7 @@ type testOpts struct {
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
 	tagsResolver                        tags.Resolver
+	snapshotRuleMatchHandler            func(*testModule, *model.Event, *rules.Rule)
 }
 
 func (s *stringSlice) String() string {
@@ -292,7 +294,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableSBOM == opts.enableSBOM
+		to.enableSBOM == opts.enableSBOM &&
+		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil
 }
 
 type testModule struct {
@@ -995,6 +998,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
+	if opts.snapshotRuleMatchHandler != nil {
+		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
+			opts.snapshotRuleMatchHandler(testMod, e, r)
+		})
+		defer testMod.RegisterRuleEventHandler(nil)
+	}
 	if err := testMod.eventMonitor.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}

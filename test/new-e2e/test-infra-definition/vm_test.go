@@ -8,7 +8,13 @@ package testinfradefinition
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/stretchr/testify/require"
 )
 
 type vmSuite struct {
@@ -19,6 +25,37 @@ func TestVMSuite(t *testing.T) {
 	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
 }
 
-func (v *vmSuite) TestBasicVM() {
-	v.Env().VM.Execute("ls")
+func (v *vmSuite) TestWithImageName() {
+	requestedAmi := "ami-05fab674de2157a80"
+	v.UpdateEnv(e2e.EC2VMStackDef(
+		ec2params.WithImageName(requestedAmi, os.ARM64Arch, ec2os.AmazonLinuxOS)))
+
+	vm := v.Env().VM
+	metadata := client.NewEC2Metadata(vm)
+	require.Equal(v.T(), requestedAmi, metadata.Get("ami-id"))
+	require.Equal(v.T(), "aarch64\n", vm.Execute("uname -m"))
+	require.Contains(v.T(), vm.Execute("grep PRETTY_NAME /etc/os-release"), "Amazon Linux")
+}
+
+func (v *vmSuite) TestWithInstanceType() {
+	instanceType := "t3.medium"
+	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithInstanceType(instanceType)))
+
+	vm := v.Env().VM
+	metadata := client.NewEC2Metadata(vm)
+	require.Equal(v.T(), instanceType, metadata.Get("instance-type"))
+}
+
+func (v *vmSuite) TestWithArch() {
+	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithArch(ec2os.AmazonLinuxOS, os.ARM64Arch)))
+	require.Equal(v.T(), "aarch64\n", v.Env().VM.Execute("uname -m"))
+}
+
+func (v *vmSuite) TestWithUserdata() {
+	path := "/tmp/test-userdata"
+	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithOS(ec2os.AmazonLinuxOS), ec2params.WithUserData("#!/bin/bash\ntouch "+path)))
+
+	output, err := v.Env().VM.ExecuteWithError("ls " + path)
+	require.NoError(v.T(), err)
+	require.Equal(v.T(), path+"\n", output)
 }
