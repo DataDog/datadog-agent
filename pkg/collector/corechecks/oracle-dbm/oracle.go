@@ -43,6 +43,19 @@ const (
 	MaxSQLFullTextVSQLStats = 1000
 )
 
+type HostingCode string
+
+const (
+	SelfManaged HostingCode = "self-managed"
+	Rds         HostingCode = "RDS"
+	Oci         HostingCode = "OCI"
+)
+
+type HostingType struct {
+	value HostingCode
+	valid bool
+}
+
 // The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
 	SQLIDs                  map[string]int
@@ -87,13 +100,12 @@ type Check struct {
 	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	filePath                                string
-	isRDS                                   bool
-	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
 	previousPGAOverAllocationCount          pgaOverAllocationCount
+	hostingType                             HostingType
 }
 
 func handleServiceCheck(c *Check, err error) {

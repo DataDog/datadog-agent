@@ -97,42 +97,56 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
 	}
 
-	if c.filePath == "" {
-		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
-		var path string
-		err = r.Scan(&path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query path: %w", err)
-		}
-		if path == "/rdsdbdata" {
-			c.isRDS = true
-		}
-	}
+	if !c.hostingType.valid {
+		ht := HostingType{value: SelfManaged, valid: false}
 
-	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
-	var connectionType string
-	err = r.Scan(&connectionType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query connection type: %w", err)
-	}
-	var cloudRows int
-	if connectionType == "PDB" {
-		c.connectedToPdb = true
-		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
-		err := r.Scan(&cloudRows)
-		if err != nil {
-			log.Errorf("failed to query v$pdbs: %s", err)
-		}
-		if cloudRows == 1 {
-			r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
-			err := r.Scan(&cloudRows)
+		// Is RDS?
+		if c.filePath == "" {
+			r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+			var path string
+			err = r.Scan(&path)
 			if err != nil {
-				log.Errorf("failed to query cdb_services: %s", err)
+				return nil, fmt.Errorf("failed to query path: %w", err)
+			}
+			if path == "/rdsdbdata" {
+				ht.value = Rds
 			}
 		}
-	}
-	if cloudRows == 1 {
-		c.isOracleCloud = true
+
+		// Check if PDB
+		r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
+		var connectionType string
+		err = r.Scan(&connectionType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query connection type: %w", err)
+		}
+		if connectionType == "PDB" {
+			c.connectedToPdb = true
+		}
+
+		if ht.value == SelfManaged {
+			var cloudRows int
+			if c.connectedToPdb {
+				r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
+				err := r.Scan(&cloudRows)
+				if err != nil {
+					log.Errorf("failed to query v$pdbs: %s", err)
+				}
+				if cloudRows == 1 {
+					r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
+					err := r.Scan(&cloudRows)
+					if err != nil {
+						log.Errorf("failed to query cdb_services: %s", err)
+					}
+				}
+			}
+			if cloudRows == 1 {
+				ht.value = Oci
+			}
+		}
+		c.tags = append(c.tags, fmt.Sprintf("hosting-type:%s", ht.value))
+		ht.valid = true
+		c.hostingType = ht
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
