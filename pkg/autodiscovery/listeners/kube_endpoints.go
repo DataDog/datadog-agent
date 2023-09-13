@@ -47,6 +47,7 @@ type KubeEndpointsListener struct {
 	delService         chan<- Service
 	targetAllEndpoints bool
 	m                  sync.RWMutex
+	metricsExcluded    bool
 }
 
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
@@ -454,10 +455,14 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 	return nil
 }
 
-// HasFilter always return false
-// KubeEndpointService doesn't implement this method
-func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
-	return false
+// HasFilter returns whether the kube service should not collect certain metrics
+// due to filtering applied by filter.
+func (s *service) HasFilter(filter containers.FilterType) bool {
+	if filter == containers.MetricsFilter {
+		return s.metricsExcluded
+	} else {
+		return false
+	}
 }
 
 // GetExtraConfig isn't supported

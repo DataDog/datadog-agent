@@ -43,6 +43,7 @@ type KubeServiceListener struct {
 	delService        chan<- Service
 	targetAllServices bool
 	m                 sync.RWMutex
+	metricsExcluded   bool
 }
 
 // KubeServiceService represents a Kubernetes Service
@@ -273,6 +274,14 @@ func processService(ksvc *v1.Service) *KubeServiceService {
 		log.Debugf("No ports found for service %s", ksvc.Name)
 	}
 
+	svc.metricsExcluded = svc.IsExcluded(
+		containers.MetricsFilter,
+		nil,
+		container.Name,
+		containerImg.RawName,
+		"",
+	)
+
 	return svc
 }
 
@@ -348,10 +357,14 @@ func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 	return nil
 }
 
-// HasFilter always return false
-// KubeServiceService doesn't implement this method
-func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
-	return false
+// HasFilter returns whether the kube service should not collect certain metrics
+// due to filtering applied by filter.
+func (s *service) HasFilter(filter containers.FilterType) bool {
+	if filter == containers.MetricsFilter {
+		return s.metricsExcluded
+	} else {
+		return false
+	}
 }
 
 // GetExtraConfig isn't supported
