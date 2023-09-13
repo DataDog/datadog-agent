@@ -35,6 +35,10 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	if err != nil && isPrivilegeError {
 		return err
 	}
+	isConnectionRefused, err := handleRefusedConnection(c, *db, err)
+	if err != nil && isConnectionRefused {
+		return err
+	}
 	reconnectOnConnectionError(c, db, err)
 	return err
 }
@@ -70,6 +74,30 @@ func isConnectionError(err error) bool {
 		}
 	}
 	return false
+}
+
+func isConnectionRefused(err error) bool {
+	if strings.Contains(err.Error(), "connect: connection refused") {
+		return true
+	}
+	return false
+}
+
+func handleRefusedConnection(c *Check, db *sqlx.DB, err error) (bool, error) {
+	if err == nil {
+		return false, err
+	}
+	if isConnectionRefused(err) {
+		closeDatabase(c, db)
+		return true, fmt.Errorf(`%w
+The network connection between the Agent and the database server is disrupted. Run one of the following commands on the machine where the Agent is running to test the network connection: 
+nc -v dbserver port
+telnet dbserver port
+curl dbserver:port
+`,
+			err)
+	}
+	return false, err
 }
 
 func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
