@@ -74,7 +74,7 @@ int hook_vfs_link(ctx_t *ctx) {
         return mark_as_discarded(syscall);
     }
 
-    fill_file_metadata(src_dentry, &syscall->link.src_file.metadata);
+    fill_file(src_dentry, &syscall->link.src_file);
     syscall->link.target_file.metadata = syscall->link.src_file.metadata;
 
     // we generate a fake target key as the inode is the same
