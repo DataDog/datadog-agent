@@ -779,13 +779,21 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.P
 	model.ByteOrder.PutUint32(pidb, pid)
 
 	pidCache, err := p.pidCacheMap.LookupBytes(pidb)
-	if err != nil || pidCache == nil {
+	if err != nil {
+		// LookupBytes doesn't return an error if the key is not found thus it is a critical error
+		seclog.Errorf("kernel map lookup error: %v", err)
+	}
+	if pidCache == nil {
 		return nil
 	}
 
 	// first 4 bytes are the actual cookie
-	procCache, err := p.procCacheMap.LookupBytes(pidCache[0:4])
-	if err != nil || procCache == nil {
+	procCache, err := p.procCacheMap.LookupBytes(pidCache[0:model.SizeOfCookie])
+	if err != nil {
+		// LookupBytes doesn't return an error if the key is not found thus it is a critical error
+		seclog.Errorf("kernel map lookup error: %v", err)
+	}
+	if procCache == nil {
 		return nil
 	}
 
@@ -1198,10 +1206,10 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 64)
+	pidCacheEntryB := make([]byte, 72)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB)
 	if err != nil {
-		seclog.Errorf("couldn't marshal prid_cache entry: %s", err)
+		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)
 	} else {
 		if err = p.pidCacheMap.Put(pid, pidCacheEntryB); err != nil {
 			seclog.Errorf("couldn't push pid_cache entry to kernel space: %s", err)
