@@ -805,10 +805,11 @@ func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPack
 	if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
 		return pkg, nil
 	}
-	dpkgDirPath := r.pathNormalizeToHostRoot(dpkgDb)
+	dpkgDirPath := r.pathNormalizeToHostRoot(dpkgDbDir)
 	if files, _ := os.ReadDir(dpkgDirPath); len(files) > 0 {
 		for _, entry := range files {
-			if pkg := findDpkgPackage(entry.Name(), spec.Names); pkg != nil {
+			dpkgPath := filepath.Join(dpkgDirPath, entry.Name())
+			if pkg := findDpkgPackage(dpkgPath, spec.Names); pkg != nil {
 				return pkg, nil
 			}
 		}
