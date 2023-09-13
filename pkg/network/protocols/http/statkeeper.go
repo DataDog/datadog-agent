@@ -31,10 +31,6 @@ type StatKeeper struct {
 	// http path buffer
 	buffer []byte
 
-	// map containing interned path strings
-	// this is rotated  with the stats map
-	interned map[string]string
-
 	oversizedLogLimit *util.LogLimit
 }
 
@@ -46,7 +42,6 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 		replaceRules:                c.HTTPReplaceRules,
 		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
 		buffer:                      make([]byte, getPathBufferSize(c)),
-		interned:                    make(map[string]string),
 		telemetry:                   telemetry,
 		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
 	}
@@ -74,7 +69,6 @@ func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
 	h.stats = make(map[Key]*RequestStats)
-	h.interned = make(map[string]string)
 	return ret
 }
 
