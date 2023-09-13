@@ -10,7 +10,6 @@ import (
 	"html"
 	"net/http"
 	"strings"
-	"testing"
 
 	"go.uber.org/fx"
 
@@ -113,24 +112,4 @@ func (c *cfg) SetMaxMemCPU(isContainerized bool) {
 		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
 		c.MaxMemory = 0
 	}
-}
-
-func newMock(deps dependencies, t testing.TB) (Component, error) {
-	// injected Agentconfig should be a mock
-
-	tracecfg, err := setupConfig(deps, "apikey")
-	if err != nil {
-		return nil, err
-	}
-
-	c := cfg{
-		warnings:    &pkgconfig.Warnings{},
-		coreConfig:  deps.Config,
-		AgentConfig: tracecfg,
-	}
-
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
-
-	return &c, nil
-
 }

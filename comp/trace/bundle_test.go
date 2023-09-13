@@ -31,7 +31,7 @@ func TestBundleDependencies(t *testing.T) {
 		Bundle))
 }
 
-func TestBundle(t *testing.T) {
+func TestMockBundleDependencies(t *testing.T) {
 	os.Setenv("DD_APP_KEY", "abc1234")
 	defer func() { os.Unsetenv("DD_APP_KEY") }()
 
