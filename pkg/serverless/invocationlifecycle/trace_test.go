@@ -508,7 +508,7 @@ func TestCapturePayloadAsTagsMaxDepth(t *testing.T) {
 	executionSpan := &pb.Span{
 		Meta: metaMap,
 	}
-	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 1)
+	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 2)
 	assert.Equal(t, "value1", executionSpan.Meta["test.key1"])
 	assert.Equal(t, "{\"nestedKey\":\"nestedVal\"}", executionSpan.Meta["test.key2.key3"])
 	assert.Equal(t, "true", executionSpan.Meta["test.key2.key4"])
