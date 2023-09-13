@@ -8,9 +8,9 @@ include:
 notify-on-tagged-success:
   extends: .slack-notifier-base
   stage: notify
-  rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch]
+  rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
+  tags: ["arch:amd64"]
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
@@ -19,9 +19,9 @@ notify-on-tagged-success:
 notify:
   extends: .slack-notifier-base
   stage: notify
-  rules:
-    !reference [.on_main_or_release_branch_or_deploy_always]
+  rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
+  tags: ["arch:amd64"]
   script:
     - set +x
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_read_api_token --with-decryption --query "Parameter.Value" --out text)
@@ -43,7 +43,7 @@ notify:
 send_pipeline_stats:
   stage: notify
   # Using the buildimages image and not slack-notifier because we need Python 3.7+
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   when: always
   dependencies: []
@@ -53,5 +53,4 @@ send_pipeline_stats:
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_read_api_token --with-decryption --query "Parameter.Value" --out text)
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - !reference [.setup_python_mirror_linux]
-    - python3 -m pip install -r tasks/libs/requirements-stats.txt
     - invoke -e pipeline.send-stats
