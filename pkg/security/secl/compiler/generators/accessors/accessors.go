@@ -40,15 +40,16 @@ const (
 )
 
 var (
-	modelFile               string
-	typesFile               string
-	pkgname                 string
-	output                  string
-	perFieldAccessorsOutput string
-	verbose                 bool
-	docOutput               string
-	fieldHandlersOutput     string
-	buildTags               string
+	modelFile                  string
+	typesFile                  string
+	pkgname                    string
+	output                     string
+	perFieldAccessorsOutput    string
+	gettersOnlyAccessorsOutput string
+	verbose                    bool
+	docOutput                  string
+	fieldHandlersOutput        string
+	buildTags                  string
 )
 
 // AstFiles defines ast files
@@ -112,6 +113,14 @@ func isBasicType(kind string) bool {
 	return false
 }
 
+func isBasicTypeForGettersOnly(kind string) bool {
+	switch kind {
+	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet", "time.Time":
+		return true
+	}
+	return false
+}
+
 func qualifiedType(module *common.Module, kind string) string {
 	switch kind {
 	case "int", "string", "bool":
@@ -136,7 +145,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 	}
 
 	basicType := origTypeToBasicType(kind)
-	module.Fields[alias] = &common.StructField{
+	newStructField := &common.StructField{
 		Name:        name,
 		BasicType:   basicType,
 		ReturnType:  basicType,
@@ -151,6 +160,12 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		AliasPrefix: aliasPrefix,
 	}
 
+	if field.gettersOnly {
+		module.GettersOnlyFields[alias] = newStructField
+	} else {
+		module.Fields[alias] = newStructField
+	}
+
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada()
 	}
@@ -160,7 +175,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		aliasPrefix = alias
 		alias = alias + ".length"
 
-		module.Fields[alias] = &common.StructField{
+		newStructField := &common.StructField{
 			Name:        name,
 			BasicType:   "int",
 			ReturnType:  "int",
@@ -174,6 +189,12 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			Struct:      "string",
 			Alias:       alias,
 			AliasPrefix: aliasPrefix,
+		}
+
+		if field.gettersOnly {
+			module.GettersOnlyFields[alias] = newStructField
+		} else {
+			module.Fields[alias] = newStructField
 		}
 	}
 }
@@ -200,7 +221,7 @@ func handleEmbedded(module *common.Module, name, prefix, event string, fieldType
 	}
 }
 
-// handleNonEmbedded adds non-embedded fields to list of exposed SECL fields of the module
+// handleNonEmbedded adds non-embedded fields to list of all possible (but not necessarily exposed) SECL fields of the module
 func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName, event, fieldType string, isPointer, isArray bool) {
 	module.AllFields[prefixedFieldName] = &common.StructField{
 		Name:          prefixedFieldName,
@@ -330,12 +351,14 @@ type seclField struct {
 	check                  string
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
-	internalAccess         bool //  a field that is not exposed via SECL, but still has an accessor generated
+	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
 }
 
 func parseFieldDef(def string) (seclField, error) {
 	def = strings.TrimSpace(def)
 	alias, options, splitted := strings.Cut(def, ",")
+
+	log.Printf("options: %+v", def)
 	field := seclField{name: alias}
 
 	if alias == "-" {
@@ -373,8 +396,9 @@ func parseFieldDef(def string) (seclField, error) {
 						field.skipADResolution = true
 					case "exposed_at_event_root_only":
 						field.exposedAtEventRootOnly = true
-					case "internal_access":
-						field.internalAccess = true
+					case "getters_only":
+						field.gettersOnly = true
+						field.exposedAtEventRootOnly = true
 					}
 				}
 			}
@@ -421,7 +445,8 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			}
 		}
 
-		if isEmbedded := len(field.Names) == 0; isEmbedded {
+		log.Printf("len(field.Names): %+v", field.Names)
+		if isEmbedded := len(field.Names) == 0; isEmbedded { // embedded as in a struct embedded in another struct
 			if fieldTag, found := tag.Lookup("field"); found && fieldTag == "-" {
 				continue
 			}
@@ -444,7 +469,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 					handleEmbedded(module, ident.Name, prefix, event, field.Type)
 					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, event, fieldIterator, dejavu)
 				} else {
-					log.Printf("failed to resolve symbol for %+v in %s", ident.Name, pkgname)
+					log.Printf("failed to resolve symbol for identifier %+v in %s", ident.Name, pkgname)
 				}
 			}
 		} else {
@@ -459,17 +484,19 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 			var opOverrides string
 			var fields []seclField
+			var gettersOnlyFields []seclField
 			if tags, err := structtag.Parse(string(tag)); err == nil && len(tags.Tags()) != 0 {
-				opOverrides, fields = parseTags(tags, typeSpec.Name.Name)
+				opOverrides, fields, gettersOnlyFields = parseTags(tags, typeSpec.Name.Name)
 
-				if opOverrides == "" && fields == nil {
+				log.Printf("getters only 1: %+v", len(gettersOnlyFields))
+				if opOverrides == "" && fields == nil && gettersOnlyFields == nil {
 					continue
 				}
-
 			} else {
 				fields = append(fields, seclField{name: fieldBasename})
 			}
 
+			log.Printf("getters only 2: %+v", len(gettersOnlyFields))
 			fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
 			prefixedFieldName := fieldBasename
@@ -520,7 +547,58 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, fieldIterator, dejavu)
 					} else {
-						log.Printf("failed to resolve symbol for %+v in %s", fieldType, pkgname)
+						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
+					}
+				}
+
+				if !seclField.exposedAtEventRootOnly {
+					delete(dejavu, fieldBasename)
+				}
+			}
+			for _, seclField := range gettersOnlyFields {
+				handleNonEmbedded(module, seclField, prefixedFieldName, event, fieldType, isPointer, isArray)
+
+				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
+					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, event, fieldCommentText, opOverrides, isPointer, isArray)
+				}
+
+				if handler := seclField.handler; handler != "" {
+
+					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
+
+					delete(dejavu, fieldBasename)
+					continue
+				}
+
+				if verbose {
+					log.Printf("Don't know what to do with %s: %s", fieldBasename, spew.Sdump(field.Type))
+				}
+
+				dejavu[fieldBasename] = true
+
+				if len(fieldType) == 0 {
+					continue
+				}
+
+				alias := seclField.name
+				if isBasicTypeForGettersOnly(fieldType) {
+					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
+				} else {
+					spec := astFiles.LookupSymbol(fieldType)
+					if spec != nil {
+						newPrefix, newAliasPrefix := fieldBasename, alias
+
+						if prefix != "" {
+							newPrefix = prefix + "." + fieldBasename
+						}
+
+						if aliasPrefix != "" {
+							newAliasPrefix = aliasPrefix + "." + alias
+						}
+
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, fieldIterator, dejavu)
+					} else {
+						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
 				}
 
@@ -532,14 +610,15 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 	}
 }
 
-func parseTags(tags *structtag.Tags, containerStructName string) (string, []seclField) {
+func parseTags(tags *structtag.Tags, containerStructName string) (string, []seclField, []seclField) {
 	var opOverrides string
 	var fields []seclField
+	var gettersOnlyFields []seclField
 
 	for _, tag := range tags.Tags() {
 		switch tag.Key {
 		case "field":
-
+			log.Printf("tag: %+v", tag)
 			fieldDefs := strings.Split(tag.Value(), ";")
 			for _, fieldDef := range fieldDefs {
 				field, err := parseFieldDef(fieldDef)
@@ -548,11 +627,17 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 				}
 
 				if field.name == "-" {
-					return "", nil
+					return "", nil, nil
 				}
+
 				field.containerStructName = containerStructName
 
-				fields = append(fields, field)
+				if field.gettersOnly {
+					gettersOnlyFields = append(gettersOnlyFields, field)
+					log.Printf("getter: %+v", field)
+				} else {
+					fields = append(fields, field)
+				}
 			}
 
 		case "op_override":
@@ -560,7 +645,7 @@ func parseTags(tags *structtag.Tags, containerStructName string) (string, []secl
 		}
 	}
 
-	return opOverrides, fields
+	return opOverrides, fields, gettersOnlyFields
 }
 
 func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
@@ -599,14 +684,15 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 	}
 
 	module := &common.Module{
-		Name:       moduleName,
-		SourcePkg:  pkgName,
-		TargetPkg:  pkgName,
-		BuildTags:  formatBuildTags(buildTags),
-		Fields:     make(map[string]*common.StructField),
-		AllFields:  make(map[string]*common.StructField),
-		Iterators:  make(map[string]*common.StructField),
-		EventTypes: make(map[string]*common.EventTypeMetadata),
+		Name:              moduleName,
+		SourcePkg:         pkgName,
+		TargetPkg:         pkgName,
+		BuildTags:         formatBuildTags(buildTags),
+		Fields:            make(map[string]*common.StructField),
+		GettersOnlyFields: make(map[string]*common.StructField),
+		AllFields:         make(map[string]*common.StructField),
+		Iterators:         make(map[string]*common.StructField),
+		EventTypes:        make(map[string]*common.EventTypeMetadata),
 	}
 
 	// If the target package is different from the model package
@@ -844,6 +930,9 @@ var fieldHandlersTemplate string
 //go:embed per_field_accessors.tmpl
 var perFieldAccessorsTemplate string
 
+//go:embed getters_only_accessors.tmpl
+var gettersOnlyAccessorsTemplate string
+
 func main() {
 	module, err := parseFile(modelFile, typesFile, pkgname)
 	if err != nil {
@@ -869,6 +958,12 @@ func main() {
 	}
 
 	if err := GenerateContent(perFieldAccessorsOutput, module, perFieldAccessorsTemplate); err != nil {
+		panic(err)
+	}
+
+	fmt.Println(len(module.GettersOnlyFields))
+
+	if err := GenerateContent(gettersOnlyAccessorsOutput, module, gettersOnlyAccessorsTemplate); err != nil {
 		panic(err)
 	}
 }
@@ -935,7 +1030,8 @@ func init() {
 	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")
-	flag.StringVar(&perFieldAccessorsOutput, "per-field-accessors-output", "", "Generated per-field accessors output file")
+	flag.StringVar(&perFieldAccessorsOutput, "per-field-accessors-output", "per_field_accessors_unix.go", "Generated per-field accessors output file")
+	flag.StringVar(&gettersOnlyAccessorsOutput, "getters-only-accessors-output", "getters_only_accessors_unix.go", "Generated getters only accessors output file")
 	flag.StringVar(&output, "output", "", "Go generated file")
 	flag.Parse()
 }
