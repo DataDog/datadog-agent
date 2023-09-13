@@ -238,8 +238,13 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
 	assert.Equal(t, "true", executionSpan.Meta["cold_start"])
 	assert.Equal(t, "", executionSpan.Meta["proactive_initialization"])
-	assert.Equal(t, testString, executionSpan.Meta["function.request"])
-	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
+	assert.Equal(t, "/users/create", executionSpan.Meta["function.request.resource"])
+	assert.Equal(t, "/users/create", executionSpan.Meta["function.request.resource"])
+	assert.Equal(t, "1480558859903409531", executionSpan.Meta["function.request.headers.x-datadog-parent-id"])
+	assert.Equal(t, "5736943178450432258", executionSpan.Meta["function.request.headers.x-datadog-trace-id"])
+	assert.Equal(t, "1", executionSpan.Meta["function.request.headers.x-datadog-sampling-priority"])
+	assert.Equal(t, "GET", executionSpan.Meta["function.request.httpMethod"])
+	assert.Equal(t, "*/*", executionSpan.Meta["function.request.headers.Accept"])
 	assert.Equal(t, "dotnet", executionSpan.Meta["language"])
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
@@ -285,8 +290,14 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
 	assert.Equal(t, "false", executionSpan.Meta["cold_start"])
 	assert.Equal(t, "true", executionSpan.Meta["proactive_initialization"])
-	assert.Equal(t, testString, executionSpan.Meta["function.request"])
-	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
+	assert.Equal(t, "/users/create", executionSpan.Meta["function.request.resource"])
+	assert.Equal(t, "/users/create", executionSpan.Meta["function.request.resource"])
+	assert.Equal(t, "1480558859903409531", executionSpan.Meta["function.request.headers.x-datadog-parent-id"])
+	assert.Equal(t, "5736943178450432258", executionSpan.Meta["function.request.headers.x-datadog-trace-id"])
+	assert.Equal(t, "1", executionSpan.Meta["function.request.headers.x-datadog-sampling-priority"])
+	assert.Equal(t, "GET", executionSpan.Meta["function.request.httpMethod"])
+	assert.Equal(t, "*/*", executionSpan.Meta["function.request.headers.Accept"])
+	assert.Equal(t, "test response payload", executionSpan.Meta["function.response.response"])
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
@@ -454,4 +465,46 @@ func TestLanguageTag(t *testing.T) {
 
 		assert.Equal(t, tc.expectedTag, executionSpan.Meta["language"]) // expected tag from runtime
 	}
+}
+
+func TestCapturePayloadAsTags(t *testing.T) {
+	nestedMap := map[string]interface{}{
+		"key1": "value1",
+		"key2": map[string]interface{}{
+			"key3": 3,
+			"key4": true,
+		},
+		"key5": "value5",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 10)
+	assert.Equal(t, "value1", executionSpan.Meta["test.key1"])
+	assert.Equal(t, "3", executionSpan.Meta["test.key2.key3"])
+	assert.Equal(t, "true", executionSpan.Meta["test.key2.key4"])
+	assert.Equal(t, "value5", executionSpan.Meta["test.key5"])
+}
+
+func TestCapturePayloadAsTagsMaxDepth(t *testing.T) {
+	nestedMap := map[string]interface{}{
+		"key1": "value1",
+		"key2": map[string]interface{}{
+			"key3": map[string]interface{}{
+				"nestedKey": "nestedVal",
+			},
+			"key4": true,
+		},
+		"key5": "value5",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 1)
+	assert.Equal(t, "value1", executionSpan.Meta["test.key1"])
+	assert.Equal(t, "{\"nestedKey\":\"nestedVal\"}", executionSpan.Meta["test.key2.key3"])
+	assert.Equal(t, "true", executionSpan.Meta["test.key2.key4"])
+	assert.Equal(t, "value5", executionSpan.Meta["test.key5"])
 }
