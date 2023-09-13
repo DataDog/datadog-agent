@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Add ithe `hosting-type` tag, which can have one of the following values: `self-managed`, `RDS` and `OCI`.
+    Add the `hosting-type` tag, which can have one of the following values: `self-managed`, `RDS`, or `OCI`.
 fixes:
   - |
     Fix the `failed to query v$pdbs`, which was appearing for RDS databases.
