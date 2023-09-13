@@ -332,7 +332,10 @@ namespace WixSetup.Datadog
                 new DirFiles($@"{InstallerSource}\LICENSE"),
                 new DirFiles($@"{InstallerSource}\*.json"),
                 new DirFiles($@"{InstallerSource}\*.txt"),
-                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
+                // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
+                // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
+                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION" }
             );
             if (_agentPython.IncludePython2)
             {
