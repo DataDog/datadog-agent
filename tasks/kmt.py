@@ -381,6 +381,7 @@ def test(ctx, stack=None, packages="", run=None, retry=2, rebuild_deps=False, vm
         allow_fail=True,
     )
 
+
 @task
 def build(ctx, stack=None, vms="", ssh_key="", rebuild_deps=False):
     stack = check_and_get_stack(stack)
@@ -391,7 +392,7 @@ def build(ctx, stack=None, vms="", ssh_key="", rebuild_deps=False):
         ctx.run(f"mkdir -p kmt-deps/{stack}")
 
     target_vms = build_target_set(stack, vms, ssh_key)
-    if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz"):
+    if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{platform.machine()}.tar.gz"):
         docker_exec(
             ctx,
             f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
@@ -402,7 +403,9 @@ def build(ctx, stack=None, vms="", ssh_key="", rebuild_deps=False):
             ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True
         )
 
-    docker_exec(ctx, "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build")
+    docker_exec(
+        ctx, "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build"
+    )
     docker_exec(ctx, f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
     sync_source(ctx, target_vms, "./bin/system-probe", "/root", ssh_key)
     sync_source(ctx, target_vms, f"kmt-deps/{stack}/shared.tar", "/", ssh_key)
