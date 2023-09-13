@@ -97,11 +97,11 @@ func (p *parser) parseTags(rawTags []byte) []string {
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos], nil)
+		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos], "")
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = p.interner.LoadOrStore(rawTags, nil)
+	tagsList[i] = p.interner.LoadOrStore(rawTags, "")
 	return tagsList
 }
 
@@ -188,7 +188,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	}
 
 	return dogstatsdMetricSample{
-		name:        p.interner.LoadOrStore(name, nil),
+		name:        p.interner.LoadOrStore(name, ""),
 		value:       value,
 		values:      values,
 		setValue:    string(setValue),
