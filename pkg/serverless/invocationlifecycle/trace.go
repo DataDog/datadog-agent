@@ -247,7 +247,7 @@ func capturePayloadAsTags(payloadJSON map[string]interface{}, targetSpan *pb.Spa
 		default:
 			if reflect.TypeOf(value).Kind() == reflect.Slice {
 				for i := 0; i < reflect.ValueOf(value).Len(); i++ {
-					targetSpan.Meta[key + "." + strconv.Itoa(i)] = fmt.Sprintf("%v", reflect.ValueOf(value).Index(i))
+					targetSpan.Meta[key+"."+strconv.Itoa(i)] = fmt.Sprintf("%v", reflect.ValueOf(value).Index(i))
 				}
 			} else {
 				targetSpan.Meta[key] = fmt.Sprintf("%v", value)

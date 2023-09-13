@@ -471,8 +471,8 @@ func TestCapturePayloadAsTags(t *testing.T) {
 	nestedMap := map[string]interface{}{
 		"key1": "value1",
 		"key2": map[string]interface{}{
-			"key3": 3,
-			"key4": true,
+			"key3":    3,
+			"key4":    true,
 			"keylist": []interface{}{1, 2, 3, "four", 5.5},
 		},
 		"key5": "value5",
