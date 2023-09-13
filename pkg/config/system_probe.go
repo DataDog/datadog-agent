@@ -27,6 +27,7 @@ const (
 	evNS                         = "event_monitoring_config"
 	smjtNS                       = smNS + ".java_tls"
 	diNS                         = "dynamic_instrumentation"
+	wcdNS                        = "windows_crash_detection"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
@@ -313,6 +314,9 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
+
+	// Windows crash detection
+	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }
