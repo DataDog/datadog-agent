@@ -15,15 +15,22 @@ import (
 )
 
 func (stats EBPFStats) deduplicateProgramNames() {
-	slices.SortStableFunc(stats.Programs, func(a, b EBPFProgramStats) bool {
-		x := strings.Compare(a.Name, b.Name)
-		if x == 0 {
-			x = strings.Compare(a.Module, b.Module)
-			if x == 0 {
-				return a.id < b.id
-			}
+	slices.SortStableFunc(stats.Programs, func(a, b EBPFProgramStats) int {
+		if cmp := strings.Compare(a.Name, b.Name); cmp != 0 {
+			return cmp
 		}
-		return x == -1
+
+		if cmp := strings.Compare(a.Module, b.Module); cmp != 0 {
+			return cmp
+		}
+
+		if a.id < b.id {
+			return -1
+		} else if a.id == b.id {
+			return 0
+		} else {
+			return 1
+		}
 	})
 	// if program name is a duplicate, we need to disambiguate by adding a numeric ID
 	for i := 0; i < len(stats.Programs)-1; {
@@ -53,15 +60,22 @@ func (stats EBPFStats) deduplicateMapNames() {
 		allMaps = append(allMaps, &stats.PerfBuffers[i].EBPFMapStats)
 	}
 
-	cmpFunc := func(a, b *EBPFMapStats) bool {
-		x := strings.Compare(a.Name, b.Name)
-		if x == 0 {
-			x = strings.Compare(a.Module, b.Module)
-			if x == 0 {
-				return a.id < b.id
-			}
+	cmpFunc := func(a, b *EBPFMapStats) int {
+		if cmp := strings.Compare(a.Name, b.Name); cmp != 0 {
+			return cmp
 		}
-		return x == -1
+
+		if cmp := strings.Compare(a.Module, b.Module); cmp != 0 {
+			return cmp
+		}
+
+		if a.id < b.id {
+			return -1
+		} else if a.id == b.id {
+			return 0
+		} else {
+			return 1
+		}
 	}
 	slices.SortStableFunc(allMaps, cmpFunc)
 
