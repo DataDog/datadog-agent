@@ -569,8 +569,16 @@ def generate_cws_documentation(ctx, go_generate=False):
 
 @task
 def cws_go_generate(ctx):
+    ctx.run("go install golang.org/x/tools/cmd/stringer")
+    ctx.run("go install github.com/mailru/easyjson/easyjson")
+    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors@v0.48.0-rc.2")
+    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators@v0.48.0-rc.2")
     with ctx.cd("./pkg/security/secl"):
         ctx.run("go generate ./...")
+        if sys.platform == "linux":
+            ctx.run("GOOS=windows go generate ./...")
+        elif sys.platform == "win32":
+            ctx.run("GOOS=linux go generate ./...")
 
     if sys.platform == "win32":
         shutil.copy(
