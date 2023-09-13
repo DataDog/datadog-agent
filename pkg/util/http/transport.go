@@ -17,10 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/http/httpproxy"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/conf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/net/http/httpproxy"
 )
 
 var (
@@ -60,7 +59,7 @@ func warnOnce(warnMap map[string]bool, key string, format string, params ...inte
 // config, accounting for defaults and deprecated configuration parameters.
 //
 // The returned result is one of the `tls.VersionTLSxxx` constants.
-func minTLSVersionFromConfig(cfg config.Config) uint16 {
+func minTLSVersionFromConfig(cfg conf.Config) uint16 {
 	var min uint16
 	minTLSVersion := cfg.GetString("min_tls_version")
 	switch strings.ToLower(minTLSVersion) {
@@ -82,12 +81,12 @@ func minTLSVersionFromConfig(cfg config.Config) uint16 {
 }
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
-func CreateHTTPTransport() *http.Transport {
+func CreateHTTPTransport(cfg conf.Config) *http.Transport {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
 	// because all the writes to that file are protected by a global mutex.
 	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
 	keyLogWriterInit.Do(func() {
-		sslKeyLogFile := config.Datadog.GetString("sslkeylogfile")
+		sslKeyLogFile := cfg.GetString("sslkeylogfile")
 		if sslKeyLogFile != "" {
 			var err error
 			keyLogWriter, err = os.OpenFile(sslKeyLogFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
@@ -99,10 +98,10 @@ func CreateHTTPTransport() *http.Transport {
 
 	tlsConfig := &tls.Config{
 		KeyLogWriter:       keyLogWriter,
-		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
+		InsecureSkipVerify: cfg.GetBool("skip_ssl_validation"),
 	}
 
-	tlsConfig.MinVersion = minTLSVersionFromConfig(config.Datadog)
+	tlsConfig.MinVersion = minTLSVersionFromConfig(cfg)
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general
@@ -127,8 +126,8 @@ func CreateHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	if proxies := config.Datadog.GetProxies(); proxies != nil {
-		transport.Proxy = GetProxyTransportFunc(proxies)
+	if proxies := cfg.GetProxies(); proxies != nil {
+		transport.Proxy = GetProxyTransportFunc(proxies, cfg)
 	}
 
 	return transport
@@ -136,15 +135,14 @@ func CreateHTTPTransport() *http.Transport {
 
 // GetProxyTransportFunc return a proxy function for a http.Transport that
 // would return the right proxy depending on the configuration.
-func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error) {
-
+func GetProxyTransportFunc(p *conf.Proxy, cfg conf.Config) func(*http.Request) (*url.URL, error) {
 	proxyConfig := &httpproxy.Config{
 		HTTPProxy:  p.HTTP,
 		HTTPSProxy: p.HTTPS,
 		NoProxy:    strings.Join(p.NoProxy, ","),
 	}
 
-	if config.Datadog.GetBool("no_proxy_nonexact_match") {
+	if cfg.GetBool("no_proxy_nonexact_match") {
 		return func(r *http.Request) (*url.URL, error) {
 			return proxyConfig.ProxyFunc()(r.URL)
 		}
