@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/appsec-internal-go/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	"github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +61,7 @@ func newAppSec() (*AppSec, error) {
 	}
 
 	// Check if AppSec can actually run properly
-	if err := waf.Health(); err != nil {
+	if err := wafHealth(); err != nil {
 		return nil, err
 	}
 
@@ -120,4 +120,14 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 		return nil
 	}
 	return events
+}
+
+// wafHealth is a simple test helper that returns the same thing as `waf.Health`
+// used to return in `go-libddwaf` prior to v1.4.0
+func wafHealth() error {
+	ok, err := waf.Load()
+	if !ok {
+		return err
+	}
+	return nil
 }

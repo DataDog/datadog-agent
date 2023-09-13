@@ -9,13 +9,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/appsec-internal-go/appsec"
-	"github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestStaticRule(t *testing.T) {
-	if waf.Health() != nil {
+	if wafHealth() != nil {
 		t.Skip("waf disabled")
 		return
 	}
