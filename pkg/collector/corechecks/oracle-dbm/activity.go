@@ -471,7 +471,7 @@ func (c *Check) SampleSession() error {
 			statement = sample.Module.String
 			obfuscate = false
 		} else {
-			log.Warnf("activity sql text empty for %#v \n", sample)
+			log.Debugf("activity sql text empty for %#v \n", sample)
 		}
 
 		if hasRealSQLText {
