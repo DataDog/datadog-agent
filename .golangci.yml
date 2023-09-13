@@ -82,6 +82,12 @@ linters-settings:
       - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
       - io/ioutil: "Deprecated since Go 1.16. Use package io or os instead."
       - github.com/golang/glog: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
+      # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
+      # feel free to remove the following line if you really need it in several files as opposed to testify/assert
+      # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
+      # the goal is just to limit the risk of accidental imports
+      - gotest.tools/assert: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
+
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
     # Disable warnings for select Windows functions
