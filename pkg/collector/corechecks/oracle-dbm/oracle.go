@@ -60,6 +60,10 @@ type StatementsCache struct {
 	forceMatchingSignatures map[string]StatementsCacheData
 }
 
+type PGAOverAllocationCount struct {
+	value float64
+}
+
 type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
@@ -89,7 +93,7 @@ type Check struct {
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
-	previousAllocationCount                 float64
+	previousPGAOverAllocationCount          PGAOverAllocationCount
 }
 
 func handleServiceCheck(c *Check, err error) {
