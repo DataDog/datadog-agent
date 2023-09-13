@@ -53,7 +53,7 @@ func (wcdm *winCrashDetectModule) Register(httpMux *module.Router) error {
 	return nil
 }
 
-func (wcdm *winCrashDetectModule) RegisterGRPC(_ *grpc.Server) error {
+func (wcdm *winCrashDetectModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
