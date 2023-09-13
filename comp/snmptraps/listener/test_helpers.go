@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gotest.tools/assert"
 )
 
 func SendTestV1GenericTrap(t *testing.T, trapConfig *config.TrapsConfig, community string) *gosnmp.GoSNMP {
