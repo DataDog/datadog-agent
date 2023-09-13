@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -161,7 +162,7 @@ func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParam
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg)
+	return pkgdiagnose.RunStdOut(color.Output, diagCfg, aggregator.GetSenderManager())
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
