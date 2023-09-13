@@ -7,8 +7,8 @@ github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEf
 github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/datadog-api-client-go v1.16.0 h1:5jOZv1m98criCvYTa3qpW8Hzv301nbZX3K9yJtwGyWY=
 github.com/DataDog/datadog-api-client-go v1.16.0/go.mod h1:PgrP2ABuJWL3Auw2iEkemAJ/r72ghG4DQQmb5sgnKW4=
-github.com/DataDog/test-infra-definitions v0.0.0-20230829135717-713eba6ee3fe h1:tVSTXfgqgKyGRsD9R6NNoOZH4ZEQAjzRmCCI41UE2nM=
-github.com/DataDog/test-infra-definitions v0.0.0-20230829135717-713eba6ee3fe/go.mod h1:NKrmxU2OsTfLTzVQafVA0JMRSWHN3xUJOXdPQKd7VPw=
+github.com/DataDog/test-infra-definitions v0.0.0-20230912122545-460444620b26 h1:Z5AEtMXT265CSbSYgS42KLi4emT03TMuIyQvykYycAs=
+github.com/DataDog/test-infra-definitions v0.0.0-20230912122545-460444620b26/go.mod h1:UmA+qVnbzsxHlu3E9bEA9TpdFsO6n7alWbb120UNRrQ=
 github.com/DataDog/zstd v1.5.0 h1:+K/VEwIAaPcHiMtQvpLD4lqW7f0Gk3xdYZmI1hD+CXo=
 github.com/DataDog/zstd v1.5.0/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
