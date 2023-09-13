@@ -4,7 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 name "dbus"
-default_version "1.15.4"
+default_version "1.14.10"
 
 dependency "expat"
 dependency "libtool"
@@ -14,7 +14,7 @@ license "AFL-2.1"
 license_file "LICENSES/AFL-2.1.txt"
 skip_transitive_dependency_licensing true
 
-version("1.15.4") { source sha256: "bfe53d9e54a4977ec344928521b031af2e97cf78aea58f5d8e2b85ea0a80028b" }
+version("1.14.10") { source sha256: "ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f" }
 
 source url: "https://dbus.freedesktop.org/releases/dbus/dbus-#{version}.tar.xz"
 
