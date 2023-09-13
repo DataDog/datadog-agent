@@ -8,9 +8,11 @@
 
 #include "protocols/classification/defs.h"
 #include "protocols/http/types.h"
+#include "protocols/http2/decoding-common.h"
 #include "protocols/http2/decoding-defs.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/http2/maps-defs.h"
+#include "protocols/http2/tls-decoding.h"
 #include "protocols/http2/usm-events.h"
 
 // returns true if the given index is one of the relevant headers we care for in the static table.
@@ -326,22 +328,6 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     return;
 }
 
-// A similar implementation of read_http2_frame_header, but instead of getting both a char array and an out parameter,
-// we get only the out parameter (equals to struct http2_frame * representation of the char array) and we perform the
-// field adjustments we have in read_http2_frame_header.
-static __always_inline bool format_http2_frame_header(struct http2_frame *out) {
-    if (is_empty_frame_header((char *)out)) {
-        return false;
-    }
-
-    // We extract the frame by its shape to fields.
-    // See: https://datatracker.ietf.org/doc/html/rfc7540#section-4.1
-    out->length = bpf_ntohl(out->length << 8);
-    out->stream_id = bpf_ntohl(out->stream_id << 1);
-
-    return out->type <= kContinuationFrame;
-}
-
 static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_info) {
     if (skb_info->data_off + HTTP2_MARKER_SIZE <= skb->len) {
         char preface[HTTP2_MARKER_SIZE];
@@ -497,11 +483,54 @@ delete_iteration:
     return 0;
 }
 
+/* TLS */
+
 SEC("uprobe/http2_tls_entry")
 int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     log_debug("http2_tls_entry: after tail call");
-    (void)ctx;
+    const u32 zero = 0;
+
+    http2_tls_info_t *info = bpf_map_lookup_elem(&http2_tls_info, &zero);
+    if (info == NULL) {
+        log_debug("[http2_tls_entry] could not get tls info from map");
+        return 0;
+    }
+
+    // TODO: from tls_info: add bool from tls_finish to trigger this case
+    //
+    // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
+    /* if (is_tcp_termination(&dispatcher_args_copy.skb_info)) { */
+    /*     // Deleting the entry for the original tuple. */
+    /*     bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup); */
+    /*     // In case of local host, the protocol will be deleted for both (client->server) and (server->client), */
+    /*     // so we won't reach for that path again in the code, so we're deleting the opposite side as well. */
+    /*     flip_tuple(&dispatcher_args_copy.tup); */
+    /*     bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup); */
+    /*     return 0; */
+    /* } */
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t iteration_value = {};
+    bpf_memset(iteration_value.frames_array, 0, HTTP2_MAX_FRAMES_ITERATIONS * sizeof(http2_frame_with_offset));
+
+    // filter frames
+    iteration_value.frames_count = find_relevant_headers_tls(info, iteration_value.frames_array);
+    log_debug("[http2_tls_entry] frames count: %d\n", iteration_value.frames_count);
+    if (iteration_value.frames_count == 0) {
+        return 0;
+    }
+
+    // We have couple of interesting headers, launching tail calls to handle them.
+    if (bpf_map_update_elem(&http2_tls_iterations, &zero, &iteration_value, BPF_ANY) >= 0) {
+        // We managed to cache the iteration_value in the http2_iterations map.
+        /* bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_PARSER); // FIXME */
+    }
 
     return 0;
 }
+
 #endif

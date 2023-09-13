@@ -1,10 +1,11 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
+#include "http2.h"
 #ifdef COMPILE_CORE
 #include "ktypes.h"
-#define MINORBITS 20
-#define MINORMASK ((1U << MINORBITS) - 1)
+#define MINORBITS  20
+#define MINORMASK  ((1U << MINORBITS) - 1)
 #define MAJOR(dev) ((unsigned int)((dev) >> MINORBITS))
 #define MINOR(dev) ((unsigned int)((dev)&MINORMASK))
 #else
@@ -26,6 +27,7 @@
 #include "protocols/tls/native-tls-maps.h"
 #include "protocols/tls/go-tls-types.h"
 #include "protocols/tls/go-tls-maps.h"
+#include "protocols/tls/https-maps.h"
 
 #define HTTPS_PORT 443
 
@@ -76,10 +78,18 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         break;
     case PROTOCOL_HTTP2:
         log_debug("tls_process: http2 case (before tail call)");
-        /* bpf_memset(&http, 0, sizeof(http)); */
-        /* bpf_memcpy(&http.tup, t, sizeof(conn_tuple_t)); */
-        /* read_into_buffer(http.request_fragment, buffer_ptr, len); */
-        /* http2_process(&) */
+        const u32 zero = 0;
+
+        http2_tls_info_t *info = bpf_map_lookup_elem(&http2_tls_info, &zero);
+        if (info == NULL) {
+            log_debug("tls_process: http2: could not get tls info from map");
+            return;
+        }
+
+        info->conn = *t;
+        info->buf = buffer_ptr;
+        info->len = len;
+        info->offset = 0;
 
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_PROG_HTTP2);
         break;
