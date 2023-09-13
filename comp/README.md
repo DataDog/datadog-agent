@@ -4,6 +4,16 @@
 This file lists all components defined in this repository, with their package summary.
 Click the links for more documentation.
 
+## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/aggregator) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package aggregator implements the "aggregator" bundle,
+
+### [comp/aggregator/demultiplexer](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/aggregator/demultiplexer)
+
+Package demultiplexer defines the aggregator demultiplexer
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
