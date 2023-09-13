@@ -14,7 +14,6 @@ package probe
 import "C"
 import (
 	"fmt"
-	"os"
 	"strings"
 	"unsafe"
 
@@ -48,10 +47,20 @@ func min(a, b int) int {
 	return b
 }
 
+/*
+ * extra layer of indirection so that we can call the go parsing code
+ * (logLineCallbackGo) straight from the test function so that we can
+ * test out the parser with known input rather than actually calling
+ * the debugger
+ */
 //export logLineCallback
 func logLineCallback(voidctx C.PVOID, str C.PCSTR) {
 	ctx := (*logCallbackContext)(unsafe.Pointer(uintptr(voidctx)))
 	line := C.GoString(str)
+	logLineCallbackGo(ctx, line)
+}
+
+func logLineCallbackGo(ctx *logCallbackContext, line string) {
 	if !strings.Contains(line, "\n") {
 		ctx.unfinished = ctx.unfinished + line
 		return
@@ -61,6 +70,14 @@ func logLineCallback(voidctx C.PVOID, str C.PCSTR) {
 		ctx.unfinished = ""
 	}
 	lines := strings.Split(line, "\n")
+
+	// if the last line is _not_ empty, that means it did not end with a `\n`.  So save that
+	// away for the next round
+	numlines := len(lines)
+	if len(lines[numlines-1]) != 0 {
+		ctx.unfinished = lines[numlines-1]
+		lines[numlines-1] = ""
+	}
 	start := int(0)
 	if !ctx.hasSeenRetAddr {
 		for idx, l := range lines {
@@ -83,21 +100,26 @@ func logLineCallback(voidctx C.PVOID, str C.PCSTR) {
 	ctx.loglines = append(ctx.loglines, lines[start:]...)
 }
 
-func doReadCrashDump(fn *C.char, ctx unsafe.Pointer, exterr *C.long) C.READ_CRASH_DUMP_ERROR {
-	err := C.readCrashDump(fn, ctx, exterr)
-	return err
+// this extra layer of indirection so that we can swap out test code which skips the actual debugger.
+func doReadCrashDump(filename string, ctx *logCallbackContext, exterr *uint32) error {
+	err := C.readCrashDump(C.CString(filename), unsafe.Pointer(ctx), (*C.long)(unsafe.Pointer(exterr)))
+
+	if err != C.RCD_NONE {
+		return fmt.Errorf("Error reading crash dump file %v", err)
+	}
+	return nil
 }
 
 func parseCrashDump(wcs *WinCrashStatus) {
 	var ctx logCallbackContext
 	var extendedError uint32
 
-	err := readfn(C.CString(wcs.FileName), unsafe.Pointer(&ctx), (*C.long)(unsafe.Pointer(&extendedError)))
+	err := readfn(wcs.FileName, &ctx, &extendedError)
 
-	if err != C.RCD_NONE {
+	if err != nil {
 		wcs.Success = false
-		wcs.ErrString = fmt.Sprintf("Failed to load crash dump file %d %x", int(err), extendedError)
-		log.Errorf("Failed to open crash dump %s: %d %x", wcs.FileName, int(err), extendedError)
+		wcs.ErrString = fmt.Sprintf("Failed to load crash dump file %v %x", err, extendedError)
+		log.Errorf("Failed to open crash dump %s: %v %x", wcs.FileName, err, extendedError)
 		return
 	}
 
@@ -172,19 +194,4 @@ func parseCrashDump(wcs *WinCrashStatus) {
 		break
 	}
 	wcs.Success = true
-}
-
-// this function is only used in the go test.  However, since it includes Cgo references,
-// the compiler won't allow it to be in the `crashparse_test.go` file.  So stash it here.
-func testCrashReader(fn *C.char, ctx unsafe.Pointer, exterr *C.long) C.READ_CRASH_DUMP_ERROR {
-	testbytes, err := os.ReadFile(C.GoString(fn))
-	if err != nil {
-		return C.RCD_OPEN_DUMP_FILE_FAILED
-	}
-
-	teststring := string(testbytes)
-
-	logLineCallback((C.PVOID)(ctx), C.CString(teststring))
-	return C.RCD_NONE
-
 }

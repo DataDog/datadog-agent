@@ -8,11 +8,42 @@
 package probe
 
 import (
+	"os"
+
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func testCrashReader(filename string, ctx *logCallbackContext, exterr *uint32) error {
+	testbytes, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+
+	teststring := string(testbytes)
+
+	logLineCallbackGo(ctx, teststring)
+	return nil
+
+}
+
+func testCrashReaderWithLineSplits(filename string, ctx *logCallbackContext, exterr *uint32) error {
+	testbytes, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	increment := 100
+	bodylen := len(testbytes)
+	for i := 0; i < bodylen; i += increment {
+		left := min(increment, bodylen-i)
+		teststring := string(testbytes[i : i+left])
+		logLineCallbackGo(ctx, teststring)
+	}
+	return nil
+
+}
 
 func TestCrashParser(t *testing.T) {
 
@@ -22,6 +53,26 @@ func TestCrashParser(t *testing.T) {
 	// first read in the sample data
 
 	readfn = testCrashReader
+
+	parseCrashDump(wcs)
+
+	assert.True(t, wcs.Success)
+	assert.Empty(t, wcs.ErrString)
+	assert.Equal(t, "Mon Jun 26 20:44:49.742 2023 (UTC - 7:00)", wcs.DateString)
+	before, _, _ := strings.Cut(wcs.Offender, "+")
+	assert.Equal(t, "ddapmcrash", before)
+	assert.Equal(t, "0000007E", wcs.BugCheck)
+
+}
+
+func TestCrashParserWithLineSplits(t *testing.T) {
+
+	wcs := &WinCrashStatus{
+		FileName: "testdata/crashsample1.txt",
+	}
+	// first read in the sample data
+
+	readfn = testCrashReaderWithLineSplits
 
 	parseCrashDump(wcs)
 
