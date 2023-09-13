@@ -319,7 +319,7 @@ func (n *netlinkRouter) getInterface(srcAddress util.Address, srcIP net.IP, netn
 	routeCacheTelemetry.netlinkLookups.Inc()
 	routes, err := n.nlHandle.RouteGet(srcIP)
 	if err != nil {
-		netlinkErrIncWithTag(err)
+		_, _ = netlinkErrIncWithTag(err)
 		log.Debugf("Error getting route via netlink %s: %s", srcIP, err)
 		return nil
 	} else if len(routes) != 1 {
