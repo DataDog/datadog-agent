@@ -813,9 +813,7 @@ func (c *Check) StatementMetrics() (int, error) {
 										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 											stepPayload.AccessPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.AccessPredicates, stepRow.AccessPredicates.String)
 										}
-										log.Errorf(stepPayload.FilterPredicates)
-
-										log.Errorf("Access obfuscation error")
+										log.Errorf(stepPayload.AccessPredicates)
 									}
 								}
 								if stepRow.FilterPredicates.Valid {
