@@ -8,4 +8,7 @@
 ---
 enhancements:
   - |
-    Add Oracle hosting type, which can be one of the following: `self-managed`, `RDS` or `OCI`.
+    Add ithe `hosting-type` tag, which can have one of the following values: `self-managed`, `RDS` and `OCI`.
+fixes:
+  - |
+    Fix the `failed to query v$pdbs`, which was appearing for RDS databases.
