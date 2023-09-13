@@ -373,7 +373,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 }
 
 // handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
-func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint32, loadConfig model.ActivityDumpLoadConfig) {
+func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint64, loadConfig model.ActivityDumpLoadConfig) {
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerID
 		ad.SetLoadConfig(cookie, loadConfig)
