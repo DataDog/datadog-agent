@@ -77,10 +77,7 @@ func isConnectionError(err error) bool {
 }
 
 func isConnectionRefused(err error) bool {
-	if strings.Contains(err.Error(), "connect: connection refused") {
-		return true
-	}
-	return false
+	return strings.Contains(err.Error(), "connect: connection refused")
 }
 
 func handleRefusedConnection(c *Check, db *sqlx.DB, err error) (bool, error) {
@@ -93,8 +90,7 @@ func handleRefusedConnection(c *Check, db *sqlx.DB, err error) (bool, error) {
 The network connection between the Agent and the database server is disrupted. Run one of the following commands on the machine where the Agent is running to test the network connection: 
 nc -v dbserver port
 telnet dbserver port
-curl dbserver:port
-`,
+curl dbserver:port`,
 			err)
 	}
 	return false, err
