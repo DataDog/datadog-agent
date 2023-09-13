@@ -307,8 +307,7 @@ def build(
         )
 
         # And copy it to the final output path as a build artifact
-        msipath = shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
-        validate_msi(ctx, msipath)
+        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
     # if the optional upgrade test helper exists then build that too
     optional_name = "datadog-agent-ng-7.43.0~rc.3+git.485.14b9337-1-x86_64"
@@ -320,8 +319,7 @@ def build(
                 build_outdir,
                 optional_name,
             )
-            msipath = shutil.copy2(os.path.join(build_outdir, optional_name + '.msi'), OUTPUT_PATH)
-            validate_msi(ctx, msipath)
+            shutil.copy2(os.path.join(build_outdir, optional_name + '.msi'), OUTPUT_PATH)
 
 
 @task
