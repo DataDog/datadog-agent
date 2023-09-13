@@ -117,7 +117,7 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 		setTarget(req, m.targets[0], m.keys[0])
 		rresp, rerr = m.rt.RoundTrip(req)
 		if rerr != nil {
-			log.Error(rerr)
+			log.Errorf("[pipeline_stats] RoundTrip failed: %v", rerr)
 		} else {
 			log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
 		}
@@ -137,7 +137,7 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 			// will be the first one called, we return its response and error
 			rresp, rerr = m.rt.RoundTrip(newreq)
 			if rerr != nil {
-				log.Error(rerr)
+				log.Errorf("[pipeline_stats] RoundTrip failed: %v", rerr)
 			} else {
 				log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
 			}
