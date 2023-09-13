@@ -2729,46 +2729,73 @@ func (ev *Event) GetMprotectVmProtection() int {
 
 // GetNetworkDestinationIp returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDestinationIp() net.IPNet {
+	if ev.GetEventType().String() != "dns" {
+		return net.IPNet{}
+	}
 	return ev.BaseEvent.NetworkContext.Destination.IPNet
 }
 
 // GetNetworkDestinationPort returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDestinationPort() uint16 {
+	if ev.GetEventType().String() != "dns" {
+		return 0
+	}
 	return ev.BaseEvent.NetworkContext.Destination.Port
 }
 
 // GetNetworkDeviceIfindex returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDeviceIfindex() uint32 {
+	if ev.GetEventType().String() != "dns" {
+		return 0
+	}
 	return ev.BaseEvent.NetworkContext.Device.IfIndex
 }
 
 // GetNetworkDeviceIfname returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkDeviceIfname() string {
+	if ev.GetEventType().String() != "dns" {
+		return ""
+	}
 	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device)
 }
 
 // GetNetworkL3Protocol returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkL3Protocol() uint16 {
+	if ev.GetEventType().String() != "dns" {
+		return 0
+	}
 	return ev.BaseEvent.NetworkContext.L3Protocol
 }
 
 // GetNetworkL4Protocol returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkL4Protocol() uint16 {
+	if ev.GetEventType().String() != "dns" {
+		return 0
+	}
 	return ev.BaseEvent.NetworkContext.L4Protocol
 }
 
 // GetNetworkSize returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkSize() uint32 {
+	if ev.GetEventType().String() != "dns" {
+		return 0
+	}
 	return ev.BaseEvent.NetworkContext.Size
 }
 
 // GetNetworkSourceIp returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkSourceIp() net.IPNet {
+	if ev.GetEventType().String() != "dns" {
+		return net.IPNet{}
+	}
 	return ev.BaseEvent.NetworkContext.Source.IPNet
 }
 
 // GetNetworkSourcePort returns the value of the field, resolving if necessary
 func (ev *Event) GetNetworkSourcePort() uint16 {
+	if ev.GetEventType().String() != "dns" {
+		return 0
+	}
 	return ev.BaseEvent.NetworkContext.Source.Port
 }
 
