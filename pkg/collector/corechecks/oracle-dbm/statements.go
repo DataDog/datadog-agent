@@ -813,7 +813,7 @@ func (c *Check) StatementMetrics() (int, error) {
 										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 											stepPayload.AccessPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.AccessPredicates, stepRow.AccessPredicates.String)
 										}
-										log.Errorf(stepPayload.AccessPredicates)
+										log.Error(stepPayload.AccessPredicates)
 									}
 								}
 								if stepRow.FilterPredicates.Valid {
@@ -825,7 +825,7 @@ func (c *Check) StatementMetrics() (int, error) {
 										if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 											stepPayload.FilterPredicates = fmt.Sprintf("%s, unobfuscated filter: %s", stepPayload.FilterPredicates, stepRow.FilterPredicates.String)
 										}
-										log.Errorf(stepPayload.FilterPredicates)
+										log.Error(stepPayload.FilterPredicates)
 									}
 								}
 								if stepRow.Projection.Valid {
