@@ -39,24 +39,14 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
-			if span.Meta == nil {
-				span.Meta = make(map[string]string, 1)
-			}
-			if _, ok := span.Meta[tagSQLQuery]; !ok {
-				span.Meta[tagSQLQuery] = textNonParsable
-			}
 			span.Resource = textNonParsable
+			traceutil.SetMeta(span, tagSQLQuery, textNonParsable)
 			return
 		}
 
 		span.Resource = oq.Query
-
 		if len(oq.Metadata.TablesCSV) > 0 {
 			traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
-		}
-		if span.Meta != nil && span.Meta[tagSQLQuery] != "" {
-			// "sql.query" tag already set by user, do not change it.
-			return
 		}
 		traceutil.SetMeta(span, tagSQLQuery, oq.Query)
 	case "redis":
