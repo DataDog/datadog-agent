@@ -494,10 +494,8 @@ func (s *server) ServerlessFlush() {
 	// make all workers flush their aggregated data (in the batchers) into the time samplers
 	s.serverlessFlushChan <- true
 
-	start := time.Now()
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.demultiplexer.ForceFlushToSerializer(start.Add(time.Second*10), true)
+	s.demultiplexer.ForceFlushToSerializer(time.Now(), true)
 }
 
 // dropCR drops a terminal \r from the data.
