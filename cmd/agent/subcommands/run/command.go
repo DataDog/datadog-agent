@@ -528,7 +528,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent); err != nil {
+	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent, aggregator.GetSenderManager()); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 

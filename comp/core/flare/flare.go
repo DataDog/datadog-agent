@@ -15,8 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 )
@@ -110,7 +112,9 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	// Adding legacy and internal providers. Registering then as FlareProvider through FX create cycle dependencies.
 	providers := append(
 		f.providers,
-		helpers.FlareProvider{Callback: pkgFlare.CompleteFlare},
+		helpers.FlareProvider{Callback: func(fb flarehelpers.FlareBuilder) error {
+			return pkgFlare.CompleteFlare(fb, aggregator.GetSenderManager())
+		}},
 		helpers.FlareProvider{Callback: f.collectLogsFiles},
 		helpers.FlareProvider{Callback: f.collectConfigFiles},
 	)
