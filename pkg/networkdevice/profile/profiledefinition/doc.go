@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package profile is needed for go mod tidy
-package profile
+// Package profiledefinition contain the structure used to parse SNMP Profiles
+package profiledefinition
