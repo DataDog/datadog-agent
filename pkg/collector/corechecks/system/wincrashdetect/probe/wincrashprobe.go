@@ -16,13 +16,16 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// WinCrashProbe has no stored state.
 type WinCrashProbe struct {
 }
 
+// NewWinCrashProbe returns an initialized WinCrashProbe
 func NewWinCrashProbe(cfg *ebpf.Config) (*WinCrashProbe, error) {
 	return &WinCrashProbe{}, nil
 }
 
+// Get returns the current crash, if any
 func (p *WinCrashProbe) Get() *WinCrashStatus {
 	wcs := &WinCrashStatus{}
 

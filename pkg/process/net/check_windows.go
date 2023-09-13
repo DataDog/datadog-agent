@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package net
 package net
 
 import (

@@ -46,8 +46,7 @@ func min(a, b int) int {
 
 //export logLineCallback
 func logLineCallback(voidctx C.PVOID, str C.PCSTR) {
-	var ctx *logCallbackContext
-	ctx = (*logCallbackContext)(unsafe.Pointer(uintptr(voidctx)))
+	ctx := (*logCallbackContext)(unsafe.Pointer(uintptr(voidctx)))
 	line := C.GoString(str)
 	if !strings.Contains(line, "\n") {
 		ctx.unfinished = ctx.unfinished + line
@@ -165,5 +164,4 @@ func parseCrashDump(wcs *WinCrashStatus) {
 		break
 	}
 	wcs.Success = true
-	return
 }
