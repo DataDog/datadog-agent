@@ -110,7 +110,7 @@ func (h *StatKeeper) add(tx Transaction) {
 		return
 	}
 
-	key := h.newKey(tx, path, fullPath)
+	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
 	stats, ok := h.stats[*key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
@@ -123,10 +123,6 @@ func (h *StatKeeper) add(tx Transaction) {
 	}
 
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
-}
-
-func (h *StatKeeper) newKey(tx Transaction, path []byte, fullPath bool) *Key {
-	return NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
 }
 
 func pathIsMalformed(fullPath []byte) bool {
