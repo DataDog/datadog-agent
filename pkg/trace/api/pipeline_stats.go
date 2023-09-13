@@ -33,7 +33,7 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 	}
 	for _, e := range cfg.Endpoints {
 		urlStr := e.Host + pipelineStatsURLSuffix
-		log.Debug("[pipeline_stats] Intake URL " + urlStr)
+		log.Debug("[pipeline_stats] Intake URL %s", urlStr)
 		url, err := url.Parse(urlStr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error parsing pipeline stats intake URL %q: %v", urlStr, err)
@@ -115,7 +115,14 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 	}
 	if len(m.targets) == 1 {
 		setTarget(req, m.targets[0], m.keys[0])
-		return m.rt.RoundTrip(req)
+		rresp, rerr = m.rt.RoundTrip(req)
+		if rerr != nil {
+			log.Error(rerr)
+		} else {
+			log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
+		}
+
+		return rresp, rerr
 	}
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -129,6 +136,11 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error
 			rresp, rerr = m.rt.RoundTrip(newreq)
+			if rerr != nil {
+				log.Error(rerr)
+			} else {
+				log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
+			}
 			continue
 		}
 
