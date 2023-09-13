@@ -14,10 +14,10 @@ import (
 	"path"
 	"text/template"
 
+	traps "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
