@@ -5,7 +5,7 @@
 
 //go:build windows
 
-// Package net
+// Package net provides local access to system probe
 package net
 
 import (
