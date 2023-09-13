@@ -1,0 +1,11 @@
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -60,8 +60,6 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+         pkgRecords Recs (cache);
+         struct dpkginfo_reply_t *reply = NULL;
+ 
+-        if (!cgCache->ReadOnlyOpen(NULL)) return 0;
+-
+         // Locate the package
+         pkgCache::PkgIterator Pkg = cache.FindPkg(name);
+         if (Pkg.end() == true) {

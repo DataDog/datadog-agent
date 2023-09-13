@@ -9,14 +9,26 @@ import (
 	"regexp"
 )
 
+// ProfileMetricType metric type used to override default type of the metric
+// By default metric type is derived from the type of the SNMP value, for example Counter32/64 -> rate.
 type ProfileMetricType string
 
 const (
-	ProfileMetricTypeGauge                 ProfileMetricType = "gauge"
-	ProfileMetricTypeMonotonicCount        ProfileMetricType = "monotonic_count"
+	// ProfileMetricTypeGauge is used to create a gauge metric
+	ProfileMetricTypeGauge ProfileMetricType = "gauge"
+
+	// ProfileMetricTypeMonotonicCount is used to create a monotonic_count metric
+	ProfileMetricTypeMonotonicCount ProfileMetricType = "monotonic_count"
+
+	// ProfileMetricTypeMonotonicCountAndRate is used to create a monotonic_count and rate metric
 	ProfileMetricTypeMonotonicCountAndRate ProfileMetricType = "monotonic_count_and_rate"
-	ProfileMetricTypeRate                  ProfileMetricType = "rate"
-	ProfileMetricTypeFlagStream            ProfileMetricType = "flag_stream"
+
+	// ProfileMetricTypeRate is used to create a rate metric
+	ProfileMetricTypeRate ProfileMetricType = "rate"
+
+	// ProfileMetricTypeFlagStream is used to create metric based on a value that represent flags
+	// See details in https://github.com/DataDog/integrations-core/pull/7072
+	ProfileMetricTypeFlagStream ProfileMetricType = "flag_stream"
 
 	// ProfileMetricTypeCounter is DEPRECATED
 	// `counter` is deprecated in favour of `rate`

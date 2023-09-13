@@ -6,65 +6,44 @@
 package examples
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type vmSuiteEx5 struct {
+type fakeintakeSuiteMetrics struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx5{}, e2e.FakeIntakeStackDef(nil))
+	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.FakeIntakeStackDef(nil))
 }
 
-func (v *vmSuiteEx5) Test1_FakeIntakeReceivesMetrics() {
-	t := v.T()
-	err := backoff.Retry(func() error {
+func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames, err := v.Env().Fakeintake.GetMetricNames()
-		if err != nil {
-			return err
-		}
-		if len(metricNames) == 0 {
-			return errors.New("no metrics yet")
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	require.NoError(t, err)
+		require.NoError(c, err)
+		assert.Greater(c, len(metricNames), 0)
+	}, 5*time.Minute, 10*time.Second)
 }
 
-func (v *vmSuiteEx5) Test2_FakeIntakeReceivesSystemLoadMetric() {
-	t := v.T()
-	err := backoff.Retry(func() error {
+func (v *fakeintakeSuiteMetrics) Test2_FakeIntakeReceivesSystemLoadMetric() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := v.Env().Fakeintake.FilterMetrics("system.load.1")
-		if err != nil {
-			return err
-		}
-		if len(metrics) == 0 {
-			return errors.New("no 'system.load.1' metrics yet")
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	require.NoError(t, err)
+		require.NoError(c, err)
+		assert.Greater(c, len(metrics), 0, "no 'system.load.1' metrics yet")
+	}, 5*time.Minute, 10*time.Second)
 }
 
-func (v *vmSuiteEx5) Test3_FakeIntakeReceivesSystemUptimeHigherThanZero() {
-	t := v.T()
-	err := backoff.Retry(func() error {
+func (v *fakeintakeSuiteMetrics) Test3_FakeIntakeReceivesSystemUptimeHigherThanZero() {
+	v.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := v.Env().Fakeintake.FilterMetrics("system.uptime", client.WithMetricValueHigherThan(0))
-		if err != nil {
-			return err
-		}
-		if len(metrics) == 0 {
-			return errors.New("no 'system.uptime' with value higher than 0 yet")
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	require.NoError(t, err)
+		require.NoError(c, err)
+		assert.Greater(c, len(metrics), 0, "no 'system.uptime' with value higher than 0 yet")
+		assert.Greater(c, len(metrics), 0, "no 'system.load.1' metrics yet")
+	}, 5*time.Minute, 10*time.Second)
 }

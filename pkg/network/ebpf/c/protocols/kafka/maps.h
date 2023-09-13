@@ -1,5 +1,5 @@
-#ifndef KAFKA_MAPS_H
-#define KAFKA_MAPS_H
+#ifndef __KAFKA_MAPS_H
+#define __KAFKA_MAPS_H
 
 #include "map-defs.h"
 

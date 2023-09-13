@@ -308,6 +308,10 @@ func (s *checkSender) Historate(metric string, value float64, hostname string, t
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false, false)
 }
 
+func (s *checkSender) Distribution(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.DistributionType, false, false)
+}
+
 // SendRawServiceCheck sends the raw service check
 // Useful for testing - submitting precomputed service check.
 func (s *checkSender) SendRawServiceCheck(sc *servicecheck.ServiceCheck) {

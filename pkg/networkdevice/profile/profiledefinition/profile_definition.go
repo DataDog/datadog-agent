@@ -12,6 +12,7 @@ type DeviceMeta struct {
 	Vendor string `yaml:"vendor,omitempty" json:"vendor,omitempty"`
 }
 
+// ProfileDefinition is the root profile structure
 type ProfileDefinition struct {
 	Name         string            `yaml:"name" json:"name"`
 	Description  string            `yaml:"description,omitempty" json:"description,omitempty"`
@@ -29,6 +30,7 @@ type DeviceProfileRcConfig struct {
 	Profile ProfileDefinition `json:"profile_definition"`
 }
 
+// NewProfileDefinition creates a new ProfileDefinition
 func NewProfileDefinition() *ProfileDefinition {
 	p := &ProfileDefinition{}
 	p.Metadata = make(MetadataConfig)
