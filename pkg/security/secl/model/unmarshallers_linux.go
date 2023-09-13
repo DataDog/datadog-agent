@@ -338,16 +338,14 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	}
 	data = data[n:]
 
-	e.Flags = int32(ByteOrder.Uint32(data[0:4]))
+	e.Device = ByteOrder.Uint32(data[0:4])
 
-	// +4 for padding
+	e.Flags = int32(ByteOrder.Uint32(data[4:8]))
 
 	e.UID = ByteOrder.Uint32(data[8:12])
 	e.GID = ByteOrder.Uint32(data[12:16])
 	e.NLink = ByteOrder.Uint32(data[16:20])
 	e.Mode = ByteOrder.Uint16(data[20:22])
-
-	// +2 for padding
 
 	timeSec := ByteOrder.Uint64(data[24:32])
 	timeNsec := ByteOrder.Uint64(data[32:40])
