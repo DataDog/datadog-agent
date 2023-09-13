@@ -19,6 +19,7 @@ from .kernel_matrix_testing.init_kmt import (
     init_kernel_matrix_testing_system,
 )
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
+from .system_probe import EMBEDDED_SHARE_DIR
 
 try:
     from tabulate import tabulate
@@ -379,6 +380,33 @@ def test(ctx, stack=None, packages="", run=None, retry=2, rebuild_deps=False, vm
         "",
         allow_fail=True,
     )
+
+@task
+def build(ctx, stack=None, vms="", ssh_key="", rebuild_deps=False):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    if not os.path.exists(f"kmt-deps/{stack}"):
+        ctx.run(f"mkdir -p kmt-deps/{stack}")
+
+    target_vms = build_target_set(stack, vms, ssh_key)
+    if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz"):
+        docker_exec(
+            ctx,
+            f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            user="compiler",
+        )
+        copy_dependencies(ctx, stack, target_vms, ssh_key)
+        run_cmd_vms(
+            ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True
+        )
+
+    docker_exec(ctx, "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build")
+    docker_exec(ctx, f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
+    sync_source(ctx, target_vms, "./bin/system-probe", "/root", ssh_key)
+    sync_source(ctx, target_vms, f"kmt-deps/{stack}/shared.tar", "/", ssh_key)
+    run_cmd_vms(ctx, stack, "tar xf /shared.tar -C /", target_vms, ssh_key)
 
 
 @task
