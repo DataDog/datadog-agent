@@ -7,7 +7,6 @@ package cws
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
@@ -33,7 +32,6 @@ type MyApiClient struct {
 func NewApiClient() MyApiClient {
 	apiKey, _ := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	appKey, _ := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	fmt.Println("api_key:", apiKey, "app_key:", appKey)
 	ctx := context.WithValue(
 		context.Background(),
 		datadog.ContextAPIKeys,
@@ -199,7 +197,3 @@ func (c MyApiClient) DeleteAgentRule(ruleId string) error {
 	}
 	return nil
 }
-
-// func (c apiClient) DownloadPolicies() (string, error) {
-
-// }
