@@ -320,7 +320,7 @@ def read_file_content(template_path):
         return file.read()
 
 @task
-def lint_fxutil_oneshot_test(ctx):
+def lint_fxutil_oneshot_test(_):
     """
     Verify each fxutil.OneShot has an unit test
     """

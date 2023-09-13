@@ -23,7 +23,7 @@ func TestShowRuntimeConfigurationCommand(t *testing.T) {
 func TestListRuntimeConfigurableValueCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"list-runtime"},
+		[]string{"config", "list-runtime"},
 		listRuntimeConfigurableValue,
 		func() {})
 }
@@ -31,7 +31,7 @@ func TestListRuntimeConfigurableValueCommand(t *testing.T) {
 func TestSetConfigValueCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"set", "setting", "value"},
+		[]string{"config", "set", "setting", "value"},
 		setConfigValue,
 		func() {})
 }
@@ -39,7 +39,7 @@ func TestSetConfigValueCommand(t *testing.T) {
 func TestGetConfigValueCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"get", "setting"},
+		[]string{"config", "get", "setting"},
 		getConfigValue,
 		func() {})
 }

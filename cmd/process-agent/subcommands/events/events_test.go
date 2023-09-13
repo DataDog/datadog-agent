@@ -23,7 +23,7 @@ func TestRunEventListenerCommand(t *testing.T) {
 func TestRunEventStoreCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"events", "listen"},
+		[]string{"events", "pull"},
 		runEventStore,
 		func() {})
 }
