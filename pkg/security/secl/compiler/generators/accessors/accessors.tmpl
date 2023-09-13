@@ -260,7 +260,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{range $Check := $Checks}}
 				{{$Check = $Check | printf "ev.%s"}}
 				if !{{$Check}}() {
-					return {{$Field.GetDefaultReturnValue}}, &eval.ErrFieldNotFound{Field: field}
+					return {{$Field.GetDefaultReturnValue}}, &eval.ErrNotSupported{Field: field}
 				}
 			{{end}}
 
@@ -347,13 +347,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{$FieldName := $Field.Name | printf "ev.%s"}}
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
-			{{$Checks := $Field | GetChecks $.AllFields}}
-			{{range $Check := $Checks}}
-				{{$Check = $Check | printf "ev.%s"}}
-				if !{{$Check}}() {
-					return &eval.ErrFieldNotFound{Field: field}
-				}
-			{{end}}
 			{{if $Field.IsLength}}
 				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}

@@ -119,7 +119,7 @@ func TestPathValidation(t *testing.T) {
 
 func TestSetFieldValue(t *testing.T) {
 	var readOnlyError *eval.ErrFieldReadOnly
-	var fieldNotFoundError *eval.ErrFieldNotFound
+	var fieldNotSupportedError *eval.ErrNotSupported
 
 	event := NewDefaultEvent()
 	for _, field := range event.GetFields() {
@@ -132,7 +132,7 @@ func TestSetFieldValue(t *testing.T) {
 		case reflect.String:
 			err = event.SetFieldValue(field, "aaa")
 			if err != nil {
-				if errors.As(err, &readOnlyError) || errors.As(err, &fieldNotFoundError) {
+				if errors.As(err, &readOnlyError) {
 					continue
 				} else {
 					t.Error(err)
@@ -140,7 +140,11 @@ func TestSetFieldValue(t *testing.T) {
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
-				t.Errorf("unable to get the expected `%s` value: %v", field, err)
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				} else {
+					t.Errorf("unable to get the expected `%s` value: %v", field, err)
+				}
 			}
 			switch v := value.(type) {
 			case string:
@@ -157,7 +161,7 @@ func TestSetFieldValue(t *testing.T) {
 		case reflect.Int:
 			err = event.SetFieldValue(field, 123)
 			if err != nil {
-				if errors.As(err, &readOnlyError) || errors.As(err, &fieldNotFoundError) {
+				if errors.As(err, &readOnlyError) {
 					continue
 				} else {
 					t.Error(err)
@@ -165,7 +169,11 @@ func TestSetFieldValue(t *testing.T) {
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
-				t.Errorf("unable to get the expected `%s` value: %v", field, err)
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				} else {
+					t.Errorf("unable to get the expected `%s` value: %v", field, err)
+				}
 			}
 			switch v := value.(type) {
 			case int:
@@ -182,7 +190,7 @@ func TestSetFieldValue(t *testing.T) {
 		case reflect.Bool:
 			err = event.SetFieldValue(field, true)
 			if err != nil {
-				if errors.As(err, &readOnlyError) || errors.As(err, &fieldNotFoundError) {
+				if errors.As(err, &readOnlyError) {
 					continue
 				} else {
 					t.Error(err)
@@ -190,7 +198,11 @@ func TestSetFieldValue(t *testing.T) {
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
-				t.Errorf("unable to get the expected `%s` value: %v", field, err)
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				} else {
+					t.Errorf("unable to get the expected `%s` value: %v", field, err)
+				}
 			}
 			switch v := value.(type) {
 			case bool:
