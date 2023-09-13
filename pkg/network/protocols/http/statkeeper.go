@@ -111,7 +111,7 @@ func (h *StatKeeper) add(tx Transaction) {
 	}
 
 	key := h.newKey(tx, path, fullPath)
-	stats, ok := h.stats[key]
+	stats, ok := h.stats[*key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
 			h.telemetry.dropped.Add(1)
@@ -119,13 +119,13 @@ func (h *StatKeeper) add(tx Transaction) {
 		}
 		h.telemetry.aggregations.Add(1)
 		stats = NewRequestStats(h.enableStatusCodeAggregation)
-		h.stats[key] = stats
+		h.stats[*key] = stats
 	}
 
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *StatKeeper) newKey(tx Transaction, path []byte, fullPath bool) Key {
+func (h *StatKeeper) newKey(tx Transaction, path []byte, fullPath bool) *Key {
 	return NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
 }
 
@@ -157,7 +157,7 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", h.newKey(tx, nil, false).ConnectionKey, tx.String())
+			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
 		}
 		h.telemetry.nonPrintableCharacters.Add(1)
 		return nil, true
