@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package traps implements a component that receives SNMP traps and
-// translates them into datadog log entries.
+// Package config implements the configuration type for the traps server and
+// a component that provides it.
 package config
 
 import (

@@ -74,6 +74,8 @@ var (
 	}
 )
 
+// CreateTestV1GenericPacket generates a sample SNMP version 1 packet for a
+// generic link down trap.
 func CreateTestV1GenericPacket() *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: LinkDownv1GenericTrap}
 	examplePacket.Variables = examplePacket.SnmpTrap.Variables
@@ -84,6 +86,8 @@ func CreateTestV1GenericPacket() *SnmpPacket {
 	}
 }
 
+// CreateTestV1SpecificPacket generates a sample SNMP version 1 packet for a
+// specific alarm trap.
 func CreateTestV1SpecificPacket() *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: AlarmActiveStatev1SpecificTrap}
 	examplePacket.Variables = examplePacket.SnmpTrap.Variables
@@ -94,6 +98,7 @@ func CreateTestV1SpecificPacket() *SnmpPacket {
 	}
 }
 
+// CreateTestV1Packet generates a sample SNMP version 1 packet for a trap.
 func CreateTestV1Packet(trap gosnmp.SnmpTrap) *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: trap}
 	examplePacket.Variables = examplePacket.SnmpTrap.Variables
@@ -104,6 +109,7 @@ func CreateTestV1Packet(trap gosnmp.SnmpTrap) *SnmpPacket {
 	}
 }
 
+// CreateTestPacket generates a sample SNMP version 2c packet for a trap.
 func CreateTestPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{
 		Version:   gosnmp.Version2c,

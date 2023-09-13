@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/netflow/sender"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oid_resolver"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 )
 
@@ -30,7 +30,7 @@ type Formatter interface {
 
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
 type JSONFormatter struct {
-	oidResolver oid_resolver.Component
+	oidResolver oidresolver.Component
 	aggregator  sender.Component
 	logger      log.Component
 }
@@ -51,7 +51,7 @@ const (
 )
 
 // newJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func newJSONFormatter(oidResolver oid_resolver.Component, aggregator sender.Component, logger log.Component) (Component, error) {
+func newJSONFormatter(oidResolver oidresolver.Component, aggregator sender.Component, logger log.Component) (Component, error) {
 	return JSONFormatter{oidResolver, aggregator, logger}, nil
 }
 
@@ -103,7 +103,7 @@ func (f JSONFormatter) formatV1Trap(packet *packet.SnmpPacket) map[string]interf
 
 	data := make(map[string]interface{})
 	data["uptime"] = uint32(content.Timestamp)
-	enterpriseOid := oid_resolver.NormalizeOID(content.Enterprise)
+	enterpriseOid := oidresolver.NormalizeOID(content.Enterprise)
 	genericTrap := content.GenericTrap
 	specificTrap := content.SpecificTrap
 	var trapOID string
@@ -191,7 +191,7 @@ func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interfa
 
 // enrichEnum checks to see if the variable has a mapping in an enum and
 // returns the mapping if it exists, otherwise returns the value unchanged
-func enrichEnum(variable trapVariable, varMetadata oid_resolver.VariableMetadata, logger log.Component) interface{} {
+func enrichEnum(variable trapVariable, varMetadata oidresolver.VariableMetadata, logger log.Component) interface{} {
 	// if we find a mapping set it and return
 	i, ok := variable.Value.(int)
 	if !ok {
@@ -209,7 +209,7 @@ func enrichEnum(variable trapVariable, varMetadata oid_resolver.VariableMetadata
 
 // enrichBits checks to see if the variable has a mapping in bits, if so returns the mapping
 // and hex string of bits, if not returns the value unchanged and empty string
-func enrichBits(variable trapVariable, varMetadata oid_resolver.VariableMetadata, logger log.Component) (interface{}, string) {
+func enrichBits(variable trapVariable, varMetadata oidresolver.VariableMetadata, logger log.Component) (interface{}, string) {
 	// do bitwise search
 	bytes, ok := variable.Value.([]byte)
 	if !ok {
@@ -241,7 +241,7 @@ func enrichBits(variable trapVariable, varMetadata oid_resolver.VariableMetadata
 }
 
 func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
-	name := oid_resolver.NormalizeOID(variable.Name)
+	name := oidresolver.NormalizeOID(variable.Name)
 	if name != sysUpTimeInstanceOID {
 		return 0, fmt.Errorf("expected OID %s, got %s", sysUpTimeInstanceOID, name)
 	}
@@ -255,7 +255,7 @@ func parseSysUpTime(variable gosnmp.SnmpPDU) (uint32, error) {
 }
 
 func parseSnmpTrapOID(variable gosnmp.SnmpPDU) (string, error) {
-	name := oid_resolver.NormalizeOID(variable.Name)
+	name := oidresolver.NormalizeOID(variable.Name)
 	if name != snmpTrapOID {
 		return "", fmt.Errorf("expected OID %s, got %s", snmpTrapOID, name)
 	}
@@ -270,7 +270,7 @@ func parseSnmpTrapOID(variable gosnmp.SnmpPDU) (string, error) {
 		return "", fmt.Errorf("expected snmpTrapOID to be a string (got %v of type %T)", variable.Value, variable.Value)
 	}
 
-	return oid_resolver.NormalizeOID(value), nil
+	return oidresolver.NormalizeOID(value), nil
 }
 
 func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU) ([]trapVariable, map[string]interface{}) {
@@ -278,7 +278,7 @@ func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU
 	enrichedValues := make(map[string]interface{})
 
 	for _, variable := range variables {
-		varOID := oid_resolver.NormalizeOID(variable.Name)
+		varOID := oidresolver.NormalizeOID(variable.Name)
 		varType := formatType(variable)
 
 		tv := trapVariable{
@@ -364,7 +364,7 @@ func formatValue(variable gosnmp.SnmpPDU) interface{} {
 		return string(variable.Value.([]byte))
 	case string:
 		if variable.Type == gosnmp.ObjectIdentifier {
-			return oid_resolver.NormalizeOID(variable.Value.(string))
+			return oidresolver.NormalizeOID(variable.Value.(string))
 		}
 		return variable.Value
 	default:

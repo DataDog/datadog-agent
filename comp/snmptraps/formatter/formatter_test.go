@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/netflow/sender"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oid_resolver"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -215,7 +215,7 @@ func TestFormatPacketV1Generic(t *testing.T) {
 	defaultFormatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 	)
 
@@ -265,7 +265,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	defaultFormatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 	)
 	packet := packet.CreateTestV1SpecificPacket()
@@ -310,7 +310,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 	defaultFormatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 	)
 	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
@@ -348,7 +348,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	defaultFormatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 	)
 	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
@@ -382,7 +382,7 @@ func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 	formatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 	)
 	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
@@ -719,7 +719,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 	formatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 	)
 
@@ -758,7 +758,7 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	formatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 	)
 	packet := packet.CreateTestV1GenericPacket()
@@ -883,14 +883,14 @@ func TestEnrichBits(t *testing.T) {
 	data := []struct {
 		description     string
 		variable        trapVariable
-		varMetadata     oid_resolver.VariableMetadata
+		varMetadata     oidresolver.VariableMetadata
 		expectedMapping interface{}
 		expectedHex     string
 	}{
 		{
 			description: "all bits are enrichable and are enriched",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b11000100, 0b10000001}}, // made up OID, bits 0, 1, 5, 8, and 15 set
-			varMetadata: oid_resolver.VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					0:  "test0",
@@ -913,7 +913,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "no bits are enrichable are returned unenriched",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b11000100, 0b10000001}}, // made up OID, bits 0, 1, 5, 8, and 15 set
-			varMetadata: oid_resolver.VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -934,7 +934,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "mix of enrichable and unenrichable bits are returned semi-enriched",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0b00111000, 0b01000010}}, // made up OID, bits 2, 3, 4, 9, 14 are set
-			varMetadata: oid_resolver.VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -955,7 +955,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "non-byte array value returns original value unchanged",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: 42},
-			varMetadata: oid_resolver.VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -970,7 +970,7 @@ func TestEnrichBits(t *testing.T) {
 		{
 			description: "completely zeroed out bits returns zeroed out bits",
 			variable:    trapVariable{OID: ".1.4.3.6.7.3.4.1.4.7", VarType: "string", Value: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
-			varMetadata: oid_resolver.VariableMetadata{
+			varMetadata: oidresolver.VariableMetadata{
 				Name: "myDummyVariable",
 				Bits: map[int]string{
 					2:  "test2",
@@ -1252,7 +1252,7 @@ func TestFormatterTelemetry(t *testing.T) {
 	formatter := fxutil.Test[Component](t,
 		log.MockModule,
 		sender.MockModule,
-		oid_resolver.MockModule,
+		oidresolver.MockModule,
 		Module,
 		fx.Populate(&mockSender),
 	)

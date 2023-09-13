@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package listener implements a component that listens for SNMP messages,
+// parses them, and publishes messages on a channel.
 package listener
 
 import (

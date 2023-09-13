@@ -53,8 +53,11 @@ func newServer(deps dependencies) Component {
 
 // Start starts the server listening
 func (s *Server) Start() error {
-	s.forwarder.Start()
+	if err := s.forwarder.Start(); err != nil {
+		return err
+	}
 	if err := s.listener.Start(); err != nil {
+		s.forwarder.Stop()
 		return err
 	}
 	return nil

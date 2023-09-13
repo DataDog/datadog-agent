@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package oid_resolver resolves OIDs
-package oid_resolver
+// Package oidresolver resolves OIDs
+package oidresolver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,8 +19,6 @@ type Component interface {
 	GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error)
 }
 
-type OIDResolver = Component
-
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newResolver),
@@ -30,7 +28,7 @@ var Module = fxutil.Component(
 // Set your own data with fx.Replace(&TrapDBFileContent{...})
 var MockModule = fxutil.Component(
 	fx.Provide(func(content *TrapDBFileContent) Component {
-		return &MockedResolver{content: content}
+		return &mockResolver{content: content}
 	}),
 	fx.Supply(&dummyTrapDB),
 )

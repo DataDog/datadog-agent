@@ -20,16 +20,20 @@ type SNMPLogger struct {
 
 var _ gosnmp.LoggerInterface = (*SNMPLogger)(nil)
 
+// New creates a new SNMP logger
 func New(logger log.Component) *SNMPLogger {
 	return &SNMPLogger{
 		logger: logger,
 	}
 }
 
-// NOTE: GoSNMP logs show the full content of decoded trap packets. Logging as DEBUG would be too noisy.
+// Print implements gosnmp.LoggerInterface#Print
 func (logger *SNMPLogger) Print(v ...interface{}) {
+	// NOTE: GoSNMP logs show the full content of decoded trap packets. Logging as DEBUG would be too noisy.
 	logger.logger.Trace(v...)
 }
+
+// Printf implements gosnmp.LoggerInterface#Printf
 func (logger *SNMPLogger) Printf(format string, v ...interface{}) {
 	logger.logger.Tracef(format, v...)
 }

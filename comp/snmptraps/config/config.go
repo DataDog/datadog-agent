@@ -60,6 +60,8 @@ func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
 	return c, nil
 }
 
+// SetDefaults sets all unset values to default values, and returns an error
+// if any fields are invalid.
 func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 	// gosnmp only supports one v3 user at the moment.
 	if len(c.Users) > 1 {
@@ -92,7 +94,7 @@ func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
 	var err error
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
-		return fmt.Errorf("unable to load config: %w", err)
+		return fmt.Errorf("invalid config: %w", err)
 	}
 
 	return nil
@@ -153,6 +155,7 @@ func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, err
 	}, nil
 }
 
+// GetPacketChannelSize returns the default size for the packets channel
 func (c *TrapsConfig) GetPacketChannelSize() int {
 	return packetsChanSize
 }

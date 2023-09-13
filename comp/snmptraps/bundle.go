@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oid_resolver"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,7 +29,7 @@ var Bundle = fxutil.Bundle(
 	formatter.Module,
 	forwarder.Module,
 	listener.Module,
-	oid_resolver.Module,
+	oidresolver.Module,
 	status.Module,
 	server.Module,
 	// Run the server

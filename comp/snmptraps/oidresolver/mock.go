@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package oid_resolver
+package oidresolver
 
 import "fmt"
 
-type MockedResolver struct {
+type mockResolver struct {
 	content *TrapDBFileContent
 }
 
-func (r MockedResolver) GetTrapMetadata(trapOid string) (TrapMetadata, error) {
+// GetTrapMetadata returns TrapMetadata for a given trapOID.
+func (r mockResolver) GetTrapMetadata(trapOid string) (TrapMetadata, error) {
 	trapOid = NormalizeOID(trapOid)
 	trapData, ok := r.content.Traps[trapOid]
 	if !ok {
@@ -19,7 +20,9 @@ func (r MockedResolver) GetTrapMetadata(trapOid string) (TrapMetadata, error) {
 	}
 	return trapData, nil
 }
-func (r MockedResolver) GetVariableMetadata(string, varOid string) (VariableMetadata, error) {
+
+// GetVariableMetadata returns VariableMetadata for a given variableOID and trapOID.
+func (r mockResolver) GetVariableMetadata(string, varOid string) (VariableMetadata, error) {
 	varOid = NormalizeOID(varOid)
 	varData, ok := r.content.Variables[varOid]
 	if !ok {

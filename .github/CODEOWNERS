@@ -204,6 +204,7 @@
 /comp/netflow @DataDog/network-device-monitoring
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
+/comp/snmptraps @DataDog/network-device-monitoring
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/core/sysprobeconfig @DataDog/ebpf-platform

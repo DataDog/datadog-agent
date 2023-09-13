@@ -6,6 +6,7 @@
 package listener
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -63,6 +64,7 @@ func NewTrapListener(dep dependencies) (Component, error) {
 	return trapListener, nil
 }
 
+// Packets returns the packets channel to which the listener publishes.
 func (t *TrapListener) Packets() packet.PacketsChannel {
 	return t.packets
 }
@@ -106,7 +108,7 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 
 	t.aggregator.Count("datadog.snmp_traps.received", 1, "", tags)
 
-	if err := config.ValidatePacket(p, t.config); err != nil {
+	if err := validatePacket(p, t.config); err != nil {
 		t.logger.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
 		t.status.AddTrapsPacketsAuthErrors(1)
 		t.aggregator.Count("datadog.snmp_traps.invalid_packet", 1, "", append(tags, "reason:unknown_community_string"))
@@ -115,4 +117,20 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	t.logger.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
 	t.status.AddTrapsPackets(1)
 	t.packets <- packet
+}
+
+func validatePacket(p *gosnmp.SnmpPacket, c *config.TrapsConfig) error {
+	if p.Version == gosnmp.Version3 {
+		// v3 Packets are already decrypted and validated by gosnmp
+		return nil
+	}
+
+	// At least one of the known community strings must match.
+	for _, community := range c.CommunityStrings {
+		if community == p.Community {
+			return nil
+		}
+	}
+
+	return errors.New("unknown community string")
 }
