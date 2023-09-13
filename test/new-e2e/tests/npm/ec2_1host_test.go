@@ -37,15 +37,13 @@ func TestEC2VMSuite(t *testing.T) {
 	e2e.Run(t, &ec2VMSuite{}, e2e.FakeIntakeStackDef(nil, agentparams.WithSystemProbeConfig(NPMsystemProbeConfig)))
 }
 
-func nplanelend(t *testing.T) {
-	t.Logf("==end==")
-}
-
+// TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	t := v.T()
 
 	v.Env().Fakeintake.FlushServerAndResetAggregators()
-	defer nplanelend(t)
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -85,63 +83,15 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	require.NoError(t, err)
 }
 
-func validateConnection(t *testing.T, c *agentmodel.Connection) {
-	require.NotZero(t, c.Pid, "Pid = 0")
-	require.NotZero(t, c.NetNS, "network namespace = 0")
-	require.NotNil(t, c.Laddr, "Laddr is nil")
-	require.NotNil(t, c.Raddr, "Raddr is nil")
-
-	// un-comment the line below when https://datadoghq.atlassian.net/browse/NPM-2958 will be fixed
-	// require.False(t, c.LastPacketsSent == 0 && c.LastPacketsReceived == 0, "connection with no packets")
-
-	switch c.Type {
-	case agentmodel.ConnectionType_tcp:
-		validateTCPConnection(t, c)
-	case agentmodel.ConnectionType_udp:
-		validateUDPConnection(t, c)
-	}
-
-	validateDNSConnection(t, c)
-}
-
-func validateDNSConnection(t *testing.T, c *agentmodel.Connection) {
-	if c.DnsFailedResponses > 0 || c.DnsSuccessfulResponses > 0 {
-		t.Logf(krpretty.Sprintf("DNS %# v", c))
-	}
-}
-
-func validateTCPConnection(t *testing.T, c *agentmodel.Connection) {
-	require.Equal(t, c.Type, agentmodel.ConnectionType_tcp, "connection is not TCP")
-	/*
-		require.NotZero(t, c.LastRetransmits, "LastRetransmits = 0")
-		require.NotZero(t, c.LastTcpClosed, "LastTcpClosed = 0")
-		require.NotZero(t, c.LastTcpEstablished, "LastTcpEstablished = 0")
-	*/
-	require.NotZero(t, c.Rtt, "Rtt = 0")
-	require.NotZero(t, c.RttVar, "RttVar = 0")
-}
-
-func validateUDPConnection(t *testing.T, c *agentmodel.Connection) {
-	require.Equal(t, c.Type, agentmodel.ConnectionType_udp, "connection is not UDP")
-
-	require.Zero(t, c.Rtt, "Rtt != 0")
-	require.Zero(t, c.RttVar, "RttVar != 0")
-
-	// we can this only for UDP connection as there are no empty payload packets
-	// technically possible but in reality no UDP protocol implement that
-	// require.False(t, c.LastBytesSent == 0 && c.LastBytesReceived == 0, "connection with no packet bytes")
-}
-
+// TestFakeIntakeNPM_TCP_UDP_DNS validate we received tcp, udp, and DNS connections
+// with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	t := v.T()
-	defer nplanelend(t)
 
 	err := backoff.Retry(func() error {
 		// generate connections
 		v.Env().VM.Execute("curl http://www.datadoghq.com")
-		dns := v.Env().VM.Execute("dig @8.8.8.8 www.google.fr")
-		t.Log(dns)
-		//		v.Env().VM.Execute("echo hello > /dev/udp/8.8.8.8/53")
+		v.Env().VM.Execute("dig @8.8.8.8 www.google.ch")
 
 		cnx, err := v.Env().Fakeintake.GetConnections()
 		require.NoError(t, err)
@@ -155,54 +105,49 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		})
 
 		foundDNS := false
-		for _, hostname := range cnx.GetNames() {
-			for _, cc := range cnx.GetPayloadsByName(hostname) {
-				for _, c := range cc.Connections {
-					if c.Laddr.Ip == "8.8.8.8" || c.Raddr.Ip == "8.8.8.8" {
-						foundDNS = true
-					}
-					/*
-						if c.DnsFailedResponses > 0 || c.DnsSuccessfulResponses > 0 {
-							foundDNS = true
-						}
-					*/
-				}
+		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+			if len(c.DnsStatsByDomainOffsetByQueryType) > 0 {
+				foundDNS = true
+				printDNS(t, c, cc, hostname)
 			}
-		}
+		})
 		if !foundDNS {
-			return errors.New("DNS connection not found")
+			return errors.New("DNS not found")
 		}
 
-		nbTotalConnections := 0
-		nbTotalTCPConnections := 0
-		nbTotalUDPConnections := 0
-		hostnames := cnx.GetNames()
-		for _, hostname := range hostnames {
-			currentHostname = hostname
-			nbConnections := 0
-			nbTCPConnections := 0
-			nbUDPConnections := 0
-			collectedConnections := cnx.GetPayloadsByName(hostname)
-			for _, cc := range collectedConnections {
-				for _, c := range cc.Connections {
-					currentConnection = c
-					nbConnections++
-					switch c.Type {
-					case agentmodel.ConnectionType_tcp:
-						nbTCPConnections++
-					case agentmodel.ConnectionType_udp:
-						nbUDPConnections++
-					}
+		type countCnx struct {
+			hit int
+			TCP int
+			UDP int
+		}
+		countConnections := make(map[string]*countCnx)
 
-					validateConnection(t, c)
-				}
+		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+			var count *countCnx
+			var found bool
+			if count, found = countConnections[hostname]; !found {
+				countConnections[hostname] = &countCnx{}
+				count = countConnections[hostname]
 			}
-			t.Logf("connections %d tcp %d udp %d received by host/netID %s", nbConnections, nbTCPConnections, nbUDPConnections, hostname)
-			nbTotalConnections += nbConnections
-			nbTotalTCPConnections += nbTCPConnections
-			nbTotalUDPConnections += nbUDPConnections
+			count.hit++
+
+			switch c.Type {
+			case agentmodel.ConnectionType_tcp:
+				count.TCP++
+			case agentmodel.ConnectionType_udp:
+				count.UDP++
+			}
+			validateConnection(t, c)
+		})
+
+		totalConnections := countCnx{}
+		for host, count := range countConnections {
+			t.Logf("connections %d tcp %d udp %d received by host/netID %s", count.hit, count.TCP, count.UDP, host)
+			totalConnections.hit += count.hit
+			totalConnections.TCP += count.TCP
+			totalConnections.UDP += count.UDP
 		}
-		t.Logf("sum connections %d tcp %d udp %d", nbTotalConnections, nbTotalTCPConnections, nbTotalUDPConnections)
+		t.Logf("sum connections %d tcp %d udp %d", totalConnections.hit, totalConnections.TCP, totalConnections.UDP)
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 60))
 	require.NoError(t, err)
