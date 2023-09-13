@@ -249,7 +249,6 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 
 	if err != nil {
 		log.Warnf("error enabling probe nf_conntrack_netlink: %s", err)
-		return nil, err
 	}
 
 	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
